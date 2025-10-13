@@ -13,7 +13,7 @@
   // editor
   "editor.tabSize": 2,
   "editor.detectIndentation": false,
-  "editor.cursorBlinking": "expand",
+  "editor.cursorBlinking": "blink",
   "editor.largeFileOptimizations": true,
   "editor.accessibilitySupport": "off",
   "editor.cursorSmoothCaretAnimation": "on",
