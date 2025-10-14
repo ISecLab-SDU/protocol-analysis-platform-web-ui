@@ -21,11 +21,11 @@ const routes: RouteRecordRaw[] = [
       },
       {
         meta: {
-          title: '协议设计形式化验证',
+          title: '协议设计形式化验证', // 保持原标题（或根据需要修改）
         },
-        name: 'CryptographicFormalVerification',
-        path: '/password-analysis/verification',
-        component: () => import('#/views/placeholders/menu-placeholder.vue'),
+        name: 'CryptographicFormalVerification', // 保持原路由名称（如需保持历史路由兼容性）
+        path: '/password-analysis/verification', // 保持原访问路径
+        component: () => import('#/views/formalGPT/ekev2/index.vue'), // 替换为你的组件路径
       },
     ],
   },
