@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import type { FormInstance, UploadFile, UploadProps } from 'ant-design-vue';
+import type { Rule } from 'ant-design-vue/es/form';
 
 import type {
   ProtocolComplianceTask,
@@ -54,10 +55,32 @@ const isModalOpen = ref(false);
 const isSubmitting = ref(false);
 
 const formRef = ref<FormInstance>();
-const formState = reactive({
+const formState = reactive<{
+  description: string;
+  document: File | null;
+  name: string;
+}>({
   description: '',
+  document: null,
   name: '',
 });
+
+const formRules: Record<string, Rule[]> = {
+  name: [
+    {
+      message: '请输入任务名称',
+      required: true,
+      trigger: 'blur',
+    },
+  ],
+  document: [
+    {
+      message: '请上传需要解析的协议文档',
+      required: true,
+      trigger: 'change',
+    },
+  ],
+};
 
 const fileList = ref<UploadFile[]>([]);
 const selectedUploadFile = ref<null | UploadFile>(null);
@@ -190,8 +213,10 @@ function resetForm() {
   formRef.value?.resetFields();
   formState.name = '';
   formState.description = '';
+  formState.document = null;
   fileList.value = [];
   selectedUploadFile.value = null;
+  formRef.value?.clearValidate?.();
 }
 
 function getBaseFileName(fileName: string) {
@@ -208,12 +233,18 @@ const handleBeforeUpload: UploadProps['beforeUpload'] = (file) => {
   if (!formState.name) {
     formState.name = getBaseFileName(file.name);
   }
+  const actualFile =
+    (file as UploadFile<File>).originFileObj ?? (file as unknown as File);
+  formState.document = actualFile;
+  formRef.value?.clearValidate?.(['document']);
   return false;
 };
 
 const handleRemoveFile: UploadProps['onRemove'] = () => {
   selectedUploadFile.value = null;
   fileList.value = [];
+  formState.document = null;
+  formRef.value?.validateFields?.(['document']);
   return true;
 };
 
@@ -263,17 +294,13 @@ async function loadTasksFromBackend() {
 }
 
 async function handleSubmitTask() {
-  if (!formState.name.trim()) {
-    message.error('请输入任务名称');
+  try {
+    await formRef.value?.validate();
+  } catch {
     return;
   }
 
-  if (!selectedUploadFile.value) {
-    message.error('请上传需要解析的协议文档');
-    return;
-  }
-
-  const documentFile = selectedUploadFile.value.originFileObj;
+  const documentFile = formState.document;
   if (!documentFile) {
     message.error('获取上传文件内容失败，请重新选择文档');
     return;
@@ -281,6 +308,8 @@ async function handleSubmitTask() {
 
   isSubmitting.value = true;
   const now = new Date().toISOString();
+  const documentName =
+    selectedUploadFile.value?.name ?? documentFile.name ?? formState.name;
 
   try {
     if (remoteApiEnabled) {
@@ -295,7 +324,7 @@ async function handleSubmitTask() {
       const newTask: TaskItem = {
         completedAt: undefined,
         description: formState.description.trim(),
-        documentName: selectedUploadFile.value.name,
+        documentName,
         id: `mock-${Date.now()}`,
         isMock: true,
         progress: 20,
@@ -539,7 +568,12 @@ if (!remoteApiEnabled) {
       @cancel="handleModalCancel"
       @ok="handleSubmitTask"
     >
-      <Form ref="formRef" :model="formState" layout="vertical">
+      <Form
+        ref="formRef"
+        :model="formState"
+        :rules="formRules"
+        layout="vertical"
+      >
         <FormItem label="任务名称" name="name" required>
           <Input
             v-model:value="formState.name"
