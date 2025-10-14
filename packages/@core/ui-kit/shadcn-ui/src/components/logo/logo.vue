@@ -38,7 +38,9 @@ withDefaults(defineProps<Props>(), {
     >
       <template v-if="!collapsed">
         <slot name="text">
-          <span class="text-foreground truncate text-center text-nowrap font-semibold">
+          <span
+            class="text-foreground truncate text-nowrap text-center font-semibold"
+          >
             {{ text }}
           </span>
         </slot>

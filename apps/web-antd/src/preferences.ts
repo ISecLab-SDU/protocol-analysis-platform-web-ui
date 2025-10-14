@@ -13,6 +13,6 @@ export const overridesPreferences = defineOverridesPreferences({
   },
   logo: {
     enable: true,
-    fit: 'none'
+    fit: 'none',
   },
 });
