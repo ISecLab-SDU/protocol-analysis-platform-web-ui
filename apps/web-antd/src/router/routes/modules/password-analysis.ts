@@ -15,16 +15,16 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: '密码算法误用分析',
         },
-        name: 'PasswordStrengthAssessment',
-        path: '/password-analysis/strength',
+        name: 'CryptographicMisuseAnalysis',
+        path: '/password-analysis/misuse',
         component: () => import('#/views/placeholders/menu-placeholder.vue'),
       },
       {
         meta: {
           title: '协议设计形式化验证',
         },
-        name: 'PasswordDictionaryManagement',
-        path: '/password-analysis/dictionaries',
+        name: 'CryptographicFormalVerification',
+        path: '/password-analysis/verification',
         component: () => import('#/views/placeholders/menu-placeholder.vue'),
       },
     ],

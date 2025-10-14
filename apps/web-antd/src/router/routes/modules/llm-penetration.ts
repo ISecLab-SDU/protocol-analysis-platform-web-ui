@@ -14,8 +14,8 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: '占位符 #1',
         },
-        name: 'LlmAttackOrchestration',
-        path: '/llm-penetration/orchestration',
+        name: 'UndefinedRoute1',
+        path: '/llm-penetration/undefined1',
         component: () => import('#/views/placeholders/menu-placeholder.vue'),
       },
       {
@@ -23,7 +23,7 @@ const routes: RouteRecordRaw[] = [
           title: '占位符 #2',
         },
         name: 'LlmPromptTemplates',
-        path: '/llm-penetration/prompts',
+        path: '/llm-penetration/undefined2',
         component: () => import('#/views/placeholders/menu-placeholder.vue'),
       },
       {
@@ -31,7 +31,7 @@ const routes: RouteRecordRaw[] = [
           title: '占位符 #3',
         },
         name: 'LlmExecutionLogs',
-        path: '/llm-penetration/logs',
+        path: '/llm-penetration/undefined3',
         component: () => import('#/views/placeholders/menu-placeholder.vue'),
       },
     ],
