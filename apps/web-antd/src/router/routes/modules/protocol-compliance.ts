@@ -11,25 +11,25 @@ const routes: RouteRecordRaw[] = [
     path: '/protocol-compliance',
     children: [
       {
-        name: 'ProtocolComplianceOverview',
-        path: '/protocol-compliance/overview',
+        name: 'ProtocolComplianceExtract',
+        path: '/protocol-compliance/extract',
         component: () =>
-          import('#/views/protocol-compliance/overview/index.vue'),
+          import('#/views/protocol-compliance/extract/index.vue'),
         meta: {
           title: '协议规则提取',
         },
       },
       {
-        name: 'ProtocolComplianceMonitoring',
-        path: '/protocol-compliance/monitoring',
+        name: 'ProtocolComplianceStatic',
+        path: '/protocol-compliance/static',
         component: () => import('#/views/placeholders/menu-placeholder.vue'),
         meta: {
           title: '静态分析',
         },
       },
       {
-        name: 'ProtocolComplianceReports',
-        path: '/protocol-compliance/reports',
+        name: 'ProtocolComplianceFuzz',
+        path: '/protocol-compliance/fuzz',
         component: () => import('#/views/placeholders/menu-placeholder.vue'),
         meta: {
           title: '协议模糊测试',
