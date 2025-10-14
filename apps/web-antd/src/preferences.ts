@@ -11,4 +11,8 @@ export const overridesPreferences = defineOverridesPreferences({
     name: import.meta.env.VITE_APP_TITLE,
     defaultHomePath: '/protocol-compliance/overview',
   },
+  logo: {
+    enable: true,
+    fit: 'none'
+  },
 });
