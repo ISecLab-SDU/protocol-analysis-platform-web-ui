@@ -1,3 +1,5 @@
+import { useAccessStore } from '@vben/stores';
+
 import { baseRequestClient, requestClient } from './request';
 
 export type ProtocolComplianceTaskStatus =
@@ -10,8 +12,11 @@ export interface ProtocolComplianceTask {
   completedAt?: string;
   description?: string;
   documentName: string;
+  documentSize?: number;
   id: string;
-  resultDownloadUrl?: string;
+  name: string;
+  progress?: number;
+  resultDownloadUrl: null | string;
   status: ProtocolComplianceTaskStatus;
   submittedAt: string;
   updatedAt: string;
@@ -69,9 +74,17 @@ export function createProtocolComplianceTask(
 }
 
 export async function downloadProtocolComplianceTaskResult(taskId: string) {
+  const accessStore = useAccessStore();
+  const token = accessStore.accessToken;
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
   const response = (await baseRequestClient.request(
     `${BASE_PATH}/${taskId}/result`,
     {
+      headers,
       method: 'GET',
       responseType: 'blob',
     },

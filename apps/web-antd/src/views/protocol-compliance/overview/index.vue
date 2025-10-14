@@ -7,14 +7,7 @@ import type {
   ProtocolComplianceTaskStatus,
 } from '#/api';
 
-import {
-  computed,
-  onBeforeUnmount,
-  onMounted,
-  reactive,
-  ref,
-  watch,
-} from 'vue';
+import { onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 
@@ -39,29 +32,19 @@ import {
   fetchProtocolComplianceTasks,
 } from '#/api';
 
-type TaskItem = ProtocolComplianceTask & {
-  isMock?: boolean;
-  progress?: number;
-  resultPayload?: Record<string, unknown>;
-};
-
-const STORAGE_KEY = 'protocol-compliance-task-queue';
 const remoteApiEnabled =
-  import.meta.env.VITE_ENABLE_PROTOCOL_COMPLIANCE_API === 'true';
+  import.meta.env.VITE_ENABLE_PROTOCOL_COMPLIANCE_API !== 'false';
 
-const tasks = ref<TaskItem[]>([]);
+const tasks = ref<ProtocolComplianceTask[]>([]);
 const isLoadingTasks = ref(false);
 const isModalOpen = ref(false);
 const isSubmitting = ref(false);
+const lastFetchError = ref<null | string>(null);
 
 const formRef = ref<FormInstance>();
-const formState = reactive<{
-  description: string;
-  document: File | null;
-  name: string;
-}>({
+const formState = reactive({
   description: '',
-  document: null,
+  document: null as File | null,
   name: '',
 });
 
@@ -107,106 +90,49 @@ const statusMeta: Record<
   },
 };
 
-const mockTimers = new Map<string, number[]>();
+let pollingTimer: null | number = null;
 
-const isUsingMockQueue = computed(() => !remoteApiEnabled);
-
-function registerTimer(taskId: string, timer: number) {
-  const queue = mockTimers.get(taskId) ?? [];
-  queue.push(timer);
-  mockTimers.set(taskId, queue);
-}
-
-function clearTaskTimers(taskId: string) {
-  const timers = mockTimers.get(taskId);
-  if (!timers) {
+async function loadTasks(options?: { silently?: boolean }) {
+  if (!remoteApiEnabled) {
     return;
   }
-  timers.forEach((timer) => {
-    window.clearTimeout(timer);
-  });
-  mockTimers.delete(taskId);
-}
-
-function updateTask(taskId: string, patch: Partial<TaskItem>) {
-  tasks.value = tasks.value.map((task) =>
-    task.id === taskId
-      ? {
-          ...task,
-          ...patch,
-        }
-      : task,
-  );
-}
-
-function buildMockResultPayload(task: TaskItem) {
-  return {
-    complianceSummary: {
-      criticalFindings: [
-        {
-          description: '握手阶段缺少重传策略。',
-          section: '4.2',
-          severity: 'high',
-        },
-      ],
-      docTitle: task.documentName,
-      extractedAt: new Date().toISOString(),
-      overview: '解析结果基于文档内容模拟生成，请在真实后端可用后替换。',
-    },
-    metadata: {
-      taskId: task.id,
-      uploadedAt: task.submittedAt,
-    },
-    protocolRules: [
-      {
-        action: '验证握手报文结构',
-        reference: 'RFC Example 1.1',
-        requirement: '客户端在握手阶段必须提供带签名的 ClientHello 消息。',
-      },
-      {
-        action: '校验状态同步',
-        reference: 'RFC Example 2.4',
-        requirement: '服务端在进入数据阶段前需要返回 Session Ticket。',
-      },
-    ],
-  };
-}
-
-function simulateTaskProcessing(task: TaskItem) {
-  if (!isUsingMockQueue.value) {
-    return;
+  if (!options?.silently) {
+    isLoadingTasks.value = true;
+    lastFetchError.value = null;
   }
-
-  const updateMoments = [
-    { delay: 600, progress: 30 },
-    { delay: 1200, progress: 65 },
-    { delay: 1800, progress: 90 },
-  ];
-
-  updateMoments.forEach(({ delay, progress }) => {
-    const timer = window.setTimeout(() => {
-      updateTask(task.id, {
-        progress,
-        status: 'processing',
-        updatedAt: new Date().toISOString(),
-      });
-    }, delay);
-    registerTimer(task.id, timer);
-  });
-
-  const completeTimer = window.setTimeout(() => {
-    const completedAt = new Date().toISOString();
-    const currentTask = tasks.value.find((item) => item.id === task.id) ?? task;
-    updateTask(task.id, {
-      completedAt,
-      progress: 100,
-      resultPayload: buildMockResultPayload(currentTask),
-      status: 'completed',
-      updatedAt: completedAt,
+  try {
+    const response = await fetchProtocolComplianceTasks({
+      page: 1,
+      pageSize: 50,
     });
-    clearTaskTimers(task.id);
-  }, 2600);
-  registerTimer(task.id, completeTimer);
+    tasks.value = response.items;
+  } catch (error) {
+    console.warn('[protocol-compliance] Failed to fetch tasks', error);
+    lastFetchError.value = '加载任务队列失败，请稍后重试。';
+    if (!options?.silently) {
+      message.error(lastFetchError.value);
+    }
+  } finally {
+    if (!options?.silently) {
+      isLoadingTasks.value = false;
+    }
+  }
+}
+
+function startPolling() {
+  if (!remoteApiEnabled || pollingTimer !== null) {
+    return;
+  }
+  pollingTimer = window.setInterval(() => {
+    loadTasks({ silently: true });
+  }, 5000);
+}
+
+function stopPolling() {
+  if (pollingTimer !== null) {
+    window.clearInterval(pollingTimer);
+    pollingTimer = null;
+  }
 }
 
 function resetForm() {
@@ -248,49 +174,25 @@ const handleRemoveFile: UploadProps['onRemove'] = () => {
   return true;
 };
 
-function restoreTasksFromStorage() {
-  if (remoteApiEnabled || typeof window === 'undefined') {
-    return;
-  }
-  try {
-    const cachedRaw = window.localStorage.getItem(STORAGE_KEY);
-    if (!cachedRaw) {
-      return;
-    }
-    const parsed = JSON.parse(cachedRaw) as TaskItem[];
-    tasks.value = parsed;
-  } catch (error) {
-    console.warn('[protocol-compliance] Failed to restore cached tasks', error);
-  }
+function handleModalCancel() {
+  isModalOpen.value = false;
+  resetForm();
 }
 
-function persistTasks() {
-  if (remoteApiEnabled || typeof window === 'undefined') {
-    return;
-  }
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks.value));
-  } catch (error) {
-    console.warn('[protocol-compliance] Failed to persist tasks', error);
-  }
-}
-
-async function loadTasksFromBackend() {
+function handleRefreshQueue() {
   if (!remoteApiEnabled) {
+    message.warning('当前环境未启用协议解析服务');
     return;
   }
-  isLoadingTasks.value = true;
-  try {
-    const response = await fetchProtocolComplianceTasks({
-      page: 1,
-      pageSize: 20,
-    });
-    tasks.value = response.items;
-  } catch (error) {
-    console.warn('[protocol-compliance] Failed to fetch tasks', error);
-  } finally {
-    isLoadingTasks.value = false;
+  loadTasks();
+}
+
+function openCreateTaskModal() {
+  if (!remoteApiEnabled) {
+    message.warning('当前环境未启用协议解析服务');
+    return;
   }
+  isModalOpen.value = true;
 }
 
 async function handleSubmitTask() {
@@ -306,75 +208,37 @@ async function handleSubmitTask() {
     return;
   }
 
-  isSubmitting.value = true;
-  const now = new Date().toISOString();
-  const documentName =
-    selectedUploadFile.value?.name ?? documentFile.name ?? formState.name;
+  if (!remoteApiEnabled) {
+    message.warning('当前环境未启用协议解析服务');
+    return;
+  }
 
+  isSubmitting.value = true;
   try {
-    if (remoteApiEnabled) {
-      const createdTask = await createProtocolComplianceTask({
-        description: formState.description.trim() || undefined,
-        document: documentFile,
-        name: formState.name.trim(),
-      });
-      tasks.value = [createdTask, ...tasks.value];
-      message.success('任务已提交至解析队列');
-    } else {
-      const newTask: TaskItem = {
-        completedAt: undefined,
-        description: formState.description.trim(),
-        documentName,
-        id: `mock-${Date.now()}`,
-        isMock: true,
-        progress: 20,
-        status: 'processing',
-        submittedAt: now,
-        updatedAt: now,
-      };
-      tasks.value = [newTask, ...tasks.value];
-      message.success('任务已加入解析队列（模拟）');
-      simulateTaskProcessing(newTask);
-    }
-    persistTasks();
+    const createdTask = await createProtocolComplianceTask({
+      description: formState.description.trim() || undefined,
+      document: documentFile,
+      name: formState.name.trim(),
+    });
+    message.success('任务已提交至解析队列');
     isModalOpen.value = false;
     resetForm();
+    tasks.value = [
+      createdTask,
+      ...tasks.value.filter((task) => task.id !== createdTask.id),
+    ];
+    loadTasks({ silently: true });
   } catch (error) {
     console.warn('[protocol-compliance] Failed to create task', error);
+    message.error('提交任务失败，请稍后再试');
   } finally {
     isSubmitting.value = false;
   }
 }
 
-async function handleDownloadResult(task: TaskItem) {
+async function handleDownloadResult(task: ProtocolComplianceTask) {
   if (task.status !== 'completed') {
     message.info('解析尚未完成，暂不可下载结果');
-    return;
-  }
-
-  if (task.resultPayload) {
-    const blob = new Blob([JSON.stringify(task.resultPayload, null, 2)], {
-      type: 'application/json',
-    });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    const filename = `${getBaseFileName(task.documentName)}-rules.json`;
-    link.href = url;
-    link.download = filename;
-    document.body.append(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url);
-    return;
-  }
-
-  if (task.resultDownloadUrl) {
-    window.open(task.resultDownloadUrl, '_blank');
-    return;
-  }
-
-  if (!remoteApiEnabled) {
-    message.warning('未找到可下载的结果，请稍后重试');
     return;
   }
 
@@ -382,7 +246,9 @@ async function handleDownloadResult(task: TaskItem) {
     const blob = await downloadProtocolComplianceTaskResult(task.id);
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
-    const filename = `${getBaseFileName(task.documentName)}-rules.json`;
+    const filename = `${getBaseFileName(
+      task.name || task.documentName,
+    )}-rules.json`;
     link.href = url;
     link.download = filename;
     document.body.append(link);
@@ -393,24 +259,6 @@ async function handleDownloadResult(task: TaskItem) {
     console.warn('[protocol-compliance] Failed to download result', error);
     message.error('下载失败，请稍后再试');
   }
-}
-
-function handleModalCancel() {
-  isModalOpen.value = false;
-  resetForm();
-}
-
-function handleRefreshQueue() {
-  if (remoteApiEnabled) {
-    loadTasksFromBackend();
-    return;
-  }
-  persistTasks();
-  message.success('队列状态已刷新');
-}
-
-function openCreateTaskModal() {
-  isModalOpen.value = true;
 }
 
 function formatDateTime(value?: string) {
@@ -434,30 +282,16 @@ function formatDateTime(value?: string) {
 
 onMounted(() => {
   if (remoteApiEnabled) {
-    loadTasksFromBackend();
+    loadTasks();
+    startPolling();
   } else {
-    restoreTasksFromStorage();
+    message.warning('协议解析接口未启用，暂无法创建任务');
   }
 });
 
 onBeforeUnmount(() => {
-  mockTimers.forEach((timers) => {
-    timers.forEach((timer) => {
-      window.clearTimeout(timer);
-    });
-  });
-  mockTimers.clear();
+  stopPolling();
 });
-
-if (!remoteApiEnabled) {
-  watch(
-    tasks,
-    () => {
-      persistTasks();
-    },
-    { deep: true },
-  );
-}
 </script>
 
 <template>
@@ -475,20 +309,27 @@ if (!remoteApiEnabled) {
             </p>
             <p class="intro-helper">
               当前环境使用：
-              <Tag v-if="isUsingMockQueue" color="blue">本地模拟队列</Tag>
-              <Tag v-else color="green">远程后端</Tag>
+              <Tag v-if="remoteApiEnabled" color="blue">Mock 接口服务</Tag>
+              <Tag v-else color="red">解析接口未启用</Tag>
+            </p>
+            <p v-if="lastFetchError" class="intro-helper text-danger">
+              {{ lastFetchError }}
             </p>
           </div>
 
           <Space>
             <Button
+              :disabled="!remoteApiEnabled"
               :loading="isLoadingTasks"
-              :type="isUsingMockQueue ? 'default' : 'primary'"
               @click="handleRefreshQueue"
             >
               刷新队列
             </Button>
-            <Button type="primary" @click="openCreateTaskModal">
+            <Button
+              :disabled="!remoteApiEnabled"
+              type="primary"
+              @click="openCreateTaskModal"
+            >
               新建任务
             </Button>
           </Space>
@@ -508,7 +349,7 @@ if (!remoteApiEnabled) {
               <span class="task-item__number">{{ index + 1 }}.</span>
               <Card
                 :body-style="{ padding: '16px' }"
-                :title="task.documentName"
+                :title="task.name || task.documentName"
                 class="task-item__content"
                 size="small"
               >
@@ -530,6 +371,9 @@ if (!remoteApiEnabled) {
 
                 <div class="task-item__details">
                   <p class="text-secondary mb-1">
+                    关联文档：{{ task.documentName }}
+                  </p>
+                  <p class="text-secondary mb-1">
                     提交时间：{{ formatDateTime(task.submittedAt) }}
                   </p>
                   <p class="text-secondary mb-1">
@@ -543,10 +387,12 @@ if (!remoteApiEnabled) {
                   </p>
 
                   <Progress
-                    v-if="task.status === 'processing'"
-                    :percent="task.progress ?? 40"
+                    v-if="
+                      task.status === 'processing' || task.status === 'queued'
+                    "
+                    :percent="task.progress ?? 0"
                     :show-info="false"
-                    status="active"
+                    :status="task.status === 'processing' ? 'active' : 'normal'"
                     :stroke-width="6"
                   />
                   <p v-if="task.status === 'failed'" class="text-danger mb-0">
