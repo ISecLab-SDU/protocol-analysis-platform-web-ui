@@ -16,7 +16,6 @@
   "editor.cursorBlinking": "blink",
   "editor.largeFileOptimizations": true,
   "editor.accessibilitySupport": "off",
-  "editor.cursorSmoothCaretAnimation": "on",
   "editor.guides.bracketPairs": "active",
   "editor.inlineSuggest.enabled": true,
   "editor.suggestSelection": "recentlyUsedByPrefix",
@@ -237,5 +236,7 @@
     "nolebase",
     "rollup",
     "vitest"
-  ]
+  ],
+
+
 }
