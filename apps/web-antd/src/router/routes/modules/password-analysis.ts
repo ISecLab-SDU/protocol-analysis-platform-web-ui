@@ -13,7 +13,7 @@ const routes: RouteRecordRaw[] = [
     children: [
       {
         meta: {
-          title: '密码强度评估',
+          title: '密码算法误用分析',
         },
         name: 'PasswordStrengthAssessment',
         path: '/password-analysis/strength',
@@ -21,18 +21,10 @@ const routes: RouteRecordRaw[] = [
       },
       {
         meta: {
-          title: '字典库管理',
+          title: '协议设计形式化验证',
         },
         name: 'PasswordDictionaryManagement',
         path: '/password-analysis/dictionaries',
-        component: () => import('#/views/placeholders/menu-placeholder.vue'),
-      },
-      {
-        meta: {
-          title: '破解报告',
-        },
-        name: 'PasswordCrackReports',
-        path: '/password-analysis/reports',
         component: () => import('#/views/placeholders/menu-placeholder.vue'),
       },
     ],

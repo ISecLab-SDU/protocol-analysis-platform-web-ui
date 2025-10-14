@@ -15,7 +15,7 @@ const routes: RouteRecordRaw[] = [
         path: '/protocol-compliance/overview',
         component: () => import('#/views/placeholders/menu-placeholder.vue'),
         meta: {
-          title: '合规性概览',
+          title: '协议规则提取',
         },
       },
       {
@@ -23,7 +23,7 @@ const routes: RouteRecordRaw[] = [
         path: '/protocol-compliance/monitoring',
         component: () => import('#/views/placeholders/menu-placeholder.vue'),
         meta: {
-          title: '协议监控',
+          title: '静态分析',
         },
       },
       {
@@ -31,7 +31,7 @@ const routes: RouteRecordRaw[] = [
         path: '/protocol-compliance/reports',
         component: () => import('#/views/placeholders/menu-placeholder.vue'),
         meta: {
-          title: '风险报告',
+          title: '协议模糊测试',
         },
       },
     ],

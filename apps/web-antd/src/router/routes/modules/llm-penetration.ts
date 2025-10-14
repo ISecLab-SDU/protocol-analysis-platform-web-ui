@@ -12,7 +12,7 @@ const routes: RouteRecordRaw[] = [
     children: [
       {
         meta: {
-          title: '攻击编排',
+          title: '占位符 #1',
         },
         name: 'LlmAttackOrchestration',
         path: '/llm-penetration/orchestration',
@@ -20,7 +20,7 @@ const routes: RouteRecordRaw[] = [
       },
       {
         meta: {
-          title: '指令模板库',
+          title: '占位符 #2',
         },
         name: 'LlmPromptTemplates',
         path: '/llm-penetration/prompts',
@@ -28,7 +28,7 @@ const routes: RouteRecordRaw[] = [
       },
       {
         meta: {
-          title: '执行日志',
+          title: '占位符 #3',
         },
         name: 'LlmExecutionLogs',
         path: '/llm-penetration/logs',
