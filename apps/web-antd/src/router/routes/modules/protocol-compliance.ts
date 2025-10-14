@@ -13,7 +13,8 @@ const routes: RouteRecordRaw[] = [
       {
         name: 'ProtocolComplianceOverview',
         path: '/protocol-compliance/overview',
-        component: () => import('#/views/placeholders/menu-placeholder.vue'),
+        component: () =>
+          import('#/views/protocol-compliance/overview/index.vue'),
         meta: {
           title: '协议规则提取',
         },
