@@ -2,6 +2,7 @@
 import { onMounted, ref, nextTick } from 'vue';
 import { getFuzzText } from '#/api/custom';
 import Chart from 'chart.js/auto';
+import { Button, Card, Space, Spin } from 'ant-design-vue';
 
 // Data state
 const rawText = ref('');
@@ -302,15 +303,15 @@ onMounted(async () => {
 
 <template>
   <div class="container mx-auto px-4 py-6">
-    <a-card title="协议模糊测试">
+    <Card title="协议模糊测试">
       <template #extra>
-        <a-space>
-          <a-button type="primary" @click="startTest" :disabled="!fuzzData.length || isRunning">开始测试</a-button>
-          <a-button danger @click="stopTest" :disabled="!isRunning">停止测试</a-button>
-        </a-space>
+        <Space>
+          <Button type="primary" @click="startTest" :disabled="!fuzzData.length || isRunning">开始测试</Button>
+          <Button danger @click="stopTest" :disabled="!isRunning">停止测试</Button>
+        </Space>
       </template>
 
-      <a-spin :spinning="loading">
+      <Spin :spinning="loading">
         <div v-if="error" class="text-red-500">{{ error }}</div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
@@ -392,8 +393,8 @@ onMounted(async () => {
             </div>
           </div>
         </div>
-      </a-spin>
-    </a-card>
+      </Spin>
+    </Card>
   </div>
 </template>
 
