@@ -51,6 +51,7 @@ const elapsedTime = ref(0);
 const packetsPerSecond = ref(30);
 const testDuration = ref(60);
 const isRunning = ref(false);
+const isTestCompleted = ref(false);
 let testTimer: number | null = null;
 
 // UI configuration
@@ -465,6 +466,7 @@ function startTest() {
   
   resetTestState();
   isRunning.value = true;
+  isTestCompleted.value = false;
   testStartTime.value = new Date();
   
   packetDelay.value = 1000 / packetsPerSecond.value;
@@ -482,6 +484,7 @@ function startTest() {
 function stopTest() {
   isRunning.value = false;
   isPaused.value = false;
+  isTestCompleted.value = true;
   testEndTime.value = new Date();
   
   if (testTimer) { 
@@ -1174,24 +1177,24 @@ onMounted(async () => {
             <div class="bg-light-gray rounded-lg p-3 border border-dark/10">
               <h4 class="font-medium mb-2 text-dark/80">测试信息</h4>
               <div class="space-y-1">
-                <p><span class="text-dark/60">协议名称:</span> <span>{{ isRunning || packetCount > 0 ? protocolType.toUpperCase() : '未测试' }}</span></p>
-                <p><span class="text-dark/60">Fuzz类型:</span> <span>{{ isRunning || packetCount > 0 ? (fuzzType === 'directed' ? '定向Fuzz' : '非定向Fuzz') : '未测试' }}</span></p>
-                <p><span class="text-dark/60">测试目标:</span> <span>{{ isRunning || packetCount > 0 ? `${targetHost}:${targetPort}` : '未设置' }}</span></p>
-                <p><span class="text-dark/60">开始时间:</span> <span>{{ startTime || (testStartTime ? testStartTime.toLocaleString() : '未开始') }}</span></p>
-                <p><span class="text-dark/60">结束时间:</span> <span>{{ endTime || (testEndTime ? testEndTime.toLocaleString() : '未结束') }}</span></p>
-                <p><span class="text-dark/60">总耗时:</span> <span>{{ elapsedTime }}秒</span></p>
+                <p><span class="text-dark/60">协议名称:</span> <span>{{ isTestCompleted ? protocolType.toUpperCase() : '未测试' }}</span></p>
+                <p><span class="text-dark/60">Fuzz类型:</span> <span>{{ isTestCompleted ? (fuzzType === 'directed' ? '定向Fuzz' : '非定向Fuzz') : '未测试' }}</span></p>
+                <p><span class="text-dark/60">测试目标:</span> <span>{{ isTestCompleted ? `${targetHost}:${targetPort}` : '未设置' }}</span></p>
+                <p><span class="text-dark/60">开始时间:</span> <span>{{ isTestCompleted ? (startTime || (testStartTime ? testStartTime.toLocaleString() : '未开始')) : '未开始' }}</span></p>
+                <p><span class="text-dark/60">结束时间:</span> <span>{{ isTestCompleted ? (endTime || (testEndTime ? testEndTime.toLocaleString() : '未结束')) : '未结束' }}</span></p>
+                <p><span class="text-dark/60">总耗时:</span> <span>{{ isTestCompleted ? elapsedTime : 0 }}秒</span></p>
               </div>
             </div>
             
             <div class="bg-light-gray rounded-lg p-3 border border-dark/10">
               <h4 class="font-medium mb-2 text-dark/80">性能统计</h4>
               <div class="space-y-1">
-                <p><span class="text-dark/60">SNMP_v1发包数:</span> <span>{{ protocolStats.v1 }}</span></p>
-                <p><span class="text-dark/60">SNMP_v2发包数:</span> <span>{{ protocolStats.v2c }}</span></p>
-                <p><span class="text-dark/60">SNMP_v3发包数:</span> <span>{{ protocolStats.v3 }}</span></p>
-                <p><span class="text-dark/60">总发包数:</span> <span>{{ fileTotalPackets }}</span></p>
-                <p><span class="text-dark/60">正常响应率:</span> <span>{{ Math.round((fileSuccessCount / Math.max(fileTotalPackets, 1)) * 100) }}%</span></p>
-                <p><span class="text-dark/60">超时率:</span> <span>{{ Math.round((fileTimeoutCount / Math.max(fileTotalPackets, 1)) * 100) }}%</span></p>
+                <p><span class="text-dark/60">SNMP_v1发包数:</span> <span>{{ isTestCompleted ? protocolStats.v1 : 0 }}</span></p>
+                <p><span class="text-dark/60">SNMP_v2发包数:</span> <span>{{ isTestCompleted ? protocolStats.v2c : 0 }}</span></p>
+                <p><span class="text-dark/60">SNMP_v3发包数:</span> <span>{{ isTestCompleted ? protocolStats.v3 : 0 }}</span></p>
+                <p><span class="text-dark/60">总发包数:</span> <span>{{ isTestCompleted ? fileTotalPackets : 0 }}</span></p>
+                <p><span class="text-dark/60">正常响应率:</span> <span>{{ isTestCompleted ? Math.round((fileSuccessCount / Math.max(fileTotalPackets, 1)) * 100) : 0 }}%</span></p>
+                <p><span class="text-dark/60">超时率:</span> <span>{{ isTestCompleted ? Math.round((fileTimeoutCount / Math.max(fileTotalPackets, 1)) * 100) : 0 }}%</span></p>
               </div>
             </div>
             
