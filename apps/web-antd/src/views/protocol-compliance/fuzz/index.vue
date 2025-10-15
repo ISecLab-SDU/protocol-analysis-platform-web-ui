@@ -467,6 +467,7 @@ function startTest() {
   resetTestState();
   isRunning.value = true;
   isTestCompleted.value = false;
+  showCharts.value = false; // Hide charts during test
   testStartTime.value = new Date();
   
   packetDelay.value = 1000 / packetsPerSecond.value;
@@ -495,7 +496,7 @@ function stopTest() {
   // Update final statistics
   updateTestSummary();
   
-  // Show charts
+  // Show charts only when test is completed
   showCharts.value = true;
   nextTick(() => {
     updateCharts();
@@ -870,12 +871,9 @@ onMounted(async () => {
   await fetchText();
   if (rawText.value) {
     parseText(rawText.value);
-    showCharts.value = true;
+    // Don't show charts initially, only after test completion
     await nextTick();
-    const chartsInitialized = initCharts();
-    if (chartsInitialized) {
-      updateCharts();
-    }
+    initCharts(); // Initialize but don't show
   } else {
     await nextTick();
     initCharts();
@@ -1088,7 +1086,7 @@ onMounted(async () => {
             <div class="flex justify-between items-center mb-6">
               <h3 class="font-semibold text-xl">消息类型分布与版本统计</h3>
             </div>
-            <div v-if="!showCharts" class="h-72 flex items-center justify-center text-dark/50">
+            <div v-if="!isTestCompleted" class="h-72 flex items-center justify-center text-dark/50">
               <i class="fa fa-pie-chart text-3xl mr-2 text-dark/30"></i>
               <span>数据统计中......</span>
             </div>
