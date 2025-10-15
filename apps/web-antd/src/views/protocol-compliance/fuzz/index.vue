@@ -1012,7 +1012,7 @@ onMounted(async () => {
           <!-- 崩溃监控 -->
           <div class="lg:col-span-1">
             <!-- 崩溃信息 -->
-            <div v-if="crashDetails" class="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-danger/30 shadow-crash h-full">
+            <div v-if="crashDetails" class="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-red-300 shadow-crash h-full">
               <div class="flex justify-between items-center mb-4">
                 <h3 class="font-semibold text-lg text-danger">检测到程序崩溃</h3>
                 <span class="bg-danger/10 text-danger text-xs px-2 py-0.5 rounded-full animate-pulse">紧急</span>
@@ -1114,7 +1114,7 @@ onMounted(async () => {
                     <p class="text-sm text-dark/60 mt-2">{{ successRate }}%</p>
                   </div>
                   
-                  <div class="bg-light-gray rounded-lg p-4 border border-danger/20">
+                  <div class="bg-gray-50 rounded-lg p-4 border border-red-200">
                     <p class="text-sm text-danger/70 mb-2">构造失败</p>
                     <h4 class="text-3xl font-bold text-danger">{{ failedCount }}</h4>
                     <p class="text-sm text-dark/60 mt-2">{{ failedRate }}%</p>
@@ -1218,7 +1218,7 @@ onMounted(async () => {
         </div>
         
         <!-- 崩溃详情区域 -->
-        <div v-if="showCrashDetails && crashDetails" class="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-danger/30 shadow-crash mb-6">
+        <div v-if="showCrashDetails && crashDetails" class="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-red-300 shadow-crash mb-6">
           <div class="flex justify-between items-center mb-4">
             <h3 class="font-semibold text-lg text-danger">崩溃详情 #{{ crashDetails.id }}</h3>
             <div class="flex space-x-2">
@@ -1366,15 +1366,15 @@ onMounted(async () => {
 
 /* 卡片样式增强 */
 .card {
-  @apply bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-primary/20 shadow-card;
+  @apply bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-gray-200 shadow-card;
 }
 .card-danger {
-  @apply bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-danger/30 shadow-crash;
+  @apply bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-red-300 shadow-crash;
 }
 
 /* 输入框样式 */
 .input-field {
-  @apply w-full bg-white border border-primary/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary;
+  @apply w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary;
 }
 
 /* 状态指示器 */
