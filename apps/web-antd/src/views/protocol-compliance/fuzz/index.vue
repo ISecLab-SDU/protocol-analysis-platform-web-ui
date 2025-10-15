@@ -337,11 +337,11 @@ function parseText(text: string) {
         currentPacket.result = 'failed';
         currentPacket.failed = true;
         currentPacket.failedReason = line;
-        currentPacket.timestamp = `${String(Math.floor(failedId / 60)).padStart(2, '0')}:${String(failedId % 60).padStart(2, '0')}`;
+        currentPacket.timestamp = new Date().toLocaleTimeString();
         fuzzData.value.push(currentPacket);
         currentPacket = null;
       } else {
-        fuzzData.value.push({ id: failedId, version: 'unknown', type: 'unknown', oids: [], hex: '', result: 'failed', responseSize: 0, timestamp: `${String(Math.floor(failedId / 60)).padStart(2, '0')}:${String(failedId % 60).padStart(2, '0')}`, failed: true, failedReason: line });
+        fuzzData.value.push({ id: failedId, version: 'unknown', type: 'unknown', oids: [], hex: '', result: 'failed', responseSize: 0, timestamp: new Date().toLocaleTimeString(), failed: true, failedReason: line });
       }
       continue;
     }
@@ -381,7 +381,7 @@ function parseText(text: string) {
     if (line.includes('[运行监控]')) {
       const isExactCrashNotice = line.includes('[运行监控] 收到崩溃通知: 健康服务报告 VM 不可达');
       if (isExactCrashNotice || line.includes('崩溃通知')) {
-        const crashEvent = { type: 'crash_notification', message: line, timestamp: `${String(Math.floor(i / 60)).padStart(2, '0')}:${String(i % 60).padStart(2, '0')}`, crashPacket: '', crashLogPath: '' };
+        const crashEvent = { type: 'crash_notification', message: line, timestamp: new Date().toLocaleTimeString(), crashPacket: '', crashLogPath: '' };
         for (let j = i + 1; j < lines.length && j < i + 30; j++) {
           const nextLine = lines[j].trim();
           if (nextLine.includes('[崩溃信息] 疑似崩溃数据包:')) crashEvent.crashPacket = nextLine.replace('[崩溃信息] 疑似崩溃数据包: ', '');
