@@ -1205,7 +1205,7 @@ onMounted(async () => {
                   <i class="fa fa-file-text-o text-primary mr-2"></i>
                   <div class="flex-1">
                     <p class="truncate text-xs">运行日志信息</p>
-                    <p class="truncate text-xs text-dark/50">scan_result/fuzz_logs/fuzz_output.txt</p>
+                    <p class="truncate text-xs text-dark/50">{{ isTestCompleted ? 'scan_result/fuzz_logs/fuzz_output.txt' : '无' }}</p>
                   </div>
                   <button @click="saveLog" class="text-xs bg-primary/10 hover:bg-primary/20 text-primary px-1.5 py-0.5 rounded">
                     下载
@@ -1215,7 +1215,7 @@ onMounted(async () => {
                   <i class="fa fa-file-excel-o text-danger mr-2"></i>
                   <div class="flex-1">
                     <p class="truncate text-xs">崩溃队列信息</p>
-                    <p class="truncate text-xs text-dark/50">scan_result/crash_logs/20251014-110318</p>
+                    <p class="truncate text-xs text-dark/50">{{ isTestCompleted ? 'scan_result/crash_logs/20251014-110318' : '无' }}</p>
                   </div>
                   <button @click="saveLog" class="text-xs bg-primary/10 hover:bg-primary/20 text-primary px-1.5 py-0.5 rounded">
                     下载
@@ -1225,7 +1225,7 @@ onMounted(async () => {
                   <i class="fa fa-file-excel-o text-success mr-2"></i>
                   <div class="flex-1">
                     <p class="truncate text-xs">Fuzz报告信息</p>
-                    <p class="truncate text-xs text-dark/50">fuzz_report_{{ new Date().getTime() }}.txt</p>
+                    <p class="truncate text-xs text-dark/50">{{ isTestCompleted ? `fuzz_report_${new Date().getTime()}.txt` : '无' }}</p>
                   </div>
                   <button @click="saveLog" class="text-xs bg-primary/10 hover:bg-primary/20 text-primary px-1.5 py-0.5 rounded">
                     下载
