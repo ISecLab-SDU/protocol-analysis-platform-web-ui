@@ -14,10 +14,16 @@ export default defineEventHandler(async () => {
   const candidates = [
     // 1) Next to this file (works if Nitro bundles the asset here)
     resolve(__dirname, './fuzz_output.txt'),
-    // 2) When CWD is the mock package (Nitro dev rootDir)
+    // 2) Additional dirname fallbacks for different build layouts
+    resolve(__dirname, '../fuzz_output.txt'),
+    resolve(__dirname, '../../fuzz_output.txt'),
+    resolve(__dirname, '../../../api/custom/fuzz_output.txt'),
+    // 3) When CWD is the mock package (Nitro dev rootDir)
     resolve(process.cwd(), 'api/custom/fuzz_output.txt'),
-    // 3) When CWD is monorepo root
+    // 4) When CWD is monorepo root
     resolve(process.cwd(), 'apps/backend-mock/api/custom/fuzz_output.txt'),
+    // 5) Absolute path fallback - adjust this to your actual project path
+    '/home/user/protocol-analysis-platform-web-ui/apps/backend-mock/api/custom/fuzz_output.txt',
   ];
 
   let text: string | null = null;
