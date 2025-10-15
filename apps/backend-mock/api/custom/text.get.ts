@@ -23,7 +23,7 @@ export default defineEventHandler(async () => {
     // 4) When CWD is monorepo root
     resolve(process.cwd(), 'apps/backend-mock/api/custom/fuzz_output.txt'),
     // 5) Absolute path fallback - adjust this to your actual project path
-    '/home/user/protocol-analysis-platform-web-ui/apps/backend-mock/api/custom/fuzz_output.txt',
+    '/home/hhh/下载/protocol-analysis-platform-web-ui/apps/backend-mock/api/custom/fuzz_output.txt',
   ];
 
   let text: string | null = null;
