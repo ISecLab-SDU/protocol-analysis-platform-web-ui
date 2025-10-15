@@ -1382,16 +1382,16 @@ onMounted(async () => {
   @apply w-2 h-2 rounded-full mr-1;
 }
 .status-running {
-  @apply bg-success animate-pulse;
+  @apply bg-green-500 animate-pulse;
 }
 .status-paused {
-  @apply bg-warning animate-pulse;
+  @apply bg-yellow-500 animate-pulse;
 }
 .status-crashed {
-  @apply bg-danger animate-pulse;
+  @apply bg-red-500 animate-pulse;
 }
 .status-idle {
-  @apply bg-warning;
+  @apply bg-yellow-500;
 }
 </style>
 
