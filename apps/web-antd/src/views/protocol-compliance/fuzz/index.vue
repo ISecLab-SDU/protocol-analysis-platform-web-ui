@@ -913,7 +913,7 @@ onMounted(async () => {
           <div class="bg-primary/10 p-2 rounded-lg">
             <i class="fa fa-bug text-primary text-xl"></i>
           </div>
-          <h1 class="text-xl md:text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+          <h1 class="text-xl md:text-2xl font-bold text-primary">
             多协议Fuzz测试平台
           </h1>
         </div>
