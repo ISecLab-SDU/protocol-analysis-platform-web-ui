@@ -32,6 +32,11 @@ interface FuzzPacket {
 
 const fuzzData = ref<FuzzPacket[]>([]);
 const totalPacketsInFile = ref(0);
+// File-level summary stats parsed from txt
+const fileTotalPackets = ref(0);
+const fileSuccessCount = ref(0);
+const fileTimeoutCount = ref(0);
+const fileFailedCount = ref(0);
 
 // Aggregates
 const protocolStats = ref({ v1: 0, v2c: 0, v3: 0 });
@@ -226,10 +231,10 @@ function parseText(text: string) {
   const successCountInFile = (text.match(/\[接收成功\]/g) || []).length;
   const timeoutCountInFile = (text.match(/\[接收超时\]/g) || []).length;
   const failedCountInFile = (text.match(/生成失败:/g) || []).length;
-  (window as any).fuzzTotalPackets = successCountInFile + timeoutCountInFile + failedCountInFile;
-  (window as any).fuzzSuccessCount = successCountInFile;
-  (window as any).fuzzTimeoutCount = timeoutCountInFile;
-  (window as any).fuzzFailedCount = failedCountInFile;
+  fileSuccessCount.value = successCountInFile;
+  fileTimeoutCount.value = timeoutCountInFile;
+  fileFailedCount.value = failedCountInFile;
+  fileTotalPackets.value = successCountInFile + timeoutCountInFile + failedCountInFile;
 }
 
 function startTest() {
@@ -319,7 +324,7 @@ onMounted(async () => {
             <div class="flex justify-between items-center mb-4">
               <h3 class="font-semibold text-lg">Fuzz过程</h3>
               <div class="flex space-x-2">
-                <a-button size="small" @click="() => { if (logContainer) logContainer.innerHTML = '' }">清空日志</a-button>
+                <Button size="small" @click="() => { if (logContainer) (logContainer as any).innerHTML = '' }">清空日志</Button>
               </div>
             </div>
             <div ref="logContainer" class="bg-light-gray rounded-lg border border-dark/10 h-80 overflow-y-auto p-3 font-mono text-xs space-y-1 scrollbar-thin">
@@ -386,10 +391,10 @@ onMounted(async () => {
           <div class="lg:col-span-1 bg-white/80 rounded-xl p-6 border border-primary/20 shadow-card">
             <h3 class="font-semibold text-lg mb-4">测试总结（完成后）</h3>
             <div class="space-y-2 text-sm">
-              <div class="flex justify-between"><span>总包数(文件)</span><span>{{ (window as any).fuzzTotalPackets || 0 }}</span></div>
-              <div class="flex justify-between"><span>成功</span><span>{{ (window as any).fuzzSuccessCount || 0 }}</span></div>
-              <div class="flex justify-between"><span>超时</span><span>{{ (window as any).fuzzTimeoutCount || 0 }}</span></div>
-              <div class="flex justify-between"><span>失败</span><span>{{ (window as any).fuzzFailedCount || 0 }}</span></div>
+              <div class="flex justify-between"><span>总包数(文件)</span><span>{{ fileTotalPackets }}</span></div>
+              <div class="flex justify-between"><span>成功</span><span>{{ fileSuccessCount }}</span></div>
+              <div class="flex justify-between"><span>超时</span><span>{{ fileTimeoutCount }}</span></div>
+              <div class="flex justify-between"><span>失败</span><span>{{ fileFailedCount }}</span></div>
             </div>
           </div>
         </div>

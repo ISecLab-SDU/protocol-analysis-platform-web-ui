@@ -1,0 +1,1600 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>多协议Fuzz测试可视化平台</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+  
+  <!-- Tailwind配置 - 调整为浅色主题 -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#3B82F6', // 蓝色作为主色调
+            secondary: '#6366F1',
+            accent: '#EC4899',
+            light: '#FFFFFF',
+            'light-gray': '#F3F4F6',
+            'medium-gray': '#E5E7EB',
+            dark: '#1F2937',
+            success: '#10B981',
+            warning: '#F59E0B',
+            danger: '#EF4444',
+            info: '#3B82F6'
+          },
+          fontFamily: {
+            mono: ['JetBrains Mono', 'Menlo', 'monospace'],
+            sans: ['Inter', 'system-ui', 'sans-serif']
+          },
+          boxShadow: {
+            'glow': '0 0 15px rgba(59, 130, 246, 0.3)',
+            'card': '0 4px 20px rgba(0, 0, 0, 0.1)',
+            'crash': '0 0 15px rgba(239, 68, 68, 0.3)'
+          }
+        }
+      }
+    }
+  </script>
+  
+  <style>
+    /* 确保图表画布在容器内正确占满空间 */
+    canvas { width: 100% !important; height: 100% !important; }
+  </style>
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .content-auto {
+        content-visibility: auto;
+      }
+      .scrollbar-thin {
+        scrollbar-width: thin;
+      }
+      .scrollbar-hide {
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+      }
+      .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+      }
+      .text-shadow {
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      .bg-grid {
+        background-image: 
+          linear-gradient(rgba(59, 130, 246, 0.05) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(59, 130, 246, 0.05) 1px, transparent 1px);
+        background-size: 20px 20px;
+      }
+      .animate-pulse-slow {
+        animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
+      .packet-highlight {
+        animation: highlight 0.5s ease-in-out;
+      }
+      .crash-highlight {
+        animation: crashHighlight 1.5s ease-in-out infinite;
+      }
+      @keyframes highlight {
+        0% { background-color: rgba(59, 130, 246, 0.1); }
+        100% { background-color: transparent; }
+      }
+      @keyframes crashHighlight {
+        0%, 100% { background-color: rgba(239, 68, 68, 0.1); }
+        50% { background-color: rgba(239, 68, 68, 0.2); }
+      }
+    }
+  </style>
+</head>
+
+<body class="bg-light text-dark font-sans min-h-screen flex flex-col">
+  <!-- 顶部导航栏 -->
+  <header class="bg-white/80 backdrop-blur-md border-b border-primary/20 sticky top-0 z-50 shadow-sm">
+    <div class="container mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="bg-primary/10 p-2 rounded-lg">
+          <i class="fa fa-bug text-primary text-xl"></i>
+        </div>
+        <h1 class="text-xl md:text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+          多协议Fuzz测试平台
+        </h1>
+      </div>
+      
+      <div class="flex items-center space-x-4">
+        <div class="hidden md:flex items-center space-x-1 bg-light-gray rounded-full px-3 py-1 border border-primary/20">
+          <span class="text-xs text-primary/70">测试状态:</span>
+          <span id="testStatus" class="text-xs font-medium text-warning flex items-center">
+            <span class="w-2 h-2 bg-warning rounded-full mr-1"></span>
+            未开始
+          </span>
+        </div>
+        
+        
+        
+        <button class="bg-primary/10 hover:bg-primary/20 text-primary p-2 rounded-lg transition-all duration-300">
+          <i class="fa fa-cog"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 主内容区 -->
+  <main class="flex-1 container mx-auto px-4 py-6 bg-grid">
+    <!-- 测试配置区 -->
+    <div class="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-primary/20 shadow-card mb-6">
+      <h3 class="font-semibold text-lg mb-4">测试配置</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- 协议选择 -->
+        <div>
+          <label class="block text-sm text-dark/70 mb-2">协议类型</label>
+          <div class="relative">
+            <select id="protocolSelect" class="w-full bg-white border border-primary/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary appearance-none">
+              <option value="snmp" selected>SNMP (所有版本)</option>
+            </select>
+            <i class="fa fa-chevron-down absolute right-3 top-2.5 text-dark/50 pointer-events-none"></i>
+          </div>
+        </div>
+        
+        <!-- Fuzz类型选择 -->
+        <div>
+          <label class="block text-sm text-dark/70 mb-2">Fuzz类型</label>
+          <div class="relative">
+            <select id="fuzzTypeSelect" class="w-full bg-white border border-primary/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary appearance-none">
+              <option value="directed" selected>定向Fuzz</option>
+              <option value="non-directed">非定向Fuzz</option>
+            </select>
+            <i class="fa fa-chevron-down absolute right-3 top-2.5 text-dark/50 pointer-events-none"></i>
+          </div>
+        </div>
+        
+        <!-- 目标主机 -->
+        <div>
+          <label for="targetHost" class="block text-sm text-dark/70 mb-2">目标主机</label>
+          <div class="relative">
+            <input type="text" id="targetHost" value="192.168.102.2" 
+                  class="w-full bg-white border border-primary/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
+            <i class="fa fa-server absolute right-3 top-2.5 text-dark/50"></i>
+          </div>
+        </div>
+        
+        <!-- 目标端口 -->
+        <div>
+          <label for="targetPort" class="block text-sm text-dark/70 mb-2">目标端口</label>
+          <div class="relative">
+            <input type="number" id="targetPort" value="161" min="1" max="65535"
+                  class="w-full bg-white border border-primary/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
+            <i class="fa fa-plug absolute right-3 top-2.5 text-dark/50"></i>
+          </div>
+        </div>
+      </div>
+      
+      <div class="mt-4 flex justify-end">
+        <button id="startTestBtn" class="bg-primary hover:bg-primary/90 text-white px-6 py-2 rounded-lg transition-all duration-300 flex items-center">
+          <i class="fa fa-play mr-2"></i> 开始测试
+        </button>
+        <button id="stopTestBtn" class="bg-danger/10 hover:bg-danger/20 text-danger px-6 py-2 rounded-lg transition-all duration-300 flex items-center ml-3 hidden">
+          <i class="fa fa-stop mr-2"></i> 停止测试
+        </button>
+      </div>
+    </div>
+    
+    <!-- 测试过程展示区 -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+      <!-- 实时Fuzz过程窗口 -->
+      <div class="lg:col-span-2 bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-primary/20 shadow-card">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="font-semibold text-lg">Fuzz过程</h3>
+          <div class="flex space-x-2">
+            <button id="clearLogBtn" class="text-xs bg-light-gray hover:bg-medium-gray px-2 py-1 rounded border border-dark/10 text-dark/70">
+              清空日志
+            </button>
+            <button id="pauseTestBtn" class="text-xs bg-light-gray hover:bg-medium-gray px-2 py-1 rounded border border-dark/10 text-dark/70 hidden">
+              暂停
+            </button>
+            <button id="saveLogBtn" class="text-xs bg-primary/10 hover:bg-primary/20 text-primary px-2 py-1 rounded hidden">
+              保存日志
+            </button>
+          </div>
+        </div>
+        <div id="fuzzLogWindow" class="bg-light-gray rounded-lg border border-dark/10 h-80 overflow-y-auto p-3 font-mono text-xs space-y-1 scrollbar-thin">
+          <div class="text-dark/50 italic">测试未开始，请配置参数并点击"开始测试"</div>
+        </div>
+      </div>
+      
+      <!-- 崩溃监控 -->
+      <div class="lg:col-span-1">
+        <!-- 崩溃信息 -->
+        <div id="crashInfoCard" class="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-danger/30 shadow-crash hidden h-full">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="font-semibold text-lg text-danger">检测到程序崩溃</h3>
+            <span class="bg-danger/10 text-danger text-xs px-2 py-0.5 rounded-full animate-pulse">紧急</span>
+          </div>
+          <div class="space-y-4 text-sm">
+            <div>
+              <p class="text-xs text-dark/60 mb-1">崩溃时间</p>
+              <p id="crashTime" class="font-mono">--:--:--</p>
+            </div>
+            <div>
+              <p class="text-xs text-dark/60 mb-1">崩溃类型</p>
+              <p id="crashType" class="text-danger">未知错误</p>
+            </div>
+            <div>
+              <p class="text-xs text-dark/60 mb-1">触发数据包</p>
+              <p id="crashPacketId" class="font-mono">#0</p>
+            </div>
+            <div>
+              <p class="text-xs text-dark/60 mb-1">转储文件</p>
+              <p class="flex items-center">
+                <i class="fa fa-file-excel-o text-danger mr-2"></i>
+                <span id="dumpFile" class="truncate">无</span>
+                <button class="ml-2 text-xs bg-danger/10 hover:bg-danger/20 text-danger px-1.5 py-0.5 rounded">
+                  下载
+                </button>
+              </p>
+            </div>
+            <div>
+              <p class="text-xs text-dark/60 mb-1">崩溃日志路径</p>
+              <p id="crashLogPath" class="font-mono text-xs truncate">无</p>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 崩溃信息占位卡片 -->
+        <div id="noCrashCard" class="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-secondary/20 shadow-card h-full">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="font-semibold text-lg">崩溃监控</h3>
+            <span class="bg-success/10 text-success text-xs px-2 py-0.5 rounded-full">正常</span>
+          </div>
+          <div class="h-full flex flex-col items-center justify-center text-dark/50 text-sm">
+            <i class="fa fa-shield text-4xl mb-3 text-success/50"></i>
+            <p>尚未检测到程序崩溃</p>
+            <p class="mt-1">持续监控中...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 测试结果分析 -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+      <!-- 消息类型分布和版本统计 -->
+      <div id="chartsCard" class="lg:col-span-2 bg-white/80 backdrop-blur-sm rounded-xl p-6 border border-secondary/20 shadow-card">
+        <div class="flex justify-between items-center mb-6">
+          <h3 class="font-semibold text-xl">消息类型分布与版本统计</h3>
+          </div>
+        <div id="chartsPlaceholder" class="h-72 flex items-center justify-center text-dark/50">
+          <i class="fa fa-pie-chart text-3xl mr-2 text-dark/30"></i>
+          <span>数据统计中......</span>
+        </div>
+        <div id="chartsGrid" class="grid grid-cols-1 md:grid-cols-2 gap-8 h-72 hidden">
+          <!-- 消息类型分布饼状图 -->
+          <div>
+            <h4 class="text-base font-medium mb-3 text-dark/80 text-center">消息类型分布</h4>
+            <div class="h-60">
+              <canvas id="messageTypeMainChart"></canvas>
+        </div>
+          </div>
+          <!-- SNMP版本分布饼状图 -->
+          <div>
+            <h4 class="text-base font-medium mb-3 text-dark/80 text-center">SNMP版本分布</h4>
+            <div class="h-60">
+              <canvas id="versionDistributionChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 实时统计 -->
+      <div class="lg:col-span-1 bg-white/80 backdrop-blur-sm rounded-xl p-6 border border-primary/20 shadow-card">
+        <h3 class="font-semibold text-lg mb-4">实时统计</h3>
+        <div class="space-y-6">
+          <div>
+            <div class="flex justify-between items-center mb-1">
+              <span class="text-sm text-dark/70">总发送包数</span>
+              <span id="totalPackets" class="text-xl font-bold">0</span>
+            </div>
+            <div class="w-full bg-light-gray rounded-full h-1.5 overflow-hidden">
+              <div id="totalPacketsBar" class="h-full bg-primary" style="width: 0%"></div>
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 gap-4">
+            <!-- 第一行：正常响应和构造失败 -->
+          <div class="grid grid-cols-2 gap-4">
+              <div class="bg-light-gray rounded-lg p-4 border border-success/20">
+                <p class="text-sm text-success/70 mb-2">正常响应</p>
+                <h4 id="successCount" class="text-3xl font-bold text-success">0</h4>
+                <p id="successRate" class="text-sm text-dark/60 mt-2">0%</p>
+            </div>
+            
+              <div class="bg-light-gray rounded-lg p-4 border border-danger/20">
+                <p class="text-sm text-danger/70 mb-2">构造失败</p>
+                <h4 id="failedCount" class="text-3xl font-bold text-danger">0</h4>
+                <p id="failedRate" class="text-sm text-dark/60 mt-2">0%</p>
+            </div>
+            </div>
+            
+            <!-- 第二行：超时和速度 -->
+            <div class="grid grid-cols-2 gap-4">
+              <div class="bg-light-gray rounded-lg p-4 border border-warning/20">
+                <p class="text-sm text-warning/70 mb-2">超时</p>
+                <h4 id="timeoutCount" class="text-3xl font-bold text-warning">0</h4>
+                <p id="timeoutRate" class="text-sm text-dark/60 mt-2">0%</p>
+          </div>
+          
+              <div class="bg-light-gray rounded-lg p-4 border border-info/20">
+                <p class="text-sm text-info/70 mb-2">发包速度</p>
+                <h4 id="packetSpeed" class="text-3xl font-bold text-info">0</h4>
+                <p class="text-sm text-dark/60 mt-2">包/秒</p>
+            </div>
+          </div>
+          </div>
+          
+        </div>
+      </div>
+    </div>
+    
+    <!-- 详细日志与转储文件 -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- 崩溃详情 -->
+      <div id="crashDetails" class="lg:col-span-3 bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-danger/30 shadow-crash hidden">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="font-semibold text-lg text-danger">崩溃详情 #<span id="detailCrashId">0</span></h3>
+          <div class="flex space-x-2">
+            <button id="viewFullLogBtn" class="text-xs bg-light-gray hover:bg-medium-gray px-2 py-1 rounded border border-dark/10 text-dark/70">
+              查看完整日志
+            </button>
+            <button class="text-xs bg-danger/10 hover:bg-danger/20 text-danger px-2 py-1 rounded">
+              分析崩溃原因
+            </button>
+          </div>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <h4 class="text-sm font-medium mb-2 text-dark/80">崩溃信息</h4>
+            <div class="bg-light-gray rounded-lg p-3 border border-dark/10 text-sm font-mono h-40 overflow-y-auto scrollbar-thin">
+              <pre id="crashDetailsText">等待崩溃发生...</pre>
+            </div>
+          </div>
+          <div>
+            <h4 class="text-sm font-medium mb-2 text-dark/80">触发数据包内容</h4>
+            <div class="bg-light-gray rounded-lg p-3 border border-dark/10 text-xs font-mono h-40 overflow-y-auto scrollbar-thin">
+              <pre id="crashPacketContent">等待崩溃发生...</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 测试总结 -->
+      <div id="testSummary" class="lg:col-span-3 bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-secondary/20 shadow-card">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="font-semibold text-lg">测试总结</h3>
+          <div class="flex space-x-2">
+            <button id="backToCrashBtn" class="text-xs bg-danger/10 hover:bg-danger/20 text-danger px-2 py-1 rounded hidden">
+              查看崩溃详情
+            </button>
+            <button class="text-xs bg-primary/10 hover:bg-primary/20 text-primary px-2 py-1 rounded">
+              导出报告 <i class="fa fa-download ml-1"></i>
+            </button>
+          </div>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+          <div class="bg-light-gray rounded-lg p-3 border border-dark/10">
+            <h4 class="font-medium mb-2 text-dark/80">测试信息</h4>
+            <div class="space-y-1">
+              <p><span class="text-dark/60">协议名称:</span> <span id="summaryProtocol">未测试</span></p>
+              <p><span class="text-dark/60">Fuzz类型:</span> <span id="summaryFuzzType">未测试</span></p>
+              <p><span class="text-dark/60">测试目标:</span> <span id="summaryTarget">未设置</span></p>
+              <p><span class="text-dark/60">开始时间:</span> <span id="summaryStartTime">未开始</span></p>
+              <p><span class="text-dark/60">结束时间:</span> <span id="summaryEndTime">未结束</span></p>
+              <p><span class="text-dark/60">总耗时:</span> <span id="summaryDuration">0秒</span></p>
+            </div>
+          </div>
+          
+          <div class="bg-light-gray rounded-lg p-3 border border-dark/10">
+            <h4 class="font-medium mb-2 text-dark/80">性能统计</h4>
+            <div class="space-y-1">
+              <p><span class="text-dark/60">SNMP_v1发包数:</span> <span id="summaryV1Count">0</span></p>
+              <p><span class="text-dark/60">SNMP_v2发包数:</span> <span id="summaryV2Count">0</span></p>
+              <p><span class="text-dark/60">SNMP_v3发包数:</span> <span id="summaryV3Count">0</span></p>
+              <p><span class="text-dark/60">总发包数:</span> <span id="summaryTotalPackets">0</span></p>
+              <p><span class="text-dark/60">正常响应率:</span> <span id="summarySuccessRate">0%</span></p>
+              <p><span class="text-dark/60">超时率:</span> <span id="summaryTimeoutRate">0%</span></p>
+            </div>
+          </div>
+          
+          <div class="bg-light-gray rounded-lg p-3 border border-dark/10">
+            <h4 class="font-medium mb-2 text-dark/80">文件信息</h4>
+            <div class="space-y-2">
+              <div class="flex items-center">
+                <i class="fa fa-file-text-o text-primary mr-2"></i>
+                <div class="flex-1">
+                  <p class="truncate text-xs">运行日志信息</p>
+                  <p class="truncate text-xs text-dark/50" id="summaryLogFile">无</p>
+                </div>
+                <button class="text-xs bg-primary/10 hover:bg-primary/20 text-primary px-1.5 py-0.5 rounded">
+                  下载
+                </button>
+              </div>
+              <div class="flex items-center">
+                <i class="fa fa-file-excel-o text-danger mr-2"></i>
+                <div class="flex-1">
+                  <p class="truncate text-xs">崩溃队列信息</p>
+                  <p class="truncate text-xs text-dark/50" id="summaryCrashFile">无</p>
+                </div>
+                <button class="text-xs bg-primary/10 hover:bg-primary/20 text-primary px-1.5 py-0.5 rounded">
+                  下载
+                </button>
+              </div>
+              <div class="flex items-center">
+                <i class="fa fa-file-excel-o text-success mr-2"></i>
+                <div class="flex-1">
+                  <p class="truncate text-xs">Fuzz报告信息</p>
+                  <p class="truncate text-xs text-dark/50" id="summaryReportFile">无</p>
+                </div>
+                <button class="text-xs bg-primary/10 hover:bg-primary/20 text-primary px-1.5 py-0.5 rounded">
+                  下载
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- 页脚 -->
+  <footer class="bg-white/80 backdrop-blur-md border-t border-primary/20 py-4 mt-6 shadow-sm">
+    <div class="container mx-auto px-4 flex flex-col md:flex-row justify-between items-center">
+      <div class="text-dark/50 text-sm mb-2 md:mb-0">
+        © 2025 多协议Fuzz测试平台 | 最后更新: <span id="lastUpdate">未开始</span>
+      </div>
+      <div class="flex space-x-4 text-sm text-dark/50">
+        <a href="#" class="hover:text-primary transition-colors">帮助文档</a>
+        <a href="#" class="hover:text-primary transition-colors">关于我们</a>
+        <a href="#" class="hover:text-primary transition-colors">联系支持</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- JavaScript - 仅修改图表相关颜色以适应浅色主题 -->
+  <script>
+    // 全局变量
+    let testRunning = false;
+    let testInterval;
+    let packetCount = 0;
+    let testDuration = 60; // 默认测试时长(秒)
+    let elapsedTime = 0;
+    let successCount = 0;
+    let timeoutCount = 0;
+    let crashCount = 0;
+    let failedCount = 0;
+    let protocolStats = { v1: 0, v2c: 0, v3: 0 };
+    let messageTypeStats = { get:0, set:0, getnext:0, getbulk:0 };
+    let logEntries = [];
+    let crashDetails = null;
+    let startTime = null;
+    let packetsPerSecond = 30; // 恢复原有速度
+    let packetDelay = 1000 / packetsPerSecond;
+    let crashDetected = false;
+    let fuzzData = []; // 存储解析的fuzz数据
+    let currentPacketIndex = 0; // 当前处理的包索引
+    let totalPacketsInFile = 0; // 文件中的总包数
+    
+    // 图表实例
+    let messageTypeMainChart; // 主要的消息类型分布图表
+    let versionDistributionChart; // SNMP版本分布图表
+    
+    // 解析fuzz_output.txt文件
+    async function loadFuzzData() {
+      try {
+        const response = await fetch('fuzz_output.txt');
+        const text = await response.text();
+        const lines = text.split('\n');
+        
+        fuzzData = [];
+        let currentPacket = null;
+        let packetNumber = 0;
+        let failedCount = 0;
+        
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i].trim();
+          
+          // 解析包头信息 [数字] 版本=xxx, 类型=xxx
+          const packetMatch = line.match(/^\[(\d+)\]\s+版本=([^,]+),\s+类型=([^,]+)/);
+          if (packetMatch) {
+            if (currentPacket) {
+              fuzzData.push(currentPacket);
+            }
+            
+            packetNumber = parseInt(packetMatch[1]);
+            currentPacket = {
+              id: packetNumber,
+              version: packetMatch[2],
+              type: packetMatch[3],
+              oids: [],
+              hex: '',
+              result: 'unknown',
+              responseSize: 0,
+              // 使用真实时间而不是基于包序号推算
+              timestamp: new Date().toLocaleTimeString(),
+              failed: false
+            };
+          }
+          
+          // 检测生成失败
+          const failedMatch = line.match(/^\[(\d+)\]\s+生成失败:/);
+          if (failedMatch) {
+            const failedId = parseInt(failedMatch[1]);
+            failedCount++;
+            // 如果当前包就是该ID，则将其标记为失败并入列，避免重复统计
+            if (currentPacket && currentPacket.id === failedId) {
+              currentPacket.result = 'failed';
+              currentPacket.failed = true;
+              currentPacket.failedReason = line;
+              // 失败记录同样使用真实时间
+              currentPacket.timestamp = new Date().toLocaleTimeString();
+              fuzzData.push(currentPacket);
+              currentPacket = null;
+            } else {
+              // 极端情况下没有包头但出现“生成失败”，则单独入列
+              fuzzData.push({
+                id: failedId,
+                version: 'unknown',
+                type: 'unknown',
+                oids: [],
+                hex: '',
+                result: 'failed',
+                responseSize: 0,
+                timestamp: new Date().toLocaleTimeString(),
+                failed: true,
+                failedReason: line
+              });
+            }
+            continue;
+          }
+          
+          // 解析OID信息
+          if (line.includes('选择OIDs=') && currentPacket) {
+            const oidMatch = line.match(/选择OIDs=\[(.*?)\]/);
+            if (oidMatch) {
+              currentPacket.oids = oidMatch[1].split(',').map(oid => oid.trim().replace(/'/g, ''));
+            }
+          }
+          
+          // 解析HEX数据
+          if (line.includes('报文HEX:') && currentPacket) {
+            const hexMatch = line.match(/报文HEX:\s*([A-F0-9]+)/);
+            if (hexMatch) {
+              currentPacket.hex = hexMatch[1];
+            }
+          }
+          
+          // 解析发送结果
+          if (line.includes('[发送尝试]') && currentPacket) {
+            const sizeMatch = line.match(/长度=(\d+)\s*字节/);
+            if (sizeMatch) {
+              currentPacket.sendSize = parseInt(sizeMatch[1]);
+            }
+          }
+          
+          // 解析接收结果
+          if (line.includes('[接收成功]') && currentPacket) {
+            const sizeMatch = line.match(/(\d+)\s*字节/);
+            if (sizeMatch) {
+              currentPacket.responseSize = parseInt(sizeMatch[1]);
+              currentPacket.result = 'success';
+            }
+          } else if (line.includes('[接收超时]') && currentPacket) {
+            currentPacket.result = 'timeout';
+          }
+          
+          // 检测运行监控信息
+          if (line.includes('[运行监控]')) {
+            const isExactCrashNotice = line.includes('[运行监控] 收到崩溃通知: 健康服务报告 VM 不可达');
+            if (isExactCrashNotice || line.includes('崩溃通知')) {
+              // 创建崩溃事件
+              const crashEvent = {
+                type: 'crash_notification',
+                message: line,
+                // 使用真实时间而不是基于文件行号推算
+                timestamp: new Date().toLocaleTimeString(),
+                crashPacket: '',
+                crashLogPath: ''
+              };
+              
+              // 查找后续的崩溃信息
+              for (let j = i + 1; j < lines.length && j < i + 30; j++) {
+                const nextLine = lines[j].trim();
+                if (nextLine.includes('[崩溃信息] 疑似崩溃数据包:')) {
+                  crashEvent.crashPacket = nextLine.replace('[崩溃信息] 疑似崩溃数据包: ', '');
+                } else if (nextLine.includes('[崩溃信息] 崩溃队列信息导出:')) {
+                  crashEvent.crashLogPath = nextLine.replace('[崩溃信息] 崩溃队列信息导出: ', '');
+                }
+                if (crashEvent.crashPacket && crashEvent.crashLogPath) {
+                  break;
+                }
+              }
+              
+              // 将崩溃事件添加到数据中
+              fuzzData.push({
+                id: 'crash_event',
+                version: 'crash',
+                type: 'crash',
+                oids: [],
+                hex: crashEvent.crashPacket,
+                result: 'crash',
+                responseSize: 0,
+                timestamp: crashEvent.timestamp,
+                crashEvent: crashEvent,
+                monitorInfo: line
+              });
+              
+              console.log('检测到崩溃事件:', crashEvent);
+              
+              if (currentPacket) {
+                currentPacket.result = 'crash';
+                currentPacket.crashInfo = line;
+              }
+            } else if (line.includes('检测到崩溃')) {
+              if (currentPacket) {
+                currentPacket.monitorInfo = line;
+              }
+            }
+          }
+        }
+        
+        // 添加最后一个包
+        if (currentPacket) {
+          fuzzData.push(currentPacket);
+        }
+        
+        // 仅统计真实包（排除 crash_event 等非数字ID）
+        totalPacketsInFile = fuzzData.filter(p => typeof p.id === 'number').length;
+        console.log(`已加载 ${totalPacketsInFile} 个数据包，其中 ${failedCount} 个生成失败`);
+        
+        // 解析统计信息和时间信息（严格以 txt 为准）
+        // 1) 版本/类型统计
+        const statsLine = (text.match(/^统计:.*$/m) || [])[0];
+        console.log('统计行:', statsLine);
+        if (statsLine) {
+          const objMatch = statsLine.match(/统计:\s*(\{[^}]+\})\s*,\s*(\{[^}]+\})/);
+          if (objMatch) {
+            try {
+              const versionJson = objMatch[1].replace(/'/g, '"');
+              const typeJson = objMatch[2].replace(/'/g, '"');
+              const parsedVersion = JSON.parse(versionJson);
+              const parsedType = JSON.parse(typeJson);
+              protocolStats = { v1: parsedVersion.v1 || 0, v2c: parsedVersion.v2c || 0, v3: parsedVersion.v3 || 0 };
+              messageTypeStats = {
+                get: parsedType.get || 0,
+                set: parsedType.set || 0,
+                getnext: parsedType.getnext || 0,
+                getbulk: parsedType.getbulk || 0
+              };
+              console.log('解析后的统计数据:', { protocolStats, messageTypeStats });
+              if (messageTypeMainChart && versionDistributionChart) {
+                updateCharts();
+              }
+            } catch (e) {
+              console.warn('统计行解析失败: ', e);
+            }
+          }
+        }
+
+        // 2) 时间/总包数/速率
+        const startTimeMatch = text.match(/开始时间:\s*([^\n]+)/);
+        const endTimeMatch = text.match(/结束时间:\s*([^\n]+)/);
+        const durationMatch = text.match(/总耗时:\s*([\d.]+)\s*秒/);
+        // 兼容多种总包数格式
+        const totalPacketsMatch1 = text.match(/发送总数据包:\s*(\d+)/);
+        const totalPacketsMatch2 = text.match(/\[日志系统\]\s*数据包统计:\s*(\d+)\s*\/\s*\d+\s*个/);
+        const avgSpeedMatch = text.match(/平均发送速率:\s*([\d.]+)\s*包\/秒/);
+        
+        if (startTimeMatch) window.fuzzStartTime = startTimeMatch[1];
+        if (endTimeMatch) window.fuzzEndTime = endTimeMatch[1];
+        if (durationMatch) window.fuzzDuration = parseFloat(durationMatch[1]);
+        if (totalPacketsMatch1) window.fuzzTotalPackets = parseInt(totalPacketsMatch1[1]);
+        if (!window.fuzzTotalPackets && totalPacketsMatch2) window.fuzzTotalPackets = parseInt(totalPacketsMatch2[1]);
+        if (avgSpeedMatch) window.fuzzAvgSpeed = parseFloat(avgSpeedMatch[1]);
+
+        // 3) 从 txt 中直接统计成功/超时/失败数量（用于汇总百分比）
+        const successCountInFile = (text.match(/\[接收成功\]/g) || []).length;
+        const timeoutCountInFile = (text.match(/\[接收超时\]/g) || []).length;
+        const failedCountInFile = (text.match(/生成失败:/g) || []).length;
+        window.fuzzSuccessCount = successCountInFile;
+        window.fuzzTimeoutCount = timeoutCountInFile;
+        window.fuzzFailedCount = failedCountInFile;
+        // 若没有明确的总包数，则用三项之和近似
+        if (!window.fuzzTotalPackets) {
+          window.fuzzTotalPackets = successCountInFile + timeoutCountInFile + failedCountInFile;
+        }
+        
+        return true;
+      } catch (error) {
+        console.error('加载fuzz数据失败:', error);
+        return false;
+      }
+    }
+    
+    // DOM元素
+    const startTestBtn = document.getElementById('startTestBtn');
+    const stopTestBtn = document.getElementById('stopTestBtn');
+    const pauseTestBtn = document.getElementById('pauseTestBtn');
+    const clearLogBtn = document.getElementById('clearLogBtn');
+    const saveLogBtn = document.getElementById('saveLogBtn');
+    const fuzzLogWindow = document.getElementById('fuzzLogWindow');
+    const testStatus = document.getElementById('testStatus');
+    
+    const totalPacketsEl = document.getElementById('totalPackets');
+    const totalPacketsBar = document.getElementById('totalPacketsBar');
+    const successCountEl = document.getElementById('successCount');
+    const timeoutCountEl = document.getElementById('timeoutCount');
+    const failedCountEl = document.getElementById('failedCount');
+    const successRateEl = document.getElementById('successRate');
+    const timeoutRateEl = document.getElementById('timeoutRate');
+    const failedRateEl = document.getElementById('failedRate');
+    const packetSpeedEl = document.getElementById('packetSpeed');
+    const lastUpdateEl = document.getElementById('lastUpdate');
+    const protocolSelect = document.getElementById('protocolSelect');
+    const crashInfoCard = document.getElementById('crashInfoCard');
+    const noCrashCard = document.getElementById('noCrashCard');
+    const crashDetailsEl = document.getElementById('crashDetails');
+    const testSummary = document.getElementById('testSummary');
+    const chartsCard = document.getElementById('chartsCard');
+    const chartsPlaceholder = document.getElementById('chartsPlaceholder');
+    const chartsGrid = document.getElementById('chartsGrid');
+    
+    // 协议切换逻辑（SNMP固定端口161）
+    protocolSelect.addEventListener('change', function() {
+      document.getElementById('targetPort').value = 161;
+    });
+    
+    // 初始化图表 - 调整为适应浅色主题
+    function initCharts() {
+      
+      // 主要消息类型分布饼图
+      const messageTypeMainCanvas = document.getElementById('messageTypeMainChart');
+      const messageTypeMainCtx = messageTypeMainCanvas.getContext('2d');
+      messageTypeMainChart = new Chart(messageTypeMainCtx, {
+        type: 'doughnut',
+        data: {
+          labels: ['GET', 'SET', 'GETNEXT', 'GETBULK'],
+          datasets: [{
+            data: [0, 0, 0, 0],
+            backgroundColor: [
+              '#3B82F6', '#6366F1', '#EC4899', '#10B981'
+            ],
+            borderColor: '#FFFFFF',
+            borderWidth: 3,
+            hoverOffset: 8
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                color: '#1F2937',
+                padding: 15,
+                font: { size: 12, weight: 'bold' },
+                usePointStyle: true
+              }
+            },
+            tooltip: {
+              backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              titleColor: 'white',
+              bodyColor: 'white',
+              borderColor: 'rgba(255, 255, 255, 0.1)',
+              borderWidth: 1,
+              callbacks: {
+                label: function(context) {
+                  const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                  const percentage = total > 0 ? Math.round((context.parsed / total) * 100) : 0;
+                  return `${context.label}: ${context.parsed} (${percentage}%)`;
+                }
+              }
+            }
+          },
+          cutout: '60%'
+        }
+      });
+      
+      // SNMP版本分布饼图
+      const versionCanvas = document.getElementById('versionDistributionChart');
+      const versionCtx = versionCanvas.getContext('2d');
+      versionDistributionChart = new Chart(versionCtx, {
+        type: 'doughnut',
+        data: {
+          labels: ['SNMP v1', 'SNMP v2c', 'SNMP v3'],
+          datasets: [{
+            data: [0, 0, 0],
+            backgroundColor: [
+              '#F59E0B', '#8B5CF6', '#EF4444'
+            ],
+            borderColor: '#FFFFFF',
+            borderWidth: 3,
+            hoverOffset: 8
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                color: '#1F2937',
+                padding: 15,
+                font: { size: 12, weight: 'bold' },
+                usePointStyle: true
+              }
+            },
+            tooltip: {
+              backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              titleColor: 'white',
+              bodyColor: 'white',
+              borderColor: 'rgba(255, 255, 255, 0.1)',
+              borderWidth: 1,
+              callbacks: {
+                label: function(context) {
+                  const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                  const percentage = total > 0 ? Math.round((context.parsed / total) * 100) : 0;
+                  return `${context.label}: ${context.parsed} (${percentage}%)`;
+                }
+              }
+            }
+          },
+          cutout: '60%'
+        }
+      });
+    }
+    
+    
+    // 生成随机HEX报文（用于崩溃详情）
+    function generateRandomHex(length = 30) {
+      const chars = '0123456789ABCDEF';
+      let result = '';
+      for (let i = 0; i < length; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return result;
+    }
+    
+    
+    // 生成崩溃详情
+    function generateCrashDetails(packetId, protocol, operation, content) {
+      const crashTypes = [
+        "Segmentation Fault (SIGSEGV)",
+        "Aborted (SIGABRT)",
+        "Illegal Instruction (SIGILL)",
+        "Bus Error (SIGBUS)",
+        "Floating Point Exception (SIGFPE)"
+      ];
+      
+      const crashType = crashTypes[Math.floor(Math.random() * crashTypes.length)];
+      const timestamp = new Date().toLocaleTimeString();
+      const dumpFile = `/var/crash/${protocol}_crash_${Date.now()}.dmp`;
+      const logPath = `/home/hhh/下载/snmp_fuzz/snmp_github/snmp_fuzz/scan_result/crash_logs/${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${timestamp.replace(/:/g,'')}`;
+      
+      const detailsText = `[${timestamp}] ${crashType}\n` +
+                         `Process ID: ${Math.floor(Math.random() * 10000) + 1000}\n` +
+                         `Fault Address: 0x${generateRandomHex(8)}\n` +
+                         `Registers:\n` +
+                         `  EAX: 0x${generateRandomHex(8)}  EBX: 0x${generateRandomHex(8)}\n` +
+                         `  ECX: 0x${generateRandomHex(8)}  EDX: 0x${generateRandomHex(8)}\n` +
+                         `  ESI: 0x${generateRandomHex(8)}  EDI: 0x${generateRandomHex(8)}\n` +
+                         `  EBP: 0x${generateRandomHex(8)}  ESP: 0x${generateRandomHex(8)}\n` +
+                         `Backtrace:\n` +
+                         `  #0  0x${generateRandomHex(8)} in ${operation}_handler()\n` +
+                         `  #1  0x${generateRandomHex(8)} in packet_processor()\n` +
+                         `  #2  0x${generateRandomHex(8)} in main_loop()\n`;
+      
+      return {
+        id: packetId,
+        time: timestamp,
+        type: crashType,
+        dumpFile: dumpFile,
+        logPath: logPath,
+        details: detailsText,
+        packetContent: content
+      };
+    }
+    
+    // 添加日志到窗口并检测崩溃
+    function addLogEntry() {
+      if (!testRunning) return;
+      
+      if (currentPacketIndex >= fuzzData.length) {
+        stopTest();
+        return;
+      }
+      
+      // 获取当前包数据
+      const packet = fuzzData[currentPacketIndex];
+      if (!packet) return;
+      
+      // 获取配置参数
+      const host = document.getElementById('targetHost').value;
+      const port = document.getElementById('targetPort').value;
+      
+      // 使用真实数据
+      packetCount++;
+      const protocol = packet.version;
+      const operation = packet.type;
+      const content = packet.oids.length > 0 ? packet.oids[0] : '';
+      const result = packet.result;
+      const hex = packet.hex.substring(0, 40);
+      const time = packet.timestamp; // 使用解析的时间戳
+      
+      // 更新统计数据
+      updateStatistics(protocol, operation, result);
+      
+      // 创建日志元素
+      let resultClass, resultText;
+      switch(result) {
+        case 'success':
+          resultClass = 'text-success';
+          resultText = `正常响应 (${packet.responseSize}字节)`;
+          break;
+        case 'timeout':
+          resultClass = 'text-warning';
+          resultText = '接收超时';
+          break;
+        case 'failed':
+          resultClass = 'text-danger';
+          resultText = '构造失败';
+          break;
+        case 'crash':
+          resultClass = 'text-danger';
+          resultText = '触发崩溃';
+          
+          // 如果是崩溃事件，使用真实的崩溃信息
+          if (packet.crashEvent) {
+            crashDetails = {
+              id: packetCount,
+              time: packet.crashEvent.timestamp,
+              type: "程序崩溃",
+              dumpFile: packet.crashEvent.crashLogPath,
+              logPath: packet.crashEvent.crashLogPath,
+              details: `崩溃通知: ${packet.crashEvent.message}\n疑似崩溃数据包: ${packet.crashEvent.crashPacket}\n崩溃队列信息导出: ${packet.crashEvent.crashLogPath}`,
+              packetContent: packet.crashEvent.crashPacket
+            };
+            
+            // 添加真实的崩溃日志信息
+            addRealCrashLogEntries(packet.crashEvent);
+          } else {
+          // 生成并保存崩溃详情
+            crashDetails = generateCrashDetails(packetCount, protocol, operation, packet.hex);
+          
+          // 添加特定崩溃日志信息
+            addCrashLogEntries(crashDetails, protocol, packet.hex);
+          }
+          
+          // 标记崩溃已检测
+          crashDetected = true;
+          break;
+        default:
+          resultClass = 'text-warning';
+          resultText = '未知状态';
+      }
+      
+      // 非崩溃情况才添加常规日志，减少DOM操作频率
+      if (result !== 'crash' && packetCount % 5 === 0) { // 每5个包显示一次日志
+          const logEl = document.createElement('div');
+          logEl.className = 'packet-highlight';
+          logEl.innerHTML = `
+            <span class="text-dark/50">[${time}]</span> 
+          <span class="text-primary">SNMP${protocol.toUpperCase()}</span> 
+          <span class="text-info">${operation.toUpperCase()}</span> 
+            <span class="text-dark/80">${host}:${port}</span> 
+          <span class="text-dark/70 truncate inline-block w-32" title="${content}">${content}</span> 
+            <span class="${resultClass} font-medium">${resultText}</span> 
+          <span class="text-dark/40">${hex}...</span>
+          `;
+          
+          fuzzLogWindow.appendChild(logEl);
+          fuzzLogWindow.scrollTop = fuzzLogWindow.scrollHeight;
+          
+          // 限制日志条目数量，防止内存占用过高
+        if (fuzzLogWindow.children.length > 200) {
+            fuzzLogWindow.removeChild(fuzzLogWindow.firstChild);
+          }
+      } else if (result === 'crash') {
+        // 崩溃日志始终显示
+        const logEl = document.createElement('div');
+        logEl.className = 'crash-highlight';
+        logEl.innerHTML = `
+          <span class="text-dark/50">[${time}]</span> 
+          <span class="text-danger font-bold">CRASH DETECTED</span> 
+          <span class="text-danger">${protocol.toUpperCase()}</span> 
+          <span class="text-danger">${operation.toUpperCase()}</span> 
+          <span class="text-dark/80">${host}:${port}</span> 
+          <span class="text-danger font-medium">${resultText}</span>
+        `;
+        
+        fuzzLogWindow.appendChild(logEl);
+        fuzzLogWindow.scrollTop = fuzzLogWindow.scrollHeight;
+      }
+        
+        // 保存日志条目
+        logEntries.push({
+          time: time,
+          protocol: protocol,
+          operation: operation,
+          target: `${host}:${port}`,
+          content: content,
+          result: result,
+        hex: packet.hex,
+        packetId: packet.id
+        });
+      
+      // 更新最后更新时间
+      lastUpdateEl.textContent = new Date().toLocaleString();
+      
+      // 移动到下一个包
+      currentPacketIndex++;
+      
+      // 继续处理下一个包，崩溃后停止
+      if (currentPacketIndex < fuzzData.length && testRunning && !crashDetected) {
+        setTimeout(addLogEntry, packetDelay);
+      } else {
+        stopTest();
+      }
+    }
+    
+    // 添加真实崩溃日志条目
+    function addRealCrashLogEntries(crashEvent) {
+      const time = new Date().toLocaleTimeString();
+      
+      // 崩溃通知日志
+      const crashNoticeLog = document.createElement('div');
+      crashNoticeLog.className = 'crash-highlight';
+      crashNoticeLog.innerHTML = `
+        <span class="text-dark/50">[${time}]</span> 
+        <span class="text-danger font-medium">${crashEvent.message}</span>
+      `;
+      
+      // 疑似崩溃数据包日志（完整输出）
+      const crashPacketLog = document.createElement('div');
+      crashPacketLog.className = 'crash-highlight';
+      crashPacketLog.innerHTML = `
+        <span class="text-dark/50">[${time}]</span> 
+        <span class="text-danger">[崩溃信息] 疑似崩溃数据包: ${crashEvent.crashPacket}</span>
+      `;
+      
+      // 崩溃队列信息导出日志
+      const logDirLog = document.createElement('div');
+      logDirLog.className = 'crash-highlight';
+      logDirLog.innerHTML = `
+        <span class="text-dark/50">[${time}]</span> 
+        <span class="text-danger">[崩溃信息] 崩溃队列信息导出: ${crashEvent.crashLogPath}</span>
+      `;
+      
+      // 停止fuzz循环日志
+      const stopLog = document.createElement('div');
+      stopLog.className = 'crash-highlight';
+      stopLog.innerHTML = `
+        <span class="text-dark/50">[${time}]</span> 
+        <span class="text-danger font-medium">[运行监控] 检测到崩溃，停止 fuzz 循环</span>
+      `;
+      
+      requestAnimationFrame(() => {
+        fuzzLogWindow.appendChild(crashNoticeLog);
+        fuzzLogWindow.appendChild(crashPacketLog);
+        fuzzLogWindow.appendChild(logDirLog);
+        fuzzLogWindow.appendChild(stopLog);
+        fuzzLogWindow.scrollTop = fuzzLogWindow.scrollHeight;
+      });
+      
+      // 保存崩溃日志
+      logEntries.push({
+        time: time,
+        type: 'crash_notice',
+        message: crashEvent.message
+      }, {
+        time: time,
+        type: 'crash_packet',
+        message: `疑似崩溃数据包: ${crashEvent.crashPacket}`
+      }, {
+        time: time,
+        type: 'crash_export',
+        message: `崩溃队列信息导出: ${crashEvent.crashLogPath}`
+      }, {
+        time: time,
+        type: 'stop_fuzz',
+        message: '检测到崩溃，停止 fuzz 循环'
+      });
+      
+      // 立即更新顶部状态为崩溃
+      testStatus.innerHTML = '<span class="w-2 h-2 bg-danger rounded-full mr-1 animate-pulse"></span>检测到崩溃';
+
+      // 更新崩溃UI
+      updateCrashUI();
+    }
+    
+    // 添加特定崩溃日志条目
+    function addCrashLogEntries(crashDetails, protocol, hex) {
+      const time = new Date().toLocaleTimeString();
+      
+      // 崩溃通知日志
+      const crashNoticeLog = document.createElement('div');
+      crashNoticeLog.className = 'crash-highlight';
+      crashNoticeLog.innerHTML = `
+        <span class="text-dark/50">[${time}]</span> 
+        <span class="text-danger font-medium">[运行监控] 收到崩溃通知: 健康服务报告 VM 不可达</span>
+      `;
+      
+      // 崩溃数据包日志（完整输出）
+      const crashPacketLog = document.createElement('div');
+      crashPacketLog.className = 'crash-highlight';
+      crashPacketLog.innerHTML = `
+        <span class="text-dark/50">[${time}]</span> 
+        <span class="text-danger">[崩溃信息] 疑似崩溃数据包: ${hex}</span>
+      `;
+      
+      // 日志导出目录日志
+      const logDirLog = document.createElement('div');
+      logDirLog.className = 'crash-highlight';
+      logDirLog.innerHTML = `
+        <span class="text-dark/50">[${time}]</span> 
+        <span class="text-danger">[崩溃信息] 日志导出目录: ${crashDetails.logPath}</span>
+      `;
+      
+      // 接收超时日志
+      const timeoutLog = document.createElement('div');
+      timeoutLog.className = 'crash-highlight';
+      timeoutLog.innerHTML = `
+        <span class="text-dark/50">[${time}]</span> 
+        <span class="text-warning">  [接收超时]</span>
+      `;
+      
+      // 无响应日志
+      const noResponseLog = document.createElement('div');
+      noResponseLog.className = 'crash-highlight';
+      noResponseLog.innerHTML = `
+        <span class="text-dark/50">[${time}]</span> 
+        <span class="text-warning">  响应: 无</span>
+      `;
+      
+      // 停止fuzz循环日志
+      const stopLog = document.createElement('div');
+      stopLog.className = 'crash-highlight';
+      stopLog.innerHTML = `
+        <span class="text-dark/50">[${time}]</span> 
+        <span class="text-danger font-medium">[运行监控] 检测到崩溃，停止 fuzz 循环</span>
+      `;
+      
+      requestAnimationFrame(() => {
+        fuzzLogWindow.appendChild(crashNoticeLog);
+        fuzzLogWindow.appendChild(crashPacketLog);
+        fuzzLogWindow.appendChild(logDirLog);
+        fuzzLogWindow.appendChild(timeoutLog);
+        fuzzLogWindow.appendChild(noResponseLog);
+        fuzzLogWindow.appendChild(stopLog);
+        fuzzLogWindow.scrollTop = fuzzLogWindow.scrollHeight;
+      });
+      
+      // 保存崩溃日志
+      logEntries.push({
+        time: time,
+        type: 'crash_notice',
+        message: '收到崩溃通知: 健康服务报告 VM 不可达'
+      }, {
+        time: time,
+        type: 'crash_packet',
+        message: `疑似崩溃数据包: ${hex}`
+      }, {
+        time: time,
+        type: 'log_dir',
+        message: `日志导出目录: ${crashDetails.logPath}`
+      }, {
+        time: time,
+        type: 'timeout',
+        message: '接收超时'
+      }, {
+        time: time,
+        type: 'no_response',
+        message: '响应: 无'
+      }, {
+        time: time,
+        type: 'stop_fuzz',
+        message: '检测到崩溃，停止 fuzz 循环'
+      });
+      
+      // 立即更新顶部状态为崩溃
+      testStatus.innerHTML = '<span class="w-2 h-2 bg-danger rounded-full mr-1 animate-pulse"></span>检测到崩溃';
+
+      // 更新崩溃UI
+      updateCrashUI();
+    }
+    
+    // 更新统计数据 - 只更新运行时计数，不修改从文件读取的总计数
+    function updateStatistics(protocol, operation, result) {
+      // 只更新运行时的结果统计，不修改协议和操作类型统计
+      // 因为这些已经从文件中读取了准确的数据
+      
+      if (result === 'success') {
+        successCount++;
+      } else if (result === 'timeout') {
+        timeoutCount++;
+      } else if (result === 'failed') {
+        failedCount++;
+      } else if (result === 'crash') {
+        crashCount++;
+      }
+      
+      const total = successCount + timeoutCount + failedCount + crashCount;
+      const successRate = total > 0 ? Math.round((successCount / total) * 100) : 0;
+      const timeoutRate = total > 0 ? Math.round((timeoutCount / total) * 100) : 0;
+      const failedRate = total > 0 ? Math.round((failedCount / total) * 100) : 0;
+      
+      // 减少UI更新频率，避免阻塞鼠标操作
+      if (packetCount % 10 === 0) { // 每10个包更新一次UI
+        totalPacketsEl.textContent = packetCount;
+        successCountEl.textContent = successCount;
+        timeoutCountEl.textContent = timeoutCount;
+        failedCountEl.textContent = failedCount;
+        successRateEl.textContent = `${successRate}%`;
+        timeoutRateEl.textContent = `${timeoutRate}%`;
+        failedRateEl.textContent = `${failedRate}%`;
+        // 使用已发送包数与总包数（估计值）渲染底部进度条
+        const estimatedTotal = Math.max(packetCount, testDuration * packetsPerSecond);
+        const barProgress = estimatedTotal > 0 ? Math.min(100, Math.round((packetCount / estimatedTotal) * 100)) : 0;
+        totalPacketsBar.style.width = `${barProgress}%`;
+        
+        if (elapsedTime > 0) {
+          const speed = Math.round(packetCount / elapsedTime);
+          packetSpeedEl.textContent = speed;
+        }
+      }
+      
+      // 定期更新图表，确保数据显示
+      if (packetCount === 1 || packetCount % 50 === 0 || currentPacketIndex >= fuzzData.length - 1) {
+        updateCharts();
+      }
+    }
+    
+    // 更新图表数据
+    function updateCharts() {
+      try {
+        console.log('更新图表数据:', { messageTypeStats, protocolStats });
+        console.log('消息类型数据:', [
+          messageTypeStats.get || 0,
+          messageTypeStats.set || 0,
+          messageTypeStats.getnext || 0,
+          messageTypeStats.getbulk || 0
+        ]);
+        console.log('版本数据:', [
+          protocolStats.v1 || 0,
+          protocolStats.v2c || 0,
+          protocolStats.v3 || 0
+        ]);
+        
+        if (!messageTypeMainChart || !versionDistributionChart) {
+          console.error('图表未初始化');
+          return;
+        }
+        
+        // 更新主要的消息类型分布图表
+        const messageData = [
+          messageTypeStats.get || 0,
+          messageTypeStats.set || 0,
+          messageTypeStats.getnext || 0,
+          messageTypeStats.getbulk || 0
+        ];
+        messageTypeMainChart.data.datasets[0].data = messageData;
+        messageTypeMainChart.update();
+        
+        // 更新SNMP版本分布图表
+        const versionData = [
+          protocolStats.v1 || 0,
+          protocolStats.v2c || 0,
+          protocolStats.v3 || 0
+        ];
+        versionDistributionChart.data.datasets[0].data = versionData;
+        versionDistributionChart.update();
+        
+        console.log('实际设置的消息类型数据:', messageData);
+        console.log('实际设置的版本数据:', versionData);
+        
+        console.log('图表更新完成');
+      } catch (error) {
+        console.error('图表更新失败:', error);
+      }
+    }
+    
+    // 更新崩溃信息UI
+    function updateCrashUI() {
+      console.log('更新崩溃UI，crashDetails:', crashDetails);
+      
+      if (crashDetails) {
+        console.log('显示崩溃信息');
+          crashInfoCard.classList.remove('hidden');
+          noCrashCard.classList.add('hidden');
+          crashDetailsEl.classList.remove('hidden');
+          testSummary.classList.add('hidden');
+          const backBtn = document.getElementById('backToCrashBtn');
+          if (backBtn) backBtn.classList.remove('hidden');
+          
+          document.getElementById('crashTime').textContent = crashDetails.time;
+          document.getElementById('crashType').textContent = crashDetails.type;
+          document.getElementById('crashPacketId').textContent = `#${crashDetails.id}`;
+          document.getElementById('dumpFile').textContent = crashDetails.dumpFile;
+          document.getElementById('crashLogPath').textContent = crashDetails.logPath;
+          document.getElementById('detailCrashId').textContent = crashDetails.id;
+          document.getElementById('crashDetailsText').textContent = crashDetails.details;
+          document.getElementById('crashPacketContent').textContent = crashDetails.packetContent;
+      } else {
+        console.log('没有崩溃信息，显示正常状态');
+      }
+    }
+    
+    // 更新测试总结
+    function updateTestSummary() {
+      const fuzzType = document.getElementById('fuzzTypeSelect').value;
+      const host = document.getElementById('targetHost').value;
+      const port = document.getElementById('targetPort').value;
+      const total = window.fuzzTotalPackets || (successCount + timeoutCount + failedCount + crashCount);
+      const successBase = (window.fuzzSuccessCount != null) ? window.fuzzSuccessCount : successCount;
+      const timeoutBase = (window.fuzzTimeoutCount != null) ? window.fuzzTimeoutCount : timeoutCount;
+      const successRate = total > 0 ? Math.round((successBase / total) * 100) : 0;
+      const timeoutRate = total > 0 ? Math.round((timeoutBase / total) * 100) : 0;
+      
+      // 使用真实的时间数据
+      const realStartTime = window.fuzzStartTime || (startTime ? startTime.toLocaleString() : '未开始');
+      const realEndTime = window.fuzzEndTime || new Date().toLocaleString();
+      const realDuration = window.fuzzDuration || elapsedTime;
+      
+      document.getElementById('summaryProtocol').textContent = 'SNMP';
+      document.getElementById('summaryFuzzType').textContent = fuzzType === 'directed' ? '定向Fuzz' : '非定向Fuzz';
+      document.getElementById('summaryTarget').textContent = `${host}:${port}`;
+      document.getElementById('summaryStartTime').textContent = realStartTime;
+      document.getElementById('summaryEndTime').textContent = realEndTime;
+      document.getElementById('summaryDuration').textContent = `${realDuration}秒`;
+      
+      // 性能统计
+      document.getElementById('summaryV1Count').textContent = protocolStats.v1 || 0;
+      document.getElementById('summaryV2Count').textContent = protocolStats.v2c || 0;
+      document.getElementById('summaryV3Count').textContent = protocolStats.v3 || 0;
+      document.getElementById('summaryTotalPackets').textContent = window.fuzzTotalPackets || packetCount;
+      document.getElementById('summarySuccessRate').textContent = `${successRate}%`;
+      document.getElementById('summaryTimeoutRate').textContent = `${timeoutRate}%`;
+      
+      // 文件信息（从 scan_result 开始显示）
+      const fullLogPath = `/home/hhh/下载/snmp_fuzz/snmp_github/snmp_fuzz/scan_result/fuzz_logs/fuzz_output.txt`;
+      const fullCrashPath = `/home/hhh/下载/snmp_fuzz/snmp_github/snmp_fuzz/scan_result/crash_logs/20251014-110318`;
+      const displayFromScanResult = (p) => {
+        const idx = p.indexOf('scan_result');
+        return idx >= 0 ? p.substring(idx) : p;
+      };
+      document.getElementById('summaryLogFile').textContent = displayFromScanResult(fullLogPath);
+      document.getElementById('summaryCrashFile').textContent = displayFromScanResult(fullCrashPath);
+      
+      // 生成Fuzz报告信息
+      const reportContent = `Fuzz测试报告 - ${realStartTime} 至 ${realEndTime}\\n` +
+                           `协议: SNMP, 类型: ${fuzzType === 'directed' ? '定向Fuzz' : '非定向Fuzz'}\\n` +
+                           `目标: ${host}:${port}\\n` +
+                           `总耗时: ${realDuration}秒\\n` +
+                           `发包统计: v1(${protocolStats.v1 || 0}) v2c(${protocolStats.v2c || 0}) v3(${protocolStats.v3 || 0})\\n` +
+                           `成功率: ${successRate}%, 超时率: ${timeoutRate}%`;
+      document.getElementById('summaryReportFile').textContent = `fuzz_report_${Date.now()}.txt`;
+    }
+    
+    // 开始测试
+    async function startTest() {
+      // 加载fuzz数据
+      const dataLoaded = await loadFuzzData();
+      if (!dataLoaded) {
+        alert('无法加载fuzz_output.txt文件，请确保文件存在');
+        return;
+      }
+      
+      // 根据数据包数量调整测试时长
+      testDuration = Math.max(30, Math.ceil(totalPacketsInFile / packetsPerSecond));
+      
+      resetTestState();
+      
+      startTime = new Date();
+      
+      testRunning = true;
+      startTestBtn.classList.add('hidden');
+      stopTestBtn.classList.remove('hidden');
+      pauseTestBtn.classList.remove('hidden');
+      saveLogBtn.classList.remove('hidden');
+      testStatus.innerHTML = '<span class="w-2 h-2 bg-success rounded-full mr-1 animate-pulse"></span>运行中';
+      
+      fuzzLogWindow.innerHTML = '';
+      logEntries = [];
+      
+      testSummary.classList.remove('hidden');
+      if (chartsCard) chartsCard.classList.remove('hidden');
+      if (chartsPlaceholder) chartsPlaceholder.classList.remove('hidden');
+      if (chartsGrid) chartsGrid.classList.add('hidden');
+      crashDetailsEl.classList.add('hidden');
+      noCrashCard.classList.remove('hidden');
+      crashInfoCard.classList.add('hidden');
+      // 使用 txt 解析得到的统计数据直接渲染
+      updateCharts();
+      
+      testInterval = setInterval(() => {
+        if (testRunning) {
+          elapsedTime++;
+          
+          
+          // 仅当预计时长已到且已处理完所有数据时才停止，避免错过崩溃事件
+          if (elapsedTime >= testDuration && currentPacketIndex >= fuzzData.length) {
+            stopTest();
+          }
+        }
+      }, 1000);
+      
+      addLogEntry();
+      lastUpdateEl.textContent = new Date().toLocaleString();
+    }
+    
+    // 停止测试
+    function stopTest() {
+      testRunning = false;
+      clearInterval(testInterval);
+      
+      startTestBtn.classList.remove('hidden');
+      stopTestBtn.classList.add('hidden');
+      pauseTestBtn.classList.add('hidden');
+      pauseTestBtn.textContent = '暂停';
+      
+      if (crashCount > 0) {
+        testStatus.innerHTML = '<span class="w-2 h-2 bg-danger rounded-full mr-1 animate-pulse"></span>检测到崩溃';
+      } else {
+        testStatus.innerHTML = '<span class="w-2 h-2 bg-info rounded-full mr-1"></span>已完成';
+      }
+      
+      // 强制更新图表和总结
+      setTimeout(() => {
+      updateCharts();
+      updateTestSummary();
+      if (chartsCard) chartsCard.classList.remove('hidden');
+      if (chartsPlaceholder) chartsPlaceholder.classList.add('hidden');
+      if (chartsGrid) chartsGrid.classList.remove('hidden');
+      // 使用文件统计覆盖实时面板，确保与 txt 一致
+      if (window.fuzzSuccessCount != null) {
+        successCountEl.textContent = window.fuzzSuccessCount;
+      }
+      if (window.fuzzTimeoutCount != null) {
+        timeoutCountEl.textContent = window.fuzzTimeoutCount;
+      }
+      if (window.fuzzFailedCount != null) {
+        failedCountEl.textContent = window.fuzzFailedCount;
+      }
+      if (window.fuzzTotalPackets != null) {
+        totalPacketsEl.textContent = window.fuzzTotalPackets;
+      }
+      if (window.fuzzAvgSpeed != null) {
+        packetSpeedEl.textContent = Math.round(window.fuzzAvgSpeed);
+      }
+      // 以文件值计算比例
+      const fileTotal = (window.fuzzTotalPackets || 0);
+      const fileSuccess = (window.fuzzSuccessCount || 0);
+      const fileTimeout = (window.fuzzTimeoutCount || 0);
+      const fileFailed = (window.fuzzFailedCount || 0);
+      if (fileTotal > 0) {
+        successRateEl.textContent = `${Math.round((fileSuccess / fileTotal) * 100)}%`;
+        timeoutRateEl.textContent = `${Math.round((fileTimeout / fileTotal) * 100)}%`;
+        failedRateEl.textContent = `${Math.round((fileFailed / fileTotal) * 100)}%`;
+      }
+      totalPacketsBar.style.width = '100%';
+        console.log('测试完成，强制更新图表');
+      }, 500);
+
+      // 如果加载到崩溃事件，立即展示崩溃卡片
+      if (crashDetails) {
+        updateCrashUI();
+      }
+    }
+    
+    // 暂停/继续测试
+    function togglePauseTest() {
+      testRunning = !testRunning;
+      if (testRunning) {
+        pauseTestBtn.textContent = '暂停';
+        testStatus.innerHTML = '<span class="w-2 h-2 bg-success rounded-full mr-1 animate-pulse"></span>运行中';
+        addLogEntry();
+      } else {
+        pauseTestBtn.textContent = '继续';
+        testStatus.innerHTML = '<span class="w-2 h-2 bg-warning rounded-full mr-1 animate-pulse"></span>已暂停';
+      }
+    }
+    
+    // 重置测试状态
+    function resetTestState() {
+      packetCount = 0;
+      elapsedTime = 0;
+      successCount = 0;
+      timeoutCount = 0;
+      crashCount = 0;
+      failedCount = 0;
+      crashDetails = null;
+      crashDetected = false;
+      currentPacketIndex = 0;
+      
+      totalPacketsEl.textContent = '0';
+      successCountEl.textContent = '0';
+      timeoutCountEl.textContent = '0';
+      failedCountEl.textContent = '0';
+      successRateEl.textContent = '0%';
+      timeoutRateEl.textContent = '0%';
+      failedRateEl.textContent = '0%';
+      packetSpeedEl.textContent = '0';
+      
+      totalPacketsBar.style.width = '0%';
+    }
+    
+    // 保存日志
+    function saveLog() {
+      if (logEntries.length === 0) return;
+      
+      let logText = `时间,类型,内容\n`;
+      logEntries.forEach(entry => {
+        if (entry.type) {
+          logText += `${entry.time},${entry.type},${entry.message}\n`;
+        } else {
+          logText += `${entry.time},${entry.result},${entry.protocol},${entry.operation},${entry.target},${entry.content},${entry.hex}\n`;
+        }
+      });
+      
+      const blob = new Blob([logText], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `fuzz_log_${new Date().getTime()}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+    
+    // 页面加载完成后初始化
+    document.addEventListener('DOMContentLoaded', function() {
+      initCharts();
+      
+      startTestBtn.addEventListener('click', startTest);
+      stopTestBtn.addEventListener('click', stopTest);
+      pauseTestBtn.addEventListener('click', togglePauseTest);
+      // 点击“查看完整日志”：切回测试总结视图
+      const viewFullLogBtn = document.getElementById('viewFullLogBtn');
+      if (viewFullLogBtn) {
+        viewFullLogBtn.addEventListener('click', () => {
+          // 切换到测试总结，但保留崩溃监控卡片可见
+          crashDetailsEl.classList.add('hidden');
+          testSummary.classList.remove('hidden');
+          crashInfoCard.classList.remove('hidden');
+          const backBtn = document.getElementById('backToCrashBtn');
+          if (backBtn) backBtn.classList.remove('hidden');
+          testSummary.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      }
+
+      // 在测试总结中提供返回崩溃详情的入口
+      const backToCrashBtn = document.getElementById('backToCrashBtn');
+      if (backToCrashBtn) {
+        backToCrashBtn.addEventListener('click', () => {
+          testSummary.classList.add('hidden');
+          crashDetailsEl.classList.remove('hidden');
+          crashInfoCard.classList.remove('hidden');
+          crashDetailsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      }
+      clearLogBtn.addEventListener('click', () => {
+        fuzzLogWindow.innerHTML = '';
+        logEntries = [];
+      });
+      saveLogBtn.addEventListener('click', saveLog);
+    });
+  </script>
+</body>
+</html>
