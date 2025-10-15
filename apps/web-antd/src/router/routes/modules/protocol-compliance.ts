@@ -30,7 +30,8 @@ const routes: RouteRecordRaw[] = [
       {
         name: 'ProtocolComplianceFuzz',
         path: '/protocol-compliance/fuzz',
-        component: () => import('#/views/placeholders/menu-placeholder.vue'),
+        component: () =>
+          import('#/views/protocol-compliance/fuzz/index.vue'),
         meta: {
           title: '协议模糊测试',
         },
