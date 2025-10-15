@@ -935,13 +935,6 @@ onMounted(async () => {
 
       <!-- 主要内容 -->
       <div v-else>
-        <!-- 数据加载状态提示 -->
-        <div v-if="!loading && fuzzData.length > 0" class="bg-success/10 border border-success/20 rounded-lg p-3 mb-4 text-sm text-success">
-          <div class="flex items-center">
-            <i class="fa fa-check-circle mr-2"></i>
-            <span>数据加载成功，共 {{ fuzzData.length }} 个数据包可供测试</span>
-          </div>
-        </div>
         
         <!-- 测试配置区 -->
         <div class="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-primary/20 shadow-card mb-6">
