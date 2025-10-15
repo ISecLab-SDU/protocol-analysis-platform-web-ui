@@ -498,8 +498,28 @@ function stopTest() {
   
   // Show charts only when test is completed
   showCharts.value = true;
+  
+  console.log('Test completed, showing charts:', {
+    isTestCompleted: isTestCompleted.value,
+    showCharts: showCharts.value,
+    protocolStats: protocolStats.value,
+    messageTypeStats: messageTypeStats.value
+  });
+  
   nextTick(() => {
-    updateCharts();
+    console.log('Updating charts...');
+    // Wait a bit more for DOM to update
+    setTimeout(() => {
+      if (!messageTypeChart || !versionChart) {
+        console.warn('Charts not initialized, reinitializing...');
+        const success = initCharts();
+        if (!success) {
+          console.error('Failed to initialize charts');
+          return;
+        }
+      }
+      updateCharts();
+    }, 100);
   });
 }
 
