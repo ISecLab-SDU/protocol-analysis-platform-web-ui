@@ -146,9 +146,18 @@ async function fetchText() {
   try {
     const resp = await getFuzzText();
     const text = (resp as any)?.text ?? (resp as any)?.data?.text ?? '';
-    rawText.value = text || generateDefaultFuzzData();
+    console.log('API响应数据长度:', text?.length || 0);
+    console.log('API响应前100字符:', text?.substring(0, 100) || '无数据');
+    
+    if (!text || text.trim().length === 0) {
+      console.warn('API返回空数据，使用默认数据');
+      rawText.value = generateDefaultFuzzData();
+    } else {
+      rawText.value = text;
+    }
   } catch (e: any) {
-    error.value = null; // 清除错误，使用默认数据
+    console.error('API调用失败:', e);
+    error.value = `API调用失败: ${e?.message || '未知错误'}`;
     rawText.value = generateDefaultFuzzData();
     console.warn('API failed, using default data:', e?.message);
   } finally {
@@ -282,6 +291,8 @@ function parseText(text: string) {
   }
 
   const lines = text.split('\n');
+  console.log('解析文本总行数:', lines.length);
+  
   if (lines.length < 5) {
     console.error('Insufficient fuzz data');
     return;
@@ -294,7 +305,7 @@ function parseText(text: string) {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
 
-    const packetMatch = line.match(/^\[(\d+)\]\s+版本=([^,]+),\s+类型=([^,]+)/);
+    const packetMatch = line.match(/^\[(\d+)\]\s+版本=([^,]+),\s+类型=([^,\s]+)/);
     if (packetMatch) {
       if (currentPacket) fuzzData.value.push(currentPacket);
       const packetNumber = parseInt(packetMatch[1]);
@@ -380,6 +391,11 @@ function parseText(text: string) {
 
   if (currentPacket) fuzzData.value.push(currentPacket);
   totalPacketsInFile.value = fuzzData.value.filter((p) => typeof p.id === 'number').length;
+  
+  console.log('解析完成统计:');
+  console.log('- 总数据包数:', fuzzData.value.length);
+  console.log('- 有效数据包数:', totalPacketsInFile.value);
+  console.log('- 失败数据包数:', localFailedCount);
 
   // Stats line
   const statsLine = (text.match(/^统计:.*$/m) || [])[0];
