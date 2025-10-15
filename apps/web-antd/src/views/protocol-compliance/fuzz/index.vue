@@ -305,10 +305,15 @@ function parseText(text: string) {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
 
-    const packetMatch = line.match(/^\[(\d+)\]\s+版本=([^,]+),\s+类型=([^,\s]+)/);
+    const packetMatch = line.match(/^\[(\d+)\]\s+版本=([^,]+),\s+类型=([^,]+)/);
     if (packetMatch) {
       if (currentPacket) fuzzData.value.push(currentPacket);
       const packetNumber = parseInt(packetMatch[1]);
+      
+      // 调试信息：每100个包输出一次
+      if (packetNumber % 100 === 0 || packetNumber <= 5) {
+        console.log(`解析数据包 #${packetNumber}: 版本=${packetMatch[2]}, 类型=${packetMatch[3]}`);
+      }
       currentPacket = {
         id: packetNumber,
         version: packetMatch[2],
@@ -365,7 +370,9 @@ function parseText(text: string) {
         currentPacket.result = 'success';
       }
       continue;
-    } else if (line.includes('[接收超时]') && currentPacket) {
+    }
+    
+    if (line.includes('[接收超时]') && currentPacket) {
       currentPacket.result = 'timeout';
       continue;
     }
