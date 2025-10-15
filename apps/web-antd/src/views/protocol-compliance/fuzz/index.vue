@@ -1091,7 +1091,9 @@ onMounted(async () => {
                 <span class="bg-success/10 text-success text-xs px-2 py-0.5 rounded-full">正常</span>
               </div>
               <div class="h-full flex flex-col items-center justify-center text-dark/50 text-sm">
-                <i class="fa fa-shield text-4xl mb-3 text-success/50"></i>
+                <div class="bg-success/10 p-4 rounded-full mb-4">
+                  <i class="fa fa-shield text-3xl text-success/70"></i>
+                </div>
                 <p>尚未检测到程序崩溃</p>
                 <p class="mt-1">持续监控中...</p>
               </div>
@@ -1106,9 +1108,11 @@ onMounted(async () => {
             <div class="flex justify-between items-center mb-6">
               <h3 class="font-semibold text-xl">消息类型分布与版本统计</h3>
             </div>
-            <div v-if="!isTestCompleted" class="h-72 flex items-center justify-center text-dark/50">
-              <i class="fa fa-pie-chart text-3xl mr-2 text-dark/30"></i>
-              <span>数据统计中......</span>
+            <div v-if="!isTestCompleted" class="h-72 flex flex-col items-center justify-center text-dark/50">
+              <div class="bg-primary/10 p-4 rounded-full mb-4">
+                <i class="fa fa-pie-chart text-3xl text-primary/70"></i>
+              </div>
+              <span class="text-sm">数据统计中......</span>
             </div>
             <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-8 h-72">
               <!-- 消息类型分布饼状图 -->
