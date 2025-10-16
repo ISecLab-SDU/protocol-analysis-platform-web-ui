@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from flask import Flask
 
-from .protocol_compliance.routes import bp as protocol_compliance_blueprint
+try:
+    # Support running as a module (python -m backend_flask) and as a script (uv run app.py).
+    from .protocol_compliance.routes import bp as protocol_compliance_blueprint
+except ImportError:
+    from protocol_compliance.routes import bp as protocol_compliance_blueprint
 
 
 def create_app() -> Flask:
@@ -18,6 +22,10 @@ def create_app() -> Flask:
     return app
 
 
-if __name__ == "__main__":
+def main():
     application = create_app()
     application.run(host="0.0.0.0", port=5000, debug=True)
+
+
+if __name__ == "__main__":
+    main()

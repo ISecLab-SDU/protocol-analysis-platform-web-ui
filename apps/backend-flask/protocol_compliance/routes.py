@@ -9,8 +9,17 @@ from typing import Iterable, Optional
 from flask import Blueprint, make_response, request
 from werkzeug.datastructures import FileStorage
 
-from ..utils.auth import verify_access_token
-from ..utils.responses import error_response, paginate, success_response, unauthorized
+try:
+    from ..utils.auth import verify_access_token
+    from ..utils.responses import (
+        error_response,
+        paginate,
+        success_response,
+        unauthorized,
+    )
+except ImportError:
+    from utils.auth import verify_access_token
+    from utils.responses import error_response, paginate, success_response, unauthorized
 from .analysis import (
     build_mock_analysis,
     normalize_protocol_name,
