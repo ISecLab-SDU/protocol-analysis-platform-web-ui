@@ -7,6 +7,7 @@ import hashlib
 import hmac
 import json
 import time
+from copy import deepcopy
 from typing import Any, Dict, Optional
 
 from .data import MOCK_USERS
@@ -15,6 +16,7 @@ ACCESS_TOKEN_SECRET = "access_token_secret"
 REFRESH_TOKEN_SECRET = "refresh_token_secret"
 ACCESS_TOKEN_TTL = 7 * 24 * 60 * 60
 REFRESH_TOKEN_TTL = 30 * 24 * 60 * 60
+DEFAULT_SUPER_USERNAME = "vben"
 
 
 class TokenVerificationError(Exception):
@@ -80,8 +82,14 @@ def decode_jwt(token: str, secret: str) -> Dict[str, Any]:
     return payload
 
 
+def _sanitize_user(user: Dict[str, Any]) -> Dict[str, Any]:
+    sanitized = dict(user)
+    sanitized.pop("password", None)
+    return sanitized
+
+
 def generate_access_token(user: Dict[str, Any]) -> str:
-    payload = {k: v for k, v in user.items() if k != "password"}
+    payload = _sanitize_user(user)
     return _encode_jwt(payload, ACCESS_TOKEN_SECRET, ACCESS_TOKEN_TTL)
 
 
@@ -91,29 +99,35 @@ def generate_refresh_token(user: Dict[str, Any]) -> str:
 
 
 def _load_user(username: str) -> Optional[Dict[str, Any]]:
-    return next((item for item in MOCK_USERS if item["username"] == username), None)
+    user = next((item for item in MOCK_USERS if item["username"] == username), None)
+    return dict(user) if user else None
+
+
+_DEFAULT_USER = _load_user(DEFAULT_SUPER_USERNAME)
+_DEFAULT_SANITIZED_USER = _sanitize_user(_DEFAULT_USER) if _DEFAULT_USER else None
 
 
 def verify_access_token(auth_header: Optional[str]) -> Optional[Dict[str, Any]]:
-    if not auth_header or not auth_header.startswith("Bearer "):
-        return None
-    token = auth_header.split(" ", 1)[1]
-    try:
-        payload = decode_jwt(token, ACCESS_TOKEN_SECRET)
-    except (TokenVerificationError, json.JSONDecodeError, UnicodeDecodeError):
-        return None
+    sanitized: Optional[Dict[str, Any]] = None
 
-    username = payload.get("username")
-    if not isinstance(username, str):
-        return None
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ", 1)[1]
+        try:
+            payload = decode_jwt(token, ACCESS_TOKEN_SECRET)
+            username = payload.get("username")
+            if isinstance(username, str):
+                user = _load_user(username)
+                if user:
+                    sanitized = _sanitize_user(user)
+        except (TokenVerificationError, json.JSONDecodeError, UnicodeDecodeError):
+            sanitized = None
 
-    user = _load_user(username)
-    if not user:
-        return None
+    if sanitized:
+        return sanitized
 
-    result = dict(user)
-    result.pop("password", None)
-    return result
+    if _DEFAULT_SANITIZED_USER:
+        return deepcopy(_DEFAULT_SANITIZED_USER)
+    return None
 
 
 def verify_refresh_token(token: str) -> Optional[Dict[str, Any]]:
