@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any, Dict, Optional, Tuple
 
 from flask import Response, make_response
@@ -49,3 +50,8 @@ def forbidden(message: str = "Forbidden Exception") -> Tuple[Response, int]:
     """Flask-compatible forbidden response."""
     payload = error_response(message, message)
     return make_response(payload, 403)
+
+
+def sleep(ms: int) -> None:
+    """Pause execution for the specified milliseconds."""
+    time.sleep(max(ms, 0) / 1000.0)
