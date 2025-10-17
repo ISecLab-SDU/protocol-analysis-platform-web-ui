@@ -22,7 +22,7 @@
 
 ## BREAKING CHANGE：Flask 后端
 
-现在需要用以下方式启动后端：
+现在需要用以下方式启动后端（之前的 Mock 后端同样基于 Node.js 生态，因此可以被 Vite 连带启动；现在基于 Python 的 Flask 则不行，但是我们依旧配置了 Vite 的内置路由以方便将同一个接口的流量分流至前后端）：
 
 ```sh
 cd apps/backend-flask
