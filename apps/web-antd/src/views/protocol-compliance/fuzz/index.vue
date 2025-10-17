@@ -172,9 +172,13 @@ function initCharts() {
     return false;
   }
 
-  const messageCtx = messageCanvas.value.getContext('2d');
-  const versionCtx = versionCanvas.value.getContext('2d');
-  if (!messageCtx || !versionCtx) return false;
+  try {
+    const messageCtx = messageCanvas.value.getContext('2d');
+    const versionCtx = versionCanvas.value.getContext('2d');
+    if (!messageCtx || !versionCtx) {
+      console.warn('Failed to get canvas contexts');
+      return false;
+    }
 
   messageTypeChart = new Chart(messageCtx, {
     type: 'doughnut',
@@ -220,51 +224,56 @@ function initCharts() {
     },
   });
 
-  versionChart = new Chart(versionCtx, {
-    type: 'doughnut',
-    data: { 
-      labels: ['SNMP v1', 'SNMP v2c', 'SNMP v3'], 
-      datasets: [{ 
-        data: [0, 0, 0], 
-        backgroundColor: ['#F59E0B', '#8B5CF6', '#EF4444'], 
-        borderColor: '#FFFFFF', 
-        borderWidth: 3, 
-        hoverOffset: 8 
-      }] 
-    },
-    options: { 
-      responsive: true, 
-      maintainAspectRatio: false, 
-      plugins: { 
-        legend: { 
-          position: 'bottom', 
-          labels: { 
-            color: '#1F2937', 
-            padding: 15, 
-            font: { size: 12, weight: 'bold' }, 
-            usePointStyle: true 
-          } 
-        },
-        tooltip: {
-          backgroundColor: 'rgba(0, 0, 0, 0.8)',
-          titleColor: 'white',
-          bodyColor: 'white',
-          borderColor: 'rgba(255, 255, 255, 0.1)',
-          borderWidth: 1,
-          callbacks: {
-            label: function(context: any) {
-              const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
-              const percentage = total > 0 ? Math.round((context.parsed / total) * 100) : 0;
-              return `${context.label}: ${context.parsed} (${percentage}%)`;
+    versionChart = new Chart(versionCtx, {
+      type: 'doughnut',
+      data: { 
+        labels: ['SNMP v1', 'SNMP v2c', 'SNMP v3'], 
+        datasets: [{ 
+          data: [0, 0, 0], 
+          backgroundColor: ['#F59E0B', '#8B5CF6', '#EF4444'], 
+          borderColor: '#FFFFFF', 
+          borderWidth: 3, 
+          hoverOffset: 8 
+        }] 
+      },
+      options: { 
+        responsive: true, 
+        maintainAspectRatio: false, 
+        plugins: { 
+          legend: { 
+            position: 'bottom', 
+            labels: { 
+              color: '#1F2937', 
+              padding: 15, 
+              font: { size: 12, weight: 'bold' }, 
+              usePointStyle: true 
+            } 
+          },
+          tooltip: {
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            titleColor: 'white',
+            bodyColor: 'white',
+            borderColor: 'rgba(255, 255, 255, 0.1)',
+            borderWidth: 1,
+            callbacks: {
+              label: function(context: any) {
+                const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
+                const percentage = total > 0 ? Math.round((context.parsed / total) * 100) : 0;
+                return `${context.label}: ${context.parsed} (${percentage}%)`;
+              }
             }
           }
-        }
-      }, 
-      cutout: '60%' 
-    },
-  });
-  
-  return true;
+        }, 
+        cutout: '60%' 
+      },
+    });
+    
+    console.log('Charts initialized successfully');
+    return true;
+  } catch (error) {
+    console.error('Failed to initialize charts:', error);
+    return false;
+  }
 }
 
 function updateCharts() {
@@ -891,13 +900,28 @@ onMounted(async () => {
   await fetchText();
   if (rawText.value) {
     parseText(rawText.value);
-    // Don't show charts initially, only after test completion
-    await nextTick();
-    initCharts(); // Initialize but don't show
-  } else {
-    await nextTick();
-    initCharts();
   }
+  
+  // Wait for DOM to be fully rendered before initializing charts
+  await nextTick();
+  
+  // Try to initialize charts with retry mechanism
+  let retryCount = 0;
+  const maxRetries = 5;
+  const initChartsWithRetry = async () => {
+    const success = initCharts();
+    if (!success && retryCount < maxRetries) {
+      retryCount++;
+      console.log(`Retrying chart initialization (${retryCount}/${maxRetries})`);
+      setTimeout(initChartsWithRetry, 100);
+    } else if (success) {
+      console.log('Charts initialized successfully on mount');
+    } else {
+      console.error('Failed to initialize charts after all retries');
+    }
+  };
+  
+  initChartsWithRetry();
   
   // Set initial last update time
   lastUpdate.value = new Date().toLocaleString();

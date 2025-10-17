@@ -7,6 +7,7 @@ from flask import Flask
 try:
     # Support running as a module (python -m backend_flask) and as a script (uv run app.py).
     from .auth import bp as auth_blueprint
+    from .custom.routes import bp as custom_blueprint
     from .demo import bp as demo_blueprint
     from .menu import bp as menu_blueprint
     from .misc import bp as misc_blueprint
@@ -17,6 +18,7 @@ try:
     from .user import bp as user_blueprint
 except ImportError:
     from auth import bp as auth_blueprint
+    from custom.routes import bp as custom_blueprint
     from demo import bp as demo_blueprint
     from menu import bp as menu_blueprint
     from misc import bp as misc_blueprint
@@ -37,6 +39,7 @@ def create_app() -> Flask:
     app.register_blueprint(upload_blueprint)
     app.register_blueprint(demo_blueprint)
     app.register_blueprint(misc_blueprint)
+    app.register_blueprint(custom_blueprint)
     app.register_blueprint(protocol_compliance_blueprint)
 
     @app.get("/healthz")
