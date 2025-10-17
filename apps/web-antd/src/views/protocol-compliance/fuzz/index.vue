@@ -1112,8 +1112,8 @@ onMounted(async () => {
               <div>
                 <h4 class="text-base font-medium mb-3 text-dark/80 text-center">消息类型分布</h4>
                 <div class="h-60 relative">
-                  <canvas ref="messageCanvas" id="messageTypeMainChart" class="absolute inset-0"></canvas>
-                  <div v-if="!isTestCompleted" class="absolute inset-0 flex flex-col items-center justify-center text-dark/50 bg-white/90 rounded-lg">
+                  <canvas ref="messageCanvas" id="messageTypeMainChart" class="absolute inset-0 transition-opacity duration-500" :class="{ 'opacity-0': !isTestCompleted }"></canvas>
+                  <div v-if="!isTestCompleted" class="absolute inset-0 flex flex-col items-center justify-center text-dark/50 bg-white rounded-lg">
                     <div class="bg-primary/10 p-3 rounded-full mb-2">
                       <i class="fa fa-pie-chart text-2xl text-primary/70"></i>
                     </div>
@@ -1125,8 +1125,8 @@ onMounted(async () => {
               <div>
                 <h4 class="text-base font-medium mb-3 text-dark/80 text-center">SNMP版本分布</h4>
                 <div class="h-60 relative">
-                  <canvas ref="versionCanvas" id="versionDistributionChart" class="absolute inset-0"></canvas>
-                  <div v-if="!isTestCompleted" class="absolute inset-0 flex flex-col items-center justify-center text-dark/50 bg-white/90 rounded-lg">
+                  <canvas ref="versionCanvas" id="versionDistributionChart" class="absolute inset-0 transition-opacity duration-500" :class="{ 'opacity-0': !isTestCompleted }"></canvas>
+                  <div v-if="!isTestCompleted" class="absolute inset-0 flex flex-col items-center justify-center text-dark/50 bg-white rounded-lg">
                     <div class="bg-primary/10 p-3 rounded-full mb-2">
                       <i class="fa fa-chart-pie text-2xl text-primary/70"></i>
                     </div>
