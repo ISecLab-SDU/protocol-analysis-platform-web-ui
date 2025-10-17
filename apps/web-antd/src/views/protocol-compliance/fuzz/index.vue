@@ -55,15 +55,19 @@ const isTestCompleted = ref(false);
 let testTimer: number | null = null;
 
 // UI configuration
-const protocolType = ref('snmp');
-const fuzzType = ref('directed');
+const protocolType = ref('SNMP');
+const fuzzEngine = ref('SNMP_Fuzz');
 const targetHost = ref('192.168.102.2');
 const targetPort = ref(161);
 
 // Watch for protocol changes to update port
 watch(protocolType, (newProtocol) => {
-  if (newProtocol === 'snmp') {
+  if (newProtocol === 'SNMP') {
     targetPort.value = 161;
+  } else if (newProtocol === 'RTSP') {
+    targetPort.value = 554;
+  } else if (newProtocol === 'MQTT') {
+    targetPort.value = 1883;
   }
 });
 const showCharts = ref(false);
@@ -562,7 +566,7 @@ function generateTestReport() {
   const reportContent = `Fuzz测试报告\n` +
                        `================\n\n` +
                        `协议: ${protocolType.value.toUpperCase()}\n` +
-                       `类型: ${fuzzType.value === 'directed' ? '定向Fuzz' : '非定向Fuzz'}\n` +
+                       `引擎: ${fuzzEngine.value}\n` +
                        `目标: ${targetHost.value}:${targetPort.value}\n` +
                        `开始时间: ${startTime.value || (testStartTime.value ? testStartTime.value.toLocaleString() : '未开始')}\n` +
                        `结束时间: ${endTime.value || (testEndTime.value ? testEndTime.value.toLocaleString() : '未结束')}\n` +
@@ -965,19 +969,22 @@ onMounted(async () => {
               <label class="block text-sm text-dark/70 mb-2">协议类型</label>
               <div class="relative">
                 <select v-model="protocolType" class="w-full bg-white border border-primary/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary appearance-none">
-                  <option value="snmp">SNMP (所有版本)</option>
+                  <option value="SNMP">SNMP</option>
+                  <option value="RTSP">RTSP</option>
+                  <option value="MQTT">MQTT</option>
                 </select>
                 <i class="fa fa-chevron-down absolute right-3 top-2.5 text-dark/50 pointer-events-none"></i>
               </div>
             </div>
             
-            <!-- Fuzz类型选择 -->
+            <!-- Fuzz引擎选择 -->
             <div>
-              <label class="block text-sm text-dark/70 mb-2">Fuzz类型</label>
+              <label class="block text-sm text-dark/70 mb-2">Fuzz引擎</label>
               <div class="relative">
-                <select v-model="fuzzType" class="w-full bg-white border border-primary/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary appearance-none">
-                  <option value="directed">定向Fuzz</option>
-                  <option value="non-directed">非定向Fuzz</option>
+                <select v-model="fuzzEngine" class="w-full bg-white border border-primary/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary appearance-none">
+                  <option value="SNMP_Fuzz">SNMP_Fuzz</option>
+                  <option value="AFLNET">AFLNET</option>
+                  <option value="MQTT_FUZZ">MQTT_FUZZ</option>
                 </select>
                 <i class="fa fa-chevron-down absolute right-3 top-2.5 text-dark/50 pointer-events-none"></i>
               </div>
@@ -1205,7 +1212,7 @@ onMounted(async () => {
               <h4 class="font-medium mb-2 text-dark/80">测试信息</h4>
               <div class="space-y-1">
                 <p><span class="text-dark/60">协议名称:</span> <span>{{ isTestCompleted ? protocolType.toUpperCase() : '未测试' }}</span></p>
-                <p><span class="text-dark/60">Fuzz类型:</span> <span>{{ isTestCompleted ? (fuzzType === 'directed' ? '定向Fuzz' : '非定向Fuzz') : '未测试' }}</span></p>
+                <p><span class="text-dark/60">Fuzz引擎:</span> <span>{{ isTestCompleted ? fuzzEngine : '未设置' }}</span></p>
                 <p><span class="text-dark/60">测试目标:</span> <span>{{ isTestCompleted ? `${targetHost}:${targetPort}` : '未设置' }}</span></p>
                 <p><span class="text-dark/60">开始时间:</span> <span>{{ isTestCompleted ? (startTime || (testStartTime ? testStartTime.toLocaleString() : '未开始')) : '未开始' }}</span></p>
                 <p><span class="text-dark/60">结束时间:</span> <span>{{ isTestCompleted ? (endTime || (testEndTime ? testEndTime.toLocaleString() : '未结束')) : '未结束' }}</span></p>
