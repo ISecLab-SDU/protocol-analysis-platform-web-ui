@@ -689,7 +689,9 @@ watch(
             :level="3"
             class="m-0 font-light tracking-wide text-white"
           >
-            <span class="font-bold text-white">CryptoScan 固件安全分析平台</span>
+            <span class="font-bold text-white"
+              >CryptoScan 固件安全分析平台</span
+            >
           </Typography.Title>
         </div>
         <div
@@ -1491,7 +1493,8 @@ watch(
                       </Typography.Text>
                       <pre
                         class="overflow-x-auto rounded bg-gray-50 p-3 text-sm text-gray-700"
-                        >{{ item.codeSnippet }}</pre>
+                        >{{ item.codeSnippet }}</pre
+                      >
                     </div>
                   </Card>
                 </List.Item>
@@ -1530,7 +1533,8 @@ watch(
                       <span
                         v-if="item.isLeaf"
                         class="node-icon mr-2 text-indigo-500"
-                        >📄</span>
+                        >📄</span
+                      >
                       <span class="node-title flex-1 truncate text-gray-800">{{
                         item.title
                       }}</span>
@@ -1570,7 +1574,9 @@ watch(
               class="text-2xl text-indigo-300"
             />
             <Typography.Title :level="4" class="m-0 font-light text-white">
-              <span class="font-bold text-white">CryptoScan 固件安全分析平台</span>
+              <span class="font-bold text-white"
+                >CryptoScan 固件安全分析平台</span
+              >
             </Typography.Title>
           </div>
           <div class="flex space-x-6">
@@ -1601,7 +1607,8 @@ watch(
         <div class="text-center text-sm text-gray-400">
           <p class="mb-2 text-white">
             ©{{ new Date().getFullYear() }}
-            <span class="font-bold text-white">CryptoScan 安全平台 - 基于数据流的网络设备固件密码规范分析系统
+            <span class="font-bold text-white"
+              >CryptoScan 安全平台 - 基于数据流的网络设备固件密码规范分析系统
             </span>
           </p>
           <p>集成CRYPTODY分析引擎 | 学术级安全分析解决方案</p>
@@ -1748,7 +1755,6 @@ watch(
   font-weight: 700;
   color: #1e293b;
   background: linear-gradient(to right, #4f46e5, #8b5cf6);
-  background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
 }
