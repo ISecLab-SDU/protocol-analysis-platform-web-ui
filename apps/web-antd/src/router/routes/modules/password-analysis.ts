@@ -17,7 +17,7 @@ const routes: RouteRecordRaw[] = [
         },
         name: 'CryptographicMisuseAnalysis',
         path: '/password-analysis/misuse',
-        component: () => import('#/views/placeholders/menu-placeholder.vue'),
+        component: () => import('#/views/cryptographic-misuse/index.vue'),
       },
       {
         meta: {
