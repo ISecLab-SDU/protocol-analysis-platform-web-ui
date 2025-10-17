@@ -905,9 +905,9 @@ onMounted(async () => {
 
 <template>
   <div class="bg-light text-dark font-sans min-h-screen flex flex-col">
-    <!-- 顶部导航栏 -->
-    <header class="bg-white/80 backdrop-blur-md border-b border-primary/20 sticky top-0 z-50 shadow-sm">
-      <div class="container mx-auto px-4 py-3 flex items-center justify-between">
+      <!-- 顶部导航栏 -->
+      <header class="bg-white/80 backdrop-blur-md border-b border-primary/20 sticky top-0 z-50 shadow-sm">
+        <div class="w-full px-6 py-3 flex items-center justify-between">
         <div class="flex items-center space-x-3">
           <div class="bg-primary/10 p-2 rounded-lg">
             <i class="fa fa-bug text-primary text-xl"></i>
@@ -941,8 +941,8 @@ onMounted(async () => {
       </div>
     </header>
 
-    <!-- 主内容区 -->
-    <main class="flex-1 container mx-auto px-4 py-6 bg-grid">
+      <!-- 主内容区 -->
+      <main class="flex-1 w-full px-6 py-6 bg-grid">
       <!-- 加载状态 -->
       <div v-if="loading" class="flex items-center justify-center h-64">
         <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -1023,9 +1023,9 @@ onMounted(async () => {
         </div>
         
         <!-- 测试过程展示区 -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <div class="grid grid-cols-1 xl:grid-cols-4 gap-6 mb-6">
           <!-- 实时Fuzz过程窗口 -->
-          <div class="lg:col-span-2 bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-primary/20 shadow-card">
+          <div class="xl:col-span-3 bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-primary/20 shadow-card">
             <div class="flex justify-between items-center mb-4">
               <h3 class="font-semibold text-lg">Fuzz过程</h3>
               <div class="flex space-x-2">
@@ -1046,7 +1046,7 @@ onMounted(async () => {
           </div>
           
           <!-- 崩溃监控 -->
-          <div class="lg:col-span-1">
+          <div class="xl:col-span-1">
             <!-- 崩溃信息 -->
             <div v-if="crashDetails" class="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-red-300 shadow-crash h-full">
               <div class="flex justify-between items-center mb-4">
@@ -1101,9 +1101,9 @@ onMounted(async () => {
         </div>
         
         <!-- 测试结果分析 -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <div class="grid grid-cols-1 xl:grid-cols-4 gap-6 mb-6">
           <!-- 消息类型分布和版本统计 -->
-          <div class="lg:col-span-2 bg-white/80 backdrop-blur-sm rounded-xl p-6 border border-secondary/20 shadow-card">
+          <div class="xl:col-span-3 bg-white/80 backdrop-blur-sm rounded-xl p-6 border border-secondary/20 shadow-card">
             <div class="flex justify-between items-center mb-6">
               <h3 class="font-semibold text-xl">消息类型分布与版本统计</h3>
             </div>
@@ -1138,7 +1138,7 @@ onMounted(async () => {
           </div>
           
           <!-- 实时统计 -->
-          <div class="lg:col-span-1 bg-white/80 backdrop-blur-sm rounded-xl p-6 border border-primary/20 shadow-card">
+          <div class="xl:col-span-1 bg-white/80 backdrop-blur-sm rounded-xl p-6 border border-primary/20 shadow-card">
             <h3 class="font-semibold text-lg mb-4">实时统计</h3>
             <div class="space-y-6">
               <div>
@@ -1295,9 +1295,9 @@ onMounted(async () => {
       </div>
     </main>
 
-    <!-- 页脚 -->
-    <footer class="bg-white/80 backdrop-blur-md border-t border-primary/20 py-4 mt-6 shadow-sm">
-      <div class="container mx-auto px-4 flex flex-col md:flex-row justify-between items-center">
+      <!-- 页脚 -->
+      <footer class="bg-white/80 backdrop-blur-md border-t border-primary/20 py-4 mt-6 shadow-sm">
+        <div class="w-full px-6 flex flex-col md:flex-row justify-between items-center">
         <div class="text-dark/50 text-sm mb-2 md:mb-0">
           © 2025 多协议Fuzz测试平台 | 最后更新: <span>{{ lastUpdate }}</span>
         </div>
