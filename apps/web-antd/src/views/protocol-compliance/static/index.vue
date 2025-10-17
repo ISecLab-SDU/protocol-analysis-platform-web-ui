@@ -11,16 +11,15 @@ import {
   Divider
 } from 'ant-design-vue';
 
-// 类型定义（适配 rules.json 的特殊结构）
+// 类型定义
 type RuleItem = {
   analysis: string;
   rule: string;
   code?: string;
 };
 
-// 分析结果的原始结构（值是 JSON 字符串）
 type RawAnalysisResult = {
-  result: string; // 可能是 "no violation found!" 等字符串
+  result: string;
   reason: string;
 };
 
@@ -32,9 +31,12 @@ const title = computed(() =>
 
 // 状态管理
 const analysisGroups = ref<Record<string, RuleItem[]>>({});
-// 存储解析后的分析结果（规则内容 → 分析结果）
 const analysisResults = ref<Record<string, RawAnalysisResult>>({});
 const lastFetchError = ref<null | string>(null);
+const dataLoaded = ref(false); // 新增：标记数据是否已加载
+
+// 分组展开状态
+const groupExpanded = ref<Record<string, boolean>>({}); // 控制分组展开/收起
 
 // 左侧分页
 const itemsPerPage = 5;
@@ -47,10 +49,10 @@ const activeAnalysisKey = ref<string | null>(null);
 const currentResult = ref<RawAnalysisResult | null>(null);
 const currentRule = ref<string | null>(null);
 
-// 加载规则与分析结果（适配 rules.json 的特殊格式）
+// 加载规则与分析结果
 async function loadData() {
   try {
-    // 1. 加载规则数据（rule.json）
+    // 1. 加载规则数据
     const rulesRes = await fetch('/rule.json');
     const rulesObj = await rulesRes.json();
     const rulesData: RuleItem[] = Object.entries(rulesObj).map(([rule, code]) => ({
@@ -59,24 +61,21 @@ async function loadData() {
       code: code as string,
     }));
 
-    // 2. 加载分析结果（rules.json）- 重点处理：值是 JSON 字符串
+    // 2. 加载分析结果
     const resultsRes = await fetch('/rules.json');
-    const rawResults: Record<string, string> = await resultsRes.json(); // 值是字符串
+    const rawResults: Record<string, string> = await resultsRes.json();
 
-    // 解析每个值（JSON 字符串 → 对象）
+    // 解析结果
     const parsedResults: Record<string, RawAnalysisResult> = {};
     Object.entries(rawResults).forEach(([rule, resultStr]) => {
       try {
-        // 处理空值或无效字符串
         if (!resultStr.trim()) {
           parsedResults[rule] = { result: '未分析', reason: '无分析结果' };
           return;
         }
-        // 解析 JSON 字符串
         const parsed = JSON.parse(resultStr) as RawAnalysisResult;
         parsedResults[rule] = parsed;
       } catch (e) {
-        // 解析失败时的容错处理
         parsedResults[rule] = {
           result: '解析错误',
           reason: `分析结果格式错误: ${(e as Error).message}`
@@ -84,41 +83,54 @@ async function loadData() {
       }
     });
 
-    // 3. 分组处理规则
+    // 3. 分组处理
     const groups: Record<string, RuleItem[]> = {};
     rulesData.forEach(item => {
-      if (!groups[item.analysis]) groups[item.analysis] = [];
+      if (!groups[item.analysis]) {
+        groups[item.analysis] = [];
+        groupExpanded.value[item.analysis] = false; // 初始化为收起状态
+      }
       groups[item.analysis].push(item);
     });
 
     analysisGroups.value = groups;
     analysisResults.value = parsedResults;
     lastFetchError.value = null;
+    dataLoaded.value = true; // 标记数据已加载
+    message.success('数据加载成功');
   } catch (err: any) {
     lastFetchError.value = `加载数据失败: ${err.message}`;
     message.error(lastFetchError.value);
   }
 }
 
-// 初始化加载
+// 初始化不自动加载，保持空状态
 onMounted(() => {
-  loadData();
+  // 不自动调用loadData，等待用户点击刷新
 });
 
-// 展开规则组
-function openAnalysisGroup(key: string) {
-  activeAnalysisKey.value = key;
-  currentPage.value = 1;
-  currentRules.value = analysisGroups.value[key] || [];
-  totalPages.value = Math.ceil((currentRules.value.length || 0) / itemsPerPage);
-  currentResult.value = null;
-  currentRule.value = null;
+// 切换规则组展开/收起
+function toggleAnalysisGroup(key: string) {
+  // 切换状态
+  groupExpanded.value[key] = !groupExpanded.value[key];
+  
+  // 处理展开状态
+  if (groupExpanded.value[key]) {
+    activeAnalysisKey.value = key;
+    currentPage.value = 1;
+    currentRules.value = analysisGroups.value[key] || [];
+    totalPages.value = Math.ceil((currentRules.value.length || 0) / itemsPerPage);
+  } else {
+    activeAnalysisKey.value = null;
+    currentRules.value = [];
+    currentResult.value = null;
+    currentRule.value = null;
+  }
 }
 
-// 查看分析结果（核心：用规则内容作为键匹配）
+// 查看分析结果
 function viewAnalysisResult(rule: string) {
   currentRule.value = rule;
-  // 从解析后的结果中查找，无结果时显示默认值
   currentResult.value = analysisResults.value[rule] || {
     result: '未找到',
     reason: '未找到对应的分析结果'
@@ -126,7 +138,8 @@ function viewAnalysisResult(rule: string) {
 }
 
 // 左侧分页控制
-function prevPage() {
+function prevPage(e: MouseEvent) {
+  e.stopPropagation();
   if (currentPage.value > 1) {
     currentPage.value--;
     currentResult.value = null;
@@ -134,7 +147,8 @@ function prevPage() {
   }
 }
 
-function nextPage() {
+function nextPage(e: MouseEvent) {
+  e.stopPropagation();
   if (currentPage.value < totalPages.value) {
     currentPage.value++;
     currentResult.value = null;
@@ -142,23 +156,23 @@ function nextPage() {
   }
 }
 
-// 分页数据切片
-function currentPageSlice() {
+// 分页数据切片（改为computed确保响应式）
+const currentPageSlice = computed(() => {
   const start = (currentPage.value - 1) * itemsPerPage;
   return currentRules.value.slice(start, start + itemsPerPage);
-}
+});
 
-// 结果状态样式计算（适配实际 result 字符串）
+// 结果状态样式计算
 const resultStatusClass = computed(() => {
   if (!currentResult.value) return '';
   const result = currentResult.value.result.toLowerCase();
-  if (result.includes('no violation')) return 'text-success'; // 符合规则
-  if (result.includes('violation')) return 'text-error'; // 违反规则
-  if (result === '未分析' || result === '') return 'text-gray'; // 未分析
-  return 'text-warning'; // 其他情况（解析错误等）
+  if (result.includes('no violation')) return 'text-success';
+  if (result.includes('violation')) return 'text-error';
+  if (result === '未分析' || result === '') return 'text-gray';
+  return 'text-warning';
 });
 
-// 结果状态文本（中文显示）
+// 结果状态文本
 const resultStatusText = computed(() => {
   if (!currentResult.value) return '';
   const result = currentResult.value.result.toLowerCase();
@@ -190,7 +204,12 @@ const resultStatusText = computed(() => {
           </Space>
         </template>
 
-        <div v-if="Object.keys(analysisGroups).length === 0">
+        <!-- 初始状态显示空提示 -->
+        <div v-if="!dataLoaded">
+          <Empty description="请点击刷新按钮加载数据" />
+        </div>
+
+        <div v-else-if="Object.keys(analysisGroups).length === 0">
           <Empty description="未加载到规则数据" />
         </div>
 
@@ -203,19 +222,22 @@ const resultStatusText = computed(() => {
             <Card 
               size="small" 
               class="group-card cursor-pointer"
-              :class="{ 'active-group': activeAnalysisKey === groupName }"
-              @click="openAnalysisGroup(groupName)"
+              :class="{ 'active-group': groupExpanded[groupName] }"
+              @click="toggleAnalysisGroup(groupName)"
             >
               <template #title>
                 <Space>
                   <span>{{ idx + 1 }}. {{ groupName }}</span>
                   <Tag color="blue">{{ rules.length }} 条规则</Tag>
+                  <!-- 展开/收起图标 -->
+                  <span class="expand-icon">{{ groupExpanded[groupName] ? '▼' : '►' }}</span>
                 </Space>
               </template>
 
-              <div v-if="activeAnalysisKey === groupName" class="group-rules">
+              <!-- 仅在展开状态显示规则列表 -->
+              <div v-if="groupExpanded[groupName]" class="group-rules">
                 <div 
-                  v-for="(item, i) in currentPageSlice()" 
+                  v-for="(item, i) in currentPageSlice" 
                   :key="i" 
                   class="rule-item cursor-pointer"
                   @click.stop="viewAnalysisResult(item.rule)"
@@ -229,11 +251,11 @@ const resultStatusText = computed(() => {
                   <pre class="rule-code">{{ item.code || '无对应代码' }}</pre>
                 </div>
 
-                <Space class="pagination-controls">
+                <Space class="pagination-controls" @click.stop>
                   <Button 
                     size="small" 
                     :disabled="currentPage === 1" 
-                    @click="prevPage"
+                    @click="prevPage($event)"
                   >
                     上一页
                   </Button>
@@ -243,7 +265,7 @@ const resultStatusText = computed(() => {
                   <Button 
                     size="small" 
                     :disabled="currentPage >= totalPages" 
-                    @click="nextPage"
+                    @click="nextPage($event)"
                   >
                     下一页
                   </Button>
@@ -286,7 +308,7 @@ const resultStatusText = computed(() => {
 
           <div class="result-description">
             <h3>详细说明:</h3>
-            <p>{{ currentResult.reason }}</p> <!-- 显示 reason 字段 -->
+            <p>{{ currentResult.reason }}</p>
           </div>
         </div>
       </Card>
@@ -340,8 +362,16 @@ const resultStatusText = computed(() => {
   box-shadow: 0 2px 8px rgba(24, 144, 255, 0.2);
 }
 
+.expand-icon {
+  color: #1890ff;
+  font-size: 14px;
+  transition: transform 0.2s;
+}
+
 .group-rules {
   margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #e8e8e8;
 }
 
 .rule-item {
@@ -354,11 +384,12 @@ const resultStatusText = computed(() => {
 
 .rule-item:hover {
   border-color: #1890ff;
+  background-color: #f0f7ff;
 }
 
 .rule-header {
   margin-bottom: 8px;
-  word-break: break-word; /* 长规则自动换行 */
+  word-break: break-word;
 }
 
 .rule-index {
@@ -388,6 +419,7 @@ const resultStatusText = computed(() => {
   display: flex;
   justify-content: center;
   margin-top: 16px;
+  padding: 8px;
 }
 
 .result-details {
@@ -397,7 +429,7 @@ const resultStatusText = computed(() => {
 .result-rule p, .result-description p {
   margin: 8px 0;
   line-height: 1.6;
-  white-space: pre-wrap; /* 长文本自动换行 */
+  white-space: pre-wrap;
   word-break: break-word;
 }
 
