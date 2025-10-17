@@ -20,9 +20,17 @@
 
    Vue 3 官方搭配，负责打包和依赖管理，我们的项目当中不用和它打太多交道。
 
-5. Mock 后端：Nitro
+## BREAKING CHANGE：Flask 后端
 
-   一个伪造（Mock）的后端，基于 Nitro（一个轻量级的 JavaScript 服务器引擎）开发。方便在不接入后端服务器的情况下测试前端业务的正确性。**原则上，编写的代码最好从一开始就实现前后端的分离，测试用的伪造数据应该由 Mock 后端提供，但是不强求。**
+现在需要用以下方式启动后端：
+
+```sh
+cd apps/backend-flask
+uv sync
+uv run app.py
+```
+
+没有 uv？不知道它是什么？(查看手册)[https://docs.astral.sh/uv/getting-started/installation/]
 
 ## 环境配置
 
