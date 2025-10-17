@@ -22,7 +22,7 @@ const routes: RouteRecordRaw[] = [
       {
         name: 'ProtocolComplianceStatic',
         path: '/protocol-compliance/static',
-        component: () => import('#/views/placeholders/menu-placeholder.vue'),
+        component: () => import('#/views/protocol-compliance/static/index.vue'),
         meta: {
           title: '静态分析',
         },

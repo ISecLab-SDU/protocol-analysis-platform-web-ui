@@ -42,6 +42,72 @@ export interface CreateProtocolComplianceTaskPayload {
   tags?: string[];
 }
 
+export type ProtocolStaticAnalysisComplianceStatus =
+  | 'compliant'
+  | 'needs_review'
+  | 'non_compliant';
+
+export interface ProtocolStaticAnalysisVerdict {
+  category: string;
+  compliance: ProtocolStaticAnalysisComplianceStatus;
+  confidence: 'high' | 'low' | 'medium';
+  explanation: string;
+  findingId: string;
+  lineRange?: [number, number];
+  location: {
+    file: string;
+    function?: string;
+  };
+  recommendation?: string;
+  relatedRule: {
+    id: string;
+    requirement: string;
+    source: string;
+  };
+}
+
+export interface ProtocolStaticAnalysisSummary {
+  compliantCount: number;
+  needsReviewCount: number;
+  nonCompliantCount: number;
+  notes: string;
+  overallStatus: ProtocolStaticAnalysisComplianceStatus;
+}
+
+export interface ProtocolStaticAnalysisModelMetadata {
+  generatedAt: string;
+  modelVersion: string;
+  protocol: string;
+  ruleSet: string;
+}
+
+export interface ProtocolStaticAnalysisModelResponse {
+  metadata: ProtocolStaticAnalysisModelMetadata;
+  summary: ProtocolStaticAnalysisSummary;
+  verdicts: ProtocolStaticAnalysisVerdict[];
+}
+
+export interface ProtocolStaticAnalysisResult {
+  analysisId: string;
+  durationMs: number;
+  inputs: {
+    codeFileName: string;
+    notes: null | string;
+    protocolName: string;
+    rulesFileName: string;
+    rulesSummary: null | string;
+  };
+  model: string;
+  modelResponse: ProtocolStaticAnalysisModelResponse;
+  submittedAt: string;
+}
+
+export interface RunProtocolStaticAnalysisPayload {
+  code: File;
+  notes?: string;
+  rules: File;
+}
+
 const BASE_PATH = '/protocol-compliance/tasks';
 
 export function fetchProtocolComplianceTasks(
@@ -90,4 +156,26 @@ export async function downloadProtocolComplianceTaskResult(taskId: string) {
     },
   )) as { data: Blob };
   return response.data;
+}
+
+export function runProtocolStaticAnalysis(
+  payload: RunProtocolStaticAnalysisPayload,
+) {
+  const { code, notes, rules } = payload;
+  const formData = new FormData();
+  formData.append('rules', rules);
+  formData.append('code', code);
+  if (notes?.trim()) {
+    formData.append('notes', notes.trim());
+  }
+
+  return requestClient.post<ProtocolStaticAnalysisResult>(
+    '/protocol-compliance/static-analysis',
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    },
+  );
 }
