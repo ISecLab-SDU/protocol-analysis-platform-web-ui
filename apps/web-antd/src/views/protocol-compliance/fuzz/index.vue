@@ -505,30 +505,15 @@ function stopTest() {
   // Update final statistics
   updateTestSummary();
   
-  // Show charts only when test is completed
-  showCharts.value = true;
-  
-  console.log('Test completed, showing charts:', {
+  console.log('Test completed, updating charts:', {
     isTestCompleted: isTestCompleted.value,
-    showCharts: showCharts.value,
     protocolStats: protocolStats.value,
     messageTypeStats: messageTypeStats.value
   });
   
+  // Update charts with final data
   nextTick(() => {
-    console.log('Updating charts...');
-    // Wait a bit more for DOM to update
-    setTimeout(() => {
-      if (!messageTypeChart || !versionChart) {
-        console.warn('Charts not initialized, reinitializing...');
-        const success = initCharts();
-        if (!success) {
-          console.error('Failed to initialize charts');
-          return;
-        }
-      }
-      updateCharts();
-    }, 100);
+    updateCharts();
   });
 }
 
@@ -905,23 +890,13 @@ onMounted(async () => {
   // Wait for DOM to be fully rendered before initializing charts
   await nextTick();
   
-  // Try to initialize charts with retry mechanism
-  let retryCount = 0;
-  const maxRetries = 5;
-  const initChartsWithRetry = async () => {
-    const success = initCharts();
-    if (!success && retryCount < maxRetries) {
-      retryCount++;
-      console.log(`Retrying chart initialization (${retryCount}/${maxRetries})`);
-      setTimeout(initChartsWithRetry, 100);
-    } else if (success) {
-      console.log('Charts initialized successfully on mount');
-    } else {
-      console.error('Failed to initialize charts after all retries');
-    }
-  };
-  
-  initChartsWithRetry();
+  // Initialize charts - Canvas elements should now always be available
+  const success = initCharts();
+  if (success) {
+    console.log('Charts initialized successfully on mount');
+  } else {
+    console.error('Failed to initialize charts');
+  }
   
   // Set initial last update time
   lastUpdate.value = new Date().toLocaleString();
@@ -1132,25 +1107,31 @@ onMounted(async () => {
             <div class="flex justify-between items-center mb-6">
               <h3 class="font-semibold text-xl">消息类型分布与版本统计</h3>
             </div>
-            <div v-if="!isTestCompleted" class="h-72 flex flex-col items-center justify-center text-dark/50">
-              <div class="bg-primary/10 p-4 rounded-full mb-4">
-                <i class="fa fa-pie-chart text-3xl text-primary/70"></i>
-              </div>
-              <span class="text-sm">数据统计中......</span>
-            </div>
-            <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-8 h-72">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 h-72">
               <!-- 消息类型分布饼状图 -->
               <div>
                 <h4 class="text-base font-medium mb-3 text-dark/80 text-center">消息类型分布</h4>
-                <div class="h-60">
-                  <canvas ref="messageCanvas" id="messageTypeMainChart"></canvas>
+                <div class="h-60 relative">
+                  <canvas ref="messageCanvas" id="messageTypeMainChart" class="absolute inset-0"></canvas>
+                  <div v-if="!isTestCompleted" class="absolute inset-0 flex flex-col items-center justify-center text-dark/50 bg-white/90 rounded-lg">
+                    <div class="bg-primary/10 p-3 rounded-full mb-2">
+                      <i class="fa fa-pie-chart text-2xl text-primary/70"></i>
+                    </div>
+                    <span class="text-xs">数据统计中...</span>
+                  </div>
                 </div>
               </div>
               <!-- SNMP版本分布饼状图 -->
               <div>
                 <h4 class="text-base font-medium mb-3 text-dark/80 text-center">SNMP版本分布</h4>
-                <div class="h-60">
-                  <canvas ref="versionCanvas" id="versionDistributionChart"></canvas>
+                <div class="h-60 relative">
+                  <canvas ref="versionCanvas" id="versionDistributionChart" class="absolute inset-0"></canvas>
+                  <div v-if="!isTestCompleted" class="absolute inset-0 flex flex-col items-center justify-center text-dark/50 bg-white/90 rounded-lg">
+                    <div class="bg-primary/10 p-3 rounded-full mb-2">
+                      <i class="fa fa-chart-pie text-2xl text-primary/70"></i>
+                    </div>
+                    <span class="text-xs">数据统计中...</span>
+                  </div>
                 </div>
               </div>
             </div>
