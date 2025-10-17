@@ -59,6 +59,7 @@ const protocolType = ref('SNMP');
 const fuzzEngine = ref('SNMP_Fuzz');
 const targetHost = ref('192.168.102.2');
 const targetPort = ref(161);
+const rtspCommandConfig = ref('afl-fuzz -d -i $AFLNET/tutorials/live555/in-rtsp -o out-live555 -N tcp://127.0.0.1/8554 -x $AFLNET/tutorials/live555/rtsp.dict -P RTSP -D 10000 -q 3 -s 3 -E -K -R ./testOnDemandRTSPServer 8554');
 
 // Watch for protocol changes to update port
 watch(protocolType, (newProtocol) => {
@@ -1008,6 +1009,20 @@ onMounted(async () => {
                       class="w-full bg-white border border-primary/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
                 <i class="fa fa-plug absolute right-3 top-2.5 text-dark/50"></i>
               </div>
+            </div>
+          </div>
+          
+          <!-- RTSP协议指令配置 -->
+          <div v-if="protocolType === 'RTSP'" class="mt-4">
+            <label class="block text-sm text-dark/70 mb-2">指令配置</label>
+            <div class="relative">
+              <textarea 
+                v-model="rtspCommandConfig" 
+                rows="3"
+                class="w-full bg-white border border-primary/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+                placeholder="请输入RTSP协议的指令配置..."
+              ></textarea>
+              <i class="fa fa-terminal absolute right-3 top-2.5 text-dark/50"></i>
             </div>
           </div>
           
