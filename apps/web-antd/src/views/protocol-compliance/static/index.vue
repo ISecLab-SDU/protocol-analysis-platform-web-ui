@@ -1,337 +1,415 @@
 <script lang="ts" setup>
-import type { FormInstance, UploadFile, UploadProps } from 'ant-design-vue';
-import type { Rule } from 'ant-design-vue/es/form';
-
-import { computed, reactive, ref } from 'vue';
-
-import { Page } from '@vben/common-ui';
-
+import { ref, computed, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
 import {
-  Button,
   Card,
-  Descriptions,
-  Form,
-  FormItem,
-  Input,
-  message,
+  Empty,
   Space,
-  Typography,
-  Upload,
+  Button,
+  Tag,
+  message,
+  Divider
 } from 'ant-design-vue';
 
-const TypographyParagraph = Typography.Paragraph;
-const TypographyText = Typography.Text;
-
-const formRef = ref<FormInstance>();
-const formState = reactive({
-  archive: null as File | null,
-  config: null as File | null,
-  notes: '',
-});
-
-const archiveFileList = ref<UploadFile[]>([]);
-const configFileList = ref<UploadFile[]>([]);
-const isSubmitting = ref(false);
-
-const formRules: Record<string, Rule[]> = {
-  config: [
-    {
-      message: '请上传 TOML 配置文件',
-      required: true,
-      trigger: 'change',
-    },
-  ],
-  archive: [
-    {
-      message: '请上传完整项目压缩包',
-      required: true,
-      trigger: 'change',
-    },
-  ],
+// 类型定义（适配 rules.json 的特殊结构）
+type RuleItem = {
+  analysis: string;
+  rule: string;
+  code?: string;
 };
 
-const formatter = new Intl.DateTimeFormat(undefined, {
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-  month: '2-digit',
-  year: 'numeric',
-});
+// 分析结果的原始结构（值是 JSON 字符串）
+type RawAnalysisResult = {
+  result: string; // 可能是 "no violation found!" 等字符串
+  reason: string;
+};
 
-function formatFileSize(bytes: null | number | undefined) {
-  if (!bytes || bytes <= 0) {
-    return '0 B';
-  }
-  const units = ['B', 'KB', 'MB', 'GB'];
-  const exponent = Math.min(
-    Math.floor(Math.log(bytes) / Math.log(1024)),
-    units.length - 1,
-  );
-  const value = bytes / 1024 ** exponent;
-  const digits = value >= 10 || exponent === 0 ? 0 : 1;
-  return `${value.toFixed(digits)} ${units[exponent]}`;
-}
-
-const configMeta = computed(() => {
-  const file = formState.config;
-  if (!file) {
-    return null;
-  }
-  return {
-    name: file.name,
-    size: formatFileSize(file.size),
-    updatedAt: formatter.format(file.lastModified),
-  };
-});
-
-const archiveMeta = computed(() => {
-  const file = formState.archive;
-  if (!file) {
-    return null;
-  }
-  return {
-    name: file.name,
-    size: formatFileSize(file.size),
-    updatedAt: formatter.format(file.lastModified),
-  };
-});
-
-const hasSelection = computed(
-  () => configMeta.value !== null || archiveMeta.value !== null,
+// 路由与标题
+const route = useRoute();
+const title = computed(() =>
+  String(route.meta?.title ?? '静态规则分析' ?? '功能建设中'),
 );
 
-const handleConfigBeforeUpload: UploadProps['beforeUpload'] = (file) => {
-  const actual =
-    (file as UploadFile<File>).originFileObj ?? (file as unknown as File);
-  configFileList.value = [file];
-  formState.config = actual;
-  formRef.value?.clearValidate?.(['config']);
-  return false;
-};
+// 状态管理
+const analysisGroups = ref<Record<string, RuleItem[]>>({});
+// 存储解析后的分析结果（规则内容 → 分析结果）
+const analysisResults = ref<Record<string, RawAnalysisResult>>({});
+const lastFetchError = ref<null | string>(null);
 
-const handleConfigRemove: UploadProps['onRemove'] = () => {
-  configFileList.value = [];
-  formState.config = null;
-  formRef.value?.validateFields?.(['config']);
-  return true;
-};
+// 左侧分页
+const itemsPerPage = 5;
+const currentPage = ref(1);
+const totalPages = ref(1);
+const currentRules = ref<RuleItem[]>([]);
+const activeAnalysisKey = ref<string | null>(null);
 
-const handleArchiveBeforeUpload: UploadProps['beforeUpload'] = (file) => {
-  const actual =
-    (file as UploadFile<File>).originFileObj ?? (file as unknown as File);
-  archiveFileList.value = [file];
-  formState.archive = actual;
-  formRef.value?.clearValidate?.(['archive']);
-  return false;
-};
+// 右侧当前分析结果
+const currentResult = ref<RawAnalysisResult | null>(null);
+const currentRule = ref<string | null>(null);
 
-const handleArchiveRemove: UploadProps['onRemove'] = () => {
-  archiveFileList.value = [];
-  formState.archive = null;
-  formRef.value?.validateFields?.(['archive']);
-  return true;
-};
-
-function handleReset() {
-  formRef.value?.resetFields();
-  archiveFileList.value = [];
-  configFileList.value = [];
-  formState.archive = null;
-  formState.config = null;
-  formState.notes = '';
-}
-
-async function handleSubmit() {
+// 加载规则与分析结果（适配 rules.json 的特殊格式）
+async function loadData() {
   try {
-    await formRef.value?.validate();
-  } catch {
-    return;
-  }
+    // 1. 加载规则数据（rule.json）
+    const rulesRes = await fetch('/rule.json');
+    const rulesObj = await rulesRes.json();
+    const rulesData: RuleItem[] = Object.entries(rulesObj).map(([rule, code]) => ({
+      analysis: '默认规则组',
+      rule,
+      code: code as string,
+    }));
 
-  if (!formState.config || !formState.archive) {
-    return;
-  }
+    // 2. 加载分析结果（rules.json）- 重点处理：值是 JSON 字符串
+    const resultsRes = await fetch('/rules.json');
+    const rawResults: Record<string, string> = await resultsRes.json(); // 值是字符串
 
-  isSubmitting.value = true;
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  isSubmitting.value = false;
-  message.success('已保存上传文件，后端对接后即可启动静态分析。');
+    // 解析每个值（JSON 字符串 → 对象）
+    const parsedResults: Record<string, RawAnalysisResult> = {};
+    Object.entries(rawResults).forEach(([rule, resultStr]) => {
+      try {
+        // 处理空值或无效字符串
+        if (!resultStr.trim()) {
+          parsedResults[rule] = { result: '未分析', reason: '无分析结果' };
+          return;
+        }
+        // 解析 JSON 字符串
+        const parsed = JSON.parse(resultStr) as RawAnalysisResult;
+        parsedResults[rule] = parsed;
+      } catch (e) {
+        // 解析失败时的容错处理
+        parsedResults[rule] = {
+          result: '解析错误',
+          reason: `分析结果格式错误: ${(e as Error).message}`
+        };
+      }
+    });
+
+    // 3. 分组处理规则
+    const groups: Record<string, RuleItem[]> = {};
+    rulesData.forEach(item => {
+      if (!groups[item.analysis]) groups[item.analysis] = [];
+      groups[item.analysis].push(item);
+    });
+
+    analysisGroups.value = groups;
+    analysisResults.value = parsedResults;
+    lastFetchError.value = null;
+  } catch (err: any) {
+    lastFetchError.value = `加载数据失败: ${err.message}`;
+    message.error(lastFetchError.value);
+  }
 }
+
+// 初始化加载
+onMounted(() => {
+  loadData();
+});
+
+// 展开规则组
+function openAnalysisGroup(key: string) {
+  activeAnalysisKey.value = key;
+  currentPage.value = 1;
+  currentRules.value = analysisGroups.value[key] || [];
+  totalPages.value = Math.ceil((currentRules.value.length || 0) / itemsPerPage);
+  currentResult.value = null;
+  currentRule.value = null;
+}
+
+// 查看分析结果（核心：用规则内容作为键匹配）
+function viewAnalysisResult(rule: string) {
+  currentRule.value = rule;
+  // 从解析后的结果中查找，无结果时显示默认值
+  currentResult.value = analysisResults.value[rule] || {
+    result: '未找到',
+    reason: '未找到对应的分析结果'
+  };
+}
+
+// 左侧分页控制
+function prevPage() {
+  if (currentPage.value > 1) {
+    currentPage.value--;
+    currentResult.value = null;
+    currentRule.value = null;
+  }
+}
+
+function nextPage() {
+  if (currentPage.value < totalPages.value) {
+    currentPage.value++;
+    currentResult.value = null;
+    currentRule.value = null;
+  }
+}
+
+// 分页数据切片
+function currentPageSlice() {
+  const start = (currentPage.value - 1) * itemsPerPage;
+  return currentRules.value.slice(start, start + itemsPerPage);
+}
+
+// 结果状态样式计算（适配实际 result 字符串）
+const resultStatusClass = computed(() => {
+  if (!currentResult.value) return '';
+  const result = currentResult.value.result.toLowerCase();
+  if (result.includes('no violation')) return 'text-success'; // 符合规则
+  if (result.includes('violation')) return 'text-error'; // 违反规则
+  if (result === '未分析' || result === '') return 'text-gray'; // 未分析
+  return 'text-warning'; // 其他情况（解析错误等）
+});
+
+// 结果状态文本（中文显示）
+const resultStatusText = computed(() => {
+  if (!currentResult.value) return '';
+  const result = currentResult.value.result.toLowerCase();
+  if (result.includes('no violation')) return '符合规则';
+  if (result.includes('violation')) return '违反规则';
+  if (result === '未分析' || result === '') return '未分析';
+  return '需要注意';
+});
 </script>
 
 <template>
-  <Page
-    description="上传静态分析所需的配置文件与完整源码压缩包。待后端联调完成后，可直接在此页触发分析流程。"
-    title="协议静态分析"
-  >
-    <div class="static-analysis">
-      <Card title="流程说明">
-        <div class="intro">
-          <TypographyParagraph class="intro-text">
-            该流程依赖协议配置与完整源码来评估实现与规范的一致性。配置文件采用
-            TOML 格式，具体字段定义请参考论文。
-          </TypographyParagraph>
-          <ul class="guide-list">
-            <li>先行准备分析配置（TOML），具体格式请参考论文。</li>
-            <li>将待分析项目的完整源码打包为压缩文件，保留原始目录结构。</li>
-            <li>可选地填写备注，说明协议版本、提交 SHA 或其他上下文。</li>
-          </ul>
-          <TypographyText class="placeholder-hint" type="secondary">
-            当前页面仅保存上传记录，不会将文件发送至后端。
-          </TypographyText>
+  <div class="static-analysis-page">
+    <div class="page-header">
+      <h1>{{ title }}</h1>
+      <p>静态规则分析结果展示，左侧为规则与代码，右侧为对应分析结果</p>
+      <Space v-if="lastFetchError" class="error提示">
+        <span class="text-danger">{{ lastFetchError }}</span>
+        <Button size="small" @click="loadData">重新加载</Button>
+      </Space>
+    </div>
+
+    <div class="analysis-container">
+      <!-- 左侧：规则与代码 -->
+      <Card class="analysis-left" title="规则与代码列表">
+        <template #extra>
+          <Space>
+            <span>规则组数: {{ Object.keys(analysisGroups).length }}</span>
+            <Button size="small" @click="loadData">刷新</Button>
+          </Space>
+        </template>
+
+        <div v-if="Object.keys(analysisGroups).length === 0">
+          <Empty description="未加载到规则数据" />
+        </div>
+
+        <div v-else>
+          <div 
+            v-for="(rules, groupName, idx) in analysisGroups" 
+            :key="groupName" 
+            class="group-wrapper"
+          >
+            <Card 
+              size="small" 
+              class="group-card cursor-pointer"
+              :class="{ 'active-group': activeAnalysisKey === groupName }"
+              @click="openAnalysisGroup(groupName)"
+            >
+              <template #title>
+                <Space>
+                  <span>{{ idx + 1 }}. {{ groupName }}</span>
+                  <Tag color="blue">{{ rules.length }} 条规则</Tag>
+                </Space>
+              </template>
+
+              <div v-if="activeAnalysisKey === groupName" class="group-rules">
+                <div 
+                  v-for="(item, i) in currentPageSlice()" 
+                  :key="i" 
+                  class="rule-item cursor-pointer"
+                  @click.stop="viewAnalysisResult(item.rule)"
+                >
+                  <div class="rule-header">
+                    <span class="rule-index">{{ (currentPage - 1) * itemsPerPage + i + 1 }}.</span>
+                    <span class="rule-content">{{ item.rule }}</span>
+                  </div>
+                  
+                  <Divider orientation="left">对应代码</Divider>
+                  <pre class="rule-code">{{ item.code || '无对应代码' }}</pre>
+                </div>
+
+                <Space class="pagination-controls">
+                  <Button 
+                    size="small" 
+                    :disabled="currentPage === 1" 
+                    @click="prevPage"
+                  >
+                    上一页
+                  </Button>
+                  <span>
+                    第 {{ currentPage }} 页 / 共 {{ totalPages }} 页
+                  </span>
+                  <Button 
+                    size="small" 
+                    :disabled="currentPage >= totalPages" 
+                    @click="nextPage"
+                  >
+                    下一页
+                  </Button>
+                </Space>
+              </div>
+            </Card>
+          </div>
         </div>
       </Card>
 
-      <Card title="上传分析材料">
-        <Form
-          ref="formRef"
-          :model="formState"
-          :rules="formRules"
-          colon
-          layout="vertical"
-        >
-          <FormItem label="分析配置（.toml）" name="config" required>
-            <Upload
-              :before-upload="handleConfigBeforeUpload"
-              :file-list="configFileList"
-              :max-count="1"
-              :on-remove="handleConfigRemove"
-              accept=".toml,text/x-toml,application/toml,text/plain"
-            >
-              <Button block type="dashed">选择 TOML 配置文件</Button>
-            </Upload>
-            <p class="upload-helper">
-              上传协议静态分析的配置文件。格式请参见论文附录，建议与仓库一并版本管理。
+      <!-- 右侧：分析结果 -->
+      <Card class="analysis-right" title="分析结果详情">
+        <template #extra>
+          <Tag :color="currentResult?.result.includes('no violation') ? 'green' : 
+                         currentResult?.result.includes('violation') ? 'red' : 'orange'">
+            {{ currentResult ? resultStatusText : '未选择规则' }}
+          </Tag>
+        </template>
+
+        <div v-if="!currentResult">
+          <Empty description="请从左侧选择规则查看分析结果" />
+        </div>
+
+        <div v-else class="result-details">
+          <div class="result-rule">
+            <h3>规则内容:</h3>
+            <p>{{ currentRule }}</p>
+          </div>
+
+          <Divider />
+
+          <div class="result-status">
+            <h3>分析结果:</h3>
+            <p class="status-text" :class="resultStatusClass">
+              {{ resultStatusText }}
             </p>
-          </FormItem>
+          </div>
 
-          <FormItem label="源码压缩包" name="archive" required>
-            <Upload
-              :before-upload="handleArchiveBeforeUpload"
-              :file-list="archiveFileList"
-              :max-count="1"
-              :on-remove="handleArchiveRemove"
-              accept=".zip,.tar,.gz,.tgz,.bz2,.xz,.7z,application/zip,application/x-tar"
-            >
-              <Button block type="dashed">选择压缩包</Button>
-            </Upload>
-            <p class="upload-helper">
-              压缩包需包含项目完整源码和构建脚本，保持目录结构用于后续离线解析。
-            </p>
-          </FormItem>
+          <Divider />
 
-          <FormItem label="备注" name="notes">
-            <Input.TextArea
-              v-model:value="formState.notes"
-              :auto-size="{ minRows: 3, maxRows: 6 }"
-              placeholder="可选：说明协议版本、提交记录、运行前提等关键信息"
-            />
-          </FormItem>
-
-          <FormItem class="form-actions" :colon="false">
-            <Space>
-              <Button @click="handleReset">清空</Button>
-              <Button
-                :loading="isSubmitting"
-                type="primary"
-                @click="handleSubmit"
-              >
-                保存上传
-              </Button>
-            </Space>
-          </FormItem>
-        </Form>
-      </Card>
-
-      <Card v-if="hasSelection" title="已选文件概览">
-        <Descriptions bordered column="1" size="small">
-          <Descriptions.Item v-if="configMeta" label="配置文件">
-            <div class="file-meta">
-              <TypographyText strong>{{ configMeta.name }}</TypographyText>
-              <span class="file-detail">大小：{{ configMeta.size }}</span>
-              <span class="file-detail">更新：{{ configMeta.updatedAt }}</span>
-            </div>
-          </Descriptions.Item>
-          <Descriptions.Item v-if="archiveMeta" label="源码压缩包">
-            <div class="file-meta">
-              <TypographyText strong>{{ archiveMeta.name }}</TypographyText>
-              <span class="file-detail">大小：{{ archiveMeta.size }}</span>
-              <span class="file-detail">更新：{{ archiveMeta.updatedAt }}</span>
-            </div>
-          </Descriptions.Item>
-          <Descriptions.Item label="备注">
-            {{ formState.notes.trim() || '未填写' }}
-          </Descriptions.Item>
-        </Descriptions>
-        <TypographyParagraph class="preview-tip" type="secondary">
-          文本信息与文件均暂存于浏览器内存，后端联调后可直接复用当前输入。
-        </TypographyParagraph>
+          <div class="result-description">
+            <h3>详细说明:</h3>
+            <p>{{ currentResult.reason }}</p> <!-- 显示 reason 字段 -->
+          </div>
+        </div>
       </Card>
     </div>
-  </Page>
+  </div>
 </template>
 
 <style scoped>
-.static-analysis {
+.static-analysis-page {
+  padding: 24px;
+}
+
+.page-header {
+  margin-bottom: 24px;
+}
+
+.page-header h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.page-header p {
+  margin: 8px 0 0;
+  color: rgba(0, 0, 0, 0.65);
+}
+
+.analysis-container {
+  display: flex;
+  gap: 24px;
+  height: calc(100vh - 160px);
+}
+
+.analysis-left, .analysis-right {
+  flex: 1;
+  overflow: auto;
   display: flex;
   flex-direction: column;
-  gap: 16px;
 }
 
-.intro {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.group-wrapper {
+  margin-bottom: 16px;
 }
 
-.intro-text {
-  margin: 0;
-  line-height: 1.6;
+.group-card {
+  transition: all 0.3s;
 }
 
-.guide-list {
-  padding-left: 20px;
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--ant-text-color);
+.group-card.active-group {
+  border-color: #1890ff;
+  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.2);
 }
 
-.placeholder-hint {
-  font-size: 13px;
-}
-
-.upload-helper {
+.group-rules {
   margin-top: 8px;
-  margin-bottom: 0;
+}
+
+.rule-item {
+  padding: 12px;
+  border: 1px solid #e8e8e8;
+  border-radius: 4px;
+  margin-bottom: 12px;
+  transition: all 0.2s;
+}
+
+.rule-item:hover {
+  border-color: #1890ff;
+}
+
+.rule-header {
+  margin-bottom: 8px;
+  word-break: break-word; /* 长规则自动换行 */
+}
+
+.rule-index {
+  display: inline-block;
+  width: 30px;
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.rule-content {
+  font-weight: 500;
+}
+
+.rule-code {
+  margin: 0;
+  padding: 8px;
+  background: #f5f5f5;
+  border-radius: 4px;
+  font-family: "Fira Code", monospace;
   font-size: 13px;
-  color: var(--ant-text-color-secondary);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  max-height: 200px;
+  overflow: auto;
 }
 
-.form-actions {
-  margin-bottom: 0;
-}
-
-.file-meta {
+.pagination-controls {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  justify-content: center;
+  margin-top: 16px;
 }
 
-.file-detail {
-  font-size: 12px;
-  color: var(--ant-text-color-secondary);
+.result-details {
+  padding: 8px 0;
 }
 
-.preview-tip {
-  margin-top: 12px;
-  margin-bottom: 0;
-  font-size: 12px;
+.result-rule p, .result-description p {
+  margin: 8px 0;
+  line-height: 1.6;
+  white-space: pre-wrap; /* 长文本自动换行 */
+  word-break: break-word;
 }
 
-@media (max-width: 768px) {
-  .guide-list {
-    font-size: 12px;
-  }
+.status-text {
+  margin: 8px 0;
+  font-size: 16px;
+  font-weight: 500;
 }
+
+/* 状态颜色类 */
+.text-success { color: #52c41a; }
+.text-error { color: #f5222d; }
+.text-warning { color: #faad14; }
+.text-gray { color: #8c8c8c; }
 </style>
