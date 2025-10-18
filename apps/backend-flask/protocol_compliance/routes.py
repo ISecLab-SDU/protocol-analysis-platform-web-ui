@@ -248,7 +248,7 @@ def _strip_extension(filename: str) -> str:
 # RTSP协议配置 - 在这里修改路径和命令
 RTSP_CONFIG = {
     "script_path": "/home/hhh/下载/AFLNET/commands/run-aflnet.sh",  # 修改为你的脚本文件路径
-    "shell_command": "cd /home/hhh/下载/AFLNET/ && docker run -it --privileged -v $(pwd)/output:/home/live555/testProgs/out-live555 -v $(pwd)/commands:/host-commands -p 8554:8554 aflnet-live555 &",  # 修改为你的启动命令
+    "shell_command": "cd /home/hhh/下载/AFLNET/ && docker run -d --privileged -v $(pwd)/output:/home/live555/testProgs/out-live555 -v $(pwd)/commands:/host-commands -p 8554:8554 aflnet-live555",  # 修改为你的启动命令
     "log_file_path": "/home/hhh/下载/AFLNET/output/plot_data"  # 修改为你的日志文件路径
 }
 
@@ -317,6 +317,8 @@ def execute_command():
         return make_response(error_response(f"不支持的协议类型: {protocol}"), 400)
     
     try:
+        print(f"[DEBUG] 执行命令: {command}")  # 调试日志
+        
         # 在后台执行命令
         process = subprocess.Popen(
             command,
@@ -326,6 +328,21 @@ def execute_command():
             preexec_fn=os.setsid if os.name != 'nt' else None
         )
         
+        # 等待一小段时间检查进程是否正常启动
+        import time
+        time.sleep(1)
+        
+        # 检查进程状态
+        poll_result = process.poll()
+        if poll_result is not None:
+            # 进程已经结束，可能有错误
+            stdout, stderr = process.communicate()
+            error_msg = stderr.decode('utf-8') if stderr else "未知错误"
+            print(f"[DEBUG] 命令执行失败: {error_msg}")  # 调试日志
+            return make_response(error_response(f"命令执行失败: {error_msg}"), 500)
+        
+        print(f"[DEBUG] 命令执行成功，PID: {process.pid}")  # 调试日志
+        
         return success_response({
             "message": f"{protocol}命令执行成功",
             "command": command,
@@ -333,6 +350,7 @@ def execute_command():
         })
         
     except Exception as e:
+        print(f"[DEBUG] 异常: {str(e)}")  # 调试日志
         return make_response(error_response(f"执行命令失败: {str(e)}"), 500)
 
 
