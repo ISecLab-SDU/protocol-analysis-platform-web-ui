@@ -247,9 +247,9 @@ def _strip_extension(filename: str) -> str:
 
 # RTSP协议配置 - 在这里修改路径和命令
 RTSP_CONFIG = {
-    "script_path": "/tmp/rtsp_fuzz/rtsp_test.sh",  # 修改为你的脚本文件路径
-    "shell_command": "bash /tmp/rtsp_fuzz/rtsp_test.sh > /tmp/rtsp_fuzz/rtsp_output.log 2>&1 &",  # 修改为你的启动命令
-    "log_file_path": "/tmp/rtsp_fuzz/rtsp_output.log"  # 修改为你的日志文件路径
+    "script_path": "/home/hhh/下载/AFLNET/commands/run-aflnet.sh",  # 修改为你的脚本文件路径
+    "shell_command": "cd /home/hhh/下载/AFLNET/ && docker run -it --privileged -v $(pwd)/output:/home/live555/testProgs/out-live555 -v $(pwd)/commands:/host-commands -p 8554:8554 aflnet-live555 &",  # 修改为你的启动命令
+    "log_file_path": "/home/hhh/下载/AFLNET/output/plot_data"  # 修改为你的日志文件路径
 }
 
 @bp.route("/write-script", methods=["POST"])

@@ -698,32 +698,104 @@ async function readRTSPLogPeriodically() {
           // 更新读取位置
           logReadPosition.value = result.data.position || logReadPosition.value;
           
-          // 将日志内容显示到界面
+          // 处理AFL-NET的plot_data格式
           const logLines = result.data.content.split('\n').filter((line: string) => line.trim());
           logLines.forEach((line: string) => {
-            addLogToUI({ 
-              timestamp: new Date().toLocaleTimeString(),
-              version: 'RTSP',
-              type: 'LOG',
-              oids: [line],
-              hex: '',
-              result: 'success'
-            } as any, false);
+            processRTSPLogLine(line);
           });
-          
-          // 更新统计信息
-          packetCount.value++;
-          if (Math.random() > 0.7) {
-            successCount.value++;
-          } else if (Math.random() > 0.9) {
-            timeoutCount.value++;
-          }
         }
       }
     } catch (error) {
       console.error('读取RTSP日志失败:', error);
     }
   }, 2000); // 每2秒读取一次日志
+}
+
+// 处理RTSP协议的AFL-NET日志行
+function processRTSPLogLine(line: string) {
+  const timestamp = new Date().toLocaleTimeString();
+  
+  // 处理注释行（参数说明）
+  if (line.startsWith('#')) {
+    addRTSPLogToUI({
+      timestamp,
+      type: 'HEADER',
+      content: line.replace('#', '').trim(),
+      isHeader: true
+    });
+    return;
+  }
+  
+  // 处理数据行
+  if (line.includes(',')) {
+    const parts = line.split(',').map(part => part.trim());
+    if (parts.length >= 13) {
+      const [
+        unix_time, cycles_done, cur_path, paths_total, pending_total, 
+        pending_favs, map_size, unique_crashes, unique_hangs, max_depth, 
+        execs_per_sec, n_nodes, n_edges
+      ] = parts;
+      
+      // 格式化显示AFL-NET统计信息
+      const formattedContent = `Cycles: ${cycles_done} | Paths: ${cur_path}/${paths_total} | Pending: ${pending_total}(${pending_favs} favs) | Coverage: ${map_size} | Crashes: ${unique_crashes} | Hangs: ${unique_hangs} | Speed: ${execs_per_sec}/sec | Nodes: ${n_nodes} | Edges: ${n_edges}`;
+      
+      addRTSPLogToUI({
+        timestamp,
+        type: 'STATS',
+        content: formattedContent,
+        rawData: {
+          cycles_done: parseInt(cycles_done),
+          paths_total: parseInt(paths_total),
+          cur_path: parseInt(cur_path),
+          pending_total: parseInt(pending_total),
+          unique_crashes: parseInt(unique_crashes),
+          execs_per_sec: parseFloat(execs_per_sec)
+        }
+      });
+      
+      // 更新统计信息
+      packetCount.value = parseInt(cur_path);
+      successCount.value = parseInt(paths_total) - parseInt(pending_total);
+      failedCount.value = parseInt(unique_crashes);
+      currentSpeed.value = Math.round(parseFloat(execs_per_sec));
+    }
+  } else {
+    // 处理其他类型的日志行
+    addRTSPLogToUI({
+      timestamp,
+      type: 'INFO',
+      content: line
+    });
+  }
+}
+
+// RTSP专用的日志显示函数
+function addRTSPLogToUI(logData: any) {
+  if (!logContainer.value) return;
+  
+  const div = document.createElement('div');
+  
+  if (logData.isHeader) {
+    // 参数说明行
+    div.className = 'rtsp-header-line';
+    div.innerHTML = `<span class="text-dark/50">[${logData.timestamp}]</span> <span class="text-info font-medium">AFL-NET参数说明:</span> <span class="text-dark/70 text-xs">${logData.content}</span>`;
+  } else if (logData.type === 'STATS') {
+    // 统计数据行
+    div.className = 'rtsp-stats-line';
+    div.innerHTML = `<span class="text-dark/50">[${logData.timestamp}]</span> <span class="text-success font-medium">AFL-NET统计:</span> <span class="text-dark font-mono text-xs">${logData.content}</span>`;
+  } else {
+    // 普通信息行
+    div.className = 'rtsp-info-line';
+    div.innerHTML = `<span class="text-dark/50">[${logData.timestamp}]</span> <span class="text-primary">RTSP-AFL:</span> <span class="text-dark/70">${logData.content}</span>`;
+  }
+  
+  logContainer.value.appendChild(div);
+  logContainer.value.scrollTop = logContainer.value.scrollHeight;
+  
+  // 限制日志条目数量
+  if (logContainer.value.children.length > 200) {
+    logContainer.value.removeChild(logContainer.value.firstChild as any);
+  }
 }
 
 async function stopRTSPProcess() {
@@ -1736,6 +1808,17 @@ onMounted(async () => {
 }
 .status-idle {
   @apply bg-yellow-500;
+}
+
+/* RTSP协议专用样式 */
+.rtsp-header-line {
+  @apply mb-1 p-2 bg-blue-50 border-l-4 border-blue-400 rounded;
+}
+.rtsp-stats-line {
+  @apply mb-1 p-1 bg-green-50 border-l-2 border-green-400 rounded;
+}
+.rtsp-info-line {
+  @apply mb-1 p-1;
 }
 </style>
 
