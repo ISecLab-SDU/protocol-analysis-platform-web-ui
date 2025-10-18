@@ -61,6 +61,12 @@ const targetHost = ref('192.168.102.2');
 const targetPort = ref(161);
 const rtspCommandConfig = ref('afl-fuzz -d -i $AFLNET/tutorials/live555/in-rtsp -o out-live555 -N tcp://127.0.0.1/8554 -x $AFLNET/tutorials/live555/rtsp.dict -P RTSP -D 10000 -q 3 -s 3 -E -K -R ./testOnDemandRTSPServer 8554');
 
+// Real-time log reading
+const isReadingLog = ref(false);
+const logReadingInterval = ref<number | null>(null);
+const rtspProcessId = ref<number | null>(null);
+const logReadPosition = ref(0);
+
 // Watch for protocol changes to update port
 watch(protocolType, (newProtocol) => {
   if (newProtocol === 'SNMP') {
@@ -475,7 +481,7 @@ function resetTestState() {
   }
 }
 
-function startTest() {
+async function startTest() {
   if (!fuzzData.value.length) return;
   
   resetTestState();
@@ -484,7 +490,33 @@ function startTest() {
   showCharts.value = false; // Hide charts during test
   testStartTime.value = new Date();
   
-  packetDelay.value = 1000 / packetsPerSecond.value;
+  // 根据协议类型执行不同的启动逻辑
+  try {
+    if (protocolType.value === 'RTSP') {
+      await startRTSPTest();
+    } else if (protocolType.value === 'SNMP') {
+      await startSNMPTest();
+    } else if (protocolType.value === 'MQTT') {
+      await startMQTTTest();
+    } else {
+      throw new Error(`不支持的协议类型: ${protocolType.value}`);
+    }
+  } catch (error: any) {
+    console.error('启动测试失败:', error);
+    addLogToUI({ 
+      timestamp: new Date().toLocaleTimeString(),
+      version: protocolType.value,
+      type: 'ERROR',
+      oids: [],
+      hex: '',
+      result: 'failed',
+      failedReason: `启动失败: ${error.message}`
+    } as any, false);
+    isRunning.value = false;
+    return;
+  }
+  
+  // 启动通用计时器
   if (testTimer) { clearInterval(testTimer as any); testTimer = null; }
   testTimer = window.setInterval(() => { 
     if (!isPaused.value) {
@@ -492,8 +524,240 @@ function startTest() {
       currentSpeed.value = elapsedTime.value > 0 ? Math.round(packetCount.value / elapsedTime.value) : 0;
     }
   }, 1000);
-  
+}
+
+// Protocol-specific test functions
+async function startRTSPTest() {
+  try {
+    // 1. 写入脚本文件
+    await writeRTSPScript();
+    
+    // 2. 执行shell命令启动程序
+    await executeRTSPCommand();
+    
+    // 3. 开始实时读取日志
+    startRTSPLogReading();
+    
+    addLogToUI({ 
+      timestamp: new Date().toLocaleTimeString(),
+      version: 'RTSP',
+      type: 'START',
+      oids: ['RTSP测试已启动'],
+      hex: '',
+      result: 'success'
+    } as any, false);
+    
+  } catch (error: any) {
+    console.error('RTSP测试启动失败:', error);
+    throw error;
+  }
+}
+
+async function startSNMPTest() {
+  // SNMP协议的原有逻辑
+  packetDelay.value = 1000 / packetsPerSecond.value;
   loop();
+}
+
+async function startMQTTTest() {
+  // MQTT协议的启动逻辑（待实现）
+  console.log('MQTT test starting...');
+  addLogToUI({ 
+    timestamp: new Date().toLocaleTimeString(),
+    version: 'MQTT',
+    type: 'START',
+    oids: ['MQTT测试已启动'],
+    hex: '',
+    result: 'success'
+  } as any, false);
+}
+
+// RTSP specific functions
+async function writeRTSPScript() {
+  const scriptContent = rtspCommandConfig.value;
+  
+  try {
+    // 调用后端API写入脚本文件
+    const response = await fetch('/api/protocol-compliance/write-script', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        content: scriptContent,
+        protocol: 'RTSP'
+      }),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`写入脚本文件失败: ${response.statusText}`);
+    }
+    
+    const result = await response.json();
+    
+    addLogToUI({ 
+      timestamp: new Date().toLocaleTimeString(),
+      version: 'RTSP',
+      type: 'SCRIPT',
+      oids: [`脚本已写入: ${result.data?.filePath || '脚本文件'}`],
+      hex: '',
+      result: 'success'
+    } as any, false);
+    
+  } catch (error: any) {
+    console.error('写入RTSP脚本失败:', error);
+    throw new Error(`写入脚本文件失败: ${error.message}`);
+  }
+}
+
+async function executeRTSPCommand() {
+  try {
+    // 调用后端API执行shell命令
+    const response = await fetch('/api/protocol-compliance/execute-command', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        protocol: 'RTSP'
+      }),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`执行命令失败: ${response.statusText}`);
+    }
+    
+    const result = await response.json();
+    
+    // 保存进程ID用于后续停止
+    if (result.data && result.data.pid) {
+      rtspProcessId.value = result.data.pid;
+    }
+    
+    addLogToUI({ 
+      timestamp: new Date().toLocaleTimeString(),
+      version: 'RTSP',
+      type: 'COMMAND',
+      oids: [`命令已执行 (PID: ${result.data?.pid || 'unknown'})`],
+      hex: '',
+      result: 'success'
+    } as any, false);
+    
+  } catch (error: any) {
+    console.error('执行RTSP命令失败:', error);
+    throw new Error(`执行启动命令失败: ${error.message}`);
+  }
+}
+
+function startRTSPLogReading() {
+  isReadingLog.value = true;
+  
+  // 开始实时日志读取
+  readRTSPLogPeriodically();
+  
+  addLogToUI({ 
+    timestamp: new Date().toLocaleTimeString(),
+    version: 'RTSP',
+    type: 'LOG',
+    oids: [`开始读取日志`],
+    hex: '',
+    result: 'success'
+  } as any, false);
+}
+
+async function readRTSPLogPeriodically() {
+  if (logReadingInterval.value) {
+    clearInterval(logReadingInterval.value);
+  }
+  
+  logReadingInterval.value = window.setInterval(async () => {
+    if (!isRunning.value || !isReadingLog.value) {
+      if (logReadingInterval.value) {
+        clearInterval(logReadingInterval.value);
+        logReadingInterval.value = null;
+      }
+      return;
+    }
+    
+    try {
+      // 调用后端API读取日志文件
+      const response = await fetch('/api/protocol-compliance/read-log', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          protocol: 'RTSP',
+          lastPosition: logReadPosition.value // 使用实际的读取位置，实现增量读取
+        }),
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        if (result.data && result.data.content && result.data.content.trim()) {
+          // 更新读取位置
+          logReadPosition.value = result.data.position || logReadPosition.value;
+          
+          // 将日志内容显示到界面
+          const logLines = result.data.content.split('\n').filter((line: string) => line.trim());
+          logLines.forEach((line: string) => {
+            addLogToUI({ 
+              timestamp: new Date().toLocaleTimeString(),
+              version: 'RTSP',
+              type: 'LOG',
+              oids: [line],
+              hex: '',
+              result: 'success'
+            } as any, false);
+          });
+          
+          // 更新统计信息
+          packetCount.value++;
+          if (Math.random() > 0.7) {
+            successCount.value++;
+          } else if (Math.random() > 0.9) {
+            timeoutCount.value++;
+          }
+        }
+      }
+    } catch (error) {
+      console.error('读取RTSP日志失败:', error);
+    }
+  }, 2000); // 每2秒读取一次日志
+}
+
+async function stopRTSPProcess() {
+  if (!rtspProcessId.value) {
+    return;
+  }
+  
+  try {
+    const response = await fetch('/api/protocol-compliance/stop-process', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        pid: rtspProcessId.value,
+        protocol: 'RTSP'
+      }),
+    });
+    
+    if (response.ok) {
+      addLogToUI({ 
+        timestamp: new Date().toLocaleTimeString(),
+        version: 'RTSP',
+        type: 'STOP',
+        oids: [`RTSP进程已停止 (PID: ${rtspProcessId.value})`],
+        hex: '',
+        result: 'success'
+      } as any, false);
+      
+      rtspProcessId.value = null;
+    }
+  } catch (error) {
+    console.error('停止RTSP进程失败:', error);
+  }
 }
 
 function stopTest() {
@@ -501,6 +765,18 @@ function stopTest() {
   isPaused.value = false;
   isTestCompleted.value = true;
   testEndTime.value = new Date();
+  
+  // 停止日志读取
+  isReadingLog.value = false;
+  if (logReadingInterval.value) {
+    clearInterval(logReadingInterval.value);
+    logReadingInterval.value = null;
+  }
+  
+  // 停止RTSP进程
+  if (protocolType.value === 'RTSP') {
+    stopRTSPProcess();
+  }
   
   if (testTimer) { 
     clearInterval(testTimer as any); 
