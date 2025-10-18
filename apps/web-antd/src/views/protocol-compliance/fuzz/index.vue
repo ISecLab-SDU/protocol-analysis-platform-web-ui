@@ -782,7 +782,7 @@ function addRTSPLogToUI(logData: any) {
   } else if (logData.type === 'STATS') {
     // 统计数据行
     div.className = 'rtsp-stats-line';
-    div.innerHTML = `<span class="text-dark/50">[${logData.timestamp}]</span> <span class="text-success font-medium">AFL-NET统计:</span> <span class="text-dark font-mono text-xs">${logData.content}</span>`;
+    div.innerHTML = `<span class="text-dark/50">[${logData.timestamp}]</span> <span class="text-dark font-mono text-xs">${logData.content}</span>`;
   } else {
     // 普通信息行
     div.className = 'rtsp-info-line';
