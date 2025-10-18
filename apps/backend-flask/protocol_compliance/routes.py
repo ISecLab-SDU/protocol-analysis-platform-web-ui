@@ -319,36 +319,41 @@ def execute_command():
     try:
         print(f"[DEBUG] 执行命令: {command}")  # 调试日志
         
-        # 在后台执行命令
-        process = subprocess.Popen(
+        # 使用subprocess.run等待命令完成，而不是Popen
+        result = subprocess.run(
             command,
             shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            preexec_fn=os.setsid if os.name != 'nt' else None
+            text=True,
+            timeout=30  # 30秒超时
         )
         
-        # 等待一小段时间检查进程是否正常启动
-        import time
-        time.sleep(1)
+        print(f"[DEBUG] 命令返回码: {result.returncode}")  # 调试日志
         
-        # 检查进程状态
-        poll_result = process.poll()
-        if poll_result is not None:
-            # 进程已经结束，可能有错误
-            stdout, stderr = process.communicate()
-            error_msg = stderr.decode('utf-8') if stderr else "未知错误"
-            print(f"[DEBUG] 命令执行失败: {error_msg}")  # 调试日志
+        if result.returncode == 0:
+            # 命令执行成功
+            print(f"[DEBUG] 命令执行成功")
+            print(f"[DEBUG] stdout: {result.stdout}")
+            
+            # 对于docker run -d，成功的话stdout通常包含容器ID
+            container_id = result.stdout.strip() if result.stdout.strip() else "unknown"
+            
+            return success_response({
+                "message": f"{protocol}命令执行成功",
+                "command": command,
+                "container_id": container_id,
+                "pid": "docker_container"  # Docker容器没有传统意义的PID
+            })
+        else:
+            # 命令执行失败
+            error_msg = result.stderr.strip() if result.stderr.strip() else "未知错误"
+            print(f"[DEBUG] 命令执行失败: {error_msg}")
             return make_response(error_response(f"命令执行失败: {error_msg}"), 500)
         
-        print(f"[DEBUG] 命令执行成功，PID: {process.pid}")  # 调试日志
-        
-        return success_response({
-            "message": f"{protocol}命令执行成功",
-            "command": command,
-            "pid": process.pid
-        })
-        
+    except subprocess.TimeoutExpired:
+        print(f"[DEBUG] 命令执行超时")
+        return make_response(error_response("命令执行超时"), 500)
     except Exception as e:
         print(f"[DEBUG] 异常: {str(e)}")  # 调试日志
         return make_response(error_response(f"执行命令失败: {str(e)}"), 500)

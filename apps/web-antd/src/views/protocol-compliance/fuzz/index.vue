@@ -629,16 +629,16 @@ async function executeRTSPCommand() {
     
     const result = await response.json();
     
-    // 保存进程ID用于后续停止
-    if (result.data && result.data.pid) {
-      rtspProcessId.value = result.data.pid;
+    // 保存容器ID用于后续停止
+    if (result.data && (result.data.container_id || result.data.pid)) {
+      rtspProcessId.value = result.data.container_id || result.data.pid;
     }
     
     addLogToUI({ 
       timestamp: new Date().toLocaleTimeString(),
       version: 'RTSP',
       type: 'COMMAND',
-      oids: [`命令已执行 (PID: ${result.data?.pid || 'unknown'})`],
+      oids: [`Docker容器已启动 (ID: ${result.data?.container_id || result.data?.pid || 'unknown'})`],
       hex: '',
       result: 'success'
     } as any, false);
