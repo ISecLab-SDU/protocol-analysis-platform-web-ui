@@ -25,16 +25,22 @@ export interface ProtocolIRItem {
 }
 
 export interface PropertyResult {
-  id: string;
-  message: string;
-  name: string;
-  result: 'FAILED' | 'UNKNOWN' | 'VERIFIED';
+  property: string;
+  query: string;
+  result: boolean;
+  // 兼容旧版或未来扩展
+  id?: string;
+  name?: string;
+  message?: string;
 }
 
 export interface VerificationResults {
-  executionTime: string;
-  properties: PropertyResult[];
-  status: 'failed' | 'partial' | 'success';
+  protocol: string;
+  security_properties: PropertyResult[];
+  // 兼容旧版或未来扩展
+  executionTime?: string;
+  status?: 'failed' | 'partial' | 'success';
+  properties?: PropertyResult[];
 }
 
 export interface HistoryRecord {
@@ -146,6 +152,7 @@ export async function fetchFormalGptHistory(): Promise<HistoryRecord[]> {
         id: protocol.id,
         // ✅ 优先使用 modelData（时序图数据），否则使用 irData
         protocolIR: transformIRDataForSequence(protocol.modelData || protocol.irData),
+        proverifCode: protocol.proverifCode, // 新增：从后端获取 ProVerif 代码
         selectedProperties: protocol.selectedProperties || [],
         sequenceData: protocol.sequenceData,
         uploadTime: protocol.uploadTime,

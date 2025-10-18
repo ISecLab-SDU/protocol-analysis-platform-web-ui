@@ -10,6 +10,25 @@ bp = Blueprint('formal_gpt', __name__, url_prefix='/api/formal-gpt')
 # 配置路径
 CASE_FOLDER = '/amax/bxy/formalgpt/case'
 
+def get_proverif_code(protocol_path):
+    """读取 ProVerif 形式化验证代码"""
+    protocol_txt_path = os.path.join(protocol_path, 'formalmodel', 'turn1', 'protocol.txt')
+    if os.path.exists(protocol_txt_path):
+        try:
+            with open(protocol_txt_path, 'r', encoding='utf-8') as f:
+                return f.read()
+        except Exception as e:
+            print(f"Error reading protocol.txt: {e}")
+    return None
+
+
+def get_verification_results(protocol_path):
+    """读取验证结果"""
+    verification_json_path = os.path.join(protocol_path, 'verification_out.json')
+    if os.path.exists(verification_json_path):
+        return read_json_file(verification_json_path)
+    return None
+
 
 def read_json_file(filepath):
     """安全地读取JSON文件"""
@@ -64,6 +83,12 @@ def get_history():
                 continue
             
             file_info = get_file_size_and_time(protocol_path, protocol_name)
+
+            # 添加读取 ProVerif 代码
+            proverif_code = get_proverif_code(protocol_path)
+            
+            # 添加读取验证结果
+            verification_results = get_verification_results(protocol_path)
             
             # 读取 formalir/turn1/Model.json
             formalir_dir = os.path.join(protocol_path, 'formalir', 'turn1')
@@ -95,11 +120,17 @@ def get_history():
                 'fileSize': file_info['fileSize'],
                 'uploadTime': file_info['uploadTime'],
                 'irData': ir_data,
-                'modelData': model_data,  # ✅ 新增：时序图数据
+                'modelData': model_data,
                 'sequenceData': sequence_data,
-                'verificationResults': None,
-                'selectedProperties': []
+                'proverifCode': proverif_code,  # 新增
+                'verificationResults': verification_results,  # 修改
+                'selectedProperties': []  # 可能需要从验证结果中提取
             }
+            # 如果有验证结果，从 'security_properties' 提取属性名称
+            if verification_results and 'security_properties' in verification_results:
+                protocol_info['selectedProperties'] = [
+                    prop.get('property', '') for prop in verification_results.get('security_properties', []) if prop.get('property')
+                ]
             
             protocols.append(protocol_info)
         
@@ -156,15 +187,22 @@ def get_protocol_detail(protocol_id):
             protocol_json = os.path.join(formalmodel_dir, 'protocol.json')
             if os.path.exists(protocol_json):
                 sequence_data = read_json_file(protocol_json)
+
+         # 添加读取
+        proverif_code = get_proverif_code(protocol_path)
+        verification_results = get_verification_results(protocol_path)
+
+
         
         return jsonify({
             'code': 0,
             'success': True,
             'data': {
                 'irData': ir_data,
-                'modelData': model_data,  # ✅ 新增
+                'modelData': model_data,
                 'sequenceData': sequence_data,
-                'verificationResults': None,
+                'proverifCode': proverif_code,  # 新增
+                'verificationResults': verification_results,  # 修改
             }
         })
         
