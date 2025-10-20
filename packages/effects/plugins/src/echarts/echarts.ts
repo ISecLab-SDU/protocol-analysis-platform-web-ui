@@ -1,6 +1,7 @@
 import type {
   // 系列类型的定义后缀都为 SeriesOption
   BarSeriesOption,
+  GraphSeriesOption,
   LineSeriesOption,
 } from 'echarts/charts';
 import type {
@@ -12,7 +13,13 @@ import type {
 } from 'echarts/components';
 import type { ComposeOption } from 'echarts/core';
 
-import { BarChart, LineChart, PieChart, RadarChart } from 'echarts/charts';
+import {
+  BarChart,
+  GraphChart,
+  LineChart,
+  PieChart,
+  RadarChart,
+} from 'echarts/charts';
 import {
   // 数据集组件
   DatasetComponent,
@@ -32,6 +39,7 @@ import { CanvasRenderer } from 'echarts/renderers';
 export type ECOption = ComposeOption<
   | BarSeriesOption
   | DatasetComponentOption
+  | GraphSeriesOption
   | GridComponentOption
   | LineSeriesOption
   | TitleComponentOption
@@ -49,6 +57,7 @@ echarts.use([
   TransformComponent,
   BarChart,
   LineChart,
+  GraphChart,
   LabelLayout,
   UniversalTransition,
   CanvasRenderer,
