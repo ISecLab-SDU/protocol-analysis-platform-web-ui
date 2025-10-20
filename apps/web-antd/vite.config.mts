@@ -10,16 +10,16 @@ export default defineConfig(async () => {
         proxy: {
           '/api': {
             changeOrigin: true,
-            target: 'http://localhost:5001',
+            target: 'http://localhost:5000',
             ws: true,
           },
           '/auth': {
             changeOrigin: true,
-            target: 'http://localhost:5001',
+            target: 'http://localhost:5000',
           },
           '/uploads': {
             changeOrigin: true,
-            target: 'http://localhost:5001',
+            target: 'http://localhost:5000',
           },
         },
       },
