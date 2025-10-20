@@ -1,13 +1,25 @@
 <script lang="ts" setup>
-import type { FormInstance, UploadFile, UploadProps } from 'ant-design-vue';
+import type {
+  FormInstance,
+  UploadFile,
+  UploadProps,
+} from 'ant-design-vue';
 import type { Rule } from 'ant-design-vue/es/form';
 
-import { computed, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, reactive, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 
-import type { ProtocolStaticAnalysisResult } from '@/api/protocol-compliance';
-import { runProtocolStaticAnalysis } from '@/api/protocol-compliance';
+import type {
+  ProtocolStaticAnalysisJob,
+  ProtocolStaticAnalysisProgressEvent,
+  ProtocolStaticAnalysisResult,
+} from '#/api/protocol-compliance';
+import {
+  fetchProtocolStaticAnalysisProgress,
+  fetchProtocolStaticAnalysisResult,
+  runProtocolStaticAnalysis,
+} from '#/api/protocol-compliance';
 
 import {
   Button,
@@ -20,6 +32,7 @@ import {
   Space,
   Typography,
   Upload,
+  Tag,
 } from 'ant-design-vue';
 
 const TypographyParagraph = Typography.Paragraph;
@@ -40,6 +53,21 @@ const configFileList = ref<UploadFile[]>([]);
 const rulesFileList = ref<UploadFile[]>([]);
 const isSubmitting = ref(false);
 const analysisResult = ref<ProtocolStaticAnalysisResult | null>(null);
+const activeJob = ref<ProtocolStaticAnalysisJob | null>(null);
+const activeJobId = ref<string | null>(null);
+const progressLogs = ref<string[]>([]);
+const progressError = ref<string | null>(null);
+const pollingTimer = ref<number | null>(null);
+
+const PROGRESS_STATUS_META: Record<
+  ProtocolStaticAnalysisJob['status'],
+  { color: string; label: string }
+> = {
+  completed: { color: 'success', label: '已完成' },
+  failed: { color: 'error', label: '失败' },
+  queued: { color: 'default', label: '排队中' },
+  running: { color: 'processing', label: '运行中' },
+};
 
 const formRules: Record<string, Rule[]> = {
   archive: [
@@ -80,11 +108,340 @@ const formatter = new Intl.DateTimeFormat(undefined, {
   year: 'numeric',
 });
 
+const logFormatter = new Intl.DateTimeFormat(undefined, {
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+});
+
 const STATUS_LABELS: Record<string, string> = {
   compliant: '合规',
   needs_review: '需复核',
   non_compliant: '发现问题',
 };
+
+const ANSI_STANDARD_COLORS = [
+  '#000000', // black
+  '#AA0000', // red
+  '#00AA00', // green
+  '#AA5500', // yellow/brown
+  '#0000AA', // blue
+  '#AA00AA', // magenta
+  '#00AAAA', // cyan
+  '#AAAAAA', // light gray
+] as const;
+
+const ANSI_BRIGHT_COLORS = [
+  '#555555', // bright black (gray)
+  '#FF5555', // bright red
+  '#55FF55', // bright green
+  '#FFFF55', // bright yellow
+  '#5555FF', // bright blue
+  '#FF55FF', // bright magenta
+  '#55FFFF', // bright cyan
+  '#FFFFFF', // bright white
+] as const;
+
+const ANSI_ESCAPE_PATTERN = /\u001b\[((?:\d{1,3})(?:;(?:\d{1,3}))*)m/g;
+
+interface AnsiStyleState {
+  color: string | null;
+  backgroundColor: string | null;
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  strikethrough: boolean;
+  dim: boolean;
+  conceal: boolean;
+}
+
+const defaultAnsiStyleState: AnsiStyleState = {
+  backgroundColor: null,
+  bold: false,
+  color: null,
+  conceal: false,
+  dim: false,
+  italic: false,
+  strikethrough: false,
+  underline: false,
+};
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function clampRgbComponent(value: number) {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.max(0, Math.min(255, Math.round(value)));
+}
+
+function toHexComponent(value: number) {
+  return clampRgbComponent(value).toString(16).padStart(2, '0');
+}
+
+function rgbToHex(r: number, g: number, b: number) {
+  return `#${toHexComponent(r)}${toHexComponent(g)}${toHexComponent(b)}`;
+}
+
+function ansi256ToHex(index: number): string | null {
+  if (index >= 0 && index <= 7) {
+    return ANSI_STANDARD_COLORS[index];
+  }
+  if (index >= 8 && index <= 15) {
+    return ANSI_BRIGHT_COLORS[index - 8];
+  }
+  if (index >= 16 && index <= 231) {
+    const base = index - 16;
+    const r = Math.floor(base / 36);
+    const g = Math.floor((base % 36) / 6);
+    const b = base % 6;
+    const resolve = (component: number) =>
+      component === 0 ? 0 : component * 40 + 55;
+    return rgbToHex(resolve(r), resolve(g), resolve(b));
+  }
+  if (index >= 232 && index <= 255) {
+    const gray = 8 + (index - 232) * 10;
+    return rgbToHex(gray, gray, gray);
+  }
+  return null;
+}
+
+function buildStyleString(state: AnsiStyleState) {
+  const declarations: string[] = [];
+  if (state.conceal) {
+    declarations.push('color: transparent');
+    declarations.push('text-shadow: none');
+  } else if (state.color) {
+    declarations.push(`color: ${state.color}`);
+  }
+  if (state.backgroundColor) {
+    declarations.push(`background-color: ${state.backgroundColor}`);
+  }
+  if (state.bold) {
+    declarations.push('font-weight: 600');
+  }
+  if (state.italic) {
+    declarations.push('font-style: italic');
+  }
+  const decorations: string[] = [];
+  if (state.underline) {
+    decorations.push('underline');
+  }
+  if (state.strikethrough) {
+    decorations.push('line-through');
+  }
+  if (decorations.length) {
+    declarations.push(`text-decoration: ${decorations.join(' ')}`);
+  }
+  if (state.dim) {
+    declarations.push('opacity: 0.75');
+  }
+  return declarations.join('; ');
+}
+
+function hasAnsiStyle(state: AnsiStyleState) {
+  return Boolean(
+    state.conceal ||
+      state.color ||
+      state.backgroundColor ||
+      state.bold ||
+      state.italic ||
+      state.underline ||
+      state.strikethrough ||
+      state.dim,
+  );
+}
+
+function resetAnsiState(target: AnsiStyleState) {
+  Object.assign(target, defaultAnsiStyleState);
+}
+
+function applyAnsiCodes(state: AnsiStyleState, codes: number[]) {
+  if (!codes.length) {
+    resetAnsiState(state);
+    return;
+  }
+  for (let i = 0; i < codes.length; i += 1) {
+    const code = codes[i];
+    if (!Number.isFinite(code)) {
+      continue;
+    }
+    switch (code) {
+      case 0:
+        resetAnsiState(state);
+        break;
+      case 1:
+        state.bold = true;
+        state.dim = false;
+        break;
+      case 2:
+        state.dim = true;
+        state.bold = false;
+        break;
+      case 3:
+        state.italic = true;
+        break;
+      case 4:
+      case 21:
+        state.underline = true;
+        break;
+      case 5:
+      case 6:
+        // Blink/rapid-blink -> ignore for now.
+        break;
+      case 7:
+        // Inverse not supported; ignore.
+        break;
+      case 8:
+        state.conceal = true;
+        break;
+      case 9:
+        state.strikethrough = true;
+        break;
+      case 22:
+        state.bold = false;
+        state.dim = false;
+        break;
+      case 23:
+        state.italic = false;
+        break;
+      case 24:
+        state.underline = false;
+        break;
+      case 27:
+        // Positive image (inverse off) – no-op for now.
+        break;
+      case 28:
+        state.conceal = false;
+        break;
+      case 29:
+        state.strikethrough = false;
+        break;
+      case 39:
+        state.color = null;
+        state.conceal = false;
+        break;
+      case 49:
+        state.backgroundColor = null;
+        break;
+      default: {
+        if (code >= 30 && code <= 37) {
+          state.color = ANSI_STANDARD_COLORS[code - 30];
+          state.conceal = false;
+          break;
+        }
+        if (code >= 40 && code <= 47) {
+          state.backgroundColor = ANSI_STANDARD_COLORS[code - 40];
+          break;
+        }
+        if (code >= 90 && code <= 97) {
+          state.color = ANSI_BRIGHT_COLORS[code - 90];
+          state.conceal = false;
+          break;
+        }
+        if (code >= 100 && code <= 107) {
+          state.backgroundColor = ANSI_BRIGHT_COLORS[code - 100];
+          break;
+        }
+        if (code === 38 || code === 48) {
+          const isForeground = code === 38;
+          const mode = codes[i + 1];
+          if (mode === 2 && codes.length >= i + 5) {
+            const r = clampRgbComponent(codes[i + 2]);
+            const g = clampRgbComponent(codes[i + 3]);
+            const b = clampRgbComponent(codes[i + 4]);
+            const color = rgbToHex(r, g, b);
+            if (isForeground) {
+              state.color = color;
+              state.conceal = false;
+            } else {
+              state.backgroundColor = color;
+            }
+            i += 4;
+            break;
+          }
+          if (mode === 5 && codes.length >= i + 3) {
+            const paletteIndex = codes[i + 2];
+            const color = ansi256ToHex(paletteIndex);
+            if (color) {
+              if (isForeground) {
+                state.color = color;
+                state.conceal = false;
+              } else {
+                state.backgroundColor = color;
+              }
+            }
+            i += 2;
+            break;
+          }
+        }
+        break;
+      }
+    }
+  }
+}
+
+function ansiToHtml(raw: string) {
+  if (!raw) {
+    return '';
+  }
+  const normalized = raw
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    // Remove non-SGR escape sequences (cursor movement, erase, etc.).
+    .replace(/\u001b\[[0-9;?]*[A-HJKSTfnisu]/g, '')
+    // Remove OSC sequences.
+    .replace(/\u001b\][^\u0007]*(?:\u0007|\u001b\\)/g, '');
+
+  let result = '';
+  let lastIndex = 0;
+  const state: AnsiStyleState = { ...defaultAnsiStyleState };
+  let hasOpenSpan = false;
+
+  const appendSegment = (segment: string) => {
+    if (!segment) {
+      return;
+    }
+    const escaped = escapeHtml(segment).replace(/\n/g, '<br/>');
+    result += escaped;
+  };
+
+  let match: RegExpExecArray | null;
+  while ((match = ANSI_ESCAPE_PATTERN.exec(normalized)) !== null) {
+    appendSegment(normalized.slice(lastIndex, match.index));
+    lastIndex = match.index + match[0].length;
+
+    const codeText = match[1];
+    const codeParts = codeText
+      .split(';')
+      .map((value) => (value === '' ? 0 : Number(value)));
+    applyAnsiCodes(state, codeParts);
+
+    if (hasOpenSpan) {
+      result += '</span>';
+      hasOpenSpan = false;
+    }
+    if (hasAnsiStyle(state)) {
+      result += `<span style="${buildStyleString(state)}">`;
+      hasOpenSpan = true;
+    }
+  }
+
+  appendSegment(normalized.slice(lastIndex));
+
+  if (hasOpenSpan) {
+    result += '</span>';
+  }
+
+  return result;
+}
 
 function formatFileSize(bytes: null | number | undefined) {
   if (!bytes || bytes <= 0) {
@@ -187,6 +544,137 @@ const analysisStatusLabel = computed(() => {
   return STATUS_LABELS[status] ?? status;
 });
 
+const progressStatus = computed<
+  ProtocolStaticAnalysisJob['status'] | null
+>(() => activeJob.value?.status ?? null);
+
+const progressStatusLabel = computed(() => {
+  if (!progressStatus.value) {
+    return '未开始';
+  }
+  return PROGRESS_STATUS_META[progressStatus.value].label;
+});
+
+const progressStatusColor = computed(() => {
+  if (!progressStatus.value) {
+    return 'default';
+  }
+  return PROGRESS_STATUS_META[progressStatus.value].color;
+});
+
+const progressMessage = computed(
+  () => activeJob.value?.message ?? '等待任务开始',
+);
+
+const progressText = computed(() => {
+  if (!progressLogs.value.length) {
+    return '等待任务开始...';
+  }
+  return progressLogs.value.join('\n');
+});
+
+const progressHtml = computed(() => ansiToHtml(progressText.value));
+
+function toProgressLine(event: ProtocolStaticAnalysisProgressEvent) {
+  const timeLabel = (() => {
+    try {
+      return logFormatter.format(new Date(event.timestamp));
+    } catch {
+      return event.timestamp ?? '';
+    }
+  })();
+  const stage = event.stage || 'unknown';
+  const messageText = event.message || '';
+  return `[${timeLabel}] (${stage}) ${messageText}`;
+}
+
+function applyProgressSnapshot(snapshot: ProtocolStaticAnalysisJob) {
+  activeJob.value = snapshot;
+  activeJobId.value = snapshot.jobId;
+  progressError.value = snapshot.error ?? null;
+  if (snapshot.events?.length) {
+    progressLogs.value = snapshot.events.map((event) => toProgressLine(event));
+  } else {
+    progressLogs.value = [];
+  }
+}
+
+function stopPolling() {
+  if (pollingTimer.value !== null) {
+    window.clearInterval(pollingTimer.value);
+    pollingTimer.value = null;
+  }
+}
+
+function resetProgressState() {
+  stopPolling();
+  activeJob.value = null;
+  activeJobId.value = null;
+  progressLogs.value = [];
+  progressError.value = null;
+}
+
+async function handleStatusTransition(
+  previousStatus: ProtocolStaticAnalysisJob['status'] | null,
+  snapshot: ProtocolStaticAnalysisJob,
+) {
+  if (snapshot.status === 'completed') {
+    stopPolling();
+    isSubmitting.value = false;
+    try {
+      const result =
+        snapshot.result ??
+        (await fetchProtocolStaticAnalysisResult(snapshot.jobId));
+      analysisResult.value = result;
+      const overallStatus = result.modelResponse.summary.overallStatus;
+      const label = STATUS_LABELS[overallStatus] ?? overallStatus ?? '完成';
+      if (previousStatus !== 'completed') {
+        message.success(`静态分析完成，整体评估：${label}`);
+      }
+    } catch (err) {
+      const messageText =
+        err instanceof Error ? err.message : String(err ?? '');
+      progressError.value = messageText || '无法获取分析结果';
+      if (previousStatus !== 'completed') {
+        message.error(`获取静态分析结果失败：${messageText}`);
+      }
+    }
+    return;
+  }
+
+  if (snapshot.status === 'failed') {
+    stopPolling();
+    isSubmitting.value = false;
+    analysisResult.value = null;
+    const failure =
+      snapshot.error ?? snapshot.message ?? '静态分析失败，请查看后台日志';
+    if (previousStatus !== 'failed') {
+      message.error(failure);
+    }
+  }
+}
+
+async function refreshProgress(jobId: string) {
+  const previousStatus = activeJob.value?.status ?? null;
+  const snapshot = await fetchProtocolStaticAnalysisProgress(jobId);
+  applyProgressSnapshot(snapshot);
+  await handleStatusTransition(previousStatus, snapshot);
+}
+
+function schedulePolling(jobId: string) {
+  stopPolling();
+  pollingTimer.value = window.setInterval(() => {
+    refreshProgress(jobId).catch((err) => {
+      progressError.value =
+        err instanceof Error ? err.message : String(err ?? '');
+    });
+  }, 1500);
+}
+
+onBeforeUnmount(() => {
+  stopPolling();
+});
+
 const handleBuilderBeforeUpload: UploadProps['beforeUpload'] = (file) => {
   const actual =
     (file as UploadFile<File>).originFileObj ?? (file as unknown as File);
@@ -263,6 +751,7 @@ function handleReset() {
   formState.rules = null;
   formState.notes = '';
   analysisResult.value = null;
+  resetProgressState();
 }
 
 async function handleSubmit() {
@@ -277,25 +766,33 @@ async function handleSubmit() {
     return;
   }
 
+  resetProgressState();
   isSubmitting.value = true;
   analysisResult.value = null;
   try {
-    const result = await runProtocolStaticAnalysis({
+    const snapshot = await runProtocolStaticAnalysis({
       builderDockerfile: builder,
       codeArchive: archive,
       config,
       notes: formState.notes,
       rules,
     });
-    analysisResult.value = result;
-
-    const overallStatus = result.modelResponse.summary.overallStatus;
-    const label = STATUS_LABELS[overallStatus] ?? overallStatus ?? '完成';
-    message.success(`静态分析完成，整体评估：${label}`);
+    applyProgressSnapshot(snapshot);
+    await handleStatusTransition(null, snapshot);
+    if (snapshot.status === 'queued' || snapshot.status === 'running') {
+      schedulePolling(snapshot.jobId);
+    }
   } catch (error) {
+    const messageText =
+      error instanceof Error ? error.message : String(error ?? '');
+    progressError.value = messageText || '静态分析启动失败';
+    message.error(`启动静态分析失败：${messageText}`);
     analysisResult.value = null;
-  } finally {
     isSubmitting.value = false;
+  } finally {
+    if (progressStatus.value !== 'queued' && progressStatus.value !== 'running') {
+      isSubmitting.value = false;
+    }
   }
 }
 </script>
@@ -412,6 +909,24 @@ async function handleSubmit() {
             </Space>
           </FormItem>
         </Form>
+      </Card>
+
+      <Card title="分析进度">
+        <div class="progress-box">
+          <Space class="progress-status" wrap>
+            <Tag :color="progressStatusColor">{{ progressStatusLabel }}</Tag>
+            <span class="progress-message">{{ progressMessage }}</span>
+          </Space>
+          <div
+            aria-live="polite"
+            class="progress-text"
+            role="log"
+            v-html="progressHtml"
+          />
+          <p v-if="progressError" class="progress-error">
+            {{ progressError }}
+          </p>
+        </div>
       </Card>
 
       <Card v-if="hasSelection" title="已选文件概览">
@@ -543,6 +1058,54 @@ async function handleSubmit() {
 .file-detail {
   font-size: 12px;
   color: var(--ant-text-color-secondary);
+}
+
+.progress-box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.progress-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.progress-message {
+  color: var(--ant-text-color-secondary);
+}
+
+.progress-text {
+  font-family: ui-monospace, SFMono-Regular, SFMono, Menlo, Monaco, Consolas,
+    'Liberation Mono', 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  min-height: 120px;
+  max-height: 240px;
+  padding: 12px;
+  border: 1px solid var(--ant-color-border);
+  border-radius: var(--ant-border-radius);
+  background-color: var(--ant-color-bg-container);
+  color: var(--ant-text-color);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-y: auto;
+}
+
+.progress-text span {
+  white-space: pre-wrap;
+}
+
+.progress-text br {
+  line-height: inherit;
+}
+
+.progress-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ant-color-error);
 }
 
 .preview-tip {

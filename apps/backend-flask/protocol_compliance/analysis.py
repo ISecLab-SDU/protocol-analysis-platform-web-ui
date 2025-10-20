@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-import random
-import uuid
 import logging
+import random
+import threading
+import uuid
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from functools import lru_cache
-from typing import BinaryIO, Dict, Optional
+from io import BytesIO
+from typing import BinaryIO, Callable, Dict, List, Literal, Optional
 
 from .docker_runner import (
     ProtocolGuardDockerError,
@@ -24,6 +27,147 @@ ComplianceStatus = str  # 'compliant' | 'needs_review' | 'non_compliant'
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+AnalysisJobStatus = Literal["queued", "running", "completed", "failed"]
+
+
+@dataclass
+class AnalysisProgressEvent:
+    timestamp: str
+    stage: str
+    message: str
+
+
+@dataclass
+class AnalysisProgressState:
+    job_id: str
+    status: AnalysisJobStatus
+    stage: str
+    message: str
+    created_at: str
+    updated_at: str
+    events: List[AnalysisProgressEvent] = field(default_factory=list)
+    result: Optional[Dict[str, object]] = None
+    error: Optional[str] = None
+    details: Optional[Dict[str, object]] = None
+
+
+class AnalysisProgressRegistry:
+    """Track live progress for static analysis jobs."""
+
+    def __init__(self) -> None:
+        self._states: Dict[str, AnalysisProgressState] = {}
+        self._lock = threading.Lock()
+
+    def create_job(self) -> AnalysisProgressState:
+        job_id = str(uuid.uuid4())
+        now = _now_iso()
+        state = AnalysisProgressState(
+            job_id=job_id,
+            status="queued",
+            stage="queued",
+            message="Job queued",
+            created_at=now,
+            updated_at=now,
+        )
+        state.events.append(AnalysisProgressEvent(timestamp=now, stage="queued", message="Job queued"))
+        with self._lock:
+            self._states[job_id] = state
+        return state
+
+    def mark_running(self, job_id: str, stage: str, message: str) -> None:
+        with self._lock:
+            state = self._states.get(job_id)
+            if not state:
+                return
+            state.status = "running"
+            self._append_event(state, stage, message)
+
+    def append_event(self, job_id: str, stage: str, message: str) -> None:
+        with self._lock:
+            state = self._states.get(job_id)
+            if not state:
+                return
+            self._append_event(state, stage, message)
+
+    def complete(self, job_id: str, result: Dict[str, object]) -> None:
+        with self._lock:
+            state = self._states.get(job_id)
+            if not state:
+                return
+            state.status = "completed"
+            state.result = result
+            self._append_event(state, "completed", "Static analysis completed successfully")
+
+    def fail(
+        self,
+        job_id: str,
+        stage: str,
+        message: str,
+        *,
+        error: Optional[str] = None,
+        details: Optional[Dict[str, object]] = None,
+    ) -> None:
+        with self._lock:
+            state = self._states.get(job_id)
+            if not state:
+                return
+            state.status = "failed"
+            state.error = error or message
+            state.details = details
+            self._append_event(state, stage, message)
+
+    def snapshot(self, job_id: str) -> Optional[Dict[str, object]]:
+        with self._lock:
+            state = self._states.get(job_id)
+            if not state:
+                return None
+            state_copy = AnalysisProgressState(
+                job_id=state.job_id,
+                status=state.status,
+                stage=state.stage,
+                message=state.message,
+                created_at=state.created_at,
+                updated_at=state.updated_at,
+                events=list(state.events),
+                result=state.result,
+                error=state.error,
+                details=state.details.copy() if state.details else None,
+            )
+        return {
+            "jobId": state_copy.job_id,
+            "status": state_copy.status,
+            "stage": state_copy.stage,
+            "message": state_copy.message,
+            "createdAt": state_copy.created_at,
+            "updatedAt": state_copy.updated_at,
+            "events": [
+                {"timestamp": event.timestamp, "stage": event.stage, "message": event.message}
+                for event in state_copy.events
+            ],
+            "result": state_copy.result,
+            "error": state_copy.error,
+            "details": state_copy.details,
+        }
+
+    def _append_event(self, state: AnalysisProgressState, stage: str, message: str) -> None:
+        timestamp = _now_iso()
+        state.stage = stage
+        state.message = message
+        state.updated_at = timestamp
+        state.events.append(AnalysisProgressEvent(timestamp=timestamp, stage=stage, message=message))
+
+    def make_callback(self, job_id: str) -> Callable[[str, str, str], None]:
+        def callback(_job_id: str, stage: str, message: str) -> None:
+            # Ignore mismatched job ids to keep callback tolerant.
+            target_id = job_id or _job_id
+            self.append_event(target_id, stage, message)
+
+        return callback
+
+
+PROGRESS_REGISTRY = AnalysisProgressRegistry()
 
 
 def build_mock_analysis(
@@ -229,11 +373,16 @@ def run_static_analysis(
     protocol_name: str,
     protocol_version: Optional[str],
     rules_summary: Optional[str],
+    job_id: Optional[str] = None,
+    progress_callback: Optional[Callable[[str, str, str], None]] = None,
 ) -> Dict[str, object]:
     """Dispatch static analysis either via Docker or the mock generator."""
+    job_identifier = job_id or str(uuid.uuid4())
     settings = _docker_settings()
     if not settings.enabled:
         LOGGER.debug("ProtocolGuard Docker disabled; returning mock analysis.")
+        if progress_callback:
+            progress_callback(job_identifier, "mock", "Generating mock analysis response")
         return build_mock_analysis(
             code_file_name=code_file_name,
             rules_file_name=rules_file_name,
@@ -261,6 +410,8 @@ def run_static_analysis(
             protocol_name=protocol_name,
             protocol_version=protocol_version,
             rules_summary=rules_summary,
+            job_id=job_identifier,
+            progress_callback=progress_callback,
         )
     except ProtocolGuardExecutionError as exc:
         LOGGER.error(
@@ -281,3 +432,99 @@ def run_static_analysis(
     except ProtocolGuardDockerError as exc:
         LOGGER.error("ProtocolGuard Docker error: %s", exc)
         raise AnalysisError(str(exc)) from exc
+
+
+def submit_static_analysis_job(
+    *,
+    code_payload: tuple[str, bytes],
+    builder_payload: tuple[str, bytes],
+    config_payload: tuple[str, bytes],
+    rules_payload: tuple[str, bytes],
+    notes: Optional[str],
+    protocol_name: str,
+    protocol_version: Optional[str],
+    rules_summary: Optional[str],
+) -> Dict[str, object]:
+    """Launch static analysis asynchronously and return the initial job snapshot."""
+    state = PROGRESS_REGISTRY.create_job()
+    job_id = state.job_id
+
+    def _run_job() -> None:
+        PROGRESS_REGISTRY.mark_running(job_id, "init", "Preparing analysis inputs")
+        progress_callback = PROGRESS_REGISTRY.make_callback(job_id)
+        progress_callback(job_id, "inputs", "Persisting uploaded artefacts")
+        try:
+            code_name, code_bytes = code_payload
+            builder_name, builder_bytes = builder_payload
+            config_name, config_bytes = config_payload
+            rules_name, rules_bytes = rules_payload
+
+            result = run_static_analysis(
+                code_stream=BytesIO(code_bytes),
+                code_file_name=code_name,
+                builder_stream=BytesIO(builder_bytes),
+                builder_file_name=builder_name,
+                config_stream=BytesIO(config_bytes),
+                config_file_name=config_name,
+                rules_stream=BytesIO(rules_bytes),
+                rules_file_name=rules_name,
+                notes=notes,
+                protocol_name=protocol_name,
+                protocol_version=protocol_version,
+                rules_summary=rules_summary,
+                job_id=job_id,
+                progress_callback=progress_callback,
+            )
+            PROGRESS_REGISTRY.complete(job_id, result)
+        except AnalysisExecutionError as exc:
+            details = exc.details if isinstance(exc.details, dict) else {}
+            if exc.logs:
+                details = {**details, "logs": list(exc.logs)}
+            PROGRESS_REGISTRY.fail(
+                job_id,
+                "error",
+                "Static analysis execution failed",
+                error=str(exc),
+                details=details,
+            )
+        except AnalysisNotReadyError as exc:
+            PROGRESS_REGISTRY.fail(
+                job_id,
+                "error",
+                "Static analysis backend is not ready",
+                error=str(exc),
+            )
+        except AnalysisError as exc:
+            PROGRESS_REGISTRY.fail(job_id, "error", "Static analysis service error", error=str(exc))
+        except Exception as exc:  # pragma: no cover - defensive guard
+            LOGGER.exception("Static analysis job %s encountered an unexpected error", job_id)
+            PROGRESS_REGISTRY.fail(
+                job_id,
+                "error",
+                "Unexpected static analysis failure",
+                error=str(exc),
+            )
+
+    worker = threading.Thread(target=_run_job, name=f"static-analysis-{job_id[:8]}", daemon=True)
+    worker.start()
+    snapshot = PROGRESS_REGISTRY.snapshot(job_id)
+    assert snapshot is not None
+    return snapshot
+
+
+def get_static_analysis_job(job_id: str) -> Optional[Dict[str, object]]:
+    """Return the current snapshot for a running static analysis job."""
+    return PROGRESS_REGISTRY.snapshot(job_id)
+
+
+def get_static_analysis_result(job_id: str) -> Optional[Dict[str, object]]:
+    """Return the final static analysis result if the job completed."""
+    snapshot = PROGRESS_REGISTRY.snapshot(job_id)
+    if not snapshot:
+        return None
+    if snapshot.get("status") != "completed":
+        return None
+    result = snapshot.get("result")
+    if isinstance(result, dict):
+        return result
+    return None

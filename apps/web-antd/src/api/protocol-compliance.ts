@@ -110,6 +110,31 @@ export interface RunProtocolStaticAnalysisPayload {
   rules: File;
 }
 
+export type ProtocolStaticAnalysisJobStatus =
+  | 'queued'
+  | 'running'
+  | 'completed'
+  | 'failed';
+
+export interface ProtocolStaticAnalysisProgressEvent {
+  message: string;
+  stage: string;
+  timestamp: string;
+}
+
+export interface ProtocolStaticAnalysisJob {
+  createdAt: string;
+  details?: Record<string, unknown> | null;
+  error?: string | null;
+  events: ProtocolStaticAnalysisProgressEvent[];
+  jobId: string;
+  message: string;
+  result?: ProtocolStaticAnalysisResult | null;
+  stage: string;
+  status: ProtocolStaticAnalysisJobStatus;
+  updatedAt: string;
+}
+
 const BASE_PATH = '/protocol-compliance/tasks';
 
 export function fetchProtocolComplianceTasks(
@@ -179,7 +204,7 @@ export function runProtocolStaticAnalysis(
     formData.append('notes', notes.trim());
   }
 
-  return requestClient.post<ProtocolStaticAnalysisResult>(
+  return requestClient.post<ProtocolStaticAnalysisJob>(
     '/protocol-compliance/static-analysis',
     formData,
     {
@@ -187,5 +212,17 @@ export function runProtocolStaticAnalysis(
         'Content-Type': 'multipart/form-data',
       },
     },
+  );
+}
+
+export function fetchProtocolStaticAnalysisProgress(jobId: string) {
+  return requestClient.get<ProtocolStaticAnalysisJob>(
+    `/protocol-compliance/static-analysis/${jobId}/progress`,
+  );
+}
+
+export function fetchProtocolStaticAnalysisResult(jobId: string) {
+  return requestClient.get<ProtocolStaticAnalysisResult>(
+    `/protocol-compliance/static-analysis/${jobId}/result`,
   );
 }

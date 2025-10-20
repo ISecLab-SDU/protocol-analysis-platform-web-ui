@@ -7,6 +7,8 @@ import json
 import logging
 import os
 import shutil
+import socket
+import subprocess
 import sqlite3
 import tarfile
 import tempfile
@@ -17,15 +19,14 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import BinaryIO, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
+from typing import BinaryIO, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 try:
     import docker
-    from docker.errors import BuildError, DockerException
+    from docker.errors import DockerException
 except ModuleNotFoundError:  # pragma: no cover - optional dependency
     docker = None  # type: ignore
     DockerException = RuntimeError  # type: ignore
-    BuildError = RuntimeError  # type: ignore
 
 import toml
 
@@ -220,6 +221,7 @@ class ProtocolGuardDockerSettings:
     artifacts: ArtifactLayout
     builder_image: Optional[str]
     builder_command: Optional[Tuple[str, ...]]
+    keep_builder_images: bool
     keep_artifacts: bool
     analysis_timeout: Optional[int]
     network: Optional[str]
@@ -262,6 +264,7 @@ class ProtocolGuardDockerSettings:
         env_passthrough = _split_env_list("PG_ENV_VARS", ("OPENAI_API_KEY",))
         artifacts = ArtifactLayout.from_env()
         keep_artifacts = _env_bool("PG_KEEP_ARTIFACTS", default=True)
+        keep_builder_images = _env_bool("PG_KEEP_BUILDER_IMAGES", default=True)
         analysis_timeout = _env_int("PG_ANALYSIS_TIMEOUT_SECONDS", None)
         network = os.environ.get("PG_DOCKER_NETWORK") or None
 
@@ -288,6 +291,7 @@ class ProtocolGuardDockerSettings:
             artifacts=artifacts,
             builder_image=builder_image,
             builder_command=builder_command,
+            keep_builder_images=keep_builder_images,
             keep_artifacts=keep_artifacts,
             analysis_timeout=analysis_timeout,
             network=network,
@@ -353,6 +357,22 @@ class ProtocolGuardDockerRunner:
             self._client = docker.from_env()
         except DockerException as exc:  # pragma: no cover - requires docker engine
             raise ProtocolGuardNotAvailableError(f"Unable to connect to Docker engine: {exc}") from exc
+        self._progress_callback: Optional[Callable[[str, str, str], None]] = None
+
+    def _log_step(
+        self,
+        job_paths: JobPaths,
+        stage: str,
+        message: str,
+        *,
+        level: int = logging.INFO,
+    ) -> None:
+        LOGGER.log(level, "[job %s][%s] %s", job_paths.job_id, stage, message)
+        if self._progress_callback:
+            try:
+                self._progress_callback(job_paths.job_id, stage, message)
+            except Exception:  # pragma: no cover - defensive
+                LOGGER.debug("Progress callback failed for job %s", job_paths.job_id, exc_info=True)
 
     # Public API -----------------------------------------------------------------
 
@@ -371,19 +391,24 @@ class ProtocolGuardDockerRunner:
         protocol_name: Optional[str],
         protocol_version: Optional[str],
         rules_summary: Optional[str],
+        job_id: Optional[str] = None,
+        progress_callback: Optional[Callable[[str, str, str], None]] = None,
     ) -> Dict[str, object]:
         """Execute the ProtocolGuard static workflow and return a structured response."""
         start = time.time()
-        job_id = str(uuid.uuid4())
+        job_id = job_id or str(uuid.uuid4())
         job_paths = self._prepare_job_paths(job_id)
+        self._progress_callback = progress_callback
 
-        LOGGER.info("Starting ProtocolGuard static analysis job %s", job_id)
+        self._log_step(job_paths, "init", "Starting ProtocolGuard static analysis job")
 
         built_builder_image: Optional[str] = None
 
         try:
+            self._log_step(job_paths, "workspace", "Staging workspace directories")
             self._stage_workspace(job_paths)
             self._ensure_workspace_structure(job_paths)
+            self._log_step(job_paths, "workspace", "Workspace directories prepared")
 
             uploads_dir = job_paths.workspace / "uploads"
             code_filename_real = code_filename or "source-archive"
@@ -393,18 +418,22 @@ class ProtocolGuardDockerRunner:
             config_filename_real = config_filename or "config.toml"
 
             project_dir = job_paths.workspace / "project"
+            self._log_step(job_paths, "workspace", "Preparing project directory for source archive")
             self._reset_directory(project_dir)
             self._extract_archive(code_path, project_dir)
             if not any(project_dir.iterdir()):
                 raise ProtocolGuardDockerError(
                     "Source archive did not contain any files. Please verify the uploaded archive."
                 )
+            self._log_step(job_paths, "workspace", "Source archive extracted")
 
             dockerfile_path = project_dir / builder_filename_real
+            self._log_step(job_paths, "inputs", "Writing builder Dockerfile to workspace")
             self._write_stream(dockerfile_path, builder_stream)
 
             builder_image = None
             if builder_stream:
+                self._log_step(job_paths, "builder", "Building builder image from uploaded Dockerfile")
                 builder_image = self._build_builder_image(
                     job_paths=job_paths,
                     context_dir=project_dir,
@@ -412,6 +441,7 @@ class ProtocolGuardDockerRunner:
                 )
                 built_builder_image = builder_image
             elif self._settings.builder_image:
+                self._log_step(job_paths, "builder", "Using default builder image from environment")
                 builder_image = self._settings.builder_image
             else:
                 raise ProtocolGuardDockerError(
@@ -421,6 +451,7 @@ class ProtocolGuardDockerRunner:
             rules_path = self._stage_rules_file(job_paths, rules_stream)
             LOGGER.debug("Staged code archive at %s, project at %s, rules at %s", code_path, project_dir, rules_path)
 
+            self._log_step(job_paths, "config", "Loading and preparing config file")
             config_data = self._load_config(config_stream, config_filename)
             prepared_config = self._prepare_config(
                 config_data=config_data,
@@ -429,18 +460,30 @@ class ProtocolGuardDockerRunner:
                 protocol_version=protocol_version,
             )
             self._write_config(job_paths.config_file, prepared_config)
+            self._log_step(job_paths, "config", "Config file written to workspace")
 
             if builder_image:
+                self._log_step(job_paths, "builder", f"Running builder container image {builder_image}")
                 self._run_builder(
                     job_paths,
                     image=builder_image,
                     command=self._settings.builder_command,
                 )
+                self._log_step(job_paths, "builder", "Builder container completed")
 
+            self._log_step(job_paths, "validation", "Validating required artefacts exist before analysis")
             self._validate_required_inputs(job_paths)
+            self._log_step(job_paths, "validation", "All required artefacts present")
 
+            self._log_step(
+                job_paths,
+                "analysis",
+                f"Launching analysis container image {self._settings.analysis_image}",
+            )
             logs = self._run_analysis(job_paths)
+            self._log_step(job_paths, "analysis", "Analysis container completed successfully")
 
+            self._log_step(job_paths, "results", "Collecting analysis results and metadata")
             result = self._collect_results(
                 job_paths=job_paths,
                 start_time=start,
@@ -454,15 +497,26 @@ class ProtocolGuardDockerRunner:
                 protocol_version=protocol_version,
                 docker_logs=logs,
             )
-            LOGGER.info("ProtocolGuard job %s completed successfully", job_id)
+            self._log_step(job_paths, "results", "ProtocolGuard job completed successfully")
             return result
         except Exception:
+            self._log_step(job_paths, "error", "ProtocolGuard job failed", level=logging.ERROR)
             LOGGER.exception("ProtocolGuard job %s failed", job_id)
             raise
         finally:
+            self._progress_callback = None
             if built_builder_image:
-                self._remove_builder_image(built_builder_image)
+                if self._settings.keep_builder_images:
+                    self._log_step(
+                        job_paths,
+                        "cleanup",
+                        f"Retaining builder image {built_builder_image} for Docker cache reuse",
+                    )
+                else:
+                    self._log_step(job_paths, "cleanup", f"Removing temporary builder image {built_builder_image}")
+                    self._remove_builder_image(built_builder_image)
             if not self._settings.keep_artifacts:
+                self._log_step(job_paths, "cleanup", "Cleaning up workspace artefacts")
                 self._cleanup_job(job_paths)
 
     # Workspace preparation ------------------------------------------------------
@@ -662,31 +716,180 @@ class ProtocolGuardDockerRunner:
             ) from exc
 
         tag = f"protocolguard-builder:{job_paths.job_id}"
-        LOGGER.info("Building builder image %s using context %s", tag, context_dir)
+        self._log_step(
+            job_paths,
+            "builder",
+            f"docker-py build start (tag={tag}, context={context_dir}, dockerfile={dockerfile_rel})",
+        )
+        proxy_url = self._detect_builder_proxy()
+        buildargs: Dict[str, str] = {}
+        network_mode: Optional[str] = None
+        if proxy_url:
+            self._log_step(
+                job_paths,
+                "builder",
+                f"Detected local proxy at {proxy_url}; enabling host networking for builder build",
+            )
+            buildargs = {
+                "HTTP_PROXY": proxy_url,
+                "HTTPS_PROXY": proxy_url,
+                "http_proxy": proxy_url,
+                "https_proxy": proxy_url,
+            }
+            network_mode = "host"
+        build_output = None
         try:
-            _image, build_logs = self._client.images.build(
+            build_output = self._client.api.build(
                 path=str(context_dir),
                 dockerfile=str(dockerfile_rel),
                 tag=tag,
                 rm=True,
+                buildargs=buildargs or None,
+                network_mode=network_mode,
+                decode=True,
             )
-        except BuildError as exc:
-            logs = getattr(exc, "build_log", None) or []
-            rendered = [chunk.get("stream", "") for chunk in logs if isinstance(chunk, dict)]
-            LOGGER.error("Builder image build failed: %s", exc)
-            if rendered:
-                for line in rendered:
-                    LOGGER.error("[builder build %s] %s", job_paths.job_id, line.rstrip())
-            raise ProtocolGuardDockerError(f"Builder image build failed: {exc}") from exc
         except DockerException as exc:
-            raise ProtocolGuardDockerError(f"Failed to build builder image: {exc}") from exc
+            raise ProtocolGuardDockerError(f"Failed to start builder image build via Docker API: {exc}") from exc
 
-        for chunk in build_logs or []:
-            stream = chunk.get("stream")
-            if stream:
-                LOGGER.debug("[builder build %s] %s", job_paths.job_id, stream.rstrip())
-        LOGGER.debug("Builder image %s build completed", tag)
+        fallback_to_cli = False
+        try:
+            for chunk in build_output:
+                if not chunk:
+                    continue
+                status = chunk.get("status")
+                progress = chunk.get("progress")
+                if status:
+                    text = status.strip()
+                    identifier = chunk.get("id")
+                    if identifier:
+                        text = f"{identifier} {text}"
+                    if progress:
+                        text = f"{text} {progress.strip()}"
+                    if text:
+                        self._log_step(job_paths, "builder-status", text)
+                stream = chunk.get("stream")
+                if stream:
+                    text = stream.strip()
+                    if text:
+                        self._log_step(job_paths, "builder-log", text)
+                aux = chunk.get("aux")
+                if isinstance(aux, dict):
+                    raw_image_id = aux.get("ID") or aux.get("id")
+                    if isinstance(raw_image_id, str):
+                        image_id = raw_image_id.strip()
+                        if image_id:
+                            self._log_step(job_paths, "builder-status", f"Image ID reported: {image_id}")
+                error = chunk.get("error")
+                error_detail = chunk.get("errorDetail", {})
+                message = ""
+                if isinstance(error, str):
+                    message = error.strip()
+                elif isinstance(error_detail, dict):
+                    message = (error_detail.get("message") or "").strip()
+                if message:
+                    self._log_step(job_paths, "builder", f"Docker build error: {message}", level=logging.ERROR)
+                    lowered = message.lower()
+                    if any(
+                        token in lowered
+                        for token in (
+                            "requires buildkit",
+                            "<<'",
+                            "here-document",
+                            "here document",
+                            "heredoc",
+                        )
+                    ):
+                        fallback_to_cli = True
+                        break
+                    raise ProtocolGuardDockerError(f"Builder image build failed: {message}")
+        finally:
+            close_fn = getattr(build_output, "close", None)
+            if callable(close_fn):
+                close_fn()
+
+        if fallback_to_cli:
+            self._log_step(
+                job_paths,
+                "builder",
+                "Builder image requires BuildKit; retrying with docker CLI fallback",
+                level=logging.WARNING,
+            )
+            return self._build_builder_image_with_cli(
+                job_paths=job_paths,
+                context_dir=context_dir,
+                dockerfile_rel=dockerfile_rel,
+                tag=tag,
+                proxy_url=proxy_url,
+            )
+
+        self._log_step(job_paths, "builder", f"docker-py build completed for {tag}")
         return tag
+
+    def _build_builder_image_with_cli(
+        self,
+        *,
+        job_paths: JobPaths,
+        context_dir: Path,
+        dockerfile_rel: Path,
+        tag: str,
+        proxy_url: Optional[str] = None,
+    ) -> str:
+        """Fallback path for building images that require BuildKit features."""
+        env = os.environ.copy()
+        env.setdefault("DOCKER_BUILDKIT", "1")
+        env.setdefault("BUILDKIT_PROGRESS", "plain")
+        command = [
+            "docker",
+            "build",
+            "--progress=plain",
+            "--file",
+            str(dockerfile_rel),
+            "--tag",
+            tag,
+        ]
+        if proxy_url:
+            command.append("--network=host")
+            for key in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
+                command.extend(["--build-arg", f"{key}={proxy_url}"])
+        command.append(".")
+        self._log_step(job_paths, "builder", f"Retrying builder image {tag} using docker CLI with BuildKit enabled")
+        try:
+            process = subprocess.Popen(
+                command,
+                cwd=str(context_dir),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                env=env,
+                text=True,
+            )
+        except OSError as exc:
+            raise ProtocolGuardDockerError(f"Failed to invoke docker CLI for builder image build: {exc}") from exc
+
+        assert process.stdout is not None
+        try:
+            for line in process.stdout:
+                text = line.rstrip()
+                if text:
+                    LOGGER.info("[builder build %s] %s", job_paths.job_id, text)
+        finally:
+            process.stdout.close()
+        exit_code = process.wait()
+        if exit_code != 0:
+            raise ProtocolGuardDockerError(
+                f"Docker CLI build failed for builder image {tag} with exit code {exit_code}."
+            )
+        self._log_step(job_paths, "builder", f"docker CLI build completed for {tag}")
+        return tag
+
+    @staticmethod
+    def _detect_builder_proxy(host: str = "127.0.0.1", port: int = 63333, timeout: float = 0.5) -> Optional[str]:
+        """Detect whether the local HTTP proxy used for builder builds is reachable."""
+        try:
+            with contextlib.closing(socket.create_connection((host, port), timeout=timeout)):
+                return f"http://{host}:{port}"
+        except OSError:
+            LOGGER.debug("No proxy detected on %s:%s for builder builds.", host, port)
+            return None
 
     def _remove_builder_image(self, tag: str) -> None:
         if not tag or docker is None:
@@ -725,12 +928,13 @@ class ProtocolGuardDockerRunner:
     ) -> None:
         if not image:
             raise ProtocolGuardDockerError("Builder image is required to execute the ProtocolGuard pipeline.")
-        LOGGER.info(
-            "Running ProtocolGuard builder image %s for job %s",
-            image,
-            job_paths.job_id,
+        self._log_step(
+            job_paths,
+            "builder",
+            f"Starting builder container (image={image}, command={' '.join(command) if command else '<default>'})",
         )
         self._run_container(
+            job_paths=job_paths,
             image=image,
             command=command,
             volumes=self._build_volumes(job_paths, include_config=False),
@@ -739,14 +943,15 @@ class ProtocolGuardDockerRunner:
         )
 
     def _run_analysis(self, job_paths: JobPaths) -> List[str]:
-        LOGGER.info(
-            "Running ProtocolGuard analysis image %s for job %s",
-            self._settings.analysis_image,
-            job_paths.job_id,
+        self._log_step(
+            job_paths,
+            "analysis",
+            f"Starting analysis container (image={self._settings.analysis_image}, command={' '.join(self._settings.analysis_command)})",
         )
         return self._run_container(
             image=self._settings.analysis_image,
             command=self._settings.analysis_command,
+            job_paths=job_paths,
             volumes=self._build_volumes(job_paths, include_config=True),
             environment=self._build_environment(),
             log_destination=job_paths.log_file,
@@ -756,6 +961,7 @@ class ProtocolGuardDockerRunner:
     def _run_container(
         self,
         *,
+        job_paths: JobPaths,
         image: str,
         command: Optional[Sequence[str]],
         volumes: Mapping[str, Mapping[str, str]],
@@ -779,6 +985,7 @@ class ProtocolGuardDockerRunner:
             )
         except DockerException as exc:  # pragma: no cover - requires docker engine
             raise ProtocolGuardDockerError(f"Failed to start container {image}: {exc}") from exc
+        self._log_step(job_paths, "container", f"Container {container.id[:12]} started for image {image}")
 
         logs: List[str] = []
         with log_destination.open("a", encoding="utf-8") as log_file:
@@ -786,6 +993,13 @@ class ProtocolGuardDockerRunner:
                 line = chunk.decode("utf-8", errors="replace").rstrip()
                 log_file.write(line + "\n")
                 logs.append(line)
+                if line:
+                    display_line = line if len(line) <= 2000 else f"{line[:2000]}..."
+                    self._log_step(
+                        job_paths,
+                        "container-log",
+                        f"{image}: {display_line}",
+                    )
 
         try:
             result = container.wait(timeout=timeout)
@@ -796,6 +1010,12 @@ class ProtocolGuardDockerRunner:
         status = result.get("StatusCode", 1)
         if status != 0:
             excerpt = "\n".join(logs[-40:]) if logs else None
+            self._log_step(
+                job_paths,
+                "container",
+                f"Container for image {image} exited with status {status}",
+                level=logging.ERROR,
+            )
             raise ProtocolGuardExecutionError(
                 f"Container {image} exited with status {status}",
                 logs=logs,
@@ -803,6 +1023,7 @@ class ProtocolGuardDockerRunner:
                 image=image,
                 status=status,
             )
+        self._log_step(job_paths, "container", f"Container for image {image} exited cleanly")
         return logs
 
     # Validation ----------------------------------------------------------------

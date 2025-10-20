@@ -18,12 +18,11 @@ except ImportError:
     from utils.auth import verify_access_token
     from utils.responses import error_response, paginate, success_response, unauthorized
 from .analysis import (
-    AnalysisError,
-    AnalysisExecutionError,
-    AnalysisNotReadyError,
     extract_protocol_version,
+    get_static_analysis_job,
+    get_static_analysis_result,
     normalize_protocol_name,
-    run_static_analysis,
+    submit_static_analysis_job,
     try_extract_rules_summary,
 )
 from .store import STORE, TaskStatus
@@ -89,11 +88,6 @@ def _read_upload(upload: FileStorage) -> tuple[str, Optional[bytes]]:
         with contextlib.suppress(Exception):
             upload.stream.seek(0)
     return filename, data
-
-
-def _rewind_upload(upload: FileStorage) -> None:
-    with contextlib.suppress(Exception):
-        upload.stream.seek(0)
 
 
 def _collect_exception_details(exc: Exception, *, max_logs: int = 40) -> dict:
@@ -257,13 +251,13 @@ def static_analysis():
     rules_upload = cast(FileStorage, uploads_map["rules"])
     config_upload = cast(FileStorage, uploads_map["config"])
 
+    code_name, code_data = _read_upload(code_upload)
+    builder_name, builder_data = _read_upload(builder_upload)
     rules_name, rules_data = _read_upload(rules_upload)
-    code_name = code_upload.filename or "source-archive"
-    builder_name = builder_upload.filename or "Dockerfile"
-    config_name = config_upload.filename or "config.toml"
-    _rewind_upload(code_upload)
-    _rewind_upload(builder_upload)
-    _rewind_upload(config_upload)
+    config_name, config_data = _read_upload(config_upload)
+
+    if code_data is None or builder_data is None or config_data is None or rules_data is None:
+        return make_response(error_response("上传的文件内容为空，请重新上传"), 400)
 
     parsed_rules = None
     if rules_data:
@@ -277,42 +271,48 @@ def static_analysis():
     rules_summary = try_extract_rules_summary(parsed_rules)
     notes = request.form.get("notes")
 
-    try:
-        analysis = run_static_analysis(
-            code_stream=code_upload.stream,
-            code_file_name=code_name,
-            builder_stream=builder_upload.stream,
-            builder_file_name=builder_name,
-            config_stream=config_upload.stream,
-            config_file_name=config_name,
-            rules_stream=rules_upload.stream,
-            rules_file_name=rules_name,
-            notes=notes,
-            protocol_name=protocol_name,
-            protocol_version=protocol_version,
-            rules_summary=rules_summary,
-        )
-    except AnalysisNotReadyError as exc:
-        LOGGER.warning("ProtocolGuard Docker not ready: %s", exc)
-        details = _collect_exception_details(exc)
-        return make_response(error_response(f"后端尚未就绪: {exc}", details), 503)
-    except AnalysisExecutionError as exc:
-        LOGGER.error("ProtocolGuard Docker execution failed: %s", exc)
-        details = _collect_exception_details(exc)
-        return make_response(
-            error_response("静态分析执行失败。请查看日志了解详情。", details),
-            502,
-        )
-    except AnalysisError as exc:
-        LOGGER.error("ProtocolGuard Docker integration error: %s", exc)
-        details = _collect_exception_details(exc)
-        return make_response(
-            error_response("静态分析服务出现异常。", details),
-            500,
-        )
+    snapshot = submit_static_analysis_job(
+        code_payload=(code_name, code_data),
+        builder_payload=(builder_name, builder_data),
+        config_payload=(config_name, config_data),
+        rules_payload=(rules_name, rules_data),
+        notes=notes,
+        protocol_name=protocol_name,
+        protocol_version=protocol_version,
+        rules_summary=rules_summary,
+    )
+    return make_response(success_response(snapshot), 202)
 
-    payload = success_response(analysis)
-    return payload
+
+@bp.route("/static-analysis/<job_id>/progress", methods=["GET"])
+def static_analysis_progress(job_id: str):
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+
+    snapshot = get_static_analysis_job(job_id)
+    if not snapshot:
+        return make_response(error_response("未找到静态分析任务"), 404)
+    return make_response(success_response(snapshot), 200)
+
+
+@bp.route("/static-analysis/<job_id>/result", methods=["GET"])
+def static_analysis_result(job_id: str):
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+
+    result = get_static_analysis_result(job_id)
+    if result is None:
+        snapshot = get_static_analysis_job(job_id)
+        if not snapshot:
+            return make_response(error_response("未找到静态分析任务"), 404)
+        status = snapshot.get("status")
+        return make_response(
+            error_response("静态分析任务尚未完成", {"status": status}),
+            409,
+        )
+    return make_response(success_response(result), 200)
 
 
 def _strip_extension(filename: str) -> str:
