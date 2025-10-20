@@ -6,7 +6,7 @@ import contextlib
 import logging
 import json
 import re
-from typing import Iterable, Optional
+from typing import Iterable, Optional, cast
 
 from flask import Blueprint, make_response, request
 from werkzeug.datastructures import FileStorage
@@ -89,6 +89,11 @@ def _read_upload(upload: FileStorage) -> tuple[str, Optional[bytes]]:
         with contextlib.suppress(Exception):
             upload.stream.seek(0)
     return filename, data
+
+
+def _rewind_upload(upload: FileStorage) -> None:
+    with contextlib.suppress(Exception):
+        upload.stream.seek(0)
 
 
 def _collect_exception_details(exc: Exception, *, max_logs: int = 40) -> dict:
@@ -221,18 +226,44 @@ def static_analysis():
         return error
 
     if not request.files:
-        return make_response(error_response("请上传协议规则和代码片段"), 400)
+        return make_response(
+            error_response("请上传源码、Builder Dockerfile、协议规则和配置文件"), 400
+        )
 
-    rules_upload = request.files.get("rules")
-    code_upload = request.files.get("code")
+    uploads_map = {
+        "codeArchive": request.files.get("codeArchive"),
+        "builderDockerfile": request.files.get("builderDockerfile"),
+        "rules": request.files.get("rules"),
+        "config": request.files.get("config"),
+    }
 
-    if not isinstance(rules_upload, FileStorage) or not isinstance(
-        code_upload, FileStorage
-    ):
-        return make_response(error_response("请同时上传协议规则 JSON 和代码片段文件"), 400)
+    missing = [
+        key for key, value in uploads_map.items() if not isinstance(value, FileStorage)
+    ]
+    if missing:
+        labels = {
+            "codeArchive": "源码压缩包",
+            "builderDockerfile": "Builder Dockerfile",
+            "rules": "协议规则 JSON",
+            "config": "分析配置 TOML",
+        }
+        readable = "、".join(labels.get(item, item) for item in missing)
+        return make_response(
+            error_response(f"请上传完整文件：{readable}"), 400
+        )
+
+    code_upload = cast(FileStorage, uploads_map["codeArchive"])
+    builder_upload = cast(FileStorage, uploads_map["builderDockerfile"])
+    rules_upload = cast(FileStorage, uploads_map["rules"])
+    config_upload = cast(FileStorage, uploads_map["config"])
 
     rules_name, rules_data = _read_upload(rules_upload)
-    code_name, _ = _read_upload(code_upload)
+    code_name = code_upload.filename or "source-archive"
+    builder_name = builder_upload.filename or "Dockerfile"
+    config_name = config_upload.filename or "config.toml"
+    _rewind_upload(code_upload)
+    _rewind_upload(builder_upload)
+    _rewind_upload(config_upload)
 
     parsed_rules = None
     if rules_data:
@@ -250,6 +281,10 @@ def static_analysis():
         analysis = run_static_analysis(
             code_stream=code_upload.stream,
             code_file_name=code_name,
+            builder_stream=builder_upload.stream,
+            builder_file_name=builder_name,
+            config_stream=config_upload.stream,
+            config_file_name=config_name,
             rules_stream=rules_upload.stream,
             rules_file_name=rules_name,
             notes=notes,
