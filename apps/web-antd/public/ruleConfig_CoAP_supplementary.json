@@ -1,0 +1,408 @@
+{
+  "CON": [
+      {
+          "rule": "In a piggybacked response, the Message ID of the Confirmable request and the Acknowledgement MUST match, and the tokens of the response and original request MUST match.",
+          "req_type": "CON",
+          "req_fields": [
+              "Message ID",
+              "Token"
+          ],
+          "res_type": "ACK",
+          "res_fields": [
+              "Message ID",
+              "Token"
+          ]
+      },
+      {
+          "rule": "A request with an unrecognized or unsupported Method Code MUST generate a 4.05 (Method Not Allowed) piggybacked response.",
+          "req_type": "CON",
+          "req_fields": [
+              "Code"
+          ],
+          "res_type": "ACK",
+          "res_fields": [
+              "Code"
+          ]
+      },
+      {
+          "rule": "Unrecognized options of class \"critical\" that occur in a Confirmable request MUST cause the return of a 4.02 (Bad Option) response.",
+          "req_type": "CON",
+          "req_fields": [
+              "Options"
+          ],
+          "res_type": "ACK",
+          "res_fields": [
+              "Code"
+          ]
+      },
+      {
+          "rule": "The source endpoint of the response MUST be the same as the destination endpoint of the original request.",
+          "req_type": "CON",
+          "req_fields": [
+              "Message ID"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "Upon reception, unrecognized options of class \"elective\" MUST be silently ignored.",
+          "req_type": "CON",
+          "req_fields": [
+              "Options"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "In case an option is not defined for a Method or Response Code, the option MUST NOT be included by a sender and MUST be treated like an unrecognized option by a recipient.",
+          "req_type": "CON",
+          "req_fields": [
+              "Options"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "If a retransmitted request is received (perhaps because the original Acknowledgement was delayed), another Empty Acknowledgement is sent, and any response MUST be sent as a separate response.",
+          "req_type": "CON",
+          "req_fields": [
+              "Message ID"
+          ],
+          "res_type": "ACK",
+          "res_fields": [
+              "Message ID"
+          ]
+      },
+      {
+          "rule": "However, a responder MUST NOT in turn rely on this cross-layer behavior from a requester, i.e., it MUST retain the state to create the ACK for the request, if needed, even if a Confirmable response was already acknowledged by the requester.",
+          "req_type": "CON",
+          "req_fields": [
+              "Message ID"
+          ],
+          "res_type": "ACK",
+          "res_fields": [
+              "Message ID"
+          ]
+      },
+      {
+          "rule": "When the server chooses to use a separate response, once it sends back an Empty Acknowledgement, it MUST NOT send back the response in another Acknowledgement, even if the client retransmits another identical request.",
+          "req_type": "CON",
+          "req_fields": [
+              "Message ID",
+              "Token"
+          ],
+          "res_type": "ACK",
+          "res_fields": [
+              "Message ID"
+          ]
+      },
+      {
+          "rule": "After receiving and interpreting a request, a server responds with a CoAP response that is matched to the request by means of a client-generated token (Section 5.3); note that this is different from the Message ID that matches a Confirmable message to its Acknowledgement.",
+          "req_type": "CON",
+          "req_fields": [
+              "Token",
+              "Message ID"
+          ],
+          "res_type": "",
+          "res_fields": [
+              "Token"
+          ]
+      },
+      {
+          "rule": "An endpoint receiving a token it did not generate MUST treat the token as opaque and make no assumptions about its content or structure.",
+          "req_type": "CON",
+          "req_fields": [
+              "Token"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "In a separate response, the tokens of the response and original request MUST match.",
+          "req_type": "CON",
+          "req_fields": [
+              "Token"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "Lengths 9-15 are reserved, MUST NOT be sent, and MUST be processed as a message format error.",
+          "req_type": "CON",
+          "req_fields": [
+              "Header",
+              "Token Length (TKL)"
+          ],
+          "res_type": "RST",
+          "res_fields": []
+      },
+      {
+          "rule": "A recipient MUST either (a) acknowledge a Confirmable message with an Acknowledgement message or (b) reject the message by sending a matching Reset message if the recipient lacks context to process the message properly, including situations where the message is Empty, uses a code with a reserved class (1, 6, or 7), or has a message format error.",
+          "req_type": "CON",
+          "req_fields": [
+              "Code",
+              "Message ID",
+              "Token Length",
+              "Token",
+              "Payload Marker",
+              "Payload",
+              "Options"
+          ],
+          "res_type": "ACK, RST",
+          "res_fields": [
+              "Message ID"
+          ]
+      },
+      {
+          "rule": "The presence of a Payload Marker (0xFF) followed by a zero-length payload MUST be processed as a message format error.",
+          "req_type": "CON",
+          "req_fields": [
+              "Payload Marker",
+              "Payload"
+          ],
+          "res_type": "RST",
+          "res_fields": []
+      },
+      {
+          "rule": "When a proxy request is made to an endpoint and the endpoint is unwilling or unable to act as proxy for the request URI, the endpoint MUST return a 5.05 (Proxying Not Supported) response.",
+          "req_type": "CON",
+          "req_fields": [
+              "Options",
+              "Proxy-Uri",
+              "Proxy-Scheme"
+          ],
+          "res_type": "ACK",
+          "res_fields": [
+              "Code"
+          ]
+      },
+      {
+          "rule": "An endpoint receiving an entity-tag MUST treat the entity-tag as opaque and make no assumptions about the entity-tag's content or structure.",
+          "req_type": "CON",
+          "req_fields": [
+              "options",
+              "If-Match",
+              "If-None-Match"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "However, a cache MUST mark any stored response for the deleted resource as not fresh.",
+          "req_type": "CON",
+          "req_fields": [
+              "Code",
+              "Options"
+          ],
+          "res_type": "ACK",
+          "res_fields": [
+              "Code",
+              "Token"
+          ]
+      },
+      {
+          "rule": "If there are any bytes after the Message ID field, the Empty message MUST be processed as a message format error.",
+          "req_type": "CON",
+          "req_fields": [
+              "Header",
+              "Message ID"
+          ],
+          "res_type": "ACK",
+          "res_fields": [
+              "Header",
+              "Code"
+          ]
+      },
+      {
+          "rule": "Unsafe options in a request that are not recognized by the proxy MUST lead to a 4.02 (Bad Option) response being returned by the proxy.",
+          "req_type": "CON",
+          "req_fields": [
+              "Options"
+          ],
+          "res_type": "ACK",
+          "res_fields": [
+              "Code"
+          ]
+      },
+      {
+          "rule": "Any attempt to supply a NoSec response to a DTLS request simply does not match the request and therefore MUST be rejected (unless the NoSec response does match an unrelated NoSec request).",
+          "req_type": "CON",
+          "req_fields": [
+              "Message ID",
+              "Token",
+              "Token Length"
+          ],
+          "res_type": "RST",
+          "res_fields": [
+              "Message ID",
+              "Token",
+              "Token Length"
+          ]
+      },
+      {
+          "rule": "The Proxy-Uri Option MUST take precedence over any of the Uri-Host, Uri-Port, Uri-Path or Uri-Query options (each of which MUST NOT be included in a request containing the Proxy-Uri Option).",
+          "req_type": "CON",
+          "req_fields": [
+              "Options",
+              "Proxy-Uri",
+              "Uri-Host",
+              "Uri-Port",
+              "Uri-Path",
+              "Uri-Query"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "If the field is set to 15 but the entire byte is not the payload marker, this MUST be processed as a message format error.",
+          "req_type": "CON",
+          "req_fields": [
+              "options",
+              "Option Delta",
+              "Option Length"
+          ],
+          "res_type": "",
+          "res_fields": []
+      }
+  ],
+  "NON": [
+      {
+          "rule": "Unrecognized options of class \"critical\" that occur in a Non-confirmable message MUST cause the message to be rejected (Section 4.3).",
+          "req_type": "NON",
+          "req_fields": [
+              "Options"
+          ],
+          "res_type": "RST",
+          "res_fields": []
+      },
+      {
+          "rule": "A recipient MUST reject the message if it lacks context to process the message properly, including the case where the message is Empty, uses a code with a reserved class (1, 6, or 7), or has a message format error.",
+          "req_type": "NON",
+          "req_fields": [
+              "Code",
+              "Payload"
+          ],
+          "res_type": "RST",
+          "res_fields": [
+              "Message ID",
+              "Token"
+          ]
+      },
+      {
+          "rule": "Upon reception, unrecognized options of class \"elective\" MUST be silently ignored.",
+          "req_type": "NON",
+          "req_fields": [
+              "Options"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "In case an option is not defined for a Method or Response Code, the option MUST NOT be included by a sender and MUST be treated like an unrecognized option by a recipient.",
+          "req_type": "NON",
+          "req_fields": [
+              "Options"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "An endpoint receiving a token it did not generate MUST treat the token as opaque and make no assumptions about its content or structure.",
+          "req_type": "NON",
+          "req_fields": [
+              "Token"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "An endpoint receiving an entity-tag MUST treat the entity-tag as opaque and make no assumptions about the entity-tag's content or structure.",
+          "req_type": "NON",
+          "req_fields": [
+              "options",
+              "If-Match",
+              "If-None-Match"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "(For example, in query filtering as described in [RFC6690 Link Format\"], a server should not respond to a multicast request if the filter does not match.",
+          "req_type": "NON",
+          "req_fields": [
+              "Options",
+              "Uri-Query"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "A GET request to a multicast group MUST NOT contain an ETag option.",
+          "req_type": "NON",
+          "req_fields": [
+              "Code",
+              "Options",
+              "ETag"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "The Proxy-Uri Option MUST take precedence over any of the Uri-Host, Uri-Port, Uri-Path or Uri-Query options (each of which MUST NOT be included in a request containing the Proxy-Uri Option).",
+          "req_type": "NON",
+          "req_fields": [
+              "Options",
+              "Proxy-Uri",
+              "Uri-Host",
+              "Uri-Port",
+              "Uri-Path",
+              "Uri-Query"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "req_type": "NON",
+          "req_fields": [],
+          "res_type": "",
+          "res_fields": [],
+          "rule": "To avoid an implosion of error responses, when a server is aware that a request arrived via multicast, it MUST NOT return a Reset message in reply to a Non-confirmable message."
+      }
+  ],
+  "RST": [
+      {
+          "rule": "For Empty messages, the Token Length field MUST be set to 0 and bytes of data MUST NOT be present after the Message ID field.",
+          "req_type": "RST",
+          "req_fields": [
+              "Token Length",
+              "Message ID"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "The server MUST stop retransmitting its response upon receiving any matching Acknowledgement (silently ignoring its Response Code/payload) or Reset message.",
+          "req_type": "RST",
+          "req_fields": [
+              "Message ID",
+              "Code",
+              "Payload"
+          ],
+          "res_type": "",
+          "res_fields": []
+      }
+  ],
+  "ACK": [
+      {
+          "rule": "The server MUST stop retransmitting its response upon receiving any matching Acknowledgement (silently ignoring its Response Code/payload) or Reset message.",
+          "req_type": "ACK",
+          "req_fields": [
+              "Message ID",
+              "Code",
+              "Payload"
+          ],
+          "res_type": "",
+          "res_fields": []
+      }
+  ]
+}

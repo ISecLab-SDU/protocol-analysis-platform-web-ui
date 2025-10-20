@@ -1,5 +1,7 @@
 <script lang="ts" setup>
-import { computed, onMounted, ref } from 'vue';
+import type { UploadFile, UploadProps } from 'ant-design-vue';
+
+import { computed, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 
 import {
@@ -7,182 +9,257 @@ import {
   Card,
   Divider,
   Empty,
+  Form,
+  FormItem,
+  Input,
   message,
+  Select,
+  SelectOption,
   Space,
+  Table,
+  TabPane,
+  Tabs,
   Tag,
+  Upload,
 } from 'ant-design-vue';
 
-// 类型定义
-type RuleItem = {
-  analysis: string;
-  code?: string;
-  rule: string;
-};
+import {
+  addAnalysisHistory,
+  getAnalysisHistory,
+  getDetectionResults,
+} from '#/api/protocol-compliance';
 
-type RawAnalysisResult = {
-  reason: string;
-  result: string;
-};
+// 类型定义
+interface DetectionResult {
+  id: number;
+  rule_desc: string;
+  code_snippet: string;
+  llm_response: { reason: string; result: string };
+}
+
+interface HistoryRecord {
+  id: string;
+  implementationName: string;
+  protocolName: string;
+  statistics: {
+    noResult: number;
+    noViolations: number;
+    total: number;
+    violations: number;
+  };
+  createdAt: string;
+}
 
 // 路由与标题
 const route = useRoute();
 const title = computed(() => String(route.meta?.title ?? '静态规则分析'));
 
-// 状态管理
-const analysisGroups = ref<Record<string, RuleItem[]>>({});
-const analysisResults = ref<Record<string, RawAnalysisResult>>({});
-const lastFetchError = ref<null | string>(null);
-const dataLoaded = ref(false); // 新增：标记数据是否已加载
+// 标签页状态
+const activeTab = ref('input');
 
-// 分组展开状态
-const groupExpanded = ref<Record<string, boolean>>({}); // 控制分组展开/收起
+// 文件列表状态
+const rulesFileList = ref<UploadFile[]>([]);
+const sourceCodeFileList = ref<UploadFile[]>([]);
 
-// 左侧分页
-const itemsPerPage = 5;
-const currentPage = ref(1);
-const totalPages = ref(1);
-const currentRules = ref<RuleItem[]>([]);
-const activeAnalysisKey = ref<null | string>(null);
+// 表单数据
+const formData = reactive({
+  protocolName: '',
+  implementationName: '',
+  rulesFile: null as File | null,
+  sourceCodeFile: null as File | null,
+  selectedModel: '',
+});
+const formLoading = ref(false);
 
-// 右侧当前分析结果
-const currentResult = ref<null | RawAnalysisResult>(null);
-const currentRule = ref<null | string>(null);
+// 检测结果状态
+const detectionResults = ref<DetectionResult[]>([]);
+const detectionLoading = ref(false);
 
-// 加载规则与分析结果
-async function loadData() {
+// 历史记录状态
+const historyRecords = ref<HistoryRecord[]>([]);
+const historyLoading = ref(false);
+
+// 上传文件控制
+const beforeUploadRules: UploadProps['beforeUpload'] = (file) => {
+  rulesFileList.value = [file];
+  formData.rulesFile =
+    (file as UploadFile<File>).originFileObj ?? (file as any as File);
+  return false;
+};
+const removeRules: UploadProps['onRemove'] = () => {
+  rulesFileList.value = [];
+  formData.rulesFile = null;
+  return true;
+};
+
+const beforeUploadSourceCode: UploadProps['beforeUpload'] = (file) => {
+  sourceCodeFileList.value = [file];
+  formData.sourceCodeFile =
+    (file as UploadFile<File>).originFileObj ?? (file as any as File);
+  return false;
+};
+const removeSourceCode: UploadProps['onRemove'] = () => {
+  sourceCodeFileList.value = [];
+  formData.sourceCodeFile = null;
+  return true;
+};
+
+// 是否可以开始分析
+const canStartAnalysis = computed(() => {
+  return !!(
+    formData.protocolName &&
+    formData.implementationName &&
+    formData.rulesFile &&
+    formData.sourceCodeFile &&
+    formData.selectedModel
+  );
+});
+
+// 表格列定义
+const detectionColumns = [
+  { title: '序号', key: 'index', width: 60 },
+  {
+    title: '原始规则',
+    dataIndex: 'rule_desc',
+    key: 'rule_desc',
+    width: '25%',
+    ellipsis: true,
+  },
+  {
+    title: '代码切片',
+    dataIndex: 'code_snippet',
+    key: 'code_snippet',
+    width: '35%',
+  },
+  {
+    title: '分析结果',
+    dataIndex: 'llm_response',
+    key: 'llm_response',
+    width: '40%',
+  },
+];
+
+const historyColumns = [
+  { title: '序号', key: 'index', width: 60 },
+  {
+    title: '协议实现',
+    dataIndex: 'implementationName',
+    key: 'implementationName',
+    width: '25%',
+  },
+  {
+    title: '协议类型',
+    dataIndex: 'protocolName',
+    key: 'protocolName',
+    width: '20%',
+  },
+  { title: '分析结果', key: 'statistics', width: '55%' },
+];
+
+// 开始分析
+async function handleStartAnalysis() {
+  if (!formData.protocolName || !formData.implementationName) {
+    message.error('请填写协议名称和协议实现名称');
+    return;
+  }
+  if (!formData.rulesFile || !formData.sourceCodeFile) {
+    message.error('请上传规则文件和源代码文件');
+    return;
+  }
+  if (!formData.selectedModel) {
+    message.error('请选择大模型');
+    return;
+  }
+
+  formLoading.value = true;
   try {
-    // 1. 加载规则数据
-    const rulesRes = await fetch('/rule.json');
-    const rulesObj = await rulesRes.json();
-    const rulesData: RuleItem[] = Object.entries(rulesObj).map(
-      ([rule, code]) => ({
-        analysis: '默认规则组',
-        rule,
-        code: code as string,
-      }),
-    );
+    message.loading('正在分析结果，请稍候...', 0);
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+    message.destroy();
 
-    // 2. 加载分析结果
-    const resultsRes = await fetch('/rules.json');
-    const rawResults: Record<string, string> = await resultsRes.json();
+    const response = await getDetectionResults(formData.implementationName);
+    detectionResults.value = response.items;
 
-    // 解析结果
-    const parsedResults: Record<string, RawAnalysisResult> = {};
-    Object.entries(rawResults).forEach(([rule, resultStr]) => {
-      try {
-        if (!resultStr.trim()) {
-          parsedResults[rule] = { result: '未分析', reason: '无分析结果' };
-          return;
-        }
-        const parsed = JSON.parse(resultStr) as RawAnalysisResult;
-        parsedResults[rule] = parsed;
-      } catch (error) {
-        parsedResults[rule] = {
-          result: '解析错误',
-          reason: `分析结果格式错误: ${(error as Error).message}`,
-        };
-      }
+    await addAnalysisHistory({
+      implementationName: formData.implementationName,
+      protocolName: formData.protocolName,
     });
 
-    // 3. 分组处理
-    const groups: Record<string, RuleItem[]> = {};
-    rulesData.forEach((item) => {
-      if (!groups[item.analysis]) {
-        groups[item.analysis] = [];
-        groupExpanded.value[item.analysis] = false; // 初始化为收起状态
-      }
-      groups[item.analysis].push(item);
-    });
-
-    analysisGroups.value = groups;
-    analysisResults.value = parsedResults;
-    lastFetchError.value = null;
-    dataLoaded.value = true; // 标记数据已加载
-    message.success('数据加载成功');
+    activeTab.value = 'detection';
+    message.success('分析完成');
   } catch (error: any) {
-    lastFetchError.value = `加载数据失败: ${error.message}`;
-    message.error(lastFetchError.value);
+    message.destroy();
+    message.error(error.message || '加载失败');
+  } finally {
+    formLoading.value = false;
   }
 }
 
-// 初始化不自动加载，保持空状态
-onMounted(() => {
-  // 不自动调用loadData，等待用户点击刷新
-});
-
-// 切换规则组展开/收起
-function toggleAnalysisGroup(key: string) {
-  // 切换状态
-  groupExpanded.value[key] = !groupExpanded.value[key];
-
-  // 处理展开状态
-  if (groupExpanded.value[key]) {
-    activeAnalysisKey.value = key;
-    currentPage.value = 1;
-    currentRules.value = analysisGroups.value[key] || [];
-    totalPages.value = Math.ceil(
-      (currentRules.value.length || 0) / itemsPerPage,
-    );
-  } else {
-    activeAnalysisKey.value = null;
-    currentRules.value = [];
-    currentResult.value = null;
-    currentRule.value = null;
+// 加载历史记录
+async function loadHistory() {
+  historyLoading.value = true;
+  try {
+    const response = await getAnalysisHistory();
+    historyRecords.value = response.items;
+  } catch {
+    message.error('加载历史记录失败');
+  } finally {
+    historyLoading.value = false;
   }
 }
 
-// 查看分析结果
-function viewAnalysisResult(rule: string) {
-  currentRule.value = rule;
-  currentResult.value = analysisResults.value[rule] || {
-    result: '未找到',
-    reason: '未找到对应的分析结果',
-  };
-}
-
-// 左侧分页控制
-function prevPage(e: MouseEvent) {
-  e.stopPropagation();
-  if (currentPage.value > 1) {
-    currentPage.value--;
-    currentResult.value = null;
-    currentRule.value = null;
+// 查看历史记录详情
+async function viewHistoryDetail(record: HistoryRecord) {
+  formData.implementationName = record.implementationName;
+  formData.protocolName = record.protocolName;
+  detectionLoading.value = true;
+  try {
+    const response = await getDetectionResults(record.implementationName);
+    detectionResults.value = response.items;
+    activeTab.value = 'detection';
+  } catch {
+    message.error('加载失败');
+  } finally {
+    detectionLoading.value = false;
   }
 }
 
-function nextPage(e: MouseEvent) {
-  e.stopPropagation();
-  if (currentPage.value < totalPages.value) {
-    currentPage.value++;
-    currentResult.value = null;
-    currentRule.value = null;
-  }
+// 结果状态颜色
+function getResultColor(result: string): string {
+  const lowerResult = result.toLowerCase();
+  if (lowerResult.includes('no violation')) return 'green';
+  if (lowerResult.includes('violation')) return 'red';
+  return 'orange';
 }
-
-// 分页数据切片（改为computed确保响应式）
-const currentPageSlice = computed(() => {
-  const start = (currentPage.value - 1) * itemsPerPage;
-  return currentRules.value.slice(start, start + itemsPerPage);
-});
-
-// 结果状态样式计算
-const resultStatusClass = computed(() => {
-  if (!currentResult.value) return '';
-  const result = currentResult.value.result.toLowerCase();
-  if (result.includes('no violation')) return 'text-success';
-  if (result.includes('violation')) return 'text-error';
-  if (result === '未分析' || result === '') return 'text-gray';
-  return 'text-warning';
-});
 
 // 结果状态文本
-const resultStatusText = computed(() => {
-  if (!currentResult.value) return '';
-  const result = currentResult.value.result.toLowerCase();
-  if (result.includes('no violation')) return '符合规则';
-  if (result.includes('violation')) return '违反规则';
-  if (result === '未分析' || result === '') return '未分析';
-  return '需要注意';
+function getResultText(result: string): string {
+  const lowerResult = result.toLowerCase();
+  if (lowerResult.includes('no violation')) return '✓ 符合规则';
+  if (lowerResult.includes('violation')) return '✗ 违反规则';
+  return '⚠ 需要审查';
+}
+
+// 标签页切换
+function handleTabChange(key: string) {
+  if (key === 'history') loadHistory();
+}
+
+// 检测结果统计
+const detectionStatistics = computed(() => {
+  const total = detectionResults.value.length;
+  let violations = 0;
+  let noViolations = 0;
+  let noResult = 0;
+
+  detectionResults.value.forEach((item) => {
+    const res = item.llm_response.result.toLowerCase();
+    if (res.includes('violation')) violations++;
+    else if (res.includes('no violation')) noViolations++;
+    else noResult++;
+  });
+
+  return { total, violations, noViolations, noResult };
 });
 </script>
 
@@ -190,143 +267,218 @@ const resultStatusText = computed(() => {
   <div class="static-analysis-page">
     <div class="page-header">
       <h1>{{ title }}</h1>
-      <p>静态规则分析结果展示，左侧为规则与代码，右侧为对应分析结果</p>
-      <Space v-if="lastFetchError" class="error提示">
-        <span class="text-danger">{{ lastFetchError }}</span>
-        <Button size="small" @click="loadData">重新加载</Button>
-      </Space>
+      <p>协议合规性静态分析 - 上传文件并输入协议信息查看分析结果</p>
     </div>
 
-    <div class="analysis-container">
-      <!-- 左侧：规则与代码 -->
-      <Card class="analysis-left" title="规则与代码列表">
-        <template #extra>
-          <Space>
-            <span>规则组数: {{ Object.keys(analysisGroups).length }}</span>
-            <Button size="small" @click="loadData">刷新</Button>
-          </Space>
-        </template>
-
-        <!-- 初始状态显示空提示 -->
-        <div v-if="!dataLoaded">
-          <Empty description="请点击刷新按钮加载数据" />
-        </div>
-
-        <div v-else-if="Object.keys(analysisGroups).length === 0">
-          <Empty description="未加载到规则数据" />
-        </div>
-
-        <div v-else>
-          <div
-            v-for="(rules, groupName, idx) in analysisGroups"
-            :key="groupName"
-            class="group-wrapper"
+    <Card>
+      <Tabs v-model:active-key="activeTab" @change="handleTabChange">
+        <!-- 输入标签页 -->
+        <TabPane key="input" tab="输入协议信息">
+          <Form
+            :model="formData"
+            layout="vertical"
+            style="max-width: 800px; margin: 0 auto"
           >
-            <Card
-              size="small"
-              class="group-card cursor-pointer"
-              :class="{ 'active-group': groupExpanded[groupName] }"
-              @click="toggleAnalysisGroup(groupName)"
+            <!-- 协议+规则 -->
+            <div style="display: flex; flex-wrap: wrap; gap: 16px">
+              <FormItem label="协议名称" style="flex: 1">
+                <Input
+                  v-model:value="formData.protocolName"
+                  placeholder="输入协议名称"
+                  list="protocol-options"
+                />
+                <datalist id="protocol-options">
+                  <option value="CoAP"></option>
+                  <option value="DHCPv6"></option>
+                  <option value="MQTTv3_1_1"></option>
+                  <option value="MQTTv5"></option>
+                  <option value="TLSv1_3"></option>
+                  <option value="FTP"></option>
+                </datalist>
+              </FormItem>
+
+              <FormItem label="规则文件" style="flex: 1">
+                <Upload
+                  :file-list="rulesFileList"
+                  :before-upload="beforeUploadRules"
+                  :on-remove="removeRules"
+                  :max-count="1"
+                >
+                  <Button block>选择规则文件</Button>
+                </Upload>
+              </FormItem>
+            </div>
+
+            <!-- 协议实现+源代码 -->
+            <div
+              style="
+                display: flex;
+                flex-wrap: wrap;
+                gap: 16px;
+                margin-top: 16px;
+              "
             >
-              <template #title>
+              <FormItem label="协议实现名称" style="flex: 1">
+                <Input
+                  v-model:value="formData.implementationName"
+                  placeholder="输入协议实现名称"
+                />
+              </FormItem>
+
+              <FormItem label="协议源代码实现" style="flex: 1">
+                <Upload
+                  :file-list="sourceCodeFileList"
+                  :before-upload="beforeUploadSourceCode"
+                  :on-remove="removeSourceCode"
+                  :max-count="1"
+                >
+                  <Button block>选择源代码文件</Button>
+                </Upload>
+              </FormItem>
+            </div>
+
+            <!-- 大模型选择 -->
+            <div
+              style="
+                display: flex;
+                flex-wrap: wrap;
+                gap: 16px;
+                margin-top: 16px;
+              "
+            >
+              <FormItem label="选择大模型" style="flex: 1">
+                <Select
+                  v-model:value="formData.selectedModel"
+                  placeholder="请选择大模型"
+                >
+                  <SelectOption value="GPT-4-32k">GPT-4 32k</SelectOption>
+                  <SelectOption value="GPT-4-0613">GPT-4 0613</SelectOption>
+                  <SelectOption value="GPT-3.5-turbo">
+                    GPT-3.5 Turbo
+                  </SelectOption>
+                  <SelectOption value="Claude-2">Claude 2</SelectOption>
+                  <SelectOption value="LLaMA-2-13B">LLaMA 2 13B</SelectOption>
+                  <SelectOption value="MPT-7B">MPT-7B</SelectOption>
+                  <SelectOption value="Gemini-1">Gemini 1</SelectOption>
+                  <SelectOption value="PaLM-2">PaLM 2</SelectOption>
+                  <SelectOption value="Falcon-40B">Falcon 40B</SelectOption>
+                  <SelectOption value="Vicuna-13B">Vicuna 13B</SelectOption>
+                </Select>
+              </FormItem>
+            </div>
+
+            <FormItem style="margin-top: 24px">
+              <Button
+                type="primary"
+                :loading="formLoading"
+                :disabled="!canStartAnalysis"
+                @click="handleStartAnalysis"
+                block
+              >
+                开始分析
+              </Button>
+            </FormItem>
+          </Form>
+        </TabPane>
+
+        <!-- 检测结果标签页 -->
+        <TabPane key="detection" tab="代码切片与检测">
+          <div v-if="detectionResults.length === 0">
+            <Empty description="暂无检测结果,请先输入协议信息" />
+          </div>
+
+          <div v-else>
+            <!-- 统计信息 -->
+            <div style="margin-bottom: 16px">
+              <Space>
+                <span>总数: {{ detectionStatistics.total }}</span>
+                <Tag color="red">
+                  违规: {{ detectionStatistics.violations }}
+                </Tag>
+                <Tag color="green">
+                  符合: {{ detectionStatistics.noViolations }}
+                </Tag>
+                <Tag color="orange">
+                  待定: {{ detectionStatistics.noResult }}
+                </Tag>
+              </Space>
+            </div>
+
+            <!-- 表格 -->
+            <Table
+              :columns="detectionColumns"
+              :data-source="detectionResults"
+              :loading="detectionLoading"
+              :pagination="{
+                pageSize: 10,
+                showSizeChanger: true,
+                showTotal: (total) => `共 ${total} 条记录`,
+              }"
+              :scroll="{ x: 1200 }"
+            >
+              <template #bodyCell="{ column, record, index }">
+                <template v-if="column.key === 'index'">
+                  {{ index + 1 }}
+                </template>
+                <template v-else-if="column.key === 'code_snippet'">
+                  <pre class="code-snippet">{{ record.code_snippet }}</pre>
+                </template>
+                <template v-else-if="column.key === 'llm_response'">
+                  <div class="analysis-result">
+                    <Tag :color="getResultColor(record.llm_response.result)">
+                      {{ getResultText(record.llm_response.result) }}
+                    </Tag>
+                    <Divider style="margin: 8px 0" />
+                    <div class="reason-text">
+                      <strong>详细说明:</strong>
+                      <p>{{ record.llm_response.reason }}</p>
+                    </div>
+                  </div>
+                </template>
+              </template>
+            </Table>
+          </div>
+        </TabPane>
+
+        <!-- 历史记录标签页 -->
+        <TabPane key="history" tab="历史记录">
+          <Table
+            :columns="historyColumns"
+            :data-source="historyRecords"
+            :loading="historyLoading"
+            :pagination="{
+              pageSize: 10,
+              showTotal: (total) => `共 ${total} 条记录`,
+            }"
+          >
+            <template #bodyCell="{ column, record, index }">
+              <template v-if="column.key === 'index'">
+                {{ index + 1 }}
+              </template>
+              <template v-else-if="column.key === 'implementationName'">
+                <a @click="viewHistoryDetail(record)">{{
+                  record.implementationName
+                }}</a>
+              </template>
+              <template v-else-if="column.key === 'statistics'">
                 <Space>
-                  <span>{{ idx + 1 }}. {{ groupName }}</span>
-                  <Tag color="blue">{{ rules.length }} 条规则</Tag>
-                  <!-- 展开/收起图标 -->
-                  <span class="expand-icon">{{
-                    groupExpanded[groupName] ? '▼' : '►'
-                  }}</span>
+                  <span>总数: {{ record.statistics.total }}</span>
+                  <Tag color="red">
+                    违规: {{ record.statistics.violations }}
+                  </Tag>
+                  <Tag color="green">
+                    符合: {{ record.statistics.noViolations }}
+                  </Tag>
+                  <Tag color="orange">
+                    待定: {{ record.statistics.noResult }}
+                  </Tag>
                 </Space>
               </template>
-
-              <!-- 仅在展开状态显示规则列表 -->
-              <div v-if="groupExpanded[groupName]" class="group-rules">
-                <div
-                  v-for="(item, i) in currentPageSlice"
-                  :key="i"
-                  class="rule-item cursor-pointer"
-                  @click.stop="viewAnalysisResult(item.rule)"
-                >
-                  <div class="rule-header">
-                    <span class="rule-index"
-                      >{{ (currentPage - 1) * itemsPerPage + i + 1 }}.</span
-                    >
-                    <span class="rule-content">{{ item.rule }}</span>
-                  </div>
-
-                  <Divider orientation="left">对应代码</Divider>
-                  <pre class="rule-code">{{ item.code || '无对应代码' }}</pre>
-                </div>
-
-                <Space class="pagination-controls" @click.stop>
-                  <Button
-                    size="small"
-                    :disabled="currentPage === 1"
-                    @click="prevPage($event)"
-                  >
-                    上一页
-                  </Button>
-                  <span>
-                    第 {{ currentPage }} 页 / 共 {{ totalPages }} 页
-                  </span>
-                  <Button
-                    size="small"
-                    :disabled="currentPage >= totalPages"
-                    @click="nextPage($event)"
-                  >
-                    下一页
-                  </Button>
-                </Space>
-              </div>
-            </Card>
-          </div>
-        </div>
-      </Card>
-
-      <!-- 右侧：分析结果 -->
-      <Card class="analysis-right" title="分析结果详情">
-        <template #extra>
-          <Tag
-            :color="
-              currentResult?.result.includes('no violation')
-                ? 'green'
-                : currentResult?.result.includes('violation')
-                  ? 'red'
-                  : 'orange'
-            "
-          >
-            {{ currentResult ? resultStatusText : '未选择规则' }}
-          </Tag>
-        </template>
-
-        <div v-if="!currentResult">
-          <Empty description="请从左侧选择规则查看分析结果" />
-        </div>
-
-        <div v-else class="result-details">
-          <div class="result-rule">
-            <h3>规则内容:</h3>
-            <p>{{ currentRule }}</p>
-          </div>
-
-          <Divider />
-
-          <div class="result-status">
-            <h3>分析结果:</h3>
-            <p class="status-text" :class="resultStatusClass">
-              {{ resultStatusText }}
-            </p>
-          </div>
-
-          <Divider />
-
-          <div class="result-description">
-            <h3>详细说明:</h3>
-            <p>{{ currentResult.reason }}</p>
-          </div>
-        </div>
-      </Card>
-    </div>
+            </template>
+          </Table>
+        </TabPane>
+      </Tabs>
+    </Card>
   </div>
 </template>
 
@@ -350,127 +502,32 @@ const resultStatusText = computed(() => {
   color: rgb(0 0 0 / 65%);
 }
 
-.analysis-container {
-  display: flex;
-  gap: 24px;
-  height: calc(100vh - 160px);
-}
-
-.analysis-left,
-.analysis-right {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  overflow: auto;
-}
-
-.group-wrapper {
-  margin-bottom: 16px;
-}
-
-.group-card {
-  transition: all 0.3s;
-}
-
-.group-card.active-group {
-  border-color: #1890ff;
-  box-shadow: 0 2px 8px rgb(24 144 255 / 20%);
-}
-
-.expand-icon {
-  font-size: 14px;
-  color: #1890ff;
-  transition: transform 0.2s;
-}
-
-.group-rules {
-  padding-top: 8px;
-  margin-top: 8px;
-  border-top: 1px dashed #e8e8e8;
-}
-
-.rule-item {
-  padding: 12px;
-  margin-bottom: 12px;
-  border: 1px solid #e8e8e8;
-  border-radius: 4px;
-  transition: all 0.2s;
-}
-
-.rule-item:hover {
-  background-color: #f0f7ff;
-  border-color: #1890ff;
-}
-
-.rule-header {
-  margin-bottom: 8px;
-  word-break: normal;
-  overflow-wrap: anywhere;
-}
-
-.rule-index {
-  display: inline-block;
-  width: 30px;
-  color: rgb(0 0 0 / 50%);
-}
-
-.rule-content {
-  font-weight: 500;
-}
-
-.rule-code {
+.code-snippet {
   max-height: 200px;
   padding: 8px;
   margin: 0;
-  overflow: auto;
-  font-family: 'Fira Code', monospace;
-  font-size: 13px;
+  overflow-y: auto;
+  font-family: 'Fira Code', Consolas, monospace;
+  font-size: 12px;
   line-height: 1.6;
+  word-break: break-all;
   white-space: pre-wrap;
   background: #f5f5f5;
   border-radius: 4px;
 }
 
-.pagination-controls {
-  display: flex;
-  justify-content: center;
-  padding: 8px;
-  margin-top: 16px;
-}
-
-.result-details {
+.analysis-result {
   padding: 8px 0;
 }
 
-.result-rule p,
-.result-description p {
-  margin: 8px 0;
+.reason-text {
+  margin-top: 8px;
+}
+
+.reason-text p {
+  margin: 4px 0;
   line-height: 1.6;
-  word-break: normal;
-  overflow-wrap: anywhere;
+  word-break: break-word;
   white-space: pre-wrap;
-}
-
-.status-text {
-  margin: 8px 0;
-  font-size: 16px;
-  font-weight: 500;
-}
-
-/* 状态颜色类 */
-.text-success {
-  color: #52c41a;
-}
-
-.text-error {
-  color: #f5222d;
-}
-
-.text-warning {
-  color: #faad14;
-}
-
-.text-gray {
-  color: #8c8c8c;
 }
 </style>

@@ -1,0 +1,194 @@
+[
+  {
+    "id": "1a63ff63-7994-4afa-9b05-561427e0267d",
+    "implementationName": "sol",
+    "protocolName": "MQTTv5",
+    "statistics": {
+      "total": 83,
+      "violations": 40,
+      "noViolations": 43,
+      "noResult": 0
+    },
+    "createdAt": "2025-10-20T15:19:49.165238"
+  },
+  {
+    "id": "4812c4a8-1bb0-4066-aae4-58798552d2ee",
+    "implementationName": "tinymqtt",
+    "protocolName": "MQTTv5",
+    "statistics": {
+      "total": 83,
+      "violations": 32,
+      "noViolations": 51,
+      "noResult": 0
+    },
+    "createdAt": "2025-10-20T15:11:53.950133"
+  },
+  {
+    "id": "244909d5-95e0-4f7b-92a1-246931815cff",
+    "implementationName": "dnsmasq",
+    "protocolName": "DHCPv6",
+    "statistics": {
+      "total": 56,
+      "violations": 13,
+      "noViolations": 43,
+      "noResult": 0
+    },
+    "createdAt": "2025-10-20T15:09:12.013587"
+  },
+  {
+    "id": "1f935646-fd41-499d-bd5b-9a66ce0a8af4",
+    "implementationName": "dnsmasq",
+    "protocolName": "DHCPv6",
+    "statistics": {
+      "total": 56,
+      "violations": 13,
+      "noViolations": 43,
+      "noResult": 0
+    },
+    "createdAt": "2025-10-20T15:05:43.384494"
+  },
+  {
+    "id": "192bd5ab-f30f-4ae2-9d9e-9f0e2935bc85",
+    "implementationName": "sol",
+    "protocolName": "CoAP",
+    "statistics": {
+      "total": 83,
+      "violations": 40,
+      "noViolations": 43,
+      "noResult": 0
+    },
+    "createdAt": "2025-10-20T14:56:09.637445"
+  },
+  {
+    "id": "155d29d4-a86b-4434-bd68-ed9fa58a4fbf",
+    "implementationName": "tinymqtt",
+    "protocolName": "MQTTv3_1_1",
+    "statistics": {
+      "total": 83,
+      "violations": 32,
+      "noViolations": 51,
+      "noResult": 0
+    },
+    "createdAt": "2025-10-20T14:32:41.228191"
+  },
+  {
+    "id": "cb053998-9d53-41cf-90ab-cd3fe82db67a",
+    "implementationName": "sol",
+    "protocolName": "CoAP",
+    "statistics": {
+      "total": 83,
+      "violations": 40,
+      "noViolations": 43,
+      "noResult": 0
+    },
+    "createdAt": "2025-10-20T14:29:17.724176"
+  },
+  {
+    "id": "b8be0d23-8c49-4b17-95d1-078925fc8199",
+    "implementationName": "sol",
+    "protocolName": "MQTTv5",
+    "statistics": {
+      "total": 83,
+      "violations": 40,
+      "noViolations": 43,
+      "noResult": 0
+    },
+    "createdAt": "2025-10-20T11:32:23.577648"
+  },
+  {
+    "id": "ac3f8d0f-665f-4de7-af93-b006afa3c1e8",
+    "implementationName": "sol",
+    "protocolName": "DHCPv6",
+    "statistics": {
+      "total": 83,
+      "violations": 40,
+      "noViolations": 43,
+      "noResult": 0
+    },
+    "createdAt": "2025-10-20T11:31:48.079969"
+  },
+  {
+    "id": "9287ba18-1607-4f8c-8537-afe4fd03a77e",
+    "implementationName": "sol",
+    "protocolName": "MQTTv3_1_1",
+    "statistics": {
+      "total": 83,
+      "violations": 40,
+      "noViolations": 43,
+      "noResult": 0
+    },
+    "createdAt": "2025-10-20T10:56:16.784937"
+  },
+  {
+    "id": "44a4cb47-d76d-4144-abe2-8bde8a29e72c",
+    "implementationName": "dnsmasq",
+    "protocolName": "dns",
+    "statistics": {
+      "total": 56,
+      "violations": 13,
+      "noViolations": 43,
+      "noResult": 0
+    },
+    "createdAt": "2025-10-20T10:52:00.028961"
+  },
+  {
+    "id": "01081440-110d-429b-961c-0aafc5f34988",
+    "implementationName": "dnsmasq",
+    "protocolName": "dns",
+    "statistics": {
+      "total": 56,
+      "violations": 13,
+      "noViolations": 43,
+      "noResult": 0
+    },
+    "createdAt": "2025-10-20T10:51:03.235303"
+  },
+  {
+    "id": "6b2da37f-6c28-4168-8f6f-e99206d014a7",
+    "implementationName": "sol",
+    "protocolName": "MQTT",
+    "statistics": {
+      "total": 83,
+      "violations": 40,
+      "noViolations": 43,
+      "noResult": 0
+    },
+    "createdAt": "2025-10-20T10:46:05.232405"
+  },
+  {
+    "id": "e8d7c289-16a1-4178-8f9a-b343b69af173",
+    "implementationName": "tinymqtt",
+    "protocolName": "MQTT",
+    "statistics": {
+      "total": 83,
+      "violations": 32,
+      "noViolations": 51,
+      "noResult": 0
+    },
+    "createdAt": "2025-10-20T10:45:57.895808"
+  },
+  {
+    "id": "e4738ec3-8566-4b05-b74e-66d23b669716",
+    "implementationName": "tinymqtt",
+    "protocolName": "MQTT",
+    "statistics": {
+      "total": 83,
+      "violations": 32,
+      "noViolations": 51,
+      "noResult": 0
+    },
+    "createdAt": "2025-10-20T10:40:52.106009"
+  },
+  {
+    "id": "58dd9b63-878d-46e4-8e8d-7288d5b4c046",
+    "implementationName": "tinymqtt",
+    "protocolName": "MQTT",
+    "statistics": {
+      "total": 83,
+      "violations": 32,
+      "noViolations": 51,
+      "noResult": 0
+    },
+    "createdAt": "2025-10-20T10:39:18.658207"
+  }
+]

@@ -179,3 +179,23 @@ export function runProtocolStaticAnalysis(
     },
   );
 }
+
+// 获取检测结果
+export function getDetectionResults(implementationName: string) {
+  return requestClient.get(
+    `/protocol-compliance/detection-results/${implementationName}`,
+  );
+}
+
+// 添加历史记录
+export function addAnalysisHistory(data: {
+  implementationName: string;
+  protocolName: string;
+}) {
+  return requestClient.post('/protocol-compliance/analysis-history', data);
+}
+
+// 获取历史记录
+export function getAnalysisHistory() {
+  return requestClient.get('/protocol-compliance/analysis-history');
+}

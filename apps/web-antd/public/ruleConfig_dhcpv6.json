@@ -1,0 +1,841 @@
+{
+    "Rebind": [
+        {
+            "rule": "Servers MUST discard any received Rebind messages that do not include a Client Identifier option (see Section 21.2) or that do include a Server Identifier option (see Section 21.3).",
+            "req_type": "Rebind",
+            "req_fields": [
+                "options",
+                "client_identifier",
+                "server_identifier"
+            ],
+            "res_type": "",
+            "res_fields": []
+        },
+        {
+            "rule": "A server MUST discard any Solicit, Confirm, Rebind, or Information-request messages it receives with a Layer 3 unicast destination address.",
+            "req_type": "Rebind",
+            "req_fields": [
+                "msg-type",
+                "options",
+                "OPTION_CLIENTID"
+            ],
+            "res_type": "",
+            "res_fields": []
+        },
+        {
+            "rule": "If the original message was received directly by the server, the Advertise or Reply message MUST be unicast through the interface on which the original message was received.",
+            "req_type": "Rebind",
+            "req_fields": [],
+            "res_type": "Advertise, Reply",
+            "res_fields": []
+        },
+        {
+            "rule": "Therefore, the server SHOULD only create new bindings during processing of a Rebind message if the server is configured to respond with a Reply message to a Solicit message containing the Rapid Commit option.",
+            "req_type": "Rebind",
+            "req_fields": [],
+            "res_type": "Reply",
+            "res_fields": []
+        },
+        {
+            "rule": "When the server receives a Rebind message and cannot find a client entry for the IA, it checks if the IA contains addresses (for IA_NAs and IA_TAs) or delegated prefixes (for IA_PDs).",
+            "req_type": "Rebind",
+            "req_fields": [
+                "identity_association",
+                "IA_NA",
+                "IA_TA",
+                "IA_PD"
+            ],
+            "res_type": "",
+            "res_fields": []
+        },
+        {
+            "rule": "If the server is configured to create new bindings as a result of processing Rebind messages, it MUST NOT return any addresses or delegated prefixes in the IA that the server does not assign to the client.",
+            "req_type": "Rebind",
+            "req_fields": [
+                "options.identity_association",
+                "IA_NA",
+                "IA_PD"
+            ],
+            "res_type": "Reply",
+            "res_fields": [
+                "options.identity_association",
+                "IA_NA",
+                "IA_PD",
+                "IA_NA/IA Address",
+                "IA_PD/IA Prefix"
+            ]
+        },
+        {
+            "rule": "If the server cannot find a client entry for an IA and is configured to create new bindings when processing Rebind messages (considering Rapid Commit option in Section 21.14), it SHOULD create a binding and return the IA with allocated leases, including lifetimes, T1/T2 values (if applicable), and other client-requested information.",
+            "req_type": "Rebind",
+            "req_fields": [
+                "options",
+                "IA_NA",
+                "IA_TA",
+                "IA_PD"
+            ],
+            "res_type": "Reply",
+            "res_fields": [
+                "options",
+                "IA_NA",
+                "IA_TA",
+                "IA_PD"
+            ]
+        },
+        {
+            "rule": "Unicast transmission of Rebind messages is not allowed, regardless of whether the Server Unicast option (see Section 21.12) is configured or not.",
+            "req_type": "Rebind",
+            "req_fields": [
+                "options",
+                "server-unicast"
+            ],
+            "res_type": "Reply",
+            "res_fields": []
+        },
+        {
+            "rule": "The server MUST include in the Reply message a Server Identifier option (see Section 21.3) containing the server's DUID and the Client Identifier option (see Section 21.2) from the Rebind message.",
+            "req_type": "Rebind",
+            "req_fields": [
+                "client_identifier",
+                "options"
+            ],
+            "res_type": "Reply",
+            "res_fields": [
+                "server_identifier",
+                "client_identifier",
+                "options"
+            ]
+        }
+    ],
+    "Renew": [
+        {
+            "rule": "Servers MUST discard any received Renew message that does not include a Server Identifier option (see Section 21.3).",
+            "req_type": "Renew",
+            "req_fields": [
+                "Options",
+                "Server Identifier"
+            ],
+            "res_type": "",
+            "res_fields": []
+        },
+        {
+            "rule": "If the original message was received directly by the server, the Advertise or Reply message MUST be unicast through the interface on which the original message was received.",
+            "req_type": "Renew",
+            "req_fields": [],
+            "res_type": "Advertise, Reply",
+            "res_fields": []
+        },
+        {
+            "rule": "The server MUST include in the Reply message a Server Identifier option (see Section 21.3) containing the server's DUID and the Client Identifier option (see Section 21.2) from the Renew message.",
+            "req_type": "Renew",
+            "req_fields": [
+                "Options",
+                "Client Identifier"
+            ],
+            "res_type": "Reply",
+            "res_fields": [
+                "options",
+                "Server Identifier",
+                "Client Identifier"
+            ]
+        },
+        {
+            "rule": "If the server cannot find a client entry for an IA and is configured to create new bindings via Renew messages, it SHOULD create a binding and return the IA with assigned addresses/delegated prefixes, lifetimes, T1/T2 times (if applicable), and other client-requested information.",
+            "req_type": "Renew",
+            "req_fields": [
+                "Options",
+                "IA_NA",
+                "IA_TA",
+                "IA_PD"
+            ],
+            "res_type": "Reply",
+            "res_fields": [
+                "Options",
+                "IA_NA",
+                "IA_TA",
+                "IA_PD",
+                "assigned addresses",
+                "delegated prefixes",
+                "lifetimes",
+                "T1/T2 times",
+                "other client-requested information"
+            ]
+        },
+        {
+            "rule": "A server MUST return the same set of temporary addresses for the same IA_TA (as identified by the IAID) as long as those addresses are still valid.",
+            "req_type": "Renew",
+            "req_fields": [
+                "Options",
+                "IA_TA",
+                "IAID"
+            ],
+            "res_type": "Reply",
+            "res_fields": [
+                "Options",
+                "IA_TA",
+                "IAID"
+            ]
+        },
+        {
+            "rule": "The client MUST NOT include addresses and prefixes in any IA option that the client did not obtain from the server or that are no longer valid (that have a valid lifetime of 0).",
+            "req_type": "Renew",
+            "req_fields": [
+                "options",
+                "IA_NA",
+                "IA_PD",
+                "IAAddr",
+                "IAPrefix",
+                "valid-lifetime"
+            ],
+            "res_type": "Reply",
+            "res_fields": []
+        }
+    ],
+    "Request": [
+        {
+            "rule": "Servers MUST discard any received Request message that does not include a Server Identifier option (see Section 21.3).",
+            "req_type": "Request",
+            "req_fields": [
+                "Options",
+                "Server Identifier"
+            ],
+            "res_type": "",
+            "res_fields": []
+        },
+        {
+            "rule": "If the client did not include a Client Identifier option in the original message, the Reply message MUST NOT include a Client Identifier option.",
+            "req_type": "Request",
+            "req_fields": [
+                "Options",
+                "Client Identifier"
+            ],
+            "res_type": "",
+            "res_fields": []
+        },
+        {
+            "rule": "For any IA_PD option in the Request message to which the server cannot assign any delegated prefixes, the server MUST return the IA_PD option in the Reply message with no prefixes and a Status Code option containing NoPrefixAvail.",
+            "req_type": "Request",
+            "req_fields": [
+                "Options",
+                "IA_PD"
+            ],
+            "res_type": "Reply",
+            "res_fields": [
+                "options",
+                "IA_PD",
+                "Status Code"
+            ]
+        },
+        {
+            "rule": "If the original message was received directly by the server, the Advertise or Reply message MUST be unicast through the interface on which the original message was received.",
+            "req_type": "Request",
+            "req_fields": [],
+            "res_type": "Advertise, Reply",
+            "res_fields": []
+        },
+        {
+            "rule": "If any of the prefixes of the included addresses in an IA_NA or IA_TA option are not appropriate for the link to which the client is connected, the server MUST return the IA to the client with a Status Code option (see Section 21.13) with the value NotOnLink.",
+            "req_type": "Request",
+            "req_fields": [
+                "Options",
+                "IA_NA",
+                "IA_TA"
+            ],
+            "res_type": "Reply",
+            "res_fields": [
+                "Options",
+                "IA_NA",
+                "IA_TA",
+                "Status Code"
+            ]
+        },
+        {
+            "rule": "If the server does not send the NotOnLink status code but it cannot assign any IP addresses to an IA, the server MUST return the IA option in the Reply message with no addresses in the IA and a Status Code option containing status code NoAddrsAvail in the IA.",
+            "req_type": "Request",
+            "req_fields": [
+                "options",
+                "IA_NA",
+                "IA_TA"
+            ],
+            "res_type": "Reply",
+            "res_fields": [
+                "options",
+                "IA_NA",
+                "IA_TA",
+                "Status Code"
+            ]
+        },
+        {
+            "rule": "When the server leaves the renewal time of addresses in an IA_NA to the client's discretion, it sets T1 and T2 to 0.",
+            "req_type": "Request",
+            "req_fields": [
+                "Options",
+                "IA_NA"
+            ],
+            "res_type": "Reply",
+            "res_fields": [
+                "Options",
+                "IA_NA",
+                "IA_NA.T1",
+                "IA_NA.T2"
+            ]
+        },
+        {
+            "rule": "The IA_TA-options field is variable-length, 4 octets less than the value in the option-len field.",
+            "req_type": "Request",
+            "req_fields": [
+                "IA_TA",
+                "IA_TA-options",
+                "option-len"
+            ],
+            "res_type": "Reply",
+            "res_fields": []
+        },
+        {
+            "rule": "Therefore, a server should only send a Server Unicast option to a client when relay agents are not sending relay agent options.",
+            "req_type": "Request",
+            "req_fields": [],
+            "res_type": "Reply",
+            "res_fields": [
+                "options",
+                "Server Unicast option"
+            ]
+        },
+        {
+            "req_type": "REQUEST",
+            "req_fields": [
+                "options",
+                "Client Identifier option (DUID)"
+            ],
+            "res_type": "Reply",
+            "res_fields": [
+                "options",
+                "Client Identifier option (DUID)"
+            ],
+            "rule": "If the client included a Client Identifier option in the original message, the Reply message MUST include a Client Identifier option, and the contents of the Client Identifier option MUST match the DUID of the client."
+        }
+    ],
+    "Information-Request": [
+        {
+            "rule": "Servers MUST discard any received Information-request message that includes a Server Identifier option (see Section 21.3) with a DUID that does not match the server's DUID.",
+            "req_type": "Information-Request",
+            "req_fields": [
+                "Options",
+                "Server Identifier option",
+                "DUID"
+            ],
+            "res_type": "",
+            "res_fields": []
+        },
+        {
+            "rule": "If the Information-request message received from the client did not include a Client Identifier option, the server SHOULD respond with a Reply message containing any configuration parameters that are not determined by the client's identity.",
+            "req_type": "Information-Request",
+            "req_fields": [
+                "Options",
+                "Client Identifier"
+            ],
+            "res_type": "Reply",
+            "res_fields": [
+                "options"
+            ]
+        },
+        {
+            "rule": "If the original message was received directly by the server, the Advertise or Reply message MUST be unicast through the interface on which the original message was received.",
+            "req_type": "Information-Request",
+            "req_fields": [],
+            "res_type": "Advertise, Reply",
+            "res_fields": []
+        },
+        {
+            "rule": "For certain message types, some option codes MUST be included in the Option Request option as specified in Table 4.",
+            "req_type": "Information-Request",
+            "req_fields": [
+                "Options",
+                "Option Request option"
+            ],
+            "res_type": "",
+            "res_fields": []
+        },
+        {
+            "rule": "A server sending a Reply to an Information-request message SHOULD include the Information Refresh Time option if the option is requested in the Option Request option of the Information-request.",
+            "req_type": "Information-Request",
+            "req_fields": [
+                "Options",
+                "Option Request option"
+            ],
+            "res_type": "Reply",
+            "res_fields": [
+                "options",
+                "Information Refresh Time option"
+            ]
+        },
+        {
+            "rule": "Other top-level options (excluding those explicitly prohibited) MUST appear in the Option Request option or they will not be sent by the server.",
+            "req_type": "Information-Request",
+            "req_fields": [
+                "Options",
+                "Option Request option"
+            ],
+            "res_type": "Reply",
+            "res_fields": [
+                "options"
+            ]
+        },
+        {
+            "rule": "A server MUST discard any Solicit, Confirm, Rebind, or Information-request messages it receives with a Layer 3 unicast destination address.",
+            "req_type": "Information-Request",
+            "req_fields": [
+                "msg-type",
+                "options",
+                "OPTION_CLIENTID"
+            ],
+            "res_type": "",
+            "res_fields": []
+        },
+        {
+            "rule": "A DHCP client MUST include the INF_MAX_RT option code in any Option Request option (see Section 21.7) it sends in an Information-request message.",
+            "req_type": "Information-request",
+            "req_fields": [
+                "OPTION_REQUEST_OPTION"
+            ],
+            "res_type": "",
+            "res_fields": []
+        },
+        {
+            "rule": "A DHCP client MUST request the Information Refresh Time option in the Option Request option (see Section 21.7) when sending Information-request messages.",
+            "req_type": "Information-request",
+            "req_fields": [
+                "OPTION_ORO"
+            ],
+            "res_type": "Reply",
+            "res_fields": []
+        }
+    ],
+    "Reconfigure": [
+        {
+            "rule": "Servers and relay agents MUST discard any received Reconfigure messages.",
+            "req_type": "Reconfigure",
+            "req_fields": [
+                "Message Type",
+                "Transaction ID",
+                "Options"
+            ],
+            "res_type": "",
+            "res_fields": []
+        }
+    ],
+    "Reply": [
+        {
+            "rule": "Servers and relay agents MUST discard any received Reply messages.",
+            "req_type": "Reply",
+            "req_fields": [
+                "message_type",
+                "transaction_id",
+                "options"
+            ],
+            "res_type": "",
+            "res_fields": []
+        }
+    ],
+    "Relay-Forward": [
+        {
+            "rule": "According to [RFC6221], the server MUST ignore any link-address field whose value is zero.",
+            "req_type": "Relay-Forward",
+            "req_fields": [
+                "link-address"
+            ],
+            "res_type": "",
+            "res_fields": []
+        },
+        {
+            "rule": "The server MUST use the received message encapsulated in Relay-forward messages to construct the proper Relay-reply message to allow the response to the received message to be relayed through the same relay agents (in reverse order) as the original client message; see Section 19.3 for more details.",
+            "req_type": "Relay-Forward",
+            "req_fields": [],
+            "res_type": "Relay-Reply",
+            "res_fields": []
+        },
+        {
+            "rule": "If the message received by the relay agent is a Relay-forward message and the hop-count value in the message is greater than or equal to HOP_COUNT_LIMIT, the relay agent discards the received message.",
+            "req_type": "Relay-Forward",
+            "req_fields": [
+                "hop-count"
+            ],
+            "res_type": "",
+            "res_fields": []
+        },
+        {
+            "rule": "The address in the link-address field will be used by the server to determine the link from which the client should be assigned leases and other configuration information.",
+            "req_type": "Relay-Forward",
+            "req_fields": [
+                "link-address"
+            ],
+            "res_type": "",
+            "res_fields": []
+        },
+        {
+            "rule": "The server must record the contents of the peer-address fields in the received message so it can construct the appropriate Relay-reply message carrying the response from the server.",
+            "req_type": "Relay-Forward",
+            "req_fields": [
+                "peer-address"
+            ],
+            "res_type": "Relay-Reply",
+            "res_fields": [
+                "peer-address"
+            ]
+        },
+        {
+            "rule": "If the relay agent cannot use the address in the link-address field to identify the interface through which the response to the client will be relayed, the relay agent MUST include an Interface-Id option (see Section 21.18) in the Relay-forward message.",
+            "req_type": "Relay-Forward",
+            "req_fields": [
+                "link-address",
+                "options",
+                "Interface-Id option"
+            ],
+            "res_type": "Relay-Reply",
+            "res_fields": []
+        },
+        {
+            "rule": "The interface-id value SHOULD be considered an opaque value, with policies based on exact match only; that is, the interface-id field SHOULD NOT be internally parsed by the server.",
+            "req_type": "Relay-Forward",
+            "req_fields": [
+                "options",
+                "Interface-Id option"
+            ],
+            "res_type": "",
+            "res_fields": []
+        },
+        {
+            "rule": "The server MUST copy the Interface-Id option from the Relay-forward message into the Relay-reply message the server sends to the relay agent in response to the Relay-forward message.",
+            "req_type": "Relay-Forward",
+            "req_fields": [
+                "options",
+                "Interface-Id option"
+            ],
+            "res_type": "",
+            "res_fields": []
+        },
+        {
+            "rule": "The Interface-Id option MUST NOT appear in any message except a Relay-forward or Relay-reply message.",
+            "req_type": "Relay-Forward",
+            "req_fields": [
+                "options",
+                "Interface-Id"
+            ],
+            "res_type": "",
+            "res_fields": []
+        }
+    ],
+    "Confirm": [
+        {
+            "rule": "Servers MUST discard any received Confirm messages that do not include a Client Identifier option (see Section 21.2) or that do include a Server Identifier option (see Section 21.3).",
+            "req_type": "Confirm",
+            "req_fields": [
+                "options",
+                "Client Identifier",
+                "Server Identifier"
+            ],
+            "res_type": "",
+            "res_fields": []
+        },
+        {
+            "rule": "A server MUST discard any Solicit, Confirm, Rebind, or Information-request messages it receives with a Layer 3 unicast destination address.",
+            "req_type": "Confirm",
+            "req_fields": [
+                "msg-type",
+                "options",
+                "OPTION_CLIENTID"
+            ],
+            "res_type": "",
+            "res_fields": []
+        },
+        {
+            "rule": "Unicast transmission of Confirm messages is not allowed, regardless of whether the Server Unicast option is configured.",
+            "req_type": "Confirm",
+            "req_fields": [
+                "options"
+            ],
+            "res_type": "Reply",
+            "res_fields": []
+        },
+        {
+            "rule": "If the server is unable to perform the test of appropriateness for the link (for example, the server does not have information about prefixes on the link to which the client is connected) or there were no addresses in any of the IAs sent by the client, the server MUST NOT send a Reply to the client.",
+            "req_type": "Confirm",
+            "req_fields": [
+                "options",
+                "IA_NA",
+                "IA_TA"
+            ],
+            "res_type": "",
+            "res_fields": []
+        },
+        {
+            "rule": "When the server sends a Reply message, it MUST include a Server Identifier option (see Section 21.3) containing the server's DUID and the Client Identifier option (see Section 21.2) from the Confirm message.",
+            "req_type": "Confirm",
+            "req_fields": [
+                "options",
+                "client_identifier"
+            ],
+            "res_type": "",
+            "res_fields": []
+        },
+        {
+            "rule": "If the original message was received directly by the server, the Advertise or Reply message MUST be unicast through the interface on which the original message was received.",
+            "req_type": "Confirm",
+            "req_fields": [],
+            "res_type": "Advertise, Reply",
+            "res_fields": []
+        }
+    ],
+    "Solicit": [
+        {
+            "rule": "If the server's administrative policy requires it to only respond to clients willing to accept Reconfigure messages and the client's Solicit message does not include a Reconfigure Accept option (see Section 21.20), the server discards the Solicit message.",
+            "req_type": "Solicit",
+            "req_fields": [
+                "Options",
+                "Reconfigure Accept"
+            ],
+            "res_type": "",
+            "res_fields": []
+        },
+        {
+            "rule": "Servers MUST discard any Solicit messages that do not include a Client Identifier option or that do include a Server Identifier option.",
+            "req_type": "Solicit",
+            "req_fields": [
+                "Options",
+                "Client Identifier",
+                "Server Identifier"
+            ],
+            "res_type": "",
+            "res_fields": []
+        },
+        {
+            "rule": "A server MUST discard any Solicit, Confirm, Rebind, or Information-request messages it receives with a Layer 3 unicast destination address.",
+            "req_type": "Solicit",
+            "req_fields": [
+                "msg-type",
+                "options",
+                "OPTION_CLIENTID"
+            ],
+            "res_type": "",
+            "res_fields": []
+        },
+        {
+            "rule": "Unicast transmission of Solicit messages is not allowed, regardless of whether the Server Unicast option is configured or not.",
+            "req_type": "Solicit",
+            "req_fields": [
+                "Options"
+            ],
+            "res_type": "",
+            "res_fields": []
+        },
+        {
+            "rule": "The server MUST include options in the Advertise message containing configuration parameters for all of the options identified in the Option Request option (see Section 21.7) in the Solicit message that the server has been configured to return to the client.",
+            "req_type": "Solicit",
+            "req_fields": [
+                "Options",
+                "Option Request"
+            ],
+            "res_type": "Advertise",
+            "res_fields": [
+                "Options"
+            ]
+        },
+        {
+            "rule": "If the server is not going to assign an address or delegated prefix received as a hint in the Solicit message, the server MUST NOT include this address or delegated prefix in the Advertise message.",
+            "req_type": "Solicit",
+            "req_fields": [
+                "Options",
+                "IA_NA",
+                "IA_PD"
+            ],
+            "res_type": "Advertise",
+            "res_fields": [
+                "IA_NA",
+                "IA_PD"
+            ]
+        },
+        {
+            "rule": "If the original message was received directly by the server, the Advertise or Reply message MUST be unicast through the interface on which the original message was received.",
+            "req_type": "Solicit",
+            "req_fields": [],
+            "res_type": "Advertise, Reply",
+            "res_fields": []
+        },
+        {
+            "rule": "The server MUST include IA options in the Advertise message containing any addresses and/or delegated prefixes that would be assigned to IAs contained in the Solicit message from the client.",
+            "req_type": "Solicit",
+            "req_fields": [
+                "IA_NA",
+                "IA_TA",
+                "IA_PD"
+            ],
+            "res_type": "Advertise",
+            "res_fields": [
+                "IA_NA",
+                "IA_TA",
+                "IA_PD"
+            ]
+        },
+        {
+            "rule": "If the Option Request option includes a container option, the server MUST include all the options that are eligible to be encapsulated in the container.",
+            "req_type": "Solicit",
+            "req_fields": [
+                "Options",
+                "Option Request option"
+            ],
+            "res_type": "Advertise",
+            "res_fields": [
+                "Options"
+            ]
+        },
+        {
+            "rule": "A server MUST include this option in a Reply message sent in response to a Solicit message when completing the Solicit/Reply message exchange **if the client included the Rapid Commit option in the Solicit message**.",
+            "req_type": "Solicit",
+            "req_fields": [
+                "Options",
+                "Rapid Commit"
+            ],
+            "res_type": "Reply",
+            "res_fields": [
+                "options",
+                "Rapid Commit"
+            ]
+        },
+        {
+            "rule": "The client MUST include an Option Request option (ORO) (see Section 21.7) to request the SOL_MAX_RT option (see Section 21.24) and any other options the client is interested in receiving.",
+            "req_type": "Solicit",
+            "req_fields": [
+                "Option Request option (ORO)"
+            ],
+            "res_type": "",
+            "res_fields": []
+        },
+        {
+            "rule": "A DHCP client MUST include the SOL_MAX_RT option code in any Option Request option (see Section 21.7) it sends in a Solicit message.",
+            "req_type": "Solicit",
+            "req_fields": [
+                "Option Request option"
+            ],
+            "res_type": "",
+            "res_fields": []
+        },
+        {
+            "rule": "The client MUST include a Client Identifier option (see Section 21.2) to identify itself to the server.",
+            "req_type": "Solicit",
+            "req_fields": [],
+            "res_type": "",
+            "res_fields": []
+        },
+        {
+            "rule": "A client MUST include an Elapsed Time option in messages to indicate how long the client has been trying to complete a DHCP message exchange.",
+            "req_type": "Solicit",
+            "req_fields": ["Options", "Elapsed Time"],
+            "res_type": "",
+            "res_fields": []
+        },
+        {
+            "rule": "A client MUST include an Option Request option in a Solicit, Request, Renew, Rebind, or Information-request message to inform the server about options the client wants the server to send to the client.",
+            "req_type": "Solicit",
+            "req_fields": ["Options", "Option Request"],
+            "res_type": "",
+            "res_fields": []
+        },
+        {
+            "rule": "Clients, relay agents, and servers MUST NOT discard messages that contain unknown options (or instances of vendor options with unknown enterprise-number values).",
+            "req_type": "Solicit",
+            "req_fields": ["Options"],
+            "res_type": "",
+            "res_fields": []
+        },
+        {
+            "rule": "A client MUST NOT request the Information Refresh Time option in the Option Request option in any other messages.",
+            "req_type": "Solicit",
+            "req_fields": ["Options", "Option Request"],
+            "res_type": "",
+            "res_fields": []
+        }
+    ],
+    "Decline": [
+        {
+            "rule": "Servers MUST discard any received Request message that meets any of the following conditions: the message does not include a Server Identifier option (see Section 21.3), the contents of the Server Identifier option do not match the server's DUID, or the message does not include a Client Identifier option (see Section 21.2).",
+            "req_type": "Decline",
+            "req_fields": [
+                "Options",
+                "Server Identifier option",
+                "Client Identifier option"
+            ],
+            "res_type": "",
+            "res_fields": []
+        },
+        {
+            "rule": "Any addresses for the IAs the client wishes to continue to use should not be added to the IAs.",
+            "req_type": "Decline",
+            "req_fields": [
+                "Options",
+                "IA_NA"
+            ],
+            "res_type": "Reply",
+            "res_fields": []
+        },
+        {
+            "rule": "If the original message was received directly by the server, the Advertise or Reply message MUST be unicast through the interface on which the original message was received.",
+            "req_type": "Decline",
+            "req_fields": [],
+            "res_type": "Advertise, Reply",
+            "res_fields": []
+        },
+        {
+            "rule": "In a Decline message, the addresses to be declined MUST be included in the Identity Associations (IAs).",
+            "req_type": "Decline",
+            "req_fields": ["IA_NA", "IA_TA", "IA_PD"],
+            "res_type": "Reply",
+            "res_fields": []
+        },
+        {
+            "rule": "The Decline message is not used in prefix delegation; thus, the client MUST NOT include IA_PD options (seeSection 21.21) in the Decline message.",
+            "req_type": "Decline",
+            "req_fields": [
+                "options",
+                "IA_PD"
+            ],
+            "res_type": "",
+            "res_fields": []
+        }
+    ],
+    "Release": [
+        {
+            "rule": "The leases to be released MUST be included in the IAs.",
+            "req_type": "Release",
+            "req_fields": [
+                "IA_NA",
+                "IA_TA",
+                "IA_PD"
+            ],
+            "res_type": "Reply",
+            "res_fields": []
+        },
+        {
+            "rule": "If the original message was received directly by the server, the Advertise or Reply message MUST be unicast through the interface on which the original message was received.",
+            "req_type": "Release",
+            "req_fields": [],
+            "res_type": "Advertise, Reply",
+            "res_fields": []
+        },
+        {
+            "rule": "Servers MUST discard any received Release message that meets any of the following conditions: the message does not include a Server Identifier option (see Section 21.3), the contents of the Server Identifier option do not match the server's identifier, or the message does not include a Client Identifier option (see Section 21.2).",
+            "req_type": "Release",
+            "req_fields": ["Server Identifier Option", "options", "Client Identifier Option"],
+            "res_type": "",
+            "res_fields": []
+        }
+    ],
+    "Advertise": [
+        {
+            "rule": "Servers and relay agents MUST discard any received Advertise messages.",
+            "req_type": "Advertise",
+            "req_fields": [],
+            "res_type": "",
+            "res_fields": []
+        }
+    ]
+}
