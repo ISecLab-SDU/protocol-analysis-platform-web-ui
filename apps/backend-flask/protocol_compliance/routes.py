@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import contextlib
-import logging
 import json
+import logging
 import re
 from typing import Iterable, Optional, cast
 
+import toml
 from flask import Blueprint, make_response, request
 from werkzeug.datastructures import FileStorage
 
@@ -88,6 +89,37 @@ def _read_upload(upload: FileStorage) -> tuple[str, Optional[bytes]]:
         with contextlib.suppress(Exception):
             upload.stream.seek(0)
     return filename, data
+
+
+def _extract_protocol_metadata_from_config(
+    raw: Optional[bytes], source_label: str
+) -> tuple[Optional[str], Optional[str]]:
+    if not raw:
+        LOGGER.debug("Config payload %s is empty; skipping protocol metadata extraction", source_label)
+        return None, None
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        LOGGER.warning("Failed to decode %s as UTF-8 while extracting protocol metadata: %s", source_label, exc)
+        return None, None
+    try:
+        parsed = toml.loads(text)
+    except toml.TomlDecodeError as exc:
+        LOGGER.warning("Failed to parse %s as TOML while extracting protocol metadata: %s", source_label, exc)
+        return None, None
+
+    project = parsed.get("project")
+    if isinstance(project, dict):
+        raw_name = project.get("protocol_name") or project.get("protocol")
+        raw_version = project.get("protocol_version") or project.get("version")
+        name = raw_name.strip() if isinstance(raw_name, str) else None
+        version = raw_version.strip() if isinstance(raw_version, str) else None
+        return (name or None, version or None)
+
+    LOGGER.debug(
+        "Config %s does not define a [project] section when extracting protocol metadata", source_label
+    )
+    return None, None
 
 
 def _collect_exception_details(exc: Exception, *, max_logs: int = 40) -> dict:
@@ -266,8 +298,37 @@ def static_analysis():
         except (json.JSONDecodeError, UnicodeDecodeError):
             parsed_rules = None
 
-    protocol_name = normalize_protocol_name(parsed_rules, rules_name)
-    protocol_version = extract_protocol_version(parsed_rules, None)
+    config_protocol_name, config_protocol_version = _extract_protocol_metadata_from_config(config_data, config_name)
+
+    rules_protocol_fallback = normalize_protocol_name(parsed_rules, _strip_extension(rules_name))
+    protocol_name = config_protocol_name or rules_protocol_fallback
+    if config_protocol_name:
+        LOGGER.info(
+            "Static analysis protocol resolved from config %s: %s",
+            config_name,
+            config_protocol_name,
+        )
+    else:
+        LOGGER.info(
+            "Static analysis protocol falling back to %s (config %s missing protocol_name)",
+            rules_protocol_fallback,
+            config_name,
+        )
+
+    rules_version_fallback = extract_protocol_version(parsed_rules, None)
+    protocol_version = config_protocol_version or rules_version_fallback
+    if config_protocol_version:
+        LOGGER.info(
+            "Static analysis protocol version resolved from config %s: %s",
+            config_name,
+            config_protocol_version,
+        )
+    elif rules_version_fallback:
+        LOGGER.info(
+            "Static analysis protocol version falling back to %s (config %s missing protocol_version)",
+            rules_version_fallback,
+            config_name,
+        )
     rules_summary = try_extract_rules_summary(parsed_rules)
     notes = request.form.get("notes")
 

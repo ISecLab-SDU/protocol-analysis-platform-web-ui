@@ -10,6 +10,7 @@ import shutil
 import socket
 import subprocess
 import sqlite3
+import textwrap
 import tarfile
 import tempfile
 import time
@@ -23,10 +24,11 @@ from typing import BinaryIO, Callable, Dict, Iterable, List, Mapping, Optional, 
 
 try:
     import docker
-    from docker.errors import DockerException
+    from docker.errors import DockerException, ImageNotFound
 except ModuleNotFoundError:  # pragma: no cover - optional dependency
     docker = None  # type: ignore
     DockerException = RuntimeError  # type: ignore
+    ImageNotFound = RuntimeError  # type: ignore
 
 import toml
 
@@ -237,8 +239,8 @@ class ProtocolGuardDockerSettings:
 
     @classmethod
     def from_env(cls) -> "ProtocolGuardDockerSettings":
-        enabled = _env_bool("PG_DOCKER_ENABLED", default=False)
-        analysis_image = os.environ.get("PG_ANALYSIS_IMAGE", "protocolguard:main")
+        enabled = _env_bool("PG_DOCKER_ENABLED", default=True)
+        analysis_image = os.environ.get("PG_ANALYSIS_IMAGE", "protocolguard:latest")
         builder_image = os.environ.get("PG_BUILDER_IMAGE") or None
 
         import shlex
@@ -752,7 +754,9 @@ class ProtocolGuardDockerRunner:
         proxy_url: Optional[str] = None,
     ) -> str:
         """Fallback path for building images that require BuildKit features."""
-        env = os.environ.copy()
+        # Ensure all environment values are strings before passing to subprocess,
+        # avoiding any non-string values that could lead to malformed CLI args.
+        env = {str(k): str(v) for k, v in os.environ.items()}
         env.setdefault("DOCKER_BUILDKIT", "1")
         env.setdefault("BUILDKIT_PROGRESS", "plain")
         command = [
@@ -868,15 +872,100 @@ class ProtocolGuardDockerRunner:
             "analysis",
             f"Starting analysis container (image={self._settings.analysis_image}, command={' '.join(self._settings.analysis_command)})",
         )
+        volumes = self._build_volumes(job_paths, include_config=True)
+        environment = self._build_environment()
+        self._inspect_analysis_workspace(job_paths, volumes=volumes, environment=environment)
         return self._run_container(
             image=self._settings.analysis_image,
             command=self._settings.analysis_command,
             job_paths=job_paths,
-            volumes=self._build_volumes(job_paths, include_config=True),
-            environment=self._build_environment(),
+            volumes=volumes,
+            environment=environment,
             log_destination=job_paths.log_file,
             timeout=self._settings.analysis_timeout,
         )
+
+    def _inspect_analysis_workspace(
+        self,
+        job_paths: JobPaths,
+        *,
+        volumes: Mapping[str, Mapping[str, str]],
+        environment: Mapping[str, str],
+    ) -> None:
+        """Run a lightweight check inside the analysis image to capture /workspace layout."""
+        preview_command = textwrap.dedent(
+            """\
+            set -eu
+            echo '[pg-debug] ===== workspace mount inspection ====='
+            echo '[pg-debug] container pwd: ' \"$(pwd)\"
+            if [ -d /workspace ]; then
+              echo '[pg-debug] ls -al /workspace'
+              ls -al /workspace
+              echo '[pg-debug] tree -a -L 2 /workspace'
+              tree -a -L 2 /workspace || (echo '[pg-debug] tree failed - falling back to find'; find /workspace -maxdepth 2 -mindepth 1 -print || true)
+            else
+              echo '[pg-debug] /workspace directory missing'
+            fi
+            """
+        ).strip()
+
+        try:
+            image_details = self._client.images.get(self._settings.analysis_image)
+        except ImageNotFound:
+            self._log_step(
+                job_paths,
+                "analysis-debug",
+                f"Skipping workspace inspection: analysis image {self._settings.analysis_image} not found locally",
+                level=logging.WARNING,
+            )
+            return
+        except DockerException as exc:  # pragma: no cover - requires docker engine
+            self._log_step(
+                job_paths,
+                "analysis-debug",
+                f"Failed to resolve analysis image {self._settings.analysis_image}: {exc}",
+                level=logging.WARNING,
+            )
+            return
+
+        image_reference = image_details.id or self._settings.analysis_image
+        try:
+            output = self._client.containers.run(
+                image=image_reference,
+                command=["/bin/sh", "-c", preview_command],
+                volumes=volumes,
+                environment=environment,
+                stdout=True,
+                stderr=True,
+                remove=True,
+                network=self._settings.network,
+            )
+        except DockerException as exc:  # pragma: no cover - requires docker engine
+            self._log_step(
+                job_paths,
+                "analysis-debug",
+                f"Failed to inspect /workspace mount before analysis: {exc}",
+                level=logging.WARNING,
+            )
+            return
+
+        if not output:
+            self._log_step(job_paths, "analysis-debug", "Workspace inspection produced no output")
+            return
+
+        if isinstance(output, bytes):
+            lines = output.decode("utf-8", errors="replace").splitlines()
+        else:
+            lines = str(output).splitlines()
+
+        with job_paths.log_file.open("a", encoding="utf-8") as log_file:
+            for raw_line in lines:
+                line = raw_line.rstrip()
+                if not line:
+                    continue
+                log_file.write(line + "\n")
+                display_line = line if len(line) <= 2000 else f"{line[:2000]}..."
+                self._log_step(job_paths, "analysis-debug", display_line)
 
     def _run_container(
         self,
@@ -955,6 +1044,7 @@ class ProtocolGuardDockerRunner:
             "build log": workspace / self._settings.artifacts.build_log,
         }
         missing = [label for label, path in artefacts.items() if not path.exists()]
+        self._log_step(job_paths, "container", f"Validating required artefacts: {str(artefacts)}")
         if missing:
             raise ProtocolGuardDockerError(
                 f"Missing required artefacts before analysis: {', '.join(missing)}"

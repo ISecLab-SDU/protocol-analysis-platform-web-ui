@@ -1,25 +1,16 @@
 <script lang="ts" setup>
-import type {
-  FormInstance,
-  UploadFile,
-  UploadProps,
-} from 'ant-design-vue';
+import type { FormInstance, UploadFile, UploadProps } from 'ant-design-vue';
 import type { Rule } from 'ant-design-vue/es/form';
-
-import { computed, onBeforeUnmount, reactive, ref } from 'vue';
-
-import { Page } from '@vben/common-ui';
 
 import type {
   ProtocolStaticAnalysisJob,
   ProtocolStaticAnalysisProgressEvent,
   ProtocolStaticAnalysisResult,
 } from '#/api/protocol-compliance';
-import {
-  fetchProtocolStaticAnalysisProgress,
-  fetchProtocolStaticAnalysisResult,
-  runProtocolStaticAnalysis,
-} from '#/api/protocol-compliance';
+
+import { computed, onBeforeUnmount, reactive, ref } from 'vue';
+
+import { Page } from '@vben/common-ui';
 
 import {
   Button,
@@ -30,10 +21,16 @@ import {
   Input,
   message,
   Space,
+  Tag,
   Typography,
   Upload,
-  Tag,
 } from 'ant-design-vue';
+
+import {
+  fetchProtocolStaticAnalysisProgress,
+  fetchProtocolStaticAnalysisResult,
+  runProtocolStaticAnalysis,
+} from '#/api/protocol-compliance';
 
 const TypographyParagraph = Typography.Paragraph;
 const TypographyText = Typography.Text;
@@ -52,12 +49,12 @@ const builderFileList = ref<UploadFile[]>([]);
 const configFileList = ref<UploadFile[]>([]);
 const rulesFileList = ref<UploadFile[]>([]);
 const isSubmitting = ref(false);
-const analysisResult = ref<ProtocolStaticAnalysisResult | null>(null);
-const activeJob = ref<ProtocolStaticAnalysisJob | null>(null);
-const activeJobId = ref<string | null>(null);
+const analysisResult = ref<null | ProtocolStaticAnalysisResult>(null);
+const activeJob = ref<null | ProtocolStaticAnalysisJob>(null);
+const activeJobId = ref<null | string>(null);
 const progressLogs = ref<string[]>([]);
-const progressError = ref<string | null>(null);
-const pollingTimer = ref<number | null>(null);
+const progressError = ref<null | string>(null);
+const pollingTimer = ref<null | number>(null);
 
 const PROGRESS_STATUS_META: Record<
   ProtocolStaticAnalysisJob['status'],
@@ -142,11 +139,11 @@ const ANSI_BRIGHT_COLORS = [
   '#FFFFFF', // bright white
 ] as const;
 
-const ANSI_ESCAPE_PATTERN = /\u001b\[((?:\d{1,3})(?:;(?:\d{1,3}))*)m/g;
+const ANSI_ESCAPE_PATTERN = /\u001B\[(\d{1,3}(?:;\d{1,3})*)m/g;
 
 interface AnsiStyleState {
-  color: string | null;
-  backgroundColor: string | null;
+  color: null | string;
+  backgroundColor: null | string;
   bold: boolean;
   italic: boolean;
   underline: boolean;
@@ -168,11 +165,11 @@ const defaultAnsiStyleState: AnsiStyleState = {
 
 function escapeHtml(value: string) {
   return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 }
 
 function clampRgbComponent(value: number) {
@@ -190,7 +187,7 @@ function rgbToHex(r: number, g: number, b: number) {
   return `#${toHexComponent(r)}${toHexComponent(g)}${toHexComponent(b)}`;
 }
 
-function ansi256ToHex(index: number): string | null {
+function ansi256ToHex(index: number): null | string {
   if (index >= 0 && index <= 7) {
     return ANSI_STANDARD_COLORS[index];
   }
@@ -216,8 +213,7 @@ function ansi256ToHex(index: number): string | null {
 function buildStyleString(state: AnsiStyleState) {
   const declarations: string[] = [];
   if (state.conceal) {
-    declarations.push('color: transparent');
-    declarations.push('text-shadow: none');
+    declarations.push('color: transparent', 'text-shadow: none');
   } else if (state.color) {
     declarations.push(`color: ${state.color}`);
   }
@@ -237,7 +233,7 @@ function buildStyleString(state: AnsiStyleState) {
   if (state.strikethrough) {
     decorations.push('line-through');
   }
-  if (decorations.length) {
+  if (decorations.length > 0) {
     declarations.push(`text-decoration: ${decorations.join(' ')}`);
   }
   if (state.dim) {
@@ -264,7 +260,7 @@ function resetAnsiState(target: AnsiStyleState) {
 }
 
 function applyAnsiCodes(state: AnsiStyleState, codes: number[]) {
-  if (!codes.length) {
+  if (codes.length === 0) {
     resetAnsiState(state);
     return;
   }
@@ -274,63 +270,80 @@ function applyAnsiCodes(state: AnsiStyleState, codes: number[]) {
       continue;
     }
     switch (code) {
-      case 0:
+      case 0: {
         resetAnsiState(state);
         break;
-      case 1:
+      }
+      case 1: {
         state.bold = true;
         state.dim = false;
         break;
-      case 2:
+      }
+      case 2: {
         state.dim = true;
         state.bold = false;
         break;
-      case 3:
+      }
+      case 3: {
         state.italic = true;
         break;
+      }
       case 4:
-      case 21:
+      case 21: {
         state.underline = true;
         break;
+      }
       case 5:
-      case 6:
+      case 6: {
         // Blink/rapid-blink -> ignore for now.
         break;
-      case 7:
+      }
+      case 7: {
         // Inverse not supported; ignore.
         break;
-      case 8:
+      }
+      case 8: {
         state.conceal = true;
         break;
-      case 9:
+      }
+      case 9: {
         state.strikethrough = true;
         break;
-      case 22:
+      }
+      case 22: {
         state.bold = false;
         state.dim = false;
         break;
-      case 23:
+      }
+      case 23: {
         state.italic = false;
         break;
-      case 24:
+      }
+      case 24: {
         state.underline = false;
         break;
-      case 27:
+      }
+      case 27: {
         // Positive image (inverse off) – no-op for now.
         break;
-      case 28:
+      }
+      case 28: {
         state.conceal = false;
         break;
-      case 29:
+      }
+      case 29: {
         state.strikethrough = false;
         break;
-      case 39:
+      }
+      case 39: {
         state.color = null;
         state.conceal = false;
         break;
-      case 49:
+      }
+      case 49: {
         state.backgroundColor = null;
         break;
+      }
       default: {
         if (code >= 30 && code <= 37) {
           state.color = ANSI_STANDARD_COLORS[code - 30];
@@ -393,12 +406,12 @@ function ansiToHtml(raw: string) {
     return '';
   }
   const normalized = raw
-    .replace(/\r\n/g, '\n')
-    .replace(/\r/g, '\n')
+    .replaceAll('\r\n', '\n')
+    .replaceAll('\r', '\n')
     // Remove non-SGR escape sequences (cursor movement, erase, etc.).
-    .replace(/\u001b\[[0-9;?]*[A-HJKSTfnisu]/g, '')
+    .replaceAll(/\u001B\[[0-9;?]*[A-HJKSTfnisu]/g, '')
     // Remove OSC sequences.
-    .replace(/\u001b\][^\u0007]*(?:\u0007|\u001b\\)/g, '');
+    .replaceAll(/\u001B\][^\u0007]*(?:\u0007|\u001B\\)/g, '');
 
   let result = '';
   let lastIndex = 0;
@@ -409,11 +422,11 @@ function ansiToHtml(raw: string) {
     if (!segment) {
       return;
     }
-    const escaped = escapeHtml(segment).replace(/\n/g, '<br/>');
+    const escaped = escapeHtml(segment).replaceAll('\n', '<br/>');
     result += escaped;
   };
 
-  let match: RegExpExecArray | null;
+  let match: null | RegExpExecArray;
   while ((match = ANSI_ESCAPE_PATTERN.exec(normalized)) !== null) {
     appendSegment(normalized.slice(lastIndex, match.index));
     lastIndex = match.index + match[0].length;
@@ -457,7 +470,7 @@ function formatFileSize(bytes: null | number | undefined) {
   return `${value.toFixed(digits)} ${units[exponent]}`;
 }
 
-function formatIsoDate(value: string | undefined | null) {
+function formatIsoDate(value: null | string | undefined) {
   if (!value) {
     return '未知';
   }
@@ -516,15 +529,14 @@ const rulesMeta = computed(() => {
   };
 });
 
-const hasSelection = computed(
-  () =>
-    Boolean(
-      configMeta.value ||
-        archiveMeta.value ||
-        builderMeta.value ||
-        rulesMeta.value ||
-        formState.notes.trim(),
-    ),
+const hasSelection = computed(() =>
+  Boolean(
+    configMeta.value ||
+      archiveMeta.value ||
+      builderMeta.value ||
+      rulesMeta.value ||
+      formState.notes.trim(),
+  ),
 );
 
 const analysisSummary = computed(
@@ -544,9 +556,9 @@ const analysisStatusLabel = computed(() => {
   return STATUS_LABELS[status] ?? status;
 });
 
-const progressStatus = computed<
-  ProtocolStaticAnalysisJob['status'] | null
->(() => activeJob.value?.status ?? null);
+const progressStatus = computed<null | ProtocolStaticAnalysisJob['status']>(
+  () => activeJob.value?.status ?? null,
+);
 
 const progressStatusLabel = computed(() => {
   if (!progressStatus.value) {
@@ -567,13 +579,14 @@ const progressMessage = computed(
 );
 
 const progressText = computed(() => {
-  if (!progressLogs.value.length) {
+  if (progressLogs.value.length === 0) {
     return '等待任务开始...';
   }
   return progressLogs.value.join('\n');
 });
 
 const progressHtml = computed(() => ansiToHtml(progressText.value));
+const canCopyProgressLogs = computed(() => progressLogs.value.length > 0);
 
 function toProgressLine(event: ProtocolStaticAnalysisProgressEvent) {
   const timeLabel = (() => {
@@ -592,11 +605,9 @@ function applyProgressSnapshot(snapshot: ProtocolStaticAnalysisJob) {
   activeJob.value = snapshot;
   activeJobId.value = snapshot.jobId;
   progressError.value = snapshot.error ?? null;
-  if (snapshot.events?.length) {
-    progressLogs.value = snapshot.events.map((event) => toProgressLine(event));
-  } else {
-    progressLogs.value = [];
-  }
+  progressLogs.value = snapshot.events?.length
+    ? snapshot.events.map((event) => toProgressLine(event))
+    : [];
 }
 
 function stopPolling() {
@@ -615,7 +626,7 @@ function resetProgressState() {
 }
 
 async function handleStatusTransition(
-  previousStatus: ProtocolStaticAnalysisJob['status'] | null,
+  previousStatus: null | ProtocolStaticAnalysisJob['status'],
   snapshot: ProtocolStaticAnalysisJob,
 ) {
   if (snapshot.status === 'completed') {
@@ -631,9 +642,9 @@ async function handleStatusTransition(
       if (previousStatus !== 'completed') {
         message.success(`静态分析完成，整体评估：${label}`);
       }
-    } catch (err) {
+    } catch (error) {
       const messageText =
-        err instanceof Error ? err.message : String(err ?? '');
+        error instanceof Error ? error.message : String(error ?? '');
       progressError.value = messageText || '无法获取分析结果';
       if (previousStatus !== 'completed') {
         message.error(`获取静态分析结果失败：${messageText}`);
@@ -664,9 +675,9 @@ async function refreshProgress(jobId: string) {
 function schedulePolling(jobId: string) {
   stopPolling();
   pollingTimer.value = window.setInterval(() => {
-    refreshProgress(jobId).catch((err) => {
+    refreshProgress(jobId).catch((error) => {
       progressError.value =
-        err instanceof Error ? err.message : String(err ?? '');
+        error instanceof Error ? error.message : String(error ?? '');
     });
   }, 1500);
 }
@@ -674,6 +685,54 @@ function schedulePolling(jobId: string) {
 onBeforeUnmount(() => {
   stopPolling();
 });
+
+async function copyToClipboard(content: string) {
+  if (!content) {
+    return false;
+  }
+  try {
+    if (
+      typeof navigator !== 'undefined' &&
+      navigator.clipboard &&
+      navigator.clipboard.writeText
+    ) {
+      await navigator.clipboard.writeText(content);
+      return true;
+    }
+  } catch {
+    // Ignore and fall back to execCommand path.
+  }
+  if (typeof document === 'undefined') {
+    return false;
+  }
+  const textarea = document.createElement('textarea');
+  textarea.value = content;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'absolute';
+  textarea.style.left = '-9999px';
+  document.body.append(textarea);
+  textarea.select();
+  try {
+    return document.execCommand('copy');
+  } catch {
+    return false;
+  } finally {
+    textarea.remove();
+  }
+}
+
+async function handleCopyProgressLogs() {
+  if (!canCopyProgressLogs.value) {
+    message.info('暂无日志可复制');
+    return;
+  }
+  const copied = await copyToClipboard(progressLogs.value.join('\n'));
+  if (copied) {
+    message.success('日志已复制到剪贴板');
+  } else {
+    message.error('复制失败，请手动选择并复制');
+  }
+}
 
 const handleBuilderBeforeUpload: UploadProps['beforeUpload'] = (file) => {
   const actual =
@@ -790,7 +849,10 @@ async function handleSubmit() {
     analysisResult.value = null;
     isSubmitting.value = false;
   } finally {
-    if (progressStatus.value !== 'queued' && progressStatus.value !== 'running') {
+    if (
+      progressStatus.value !== 'queued' &&
+      progressStatus.value !== 'running'
+    ) {
       isSubmitting.value = false;
     }
   }
@@ -839,7 +901,8 @@ async function handleSubmit() {
               <Button block type="dashed">选择源码压缩包</Button>
             </Upload>
             <p class="upload-helper">
-              压缩包需包含项目完整源码及其构建脚本，保持目录结构以便 Builder 复现编译过程。
+              压缩包需包含项目完整源码及其构建脚本，保持目录结构以便 Builder
+              复现编译过程。
             </p>
           </FormItem>
 
@@ -849,12 +912,12 @@ async function handleSubmit() {
               :file-list="builderFileList"
               :max-count="1"
               :on-remove="handleBuilderRemove"
-              accept=".Dockerfile,.dockerfile,.txt,.yaml,.yml,.cfg,.conf,text/plain,text/x-dockerfile,application/x-dockerfile,application/x-yaml,text/yaml,application/octet-stream"
             >
               <Button block type="dashed">选择 Dockerfile</Button>
             </Upload>
             <p class="upload-helper">
-              Dockerfile 需可独立构建出 Builder 镜像，并在容器运行时写出 <code>program.bc</code> 等必需 artefact。
+              Dockerfile 需可独立构建出 Builder 镜像，并在容器运行时写出
+              <code>program.bc</code> 等必需 artefact。
             </p>
           </FormItem>
 
@@ -869,7 +932,8 @@ async function handleSubmit() {
               <Button block type="dashed">选择规则 JSON</Button>
             </Upload>
             <p class="upload-helper">
-              上传上一阶段规则抽取的输出（例如 MQTTv5.json），用于驱动 LLM 切片与一致性检测。
+              上传上一阶段规则抽取的输出（例如 MQTTv5.json），用于驱动 LLM
+              切片与一致性检测。
             </p>
           </FormItem>
 
@@ -884,7 +948,8 @@ async function handleSubmit() {
               <Button block type="dashed">选择配置文件</Button>
             </Upload>
             <p class="upload-helper">
-              配置文件将被注入容器的 <code>/config</code>，我们会自动重写路径指向当前任务工作目录。
+              配置文件将被注入容器的
+              <code>/config</code>，我们会自动重写路径指向当前任务工作目录。
             </p>
           </FormItem>
 
@@ -912,6 +977,16 @@ async function handleSubmit() {
       </Card>
 
       <Card title="分析进度">
+        <template #extra>
+          <Button
+            :disabled="!canCopyProgressLogs"
+            size="small"
+            type="link"
+            @click="handleCopyProgressLogs"
+          >
+            复制日志
+          </Button>
+        </template>
         <div class="progress-box">
           <Space class="progress-status" wrap>
             <Tag :color="progressStatusColor">{{ progressStatusLabel }}</Tag>
@@ -922,7 +997,7 @@ async function handleSubmit() {
             class="progress-text"
             role="log"
             v-html="progressHtml"
-          />
+          ></div>
           <p v-if="progressError" class="progress-error">
             {{ progressError }}
           </p>
@@ -973,7 +1048,10 @@ async function handleSubmit() {
           <Descriptions.Item label="整体评估">
             <div class="analysis-overview">
               <span
-                :class="['status-tag', `status-${analysisSummary?.overallStatus ?? 'unknown'}`]"
+                class="status-tag"
+                :class="[
+                  `status-${analysisSummary?.overallStatus ?? 'unknown'}`,
+                ]"
               >
                 {{ analysisStatusLabel }}
               </span>
@@ -1068,8 +1146,8 @@ async function handleSubmit() {
 
 .progress-status {
   display: inline-flex;
-  align-items: center;
   gap: 8px;
+  align-items: center;
   font-size: 13px;
 }
 
@@ -1078,20 +1156,21 @@ async function handleSubmit() {
 }
 
 .progress-text {
-  font-family: ui-monospace, SFMono-Regular, SFMono, Menlo, Monaco, Consolas,
-    'Liberation Mono', 'Courier New', monospace;
-  font-size: 12px;
-  line-height: 1.45;
   min-height: 120px;
   max-height: 240px;
   padding: 12px;
+  overflow-y: auto;
+  font-family:
+    ui-monospace, SFMono-Regular, SFMono, Menlo, Monaco, Consolas,
+    'Liberation Mono', 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ant-text-color);
+  word-break: break-word;
+  white-space: pre-wrap;
+  background-color: var(--ant-color-bg-container);
   border: 1px solid var(--ant-color-border);
   border-radius: var(--ant-border-radius);
-  background-color: var(--ant-color-bg-container);
-  color: var(--ant-text-color);
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow-y: auto;
 }
 
 .progress-text span {
@@ -1125,29 +1204,29 @@ async function handleSubmit() {
   align-items: center;
   width: fit-content;
   padding: 2px 10px;
-  border-radius: 999px;
   font-size: 12px;
   font-weight: 600;
+  border-radius: 999px;
 }
 
 .status-compliant {
-  background-color: rgba(82, 196, 26, 0.15);
   color: #52c41a;
+  background-color: rgb(82 196 26 / 15%);
 }
 
 .status-needs_review {
-  background-color: rgba(250, 140, 22, 0.15);
   color: #fa8c16;
+  background-color: rgb(250 140 22 / 15%);
 }
 
 .status-non_compliant {
-  background-color: rgba(245, 34, 45, 0.15);
   color: #f5222d;
+  background-color: rgb(245 34 45 / 15%);
 }
 
 .status-unknown {
-  background-color: rgba(140, 140, 140, 0.15);
   color: #8c8c8c;
+  background-color: rgb(140 140 140 / 15%);
 }
 
 .analysis-detail {

@@ -1,8 +1,8 @@
 ## ProtocolGuard Docker Integration
 
-Set the following environment variables before launching the Flask backend to enable the real ProtocolGuard workflow:
+Configure the following environment variables for the ProtocolGuard Docker integration:
 
-- `PG_DOCKER_ENABLED=1` — opt-in flag; keep unset to continue serving mock data.
+- `PG_DOCKER_ENABLED=0` — opt-out flag; keep unset to enable Docker integration.
 - `PG_ANALYSIS_IMAGE` — tag of the analysis container (defaults to `protocolguard:main`).
 - `PG_BUILDER_IMAGE` — optional builder container tag; omit if artefacts are staged manually.
 - `PG_WORKSPACE_ROOT`, `PG_OUTPUT_ROOT`, `PG_CONFIG_ROOT` — host directories used for per-job mounts.
