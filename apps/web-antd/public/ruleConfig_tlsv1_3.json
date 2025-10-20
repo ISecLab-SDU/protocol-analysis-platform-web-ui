@@ -1,0 +1,639 @@
+{
+  "ClientHello": [
+      {
+          "rule": "A client MUST provide a \"psk_key_exchange_modes\" extension if it offers a \"pre_shared_key\" extension.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions",
+              "pre_shared_key",
+              "psk_key_exchange_modes"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "Servers MUST be prepared to receive ClientHellos that include the \"supported_versions\" extension but do not include 0x0304 in the list of versions.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions",
+              "supported_versions"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "Servers MUST NOT send a post-handshake CertificateRequest to clients which do not offer the \"post_handshake_auth\" extension.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions",
+              "post_handshake_auth"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "If the server does not select a PSK and there is no overlap between the received \"supported_groups\" and the groups supported by the server, then the server MUST abort the handshake with a \"handshake_failure\" or an \"insufficient_security\" alert.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions",
+              "supported_groups"
+          ],
+          "res_type": "Alert",
+          "res_fields": [
+              "description"
+          ]
+      },
+      {
+          "rule": "If the server negotiates TLS 1.3, the server MUST set the ServerHello.legacy_version field to 0x0303 (TLS 1.2).",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions",
+              "supported_versions"
+          ],
+          "res_type": "ServerHello",
+          "res_fields": [
+              "legacy_version"
+          ]
+      },
+      {
+          "rule": "In its updated ClientHello, the client SHOULD NOT offer any pre-shared keys associated with a hash other than that of the selected cipher suite.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions",
+              "pre_shared_key"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "If the \"supported_versions\" extension is not present, servers compliant with this specification that support TLS 1.2 MUST negotiate TLS 1.2 or prior per [RFC5246], even if ClientHello.legacy_version is 0x0304 or later.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "legacy_version",
+              "extensions"
+          ],
+          "res_type": "ServerHello",
+          "res_fields": [
+              "legacy_version"
+          ]
+      },
+      {
+          "rule": "If this extension is present in the ClientHello, servers MUST NOT use the ClientHello.legacy_version value for version negotiation and MUST use only the \"supported_versions\" extension to determine client preferences.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "legacy_version",
+              "extensions",
+              "extensions.supported_versions"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "Each KeyShareEntry value MUST correspond to a group offered in the \"supported_groups\" extension and MUST appear in the same order.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions.supported_groups",
+              "extensions.key_share",
+              "extensions.key_share.client_shares"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "Clients MUST NOT offer any KeyShareEntry values for groups not listed in the client's supported_groups extension.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions.key_share",
+              "extensions.supported_groups"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "If the server selects a PSK, then it MUST also select a key establishment mode from the set indicated by the client's \"psk_key_exchange_modes\" extension.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions",
+              "extensions.psk_key_exchange_modes"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "The server_share value MUST be in the same group as the KeyShareEntry value offered by the client that the server has selected for the negotiated key exchange.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions",
+              "extensions.key_share"
+          ],
+          "res_type": "ServerHello",
+          "res_fields": [
+              "extensions",
+              "extensions.key_share"
+          ]
+      },
+      {
+          "rule": "If clients offer \"pre_shared_key\" without a \"psk_key_exchange_modes\" extension, servers MUST abort the handshake.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions",
+              "pre_shared_key",
+              "psk_key_exchange_modes"
+          ],
+          "res_type": "Alert",
+          "res_fields": []
+      },
+      {
+          "rule": "A server which negotiates a version of TLS prior to TLS 1.3 MUST set ServerHello.version and MUST NOT send the \"supported_versions\" extension.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions",
+              "supported_versions"
+          ],
+          "res_type": "ServerHello",
+          "res_fields": [
+              "version",
+              "extensions"
+          ]
+      },
+      {
+          "rule": "All certificates provided by the server MUST be signed by a signature algorithm advertised by the client if the server is able to provide such a chain (see Section 4.2.3).",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions",
+              "extensions.signature_algorithms",
+              "extensions.signature_algorithms_cert"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "Clients MUST NOT offer multiple KeyShareEntry values for the same group.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions",
+              "KeyShare",
+              "KeyShareEntry"
+          ],
+          "res_type": "Alert",
+          "res_fields": []
+      },
+      {
+          "rule": "A server which negotiates TLS 1.3 MUST respond by sending a \"supported_versions\" extension containing the selected version value (0x0304).",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions",
+              "supported_versions"
+          ],
+          "res_type": "ServerHello",
+          "res_fields": [
+              "extensions",
+              "supported_versions"
+          ]
+      },
+      {
+          "rule": "In order to avoid deadlocks, when accepting \"early_data\", servers MUST process the client's ClientHello and then immediately send the server's flight of messages, rather than waiting for the client's EndOfEarlyData message before sending the server's ServerHello.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions",
+              "early_data"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "Servers MUST only select a version of TLS present in the \"supported_versions\" extension and MUST ignore any unknown versions that are present in the \"supported_versions\" extension.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions",
+              "supported_versions"
+          ],
+          "res_type": "ServerHello",
+          "res_fields": [
+              "extensions",
+              "supported_versions"
+          ]
+      },
+      {
+          "rule": "If the server selects an (EC)DHE group and the client did not offer a compatible \"key_share\" extension in the initial ClientHello, the server MUST respond with a HelloRetryRequest (Section 4.1.4) message.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions",
+              "key_share"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "TLS 1.3 servers MUST NOT act upon the presence of the status_request_v2 extension or information in it when processing ClientHello messages; in particular, they MUST NOT send the status_request_v2 extension in the EncryptedExtensions, CertificateRequest, or Certificate messages.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions",
+              "status_request_v2"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "The PSK used to encrypt the early data MUST be the first PSK listed in the client's \"pre_shared_key\" extension.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions",
+              "pre_shared_key"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "The certificate MUST allow the key to be used for signing (i.e., the digitalSignature bit MUST be set if the Key Usage extension is present) with a signature scheme indicated in the client's \"signature_algorithms\"/\"signature_algorithms_cert\" extensions (see Section 4.2.3).",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions",
+              "signature_algorithms",
+              "signature_algorithms_cert"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "For PSKs provisioned via NewSessionTicket, a server MUST validate that the ticket age for the selected PSK identity (computed by subtracting ticket_age_add from PskIdentity.obfuscated_ticket_age modulo 2^32) is within a small tolerance of the time since the ticket was issued.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "pre_shared_key",
+              "PskIdentity.obfuscated_ticket_age"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "The OpenPGP certificate type [RFC6091 Authentication\")] MUST NOT be used with TLS 1.3.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions",
+              "server_certificate_type"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "Implementations that advertise support for RSASSA-PSS (which is mandatory in TLS 1.3) MUST be prepared to accept a signature using that scheme even when TLS 1.2 is negotiated.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions",
+              "signature_algorithms"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "When used in certificate signatures, the algorithm parameters MUST be DER encoded.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions",
+              "signature_algorithms"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "If a server is authenticating via a certificate and the client has not sent a \"signature_algorithms\" extension, then the server MUST abort the handshake with a \"missing_extension\" alert (see Section 9.2).",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions",
+              "signature_algorithms"
+          ],
+          "res_type": "Alert",
+          "res_fields": [
+              "description"
+          ]
+      },
+      {
+          "rule": "In order to accept early data, the server MUST have accepted a PSK cipher suite and selected the first key offered in the client's \"pre_shared_key\" extension.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions",
+              "pre_shared_key"
+          ],
+          "res_type": "ServerHello",
+          "res_fields": [
+              "cipher_suite",
+              "extensions",
+              "pre_shared_key"
+          ]
+      },
+      {
+          "rule": "If the server chooses to accept the \"early_data\" extension, then it MUST comply with the same error-handling requirements specified for all records when processing early data records.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions",
+              "early_data"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "If the ticket age of a PSK provisioned via NewSessionTicket is not within the tolerance, the server SHOULD proceed with the handshake but reject 0-RTT, and SHOULD NOT take any other action that assumes that this ClientHello is fresh.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions",
+              "pre_shared_key",
+              "obfuscated_ticket_age"
+          ],
+          "res_type": "EncryptedExtensions",
+          "res_fields": []
+      },
+      {
+          "rule": "Any unknown PSKs (e.g., ones not in the PSK database or encrypted with an unknown key) SHOULD simply be ignored.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions",
+              "pre_shared_key"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "The server MUST ensure that it selects a compatible PSK (if any) and cipher suite.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "cipher_suites",
+              "extensions",
+              "extensions.pre_shared_key"
+          ],
+          "res_type": "ServerHello",
+          "res_fields": [
+              "cipher_suite",
+              "extensions",
+              "extensions.pre_shared_key"
+          ]
+      },
+      {
+          "rule": "When processing the pre_shared_key extension, if the binder value is not present or does not validate, the server MUST abort the handshake.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions.pre_shared_key",
+              "extensions.pre_shared_key.psk_identities.binder"
+          ],
+          "res_type": "Alert",
+          "res_fields": []
+      },
+      {
+          "rule": "Specifically, if the server fails to decrypt a 0-RTT record following an accepted \"early_data\" extension, it MUST terminate the connection with a \"bad_record_mac\" alert as per Section 5.2.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions",
+              "early_data"
+          ],
+          "res_type": "Alert",
+          "res_fields": [
+              "level",
+              "description"
+          ]
+      },
+      {
+          "rule": "Prior to accepting PSK key establishment, the server MUST validate the corresponding binder value.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions",
+              "pre_shared_key",
+              "binders"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "Servers MUST check that the \"pre_shared_key\" extension is the last extension in the ClientHello and otherwise fail the handshake with an \"illegal_parameter\" alert.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions",
+              "pre_shared_key"
+          ],
+          "res_type": "Alert",
+          "res_fields": [
+              "level",
+              "description"
+          ]
+      },
+      {
+          "rule": "The \"pre_shared_key\" extension MUST be the last extension in the ClientHello.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions",
+              "extensions.extension_type"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "On resumption, if reporting an SNI value to the calling application, implementations MUST use the value sent in the resumption ClientHello rather than the value sent in the previous session.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions",
+              "server_name"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "The server can determine the expected_arrival_time of the ClientHello as: expected_arrival_time = adjusted_creation_time + clients_ticket_age. When a new ClientHello is received, the expected_arrival_time is compared against the current server wall clock time; if the difference exceeds a certain threshold, 0-RTT is rejected, though the 1-RTT handshake can be allowed to complete.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "pre_shared_key",
+              "obfuscated_ticket_age"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "Any ticket MUST only be resumed with a cipher suite that has the same KDF hash algorithm as that used to establish the original connection.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "cipher_suites",
+              "extensions",
+              "extensions.pre_shared_key"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "When implementations are freshly started, they SHOULD reject 0-RTT as long as any portion of their recording window overlaps the startup time.",
+          "req_type": "ClientHello",
+          "req_fields": [
+              "extensions",
+              "extensions.early_data"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+        "rule": "There MUST NOT be more than one extension of the same type in a given extension block.",
+        "req_type": "ClientHello",
+        "req_fields": [
+          "extensions"
+        ],
+        "res_type": "",
+        "res_fields": []
+      }
+  ],
+  "Certificate": [
+      {
+          "rule": "For each extension OID recognized by the client, all of the specified values MUST be present in the client certificate (but the certificate MAY have other values as well).",
+          "req_type": "Certificate",
+          "req_fields": [
+              "certificate_list"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "Extensions in the Certificate message from the client MUST correspond to extensions in the CertificateRequest message from the server.",
+          "req_type": "Certificate",
+          "req_fields": [
+              "certificate_list",
+              "extensions"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "The sender's certificate MUST come in the first CertificateEntry in the list.",
+          "req_type": "Certificate",
+          "req_fields": [
+              "certificate_list",
+              "certificate_list.CertificateEntry"
+          ],
+          "res_type": "",
+          "res_fields": []
+      }
+  ],
+  "client_hello": [
+      {
+          "rule": "Servers MUST NOT send the \"post_handshake_auth\" extension.",
+          "req_type": "client_hello",
+          "req_fields": [
+              "extensions",
+              "post_handshake_auth"
+          ],
+          "res_type": "server_hello",
+          "res_fields": [
+              "extensions",
+              "post_handshake_auth"
+          ]
+      },
+      {
+          "rule": "A server which receives an \"early_data\" extension MUST behave in one of three ways: Ignore the extension and return a regular 1-RTT response.",
+          "req_type": "client_hello",
+          "req_fields": [
+              "extensions",
+              "early_data"
+          ],
+          "res_type": "server_hello",
+          "res_fields": []
+      },
+      {
+          "rule": "Servers SHOULD NOT attempt to validate multiple binders; rather, they SHOULD select a single PSK and validate solely the binder that corresponds to that PSK.",
+          "req_type": "client_hello",
+          "req_fields": [
+              "pre_shared_key",
+              "pre_shared_key.identities",
+              "pre_shared_key.binders"
+          ],
+          "res_type": "",
+          "res_fields": []
+      }
+  ],
+  "certificate": [
+      {
+          "rule": "If an extension applies to the entire chain, it SHOULD be included in the first CertificateEntry.",
+          "req_type": "certificate",
+          "req_fields": [
+              "certificate_request_context",
+              "certificate_list"
+          ],
+          "res_type": "",
+          "res_fields": []
+      }
+  ],
+  "CertificateVerify": [
+      {
+          "rule": "If the corresponding public key's parameters are present, then the parameters in the signature MUST be identical to those in the public key.",
+          "req_type": "CertificateVerify",
+          "req_fields": [
+              "algorithm"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "If sent by a client, the signature algorithm used in the signature MUST be one of those present in the supported_signature_algorithms field of the \"signature_algorithms\" extension in the CertificateRequest message.",
+          "req_type": "CertificateVerify",
+          "req_fields": [
+              "algorithm"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "When sending a CertificateVerify message, the signature algorithm MUST be compatible with the key in the sender's end-entity certificate.",
+          "req_type": "CertificateVerify",
+          "req_fields": [
+              "algorithm"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "The SHA-1 algorithm MUST NOT be used in any signatures of CertificateVerify messages.",
+          "req_type": "CertificateVerify",
+          "req_fields": [
+              "algorithm"
+          ],
+          "res_type": "",
+          "res_fields": []
+      }
+  ],
+  "Finished": [
+      {
+          "rule": "Any records following a Finished message MUST be encrypted under the appropriate application traffic key as described in Section 7.2.",
+          "req_type": "Finished",
+          "req_fields": [
+              "verify_data"
+          ],
+          "res_type": "",
+          "res_fields": []
+      }
+  ],
+  "certificate_verify": [
+      {
+          "rule": "When sent, the CertificateVerify message MUST appear immediately after the Certificate message and immediately prior to the Finished message.",
+          "req_type": "certificate_verify",
+          "req_fields": [
+              "algorithm",
+              "signature"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "The receiver of a CertificateVerify message MUST verify the signature field.",
+          "req_type": "certificate_verify",
+          "req_fields": [],
+          "res_type": "",
+          "res_fields": []
+      }
+  ],
+  "Application Data": [
+      {
+          "rule": "A server receiving more than max_early_data_size bytes of 0-RTT data SHOULD terminate the connection with an \"unexpected_message\" alert.",
+          "req_type": "Application Data",
+          "req_fields": [
+              "length"
+          ],
+          "res_type": "Alert",
+          "res_fields": [
+              "level",
+              "description"
+          ]
+      }
+  ]
+}

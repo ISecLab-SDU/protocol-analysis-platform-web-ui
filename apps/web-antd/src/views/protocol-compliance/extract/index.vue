@@ -1,459 +1,454 @@
 <script lang="ts" setup>
-import { ref, reactive, computed } from 'vue';
-import { Page } from '@vben/common-ui';
-import { Button, Card, Empty, Form, FormItem, message, Space, Tabs, Tag, Upload, } from 'ant-design-vue';
-import type { FormInstance, UploadFile, UploadProps } from 'ant-design-vue';
+import { ref, reactive, computed, h, onMounted } from 'vue';
+import { Card, Empty, Space, Button, Tag, message, Upload, Spin, Table, Typography, Divider, Select, Tabs } from 'ant-design-vue';
+import type { UploadFile, UploadProps, TableColumnType } from 'ant-design-vue';
 
-const activeTab = ref('upload'); // upload | result
-const isSubmitting = ref(false);
-const formRef = ref<FormInstance>();
-
-// 表单数据模型
-const formData = reactive({
-  rfc: null as File | null,
-  code: null as File | null,
-});
-
-// 文件上传列表
-const rfcFileList = ref<UploadFile[]>([]);
-const codeFileList = ref<UploadFile[]>([]);
-
-// 上传提示
-const uploadTip = ref(
-  '温馨提示：上传文件后，系统会模拟分析并显示规则与代码。'
-);
-
-// 结果数据类型定义
+// -------- 数据类型 --------
 type RuleItem = {
-  analysis: string;
   rule: string;
-  code?: string;
+  req_type: string[];
+  req_fields: string[];
+  res_type: string[];
+  res_fields: string[];
+  group?: string;
 };
 
-// 分析状态与结果数据
-let analysisCompleted = false;
-const allData = ref<RuleItem[]>([]);
-const analysisGroups = ref<Record<string, RuleItem[]>>({});
-const lastFetchError = ref<null | string>(null);
+type HistoryItem = {
+  protocol: string;
+  ruleCount: number;
+  analysisTime: string;
+  categories: string[];
+  rules: RuleItem[];
+};
 
-// 分组展开状态管理（核心修改：记录每个分组的展开/收起状态）
-const groupExpanded = ref<Record<string, boolean>>({});
+// -------- 历史记录存储 KEY --------
+const HISTORY_KEY = 'protocol_analysis_history';
 
-// 左侧列表分页
-const itemsPerPage = 5;
+// -------- 状态 --------
+const activeMenuKey = ref('analyze');
+const isAnalyzing = ref(false);
+const analysisCompleted = ref(false);
+const stagedResults = ref<RuleItem[]>([]);
+const rfcFileList = ref<UploadFile[]>([]);
+const formData = reactive({ protocol: '' });
 const currentPage = ref(1);
-const totalPages = ref(1);
-const currentRules = ref<RuleItem[]>([]);
+const pageSize = ref(10);
+const totalItems = ref(0);
+const historyData = ref<HistoryItem[]>([]);
 
-// 右侧代码查看分页
-const currentCodeLines = ref<string[]>([]);
-const currentCodePage = ref(1);
-const codeLinesPerPage = 32;
+// -------- 规则分类 --------
+const ruleCategories = [
+  '安全', '性能', '兼容', '基础', '高级',
+  '加密', '认证', '会话管理', '可靠性', '优化',
+  '错误处理', '日志', '扩展性', 'QoS', '协议约束'
+];
 
-// 表单验证规则
-const formRules = {
-  rfc: [{ required: true, message: '请上传 RFC 文档', trigger: 'change' }],
-  code: [{ required: true, message: '请上传源代码文件', trigger: 'change' }],
-};
+// -------- 工具函数 --------
+function normalizeProtocolName(input: string) {
+  return input.trim().replace(/\s+/g, '').replace(/[^a-zA-Z0-9._/-]/g, '').toLowerCase();
+}
 
-// RFC文档上传控制
+function randomCategories(): string[] {
+  const shuffled = [...ruleCategories].sort(() => Math.random() - 0.5);
+  const count = Math.floor(Math.random() * 2) + 3;
+  return shuffled.slice(0, count);
+}
+
+// -------- 上传文件控制 --------
 const beforeUploadRFC: UploadProps['beforeUpload'] = (file) => {
+  const allowedTypes = ['application/pdf', 'text/plain', 'application/json'];
+  const isAllowed = allowedTypes.includes(file.type);
+  const isAllowedExt = ['.pdf', '.txt', '.json'].some(ext => file.name.toLowerCase().endsWith(ext));
+  if (!isAllowed && !isAllowedExt) {
+    message.error('仅支持上传 PDF、TXT 或 JSON 格式的 RFC 文件');
+    return false;
+  }
   rfcFileList.value = [file];
-  formData.rfc = (file as UploadFile<File>).originFileObj ?? (file as any as File);
-  formRef.value?.clearValidate?.(['rfc']);
   return false;
 };
 
 const removeRFC: UploadProps['onRemove'] = () => {
   rfcFileList.value = [];
-  formData.rfc = null;
-  formRef.value?.validateFields?.(['rfc']);
   return true;
 };
 
-// 源代码上传控制
-const beforeUploadCode: UploadProps['beforeUpload'] = (file) => {
-  codeFileList.value = [file];
-  formData.code = (file as UploadFile<File>).originFileObj ?? (file as any as File);
-  formRef.value?.clearValidate?.(['code']);
-  return false;
-};
-
-const removeCode: UploadProps['onRemove'] = () => {
-  codeFileList.value = [];
-  formData.code = null;
-  formRef.value?.validateFields?.(['code']);
-  return true;
-};
-
-// 模拟分析过程
-async function handleAnalyze() {
+// -------- 初始化历史记录 --------
+function loadHistoryFromStorage() {
   try {
-    await formRef.value?.validate();
+    const saved = localStorage.getItem(HISTORY_KEY);
+    const parsed = saved ? JSON.parse(saved) : [];
+    if (Array.isArray(parsed)) {
+      historyData.value = parsed;
+    } else {
+      historyData.value = [];
+    }
   } catch {
+    historyData.value = [];
+  }
+}
+
+// -------- 开始分析 --------
+async function startAnalysis() {
+  if (rfcFileList.value.length === 0) {
+    message.warning('请先上传 RFC 文件');
+    return;
+  }
+  if (!formData.protocol.replace(/\s/g, '')) {
+    message.warning('请输入或选择协议类型');
     return;
   }
 
-  isSubmitting.value = true;
+  isAnalyzing.value = true;
+  analysisCompleted.value = false;
+  stagedResults.value = [];
+
   try {
-    await new Promise(r => setTimeout(r, 1500));
-    analysisCompleted = true;
-    message.success('分析完成，切换到结果展示');
-    activeTab.value = 'result';
-    await loadRules();
-  } catch (e: any) {
-    message.error(`分析失败：${e?.message || e}`);
-  } finally {
-    isSubmitting.value = false;
-  }
-}
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    const normalizedProtocol = normalizeProtocolName(formData.protocol);
+    const fileName = `ruleConfig_${normalizedProtocol}.json`;
+    const response = await fetch(`/${fileName}`);
+    if (!response.ok) throw new Error(`未找到 ${formData.protocol} 对应的规则文件`);
 
-// 加载规则数据
-async function loadRules() {
-  if (!analysisCompleted) return;
+    const rawData = await response.json();
+    let rules: RuleItem[] = [];
+    if (Array.isArray(rawData)) {
+      rules = rawData;
+    } else if (typeof rawData === 'object' && rawData !== null) {
+      Object.entries(rawData).forEach(([groupName, arr]) => {
+        if (Array.isArray(arr)) arr.forEach(rule => rules.push({ ...rule, group: groupName }));
+      });
+    } else throw new Error('规则文件格式不正确，应为数组或对象类型');
 
-  lastFetchError.value = null;
-  try {
-    const res = await fetch('/rule.json');
-    const rulesObj = await res.json();
-    const data: RuleItem[] = Object.entries(rulesObj).map(([rule, code]) => ({
-      analysis: '默认分析组',
-      rule,
-      code,
-    }));
+    if (rules.length === 0) throw new Error('未在规则文件中找到任何规则数据');
 
-    allData.value = data;
+    stagedResults.value = rules;
+    totalItems.value = rules.length;
+    analysisCompleted.value = true;
 
-    // 数据分组
-    const groups: Record<string, RuleItem[]> = {};
-    data.forEach(item => {
-      if (!groups[item.analysis]) {
-        groups[item.analysis] = [];
-        groupExpanded.value[item.analysis] = false; // 初始化所有分组为收起状态
-      }
-      groups[item.analysis].push(item);
-    });
+    const now = new Date().toLocaleString();
+    const newHistory: HistoryItem = {
+      protocol: formData.protocol,
+      ruleCount: rules.length,
+      analysisTime: now,
+      categories: randomCategories(),
+      rules: rules,
+    };
 
-    analysisGroups.value = groups;
+    // 插入历史记录并持久化
+    historyData.value.unshift(newHistory);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(historyData.value));
+
+    message.success(`成功加载 ${rules.length} 条规则`);
   } catch (err: any) {
-    lastFetchError.value = String(err);
-    message.error(`加载结果失败：${lastFetchError.value}`);
+    message.error(`分析失败: ${err.message}`);
+  } finally {
+    isAnalyzing.value = false;
   }
 }
 
-// 切换分组展开/收起状态（核心修改：实现切换逻辑）
-function toggleAnalysisGroup(key: string) {
-  // 切换当前分组的展开状态
-  groupExpanded.value[key] = !groupExpanded.value[key];
-  
-  // 如果是展开状态，初始化分页数据
-  if (groupExpanded.value[key]) {
-    currentPage.value = 1;
-    currentRules.value = analysisGroups.value[key] || [];
-    totalPages.value = Math.ceil((currentRules.value.length || 0) / itemsPerPage);
-  } else {
-    // 收起时清空当前规则列表
-    currentRules.value = [];
+// -------- 下载 JSON --------
+function downloadAnalysisResult() {
+  if (!analysisCompleted.value || stagedResults.value.length === 0) {
+    message.warning('暂无分析结果可下载');
+    return;
   }
-  
-  // 无论展开还是收起，都重置代码显示区域
-  currentCodeLines.value = [];
-  currentCodePage.value = 1;
+  const normalizedProtocol = normalizeProtocolName(formData.protocol);
+  const fileName = `ruleConfig_${normalizedProtocol}.json`;
+  const jsonStr = JSON.stringify(stagedResults.value, null, 2);
+
+  const blob = new Blob([jsonStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
+  message.success(`分析结果已下载: ${fileName}`);
 }
 
-// 左侧规则列表分页（响应式）
-const currentPageSlice = computed(() => {
-  const start = (currentPage.value - 1) * itemsPerPage;
-  return currentRules.value.slice(start, start + itemsPerPage);
+// -------- 历史记录点击协议回到分析页面 --------
+function openFromHistory(item: HistoryItem) {
+  formData.protocol = item.protocol;
+  stagedResults.value = item.rules;
+  totalItems.value = item.rules.length;
+  analysisCompleted.value = true;
+  activeMenuKey.value = 'analyze';
+}
+
+// -------- 表格相关 --------
+const selectedGroup = ref<string | null>(null);
+const groupList = computed(() => {
+  const groups = new Set(stagedResults.value.map(r => r.group).filter(Boolean));
+  return Array.from(groups);
+});
+const filteredResults = computed(() => {
+  if (!selectedGroup.value) return stagedResults.value;
+  return stagedResults.value.filter(r => r.group === selectedGroup.value);
+});
+const currentPageData = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value;
+  return filteredResults.value.slice(start, start + pageSize.value);
 });
 
-// 左侧分页控制
-function prevPage(e: MouseEvent) {
-  e.stopPropagation();
-  if (currentPage.value > 1) {
-    currentPage.value--;
-    currentCodeLines.value = [];
-    currentCodePage.value = 1;
-  }
+const columns: TableColumnType<RuleItem>[] = [
+  { title: '序号', key: 'index', width: 60, customRender: ({ index }) => ((currentPage.value - 1) * pageSize.value + index + 1) },
+  { title: '规则描述', dataIndex: 'rule', key: 'rule', width: 400, customRender: ({ text }) => h('div', { style: 'white-space: pre-wrap;' }, text) },
+  { title: '协议消息类型', dataIndex: 'req_type', key: 'req_type', width: 140 },
+  { title: '请求字段', dataIndex: 'req_fields', key: 'req_fields', width: 220,
+    customRender: ({ text }) => Array.isArray(text) ? text.map(f => h(Tag, { color: 'blue', style: 'margin:2px' }, () => f)) : text
+  },
+  { title: '响应类型', dataIndex: 'res_type', key: 'res_type', width: 140 },
+  { title: '响应字段', dataIndex: 'res_fields', key: 'res_fields', width: 220,
+    customRender: ({ text }) => Array.isArray(text) ? text.map(f => h(Tag, { color: 'green', style: 'margin:2px' }, () => f)) : text
+  },
+];
+
+function handleTableChange(pagination: any) {
+  currentPage.value = pagination.current;
+  pageSize.value = pagination.pageSize;
 }
 
-function nextPage(e: MouseEvent) {
-  e.stopPropagation();
-  if (currentPage.value < totalPages.value) {
-    currentPage.value++;
-    currentCodeLines.value = [];
-    currentCodePage.value = 1;
-  }
-}
-
-// 查看规则对应的代码
-function openCode(e: MouseEvent, item: RuleItem) {
-  e.stopPropagation();
-  currentCodeLines.value = (item.code || '(无代码)').split(/\r?\n/);
-  currentCodePage.value = 1;
-}
-
-// 右侧代码分页（响应式）
-const renderCodeLines = computed(() => {
-  const start = (currentCodePage.value - 1) * codeLinesPerPage;
-  return currentCodeLines.value.slice(start, start + codeLinesPerPage).map((line, idx) => ({
-    num: start + idx + 1,
-    line
-  }));
+// -------- 页面挂载时加载历史记录 --------
+onMounted(() => {
+  loadHistoryFromStorage();
 });
-
-// 右侧代码分页控制
-function prevCodePage(e: MouseEvent) {
-  e.stopPropagation();
-  if (currentCodePage.value > 1) currentCodePage.value--;
-}
-
-function nextCodePage(e: MouseEvent) {
-  e.stopPropagation();
-  const total = Math.ceil(currentCodeLines.value.length / codeLinesPerPage);
-  if (currentCodePage.value < total) currentCodePage.value++;
-}
 </script>
 
 <template>
-  <Page title="RFC 规则查看系统" description="上传 RFC 与源代码，分析并查看规则及代码。">
-    <div class="flex flex-col gap-4">
-      <Card>
-        <Space class="w-full justify-between">
-          <div class="flex flex-col gap-2">
-            <p>将 RFC 与源码交给系统解析后，会提取规则与对应代码。</p>
-            <p v-if="lastFetchError" class="text-danger">{{ lastFetchError }}</p>
-          </div>
-          <Button @click="analysisCompleted ? loadRules() : message.info('请先完成分析')">刷新结果</Button>
-        </Space>
+  <div class="page-container">
+    <Tabs v-model:activeKey="activeMenuKey">
+      <Tabs.TabPane key="analyze" tab="规则提取" />
+      <Tabs.TabPane key="history" tab="历史记录" />
+    </Tabs>
+
+    <!-- 分析页面 -->
+    <div v-if="activeMenuKey === 'analyze'" class="main-content">
+      <Typography.Paragraph class="step-desc">
+        将协议文档分块处理，再通过大模型分析，快速提取规则。
+      </Typography.Paragraph>
+
+      <Card class="card-upload">
+        <div class="upload-header">
+          <Typography.Title level="4" style="margin-bottom:8px;">
+            📄 上传 RFC 文件
+          </Typography.Title>
+          <Typography.Text type="secondary">
+            请输入或选择协议类型，然后上传文件进行规则分析
+          </Typography.Text>
+        </div>
+
+        <div class="upload-row">
+          <Select
+            v-model:value="formData.protocol"
+            show-search
+            placeholder="选择或输入协议类型"
+            class="input-protocol"
+            allow-clear
+            :filter-option="(input, option) => option?.value?.toLowerCase().includes(input.toLowerCase())"
+          >
+            <Select.Option value="CoAP">CoAP</Select.Option>
+            <Select.Option value="DHCPv6">DHCPv6</Select.Option>
+            <Select.Option value="MQTTv3_1_1">MQTTv3_1_1</Select.Option>
+            <Select.Option value="MQTTv5">MQTTv5</Select.Option>
+            <Select.Option value="TLSv1_3">TLSv1_3</Select.Option>
+            <Select.Option value="FTP">FTP</Select.Option>
+          </Select>
+
+          <Upload :file-list="rfcFileList" :before-upload="beforeUploadRFC" :on-remove="removeRFC" :max-count="1">
+            <Button type="default" ghost>选择 RFC 文件</Button>
+          </Upload>
+
+          <Button type="primary" class="btn-analyze" :loading="isAnalyzing" @click="startAnalysis">
+            🚀 开始分析
+          </Button>
+        </div>
+
+        <div v-if="isAnalyzing" class="spin-overlay">
+          <Spin tip="正在分析 RFC 文件..." size="large" />
+        </div>
       </Card>
 
-      <Card>
-        <Tabs v-model:activeKey="activeTab" destroyInactiveTabPane>
-          <Tabs.TabPane key="upload" tab="上传 RFC 与源代码">
-            <Form ref="formRef" :model="formData" :rules="formRules" layout="vertical">
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormItem name="rfc" label="RFC 文档" required>
-                  <Upload
-                    :file-list="rfcFileList"
-                    :before-upload="beforeUploadRFC"
-                    :on-remove="removeRFC"
-                    :max-count="1"
-                  >
-                    <Button block>选择 RFC 文档</Button>
-                  </Upload>
-                </FormItem>
-                <FormItem name="code" label="源代码" required>
-                  <Upload
-                    :file-list="codeFileList"
-                    :before-upload="beforeUploadCode"
-                    :on-remove="removeCode"
-                    :max-count="1"
-                  >
-                    <Button block>选择源代码文件</Button>
-                  </Upload>
-                </FormItem>
-              </div>
-              <p class="upload-hint">{{ uploadTip }}</p>
-              <Space class="w-full justify-center mt-4">
-                <Button type="primary" :loading="isSubmitting" @click="handleAnalyze">开始分析</Button>
-              </Space>
-            </Form>
-          </Tabs.TabPane>
-
-          <Tabs.TabPane key="result" tab="结果展示">
-            <div class="flex flex-col lg:flex-row gap-4">
-              <!-- 左侧规则列表 -->
-              <Card class="flex-1" title="分析结果列表">
-                <template #extra><span>组数 {{ Object.keys(analysisGroups).length }}</span></template>
-                
-                <div v-if="!analysisCompleted"><Empty description="请先上传文件" /></div>
-                <div v-else-if="Object.keys(analysisGroups).length === 0"><Empty description="分析完成，但未找到规则" /></div>
-                <div v-else>
-                  <div v-for="(rules, groupName, idx) in analysisGroups" :key="groupName" class="item-wrapper">
-                    <Card
-                      size="small"
-                      class="cursor-pointer transition-all duration-200"
-                      :class="{ active: groupExpanded[groupName] }"
-                      @click="toggleAnalysisGroup(groupName)"
-                    >
-                      <template #title>
-                        <Space>
-                          <span>{{ idx + 1 }}. {{ groupName }}</span>
-                          <Tag color="processing">{{ rules.length }} 条规则</Tag>
-                          <!-- 展开/收起状态图标 -->
-                          <span class="expand-icon">{{ groupExpanded[groupName] ? '▼' : '►' }}</span>
-                        </Space>
-                      </template>
-
-                      <!-- 仅在展开状态显示规则列表 -->
-                      <div v-if="groupExpanded[groupName]" class="group-content">
-                        <div 
-                          v-for="(item, i) in currentPageSlice" 
-                          :key="i" 
-                          class="rule-item cursor-pointer" 
-                          @click="openCode($event, item)"
-                        >
-                          <span class="rule-number">{{ (currentPage-1)*itemsPerPage + i + 1 }}. </span>
-                          <span class="rule-text">{{ item.rule }}</span>
-                        </div>
-
-                        <Space class="pagination-controls" @click.stop>
-                          <Button 
-                            size="small" 
-                            :disabled="currentPage === 1" 
-                            @click="prevPage($event)"
-                          >
-                            上一页
-                          </Button>
-                          <span>第 {{ currentPage }} 页 / 共 {{ totalPages }} 页</span>
-                          <Button 
-                            size="small" 
-                            :disabled="currentPage >= totalPages" 
-                            @click="nextPage($event)"
-                          >
-                            下一页
-                          </Button>
-                        </Space>
-                      </div>
-                    </Card>
-                  </div>
-                </div>
-              </Card>
-
-              <!-- 右侧代码内容 -->
-              <Card class="flex-1" title="代码内容">
-                <div v-if="currentCodeLines.length === 0"><Empty description="尚未选择规则" /></div>
-                <div v-else class="code-display">
-                  <pre>
-                    <span v-for="(row, i) in renderCodeLines" :key="i" class="code-line">
-                      <span class="line-num">{{ row.num }}</span>
-                      <span class="line-content">{{ row.line }}</span>
-                    </span>
-                  </pre>
-                  
-                  <Space class="code-pagination" @click.stop>
-                    <Button 
-                      size="small" 
-                      :disabled="currentCodePage === 1" 
-                      @click="prevCodePage($event)"
-                    >
-                      上一页
-                    </Button>
-                    <span>
-                      第 {{ currentCodePage }} 页 / 共 {{ Math.ceil((currentCodeLines.length || 0) / codeLinesPerPage) }} 页
-                    </span>
-                    <Button 
-                      size="small" 
-                      :disabled="currentCodePage >= Math.ceil((currentCodeLines.length || 0) / codeLinesPerPage)" 
-                      @click="nextCodePage($event)"
-                    >
-                      下一页
-                    </Button>
-                  </Space>
-                </div>
-              </Card>
-            </div>
-          </Tabs.TabPane>
-        </Tabs>
+      <Card v-if="analysisCompleted" class="card-result">
+        <div class="result-header">
+          <Typography.Title level="4">{{ formData.protocol }} 协议规则</Typography.Title>
+          <div class="result-tools">
+            <Typography.Text>共 {{ totalItems }} 条规则</Typography.Text>
+            <Select v-model:value="selectedGroup" allow-clear placeholder="筛选消息组别" class="select-group">
+              <Select.Option v-for="g in groupList" :key="g" :value="g">{{ g }}</Select.Option>
+            </Select>
+            <Button type="primary" @click="downloadAnalysisResult">⬇️ 下载 JSON</Button>
+          </div>
+        </div>
+        <Divider />
+        <div v-if="filteredResults.length === 0">
+          <Empty description="未找到规则数据" />
+        </div>
+        <div class="table-wrapper" v-else>
+          <Table
+            :columns="columns"
+            :data-source="currentPageData"
+            :pagination="{
+              current: currentPage,
+              pageSize: pageSize,
+              total: filteredResults.length,
+              showSizeChanger: true,
+              showQuickJumper: true,
+              showTotal: total => `共 ${total} 条规则`
+            }"
+            :row-key="(record, index) => index"
+            @change="handleTableChange"
+            bordered
+            :scroll="{ x: 'max-content', y: 400 }"
+          />
+        </div>
       </Card>
     </div>
-  </Page>
+
+    <!-- 历史记录页面 -->
+    <div v-if="activeMenuKey === 'history'" class="main-content">
+      <Card class="card-history">
+        <div class="analyzed-protocols">
+          <Typography.Text strong>已分析的协议：</Typography.Text>
+          <Space size="small" wrap>
+            <Tag v-for="item in historyData" :key="item.protocol" color="blue">{{ item.protocol }}</Tag>
+          </Space>
+        </div>
+
+        <Table
+          :columns="[
+            {
+              title: '协议',
+              dataIndex: 'protocol',
+              key: 'protocol',
+              customRender: ({ text, record }) => h(Tag, { color: 'cyan', style:'cursor:pointer' }, () =>
+                h('a', { onClick: () => openFromHistory(record) }, text)
+              )
+            },
+            { title: '规则数量', dataIndex: 'ruleCount', key: 'ruleCount', customRender: ({ text }) => h(Tag, { color: 'green' }, text) },
+            { title: '分析时间', dataIndex: 'analysisTime', key: 'analysisTime', customRender: ({ text }) => h(Tag, { color: 'default' }, text) },
+            { 
+              title: '规则分类', 
+              dataIndex: 'categories', 
+              key: 'categories', 
+              customRender: ({ text }) => text.map((c, idx) => {
+                const colors = ['magenta','purple','blue','cyan','green','orange','volcano'];
+                return h(Tag, { color: colors[idx % colors.length], style: 'margin-right:4px' }, c)
+              })
+            }
+          ]"
+          :data-source="historyData"
+          :pagination="{ pageSize: 10, showSizeChanger: true, showQuickJumper: true }"
+          :row-key="(record, index) => index"
+          bordered
+          :scroll="{ x: 'max-content' }"
+        />
+      </Card>
+    </div>
+  </div>
 </template>
 
 <style scoped>
-.upload-hint {
-  font-size: 13px;
-  color: #faad14;
-  margin-top: 8px;
+.page-container {
+  min-height: 100vh;
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+  font-family: "Segoe UI", "Helvetica Neue", sans-serif;
 }
 
-.item-wrapper {
+.step-desc {
+  font-size: 15px;
+  color: #333;
+  background: linear-gradient(90deg, #f0f5ff 0%, #f9faff 100%);
+  padding: 10px 18px;
+  border-radius: 8px;
+  text-align: center;
+  margin-bottom: 18px;
+  font-weight: 500;
+}
+
+.main-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.card-upload, .card-result, .card-history {
+  padding: 24px;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.upload-header {
+  margin-bottom: 18px;
+  text-align: center;
+}
+
+.upload-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.input-protocol {
+  width: 260px;
+}
+
+.btn-analyze {
+  background: linear-gradient(90deg, #1677ff 0%, #5b9aff 100%);
+  border: none;
+  transition: all 0.3s;
+}
+.btn-analyze:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.spin-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 8px;
+}
+
+.result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
   margin-bottom: 12px;
 }
 
-/* 分组卡片样式 */
-.group-content {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px dashed #e8e8e8;
+.result-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
-.active {
-  border-color: #1890ff;
-  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.15);
+.select-group {
+  width: 200px;
 }
 
-.expand-icon {
-  color: #1890ff;
-  font-size: 14px;
-  transition: transform 0.2s;
+.table-wrapper {
+  max-height: 400px;
+  overflow-y: auto;
 }
 
-/* 规则项样式 */
-.rule-item {
-  padding: 8px 12px;
-  border: 1px solid #e8e8e8;
-  border-radius: 4px;
-  margin-bottom: 6px;
-  transition: all 0.2s;
+.analyzed-protocols {
+  margin-bottom: 12px;
+  padding: 8px 0;
 }
 
-.rule-item:hover {
-  border-color: #1890ff;
-  background-color: #f0f7ff;
-}
-
-.rule-number {
-  color: #8c8c8c;
-  display: inline-block;
-  width: 30px;
-}
-
-.rule-text {
+:deep(.ant-table-cell) {
+  white-space: pre-wrap;
   word-break: break-word;
 }
-
-/* 分页控件样式 */
-.pagination-controls {
-  display: flex;
-  justify-content: center;
-  margin-top: 16px;
-  padding: 8px;
-}
-
-/* 代码显示样式 */
-.code-display {
-  line-height: 1.6;
-  font-family: "Fira Code", monospace;
-  font-size: 13px;
-  white-space: pre-wrap;
-  max-height: 600px;
-  overflow: auto;
-}
-
-.code-line {
-  display: block;
-}
-
-.line-num {
-  color: #999;
-  display: inline-block;
-  width: 45px;
-  text-align: right;
-  padding-right: 10px;
-  border-right: 1px solid #d9d9d9;
-  user-select: none;
-}
-
-.line-content {
-  padding-left: 10px;
-}
-
-.code-pagination {
-  display: flex;
-  justify-content: center;
-  margin-top: 12px;
-  padding: 8px;
-}
 </style>
+

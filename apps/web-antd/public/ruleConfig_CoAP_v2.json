@@ -1,0 +1,40 @@
+
+
+{
+    "NON": [
+          {
+              "rule": "A GET request to a multicast group MUST NOT contain an ETag option.",
+              "req_type": "NON",
+              "req_fields": [
+                  "Code",
+                  "Options",
+                  "ETag"
+              ],
+              "res_type": "",
+              "res_fields": []
+          },
+          {
+              "rule": "(For example, in query filtering as described in [RFC6690 Link Format\"], a server should not respond to a multicast request if the filter does not match.",
+              "req_type": "NON",
+              "req_fields": [
+                  "Options",
+                  "Uri-Query"
+              ],
+              "res_type": "",
+              "res_fields": []
+          }
+      ],
+      "CON": [
+          {
+              "rule": "An endpoint receiving an entity-tag MUST treat the entity-tag as opaque and make no assumptions about the entity-tag's content or structure.",
+              "req_type": "CON",
+              "req_fields": [
+                  "options",
+                  "If-Match",
+                  "If-None-Match"
+              ],
+              "res_type": "",
+              "res_fields": []
+          }
+      ]
+  }

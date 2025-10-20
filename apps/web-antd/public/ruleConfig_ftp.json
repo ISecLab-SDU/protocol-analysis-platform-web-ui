@@ -1,0 +1,514 @@
+{
+  "STOR": [
+    {
+      "rule": "If the file specified in the pathname exists at the server site, then its contents shall be replaced by the data being transferred.",
+      "req_type": "STOR",
+      "req_fields": [
+        "command",
+        "space",
+        "filename",
+        "CRLF"
+      ],
+      "res_type": "",
+      "res_fields": []
+    },
+    {
+      "req_type": "STOR",
+      "req_fields": [],
+      "res_type": "",
+      "res_fields": [],
+      "rule": "If the data connection is to be closed following a data transfer where closing the connection is not required to indicate the end-of-file, the server must close the connection immediately."
+    }
+  ],
+  "RMD": [
+    {
+      "rule": "The reply codes for RMD are identical to the reply codes for its file analogue, DELE.",
+      "req_type": "RMD",
+      "req_fields": [
+        "directory_path"
+      ],
+      "res_type": "",
+      "res_fields": []
+    }
+  ],
+  "TYPE": [
+    {
+      "rule": "If the type is Local byte, then the TYPE command has an obligatory second parameter specifying the logical byte size.",
+      "req_type": "TYPE",
+      "req_fields": [
+        "Type Code",
+        "logical byte size"
+      ],
+      "res_type": "",
+      "res_fields": []
+    },
+    {
+      "rule": "When using TYPE ASCII, the SIZE would be the number of octets in the file including any modifications required to satisfy the TYPE ASCII CR-LF end-of-line convention.",
+      "req_type": "TYPE",
+      "req_fields": [
+        "TYPE",
+        "Type Code"
+      ],
+      "res_type": "",
+      "res_fields": []
+    }
+  ],
+  "PASS": [
+    {
+      "rule": "If account information is NOT required for login, the reply to a successful PASSword command is 230; if account information is needed for a command issued later in the dialogue, the server returns 332 (storing pending ACCT) or 532 (discarding).",
+      "req_type": "PASS",
+      "req_fields": [
+        "PASS",
+        "Password"
+      ],
+      "res_type": "",
+      "res_fields": []
+    }
+  ],
+  "ACCT": [
+    {
+      "rule": "When account information is required for login, the response to a successful PASS command is reply code 332.",
+      "req_type": "ACCT",
+      "req_fields": [],
+      "res_type": "",
+      "res_fields": []
+    }
+  ],
+  "MKD": [
+    {
+      "rule": "The prior existence of a subdirectory with the same name is an error, and the server must return an \"access denied\" error reply in that case.",
+      "req_type": "MKD",
+      "req_fields": [
+        "directory_name"
+      ],
+      "res_type": "",
+      "res_fields": []
+    }
+  ],
+  "STAT": [
+    {
+      "rule": "If the argument is a pathname, the STATUS (STAT) command is analogous to the \"list\" command except that data shall be transferred over the control connection.",
+      "req_type": "STAT",
+      "req_fields": [
+        "pathname"
+      ],
+      "res_type": "STAT",
+      "res_fields": [
+        "Directory Listing"
+      ]
+    },
+    {
+      "rule": "Lastly, the client sends a request containing a syntax error (spaces cannot appear in the factlist) and the server-FTP sends an error response, completely ignores the request, leaving the previously selected fact set unchanged.",
+      "req_type": "STAT",
+      "req_fields": [],
+      "res_type": "",
+      "res_fields": []
+    }
+  ],
+  "ALLO": [
+    {
+      "rule": "The ALLO command shall be followed by a STORe or APPEnd command.",
+      "req_type": "ALLO",
+      "req_fields": [],
+      "res_type": "",
+      "res_fields": []
+    }
+  ],
+  "CDUP": [
+    {
+      "rule": "The reply codes for CDUP are identical to the reply codes of CWD.",
+      "req_type": "CDUP",
+      "req_fields": [],
+      "res_type": "",
+      "res_fields": [
+        "code"
+      ]
+    }
+  ],
+  "REST": [
+    {
+      "rule": "The REST command shall be immediately followed by the appropriate FTP service command which shall cause file transfer to resume.",
+      "req_type": "REST",
+      "req_fields": [],
+      "res_type": "",
+      "res_fields": []
+    },
+    {
+      "rule": "The REST command must be the last command issued before the data transfer command that is to cause a restarted, rather than a complete, file transfer.",
+      "req_type": "REST",
+      "req_fields": [
+        "marker"
+      ],
+      "res_type": "",
+      "res_fields": []
+    }
+  ],
+  "RNFR": [
+    {
+      "rule": "The RNFR command must be immediately followed by a \"rename to\" command (RNTO) specifying the new file pathname.",
+      "req_type": "RNFR",
+      "req_fields": [
+        "oldname",
+        "newname"
+      ],
+      "res_type": "",
+      "res_fields": []
+    }
+  ],
+  "RNTO": [
+    {
+      "rule": "The RNFR command must be immediately followed by a \"rename to\" command (RNTO) specifying the new file pathname.",
+      "req_type": "RNTO",
+      "req_fields": [
+        "oldname",
+        "newname"
+      ],
+      "res_type": "",
+      "res_fields": []
+    }
+  ],
+  "CCC": [
+    {
+      "rule": "The CCC command must be preceded by a successful security data exchange.",
+      "req_type": "CCC",
+      "req_fields": [],
+      "res_type": "",
+      "res_fields": []
+    },
+    {
+      "rule": "If the CCC command is not integrity-protected, the server must respond with a 533 reply code.",
+      "req_type": "CCC",
+      "req_fields": [],
+      "res_type": "",
+      "res_fields": [
+        "533"
+      ]
+    },
+    {
+      "rule": "Once the CCC command completes successfully, if a command is not protected, then the reply to that command must also not be protected.",
+      "req_type": "CCC",
+      "req_fields": [],
+      "res_type": "",
+      "res_fields": []
+    }
+  ],
+  "AUTH": [
+    {
+      "rule": "The server must require that the user reauthorize (reissue some or all of USER, PASS, and ACCT commands) when the AUTH command is reissued to reset security state.",
+      "req_type": "AUTH",
+      "req_fields": [],
+      "res_type": "",
+      "res_fields": []
+    },
+    {
+      "rule": "If the server does not recognize the AUTH command, it must respond with reply code 500.",
+      "req_type": "AUTH",
+      "req_fields": [],
+      "res_type": "",
+      "res_fields": [
+        "500"
+      ]
+    },
+    {
+      "rule": "If the server is willing to accept the named security mechanism, and does not require any security data, it must respond with reply code 234.",
+      "req_type": "AUTH",
+      "req_fields": [
+        "mechanism"
+      ],
+      "res_type": "",
+      "res_fields": [
+        "code",
+        "text"
+      ]
+    }
+  ],
+  "ADAT": [
+    {
+      "rule": "The ADAT command must be preceded by a successful AUTH command, and cannot be issued once a security data exchange completes (successfully or unsuccessfully), unless it is preceded by an AUTH command to reset the security state.",
+      "req_type": "ADAT",
+      "req_fields": [],
+      "res_type": "",
+      "res_fields": []
+    },
+    {
+      "rule": "If the server cannot base 64 decode the argument of the ADAT command, it should respond with reply code 501.",
+      "req_type": "ADAT",
+      "req_fields": [],
+      "res_type": "",
+      "res_fields": [
+        "reply code"
+      ]
+    },
+    {
+      "rule": "If the server receives an ADAT command and cannot base64 decode the argument, it should respond with a 501 reply code.",
+      "req_type": "ADAT",
+      "req_fields": [
+        "Base64-encoded data"
+      ],
+      "res_type": "Reply",
+      "res_fields": [
+        "reply_code"
+      ]
+    }
+  ],
+  "MIC/ENC/CCC": [
+    {
+      "rule": "In order to prevent attacks involving unprotected commands, once a security data exchange completes successfully, if the security mechanism supports integrity, then integrity (via the MIC or ENC command, and 631 or 632 reply) must be used, until the CCC command is issued to enable non-integrity protected control channel messages.",
+      "req_type": "MIC/ENC/CCC",
+      "req_fields": [],
+      "res_type": "",
+      "res_fields": []
+    }
+  ],
+  "PROT": [
+    {
+      "rule": "The PROT command must be preceded by a successful protection buffer size negotiation.",
+      "req_type": "PROT",
+      "req_fields": [],
+      "res_type": "",
+      "res_fields": []
+    }
+  ],
+  "PBSZ": [
+    {
+      "rule": "The PBSZ command must be preceded by a successful security data exchange.",
+      "req_type": "PBSZ",
+      "req_fields": [],
+      "res_type": "",
+      "res_fields": []
+    },
+    {
+      "rule": "If the server cannot parse the PBSZ argument, or if the argument will not fit in 32 bits, the server should respond with a 501 reply code.",
+      "req_type": "PBSZ",
+      "req_fields": [],
+      "res_type": "",
+      "res_fields": []
+    },
+    {
+      "rule": "There is no default size; the client must issue a PBSZ command before it can issue the first PROT command.",
+      "req_type": "PBSZ",
+      "req_fields": [],
+      "res_type": "",
+      "res_fields": []
+    }
+  ],
+  "CONF": [
+    {
+      "rule": "The MIC, CONF, and ENC commands must be preceded by a successful security data exchange.",
+      "req_type": "CONF",
+      "req_fields": [
+        "command"
+      ],
+      "res_type": "",
+      "res_fields": []
+    },
+    {
+      "rule": "If the server is not willing to accept the command (if privacy is required by policy, for instance, or if a CONF command is received before a CCC command), it should respond with reply code 533.",
+      "req_type": "CONF",
+      "req_fields": [],
+      "res_type": "",
+      "res_fields": [
+        "reply_code"
+      ]
+    }
+  ],
+  "OPTS": [
+    {
+      "rule": "An \"opts-good\" response (200 reply) MUST be sent when the command-name specified in the OPTS command is recognized, and the command-options, if any, are recognized, and appropriate.",
+      "req_type": "OPTS",
+      "req_fields": [
+        "parameters",
+        "command-name",
+        "command-options"
+      ],
+      "res_type": "",
+      "res_fields": []
+    },
+    {
+      "rule": "Facts not included in the \"OPTS MLST\" command MUST NOT be returned by the server.",
+      "req_type": "OPTS",
+      "req_fields": [
+        "parameters",
+        "MLST",
+        "facts"
+      ],
+      "res_type": "",
+      "res_fields": []
+    }
+  ],
+  "EPSV": [
+    {
+      "rule": "The portion of the string enclosed in parentheses MUST be the exact string needed by the EPRT command to open the data connection.",
+      "req_type": "EPSV",
+      "req_fields": [],
+      "res_type": "",
+      "res_fields": []
+    },
+    {
+      "rule": "Upon receipt of an EPSV ALL command, the server MUST reject all data connection setup commands other than EPSV (i.e., EPRT, PORT, PASV, et al.).",
+      "req_type": "EPSV",
+      "req_fields": [],
+      "res_type": "",
+      "res_fields": []
+    }
+  ],
+  "RETR": [
+    {
+      "rule": "The type=dir entry typically cannot be transferred from one system to another using RETR, etc., but should (permissions permitting) be able to be the object of an MLSD command.",
+      "req_type": "RETR",
+      "req_fields": [
+        "command",
+        "space",
+        "pathname",
+        "CRLF"
+      ],
+      "res_type": "",
+      "res_fields": []
+    },
+    {
+      "rule": "The server-PI might need to read the partially transferred file, do any appropriate conversion, and count the number of octets that would be generated when sending the file in order to correctly respond to this command.",
+      "req_type": "RETR",
+      "req_fields": [
+        "pathname"
+      ],
+      "res_type": "",
+      "res_fields": []
+    }
+  ],
+  "MLST": [
+    {
+      "rule": "In all cases for MLST, a single set of fact lines (usually a single fact line) containing the information about the named file or directory shall be returned over the control connection, without opening a data connection.",
+      "req_type": "MLST",
+      "req_fields": [
+        "pathname"
+      ],
+      "res_type": "",
+      "res_fields": []
+    },
+    {
+      "rule": "No spaces are permitted in the facts, any other spaces in the response are to be treated as being a part of the pathname.",
+      "req_type": "MLST",
+      "req_fields": [
+        "Pathname"
+      ],
+      "res_type": "",
+      "res_fields": []
+    }
+  ],
+  "MDTM": [
+    {
+      "rule": "Where the command is correctly parsed but the size is not available, a 550 reply must be sent.",
+      "req_type": "MDTM",
+      "req_fields": [
+        "pathname"
+      ],
+      "res_type": "",
+      "res_fields": []
+    }
+  ],
+  "FEAT": [
+    {
+      "rule": "In response to the FEAT command [6] a server that wishes to indicate support for the TVFS as defined here will include a line that begins with the four characters \"TVFS\" (in any case, or mixture of cases, upper case is not required).",
+      "req_type": "FEAT",
+      "req_fields": [],
+      "res_type": "",
+      "res_fields": [
+        "TVFS"
+      ]
+    },
+    {
+      "rule": "Such a response to the FEAT command MUST NOT be returned unless the server implements TVFS as defined here.",
+      "req_type": "FEAT",
+      "req_fields": [],
+      "res_type": "",
+      "res_fields": []
+    },
+    {
+      "rule": "If a server-FTP process supports RESTart in STREAM mode, it MUST include a line with exactly \"REST STREAM\" in the FEAT command response.",
+      "req_type": "FEAT",
+      "req_fields": [],
+      "res_type": "",
+      "res_fields": []
+    },
+    {
+      "rule": "When responding to the FEAT command, a server-FTP process that supports MLST, MLSD, and internationalization of pathnames MUST indicate that this support exists.",
+      "req_type": "FEAT",
+      "req_fields": [],
+      "res_type": "",
+      "res_fields": []
+    },
+    {
+      "rule": "The initial space shown in the mlst-feat response is the space required by the FEAT command, two spaces are not permitted.",
+      "req_type": "FEAT",
+      "req_fields": [],
+      "res_type": "",
+      "res_fields": [
+        "features",
+        "mlst-feat"
+      ]
+    },
+    {
+      "rule": "When replying to the FEAT command [6], a server-FTP process that supports the MDTM command MUST include a line containing the single word \"MDTM\".",
+      "req_type": "FEAT",
+      "req_fields": [],
+      "res_type": "",
+      "res_fields": []
+    }
+  ],
+  "APPE": [
+    {
+      "rule": "If APPE (append) is permitted, the APPE command MUST act identically to STOR when a restart marker has been set.",
+      "req_type": "APPE",
+      "req_fields": [
+        "filename"
+      ],
+      "res_type": "",
+      "res_fields": []
+    },
+    {
+      "rule": "If the file specified in the pathname exists at the server site, then the data shall be appended to that file; otherwise the file specified in the pathname shall be created at the server site.",
+      "req_type": "APPE",
+      "req_fields": [
+        "filename"
+      ],
+      "res_type": "",
+      "res_fields": []
+    }
+  ],
+  "MLSD": [
+    {
+      "rule": "If a directory name is given then MLSD must return a listing of the contents of the named directory; otherwise, MLSD issues a 501 reply and does not open a data connection.",
+      "req_type": "MLSD",
+      "req_fields": [],
+      "res_type": "",
+      "res_fields": []
+    },
+    {
+      "rule": "The data connection opened for a MLSD response shall be a connection as if the \"TYPE L 8\", \"MODE S\", and \"STRU F\" commands had been given, whatever FTP transfer type, mode and structure had actually been set, and without causing those settings to be altered for future commands.",
+      "req_type": "MLSD",
+      "req_fields": [],
+      "res_type": "",
+      "res_fields": []
+    }
+  ],
+  "MLST/MLSD": [
+    {
+      "rule": "If the Client-FTP sends an invalid argument to the MLST or MLSD command, the server-FTP MUST reply with an error code of 501.",
+      "req_type": "MLST/MLSD",
+      "req_fields": [
+        "argument"
+      ],
+      "res_type": "",
+      "res_fields": []
+    }
+  ],
+  "LIST": [
+    {
+      "rule": "That is, the transfer type shall be set for the duration of the data connection established for this command only.",
+      "req_type": "LIST",
+      "req_fields": [],
+      "res_type": "",
+      "res_fields": []
+    }
+  ]
+}

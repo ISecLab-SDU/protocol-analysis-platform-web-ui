@@ -1,0 +1,1044 @@
+{
+  "CONNECT": [
+      {
+          "rule": "If the Will Flag is set to 1, the Will Topic is the next field in the payload.",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "Connect Flags",
+              "Will Flag",
+              "Payload",
+              "Will Topic"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "If the Will Flag is set to 1, the Will Message MUST be removed from the stored Session state in the Server once the Will Message has been published or the Server has received a DISCONNECT packet from the Client [MQTT-3.1.2-10].",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "Connect Flags",
+              "Will Flag"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "If the Will Flag is set to 1, the value of Will QoS can be 0 (0x00), 1 (0x01), or 2 (0x02).",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "Connect Flags",
+              "Will Flag",
+              "Will QoS"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "If the Will Flag is set to 0, a Will Message MUST NOT be published when the Client's Network Connection ends [MQTT-3.1.2-12].",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "Variable Header",
+              "Will Flag"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "If the Will Flag is set to 1, the Will Message becomes the next field in the payload after the flag.",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "Connect Flags",
+              "Will Flag",
+              "Payload",
+              "Will Message"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "If the User Name Flag is set to 1, the User Name field is the next field in the payload.",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "Variable Header.Connect Flags.User Name Flag",
+              "Payload.User Name",
+              "Variable Header.Connect Flags",
+              "Variable Header",
+              "Payload"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "If the Will Flag is set to 0, then the Will QoS MUST be set to 0 (0x00) [MQTT-3.1.2-13].",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "Connect Flags",
+              "Will Flag",
+              "Will QoS"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "If the Will Flag is set to 0, the Will QoS and Will Retain fields in the Connect Flags MUST be set to zero and the Will Topic and Will Message fields MUST NOT be present in the payload [MQTT-3.1.2-11].",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "Connect Flags",
+              "Will Flag",
+              "Will QoS",
+              "Will Retain",
+              "payload",
+              "Will Topic",
+              "Will Message"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "These fields, if present, MUST appear in the order Client Identifier, Will Topic, Will Message, User Name, Password [MQTT-3.1.3-1].",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "Payload",
+              "Client Identifier",
+              "Will Topic",
+              "Will Message",
+              "User Name",
+              "Password"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "When an MQTT server receives a CONNECT packet from a client, the server must respond with a CONNACK packet within 30 seconds.",
+          "req_type": "CONNECT",
+          "req_fields": [],
+          "res_type": "CONNACK",
+          "res_fields": []
+      },
+      {
+          "rule": "If the Will Flag is set to 1, Will QoS MUST NOT be 3 (0x03) [MQTT-3.1.2-14].",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "Connect Flags",
+              "Will Flag",
+              "Will QoS"
+          ],
+          "res_type": "CONNACK",
+          "res_fields": [
+              "Connect Return Code"
+          ]
+      },
+      {
+          "rule": "After a Network Connection is established by a Client to a Server, the first Packet sent from the Client to the Server MUST be a CONNECT Packet [MQTT-3.1.0-1].",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "Protocol Name",
+              "Protocol Level",
+              "Connect Flags",
+              "Keep Alive",
+              "Client Identifier",
+              "Will Topic",
+              "Will Message",
+              "Username",
+              "Password"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "The Client Identifier (ClientId) MUST be present and MUST be the first field in the CONNECT packet payload [MQTT-3.1.3-3].",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "payload",
+              "ClientId"
+          ],
+          "res_type": "CONNACK",
+          "res_fields": []
+      },
+      {
+          "rule": "The Server MUST process a second CONNECT Packet sent from a Client as a protocol violation and disconnect the Client [MQTT-3.1.0-2].",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "protocol_name",
+              "protocol_level",
+              "connect_flags",
+              "keep_alive",
+              "client_id",
+              "will_topic",
+              "will_message",
+              "username",
+              "password"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "If the Will Flag is set to 1 and the Will Retain flag is set to 0, the Server MUST publish the Will Message as a non-retained message [MQTT-3.1.2-16].",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "Connect Flags",
+              "Will Flag",
+              "Will Retain"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "If the Will Flag is set to 1 and the Will Retain flag is set to 1, the Server MUST publish the Will Message as a retained message [MQTT-3.1.2-17].",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "Connect Flags",
+              "Will Flag",
+              "Will Retain"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "If the Password Flag is set to 1, the Password field is the next field in the payload.",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "Password Flag",
+              "Connect Flags",
+              "Variable Header",
+              "Password",
+              "Payload"
+          ],
+          "res_type": "CONNACK",
+          "res_fields": []
+      },
+      {
+          "rule": "The Server MAY allow ClientId's that contain more than 23 encoded bytes.",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "Payload",
+              "ClientId"
+          ],
+          "res_type": "CONNACK",
+          "res_fields": []
+      },
+      {
+          "rule": "If the Will Flag is set to 1, the Will QoS and Will Retain fields in the Connect Flags will be used by the Server, and the Will Topic and Will Message fields MUST be present in the payload [MQTT-3.1.2-9].",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "Connect Flags",
+              "Will Flag",
+              "Will QoS",
+              "Will Retain",
+              "Payload",
+              "Will Topic",
+              "Will Message"
+          ],
+          "res_type": "CONNACK",
+          "res_fields": []
+      },
+      {
+          "rule": "If the Server rejects any ClientId for any reason, the Server MUST respond with a CONNACK return code 0x02 (Identifier rejected) and close the Network Connection.",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "Payload",
+              "Client Identifier"
+          ],
+          "res_type": "CONNACK",
+          "res_fields": [
+              "Variable Header",
+              "Connect Return Code"
+          ]
+      },
+      {
+          "rule": "If a Client supplies a zero-byte ClientId with CleanSession set to 0, the Server MUST respond with a CONNACK return code 0x02 (Identifier rejected) and close the Network Connection [MQTT-3.1.3-8].",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "ClientId",
+              "Payload",
+              "CleanSession",
+              "Connect Flags",
+              "Variable Header"
+          ],
+          "res_type": "CONNACK",
+          "res_fields": [
+              "Return Code",
+              "Variable Header"
+          ]
+      },
+      {
+          "rule": "If the Will Flag is set to 0, then the Will Retain Flag MUST be set to 0 [MQTT-3.1.2-15].",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "Connect Flags",
+              "Will Flag",
+              "Will Retain"
+          ],
+          "res_type": "CONNACK",
+          "res_fields": [
+              "Return Code"
+          ]
+      },
+      {
+          "rule": "If a server receives a valid CONNECT packet but cannot process the request, the server must send a CONNACK packet with the corresponding non-zero Connect return code defined in the protocol specification and immediately close the network connection.",
+          "req_type": "CONNECT",
+          "req_fields": [],
+          "res_type": "CONNACK",
+          "res_fields": [
+              "Variable Header",
+              "Connect Return Code"
+          ]
+      },
+      {
+          "rule": "If CleanSession is set to 0 and there is a Session associated with the Client identifier, the Server MUST resume communications with the Client based on state from the current Session.",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "Clean Session",
+              "Client Identifier"
+          ],
+          "res_type": "CONNACK",
+          "res_fields": [
+              "Session Present"
+          ]
+      },
+      {
+          "rule": "If CleanSession is set to 1, the Client and Server MUST discard any previous Session and start a new one.",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "Variable Header",
+              "Connect Flags",
+              "CleanSession"
+          ],
+          "res_type": "CONNACK",
+          "res_fields": []
+      },
+      {
+          "rule": "If a Server allows a Client to supply a zero-byte ClientId, the Server MUST assign a unique ClientId to that Client and process the CONNECT packet as if the Client had provided the assigned ClientId [MQTT-3.1.3-6].",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "Payload",
+              "ClientId"
+          ],
+          "res_type": "CONNACK",
+          "res_fields": []
+      },
+      {
+          "rule": "The Server MUST validate that the CONNECT Packet conforms to section 3.1 and close the Network Connection without sending a CONNACK if the CONNECT Packet does not conform [MQTT-3.1.4-1].",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "Protocol Name",
+              "Protocol Level",
+              "Connect Flags",
+              "Clean Session",
+              "Will Flag",
+              "Will QoS",
+              "Will Retain",
+              "Username Flag",
+              "Password Flag",
+              "Keep Alive",
+              "Client Identifier",
+              "Will Topic",
+              "Will Message",
+              "Username",
+              "Password"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "If CleanSession is set to 0 and there is no Session associated with the Client identifier, the Server MUST create a new Session.",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "Connect Flags",
+              "CleanSession"
+          ],
+          "res_type": "CONNACK",
+          "res_fields": []
+      },
+      {
+          "rule": "The new Session created with CleanSession set to 1 persists only during the Network Connection.",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "Connect Flags",
+              "Clean Session"
+          ],
+          "res_type": "CONNACK",
+          "res_fields": []
+      },
+      {
+          "rule": "If the Password Flag is set to 1, a password MUST be present in the payload [MQTT-3.1.2-21].",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "Variable Header",
+              "Connect Flags",
+              "Password Flag",
+              "Payload",
+              "Password"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "If the User Name Flag is set to 0, the Password Flag MUST be set to 0 [MQTT-3.1.2-22].",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "Connect Flags",
+              "User Name Flag",
+              "Password Flag"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "A Client using CleanSession set to 1 will not receive old Application Messages and must subscribe anew to any topics of interest upon every connection.",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "Connect Flags",
+              "Clean Session"
+          ],
+          "res_type": "CONNACK",
+          "res_fields": []
+      },
+      {
+          "rule": "If the Server rejects the CONNECT Packet, the Server MUST NOT process any data sent by the Client after the CONNECT Packet [MQTT-3.1.4-5].",
+          "req_type": "CONNECT",
+          "req_fields": [],
+          "res_type": "CONNACK",
+          "res_fields": [
+              "variable header",
+              "connect return code"
+          ]
+      },
+      {
+          "rule": "If validation is successful, the Server MUST acknowledge the CONNECT Packet with a CONNACK Packet containing a zero return code [MQTT-3.1.4-4].",
+          "req_type": "CONNECT",
+          "req_fields": [],
+          "res_type": "CONNACK",
+          "res_fields": [
+              "variable header",
+              "Connect Return Code"
+          ]
+      },
+      {
+          "rule": "If the ClientId represents a Client already connected to the Server and the validation is successful, then the Server MUST disconnect the existing Client [MQTT-3.1.4-2].",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "ClientId",
+              "Payload"
+          ],
+          "res_type": "CONNACK",
+          "res_fields": []
+      },
+      {
+          "rule": "When CleanSession is set to 1 the Client and Server need not process the deletion of state atomically.",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "Connect Flags",
+              "CleanSession"
+          ],
+          "res_type": "CONNACK",
+          "res_fields": []
+      },
+      {
+          "rule": "If the Server performs checks on the CONNECT Packet contents for further restrictions or authentication and authorization and any of these checks fail, the Server SHOULD send an appropriate CONNACK response with a non-zero return code as described in section 3.2 and MUST close the Network Connection.",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "Variable Header",
+              "Connect Flags",
+              "Payload",
+              "Username",
+              "Password"
+          ],
+          "res_type": "CONNACK",
+          "res_fields": [
+              "Variable Header",
+              "Connect Return Code"
+          ]
+      },
+      {
+          "rule": "If the Server accepts a connection with CleanSession set to 1, the Server MUST set Session Present to 0 in the CONNACK packet and set a zero return code [MQTT-3.2.2-1].",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "Clean Session",
+              "Connect Flags",
+              "Variable Header"
+          ],
+          "res_type": "CONNACK",
+          "res_fields": [
+              "Session Present",
+              "Connect Return Code",
+              "Variable Header"
+          ]
+      },
+      {
+          "rule": "When the Server accepts a connection with CleanSession set to 0 and has no stored Session state, it MUST set Session Present to 0 and a zero return code in the CONNACK packet [MQTT-3.2.2-3].",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "Variable Header",
+              "CleanSession"
+          ],
+          "res_type": "CONNACK",
+          "res_fields": [
+              "Variable Header",
+              "Session Present",
+              "Connect Return Code"
+          ]
+      },
+      {
+          "rule": "If the Server accepts a connection with CleanSession set to 0, the Session Present value depends on whether the Server has stored Session state for the client ID.",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "Connect Flags",
+              "CleanSession",
+              "ClientID"
+          ],
+          "res_type": "CONNACK",
+          "res_fields": [
+              "Connect Acknowledge Flags",
+              "Session Present"
+          ]
+      },
+      {
+          "rule": "If the Server sends a CONNACK packet with a non-zero return code, the Server MUST set Session Present to 0 [MQTT-3.2.2-4].",
+          "req_type": "CONNECT",
+          "req_fields": [],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "When a Client reconnects with CleanSession set to 0, both the Client and Server MUST re-send any unacknowledged PUBLISH Packets (where QoS > 0) and PUBREL Packets using their original Packet Identifiers [MQTT-4.4.0-1].",
+          "req_type": "CONNECT",
+          "req_fields": [
+              "Connect Flags",
+              "Clean Session"
+          ],
+          "res_type": "",
+          "res_fields": []
+      }
+  ],
+  "PUBLISH": [
+      {
+          "rule": "The Topic Name in the PUBLISH Packet MUST NOT contain wildcard characters [MQTT-3.3.2-2].",
+          "req_type": "PUBLISH",
+          "req_fields": [
+              "Variable Header",
+              "Topic Name"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "The DUP flag MUST be set to 0 for all QoS 0 messages [MQTT-3.3.1-2].",
+          "req_type": "PUBLISH",
+          "req_fields": [
+              "Fixed Header",
+              "DUP",
+              "QoS"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "When a published message matches multiple subscription filters due to overlapping Client subscriptions with wildcards, the Server MUST deliver the message to the Client using the maximum QoS level among all matching subscriptions [MQTT-3.3.5-1].",
+          "req_type": "PUBLISH",
+          "req_fields": [
+              "fixed_header.qos",
+              "variable_header.topic_name"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "If a Server implementation rejects a Client's PUBLISH request, the Server MUST either acknowledge the PUBLISH request according to standard QoS rules or terminate the Network Connection [MQTT-3.3.5-2].",
+          "req_type": "PUBLISH",
+          "req_fields": [
+              "Fixed Header",
+              "QoS Level",
+              "Variable Header",
+              "Packet Identifier"
+          ],
+          "res_type": "",
+          "res_fields": [
+              "Variable Header",
+              "Packet Identifier"
+          ]
+      },
+      {
+          "rule": "The wildcard characters can be used in Topic Filters, but these characters MUST NOT be used within a Topic Name to comply with protocol specifications [MQTT-4.7.1-1].",
+          "req_type": "PUBLISH",
+          "req_fields": [
+              "Topic Name"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "When a Server takes ownership of an incoming Application Message, the Server MUST add the message to the Session state of clients whose Subscriptions match the message according to the matching rules defined in Section 4.7.",
+          "req_type": "PUBLISH",
+          "req_fields": [
+              "topic_name",
+              "payload",
+              "qos",
+              "packet_identifier"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "If the Server receives a QoS 0 PUBLISH Packet with the RETAIN flag set to 1 from a Client, the Server MUST discard any message previously retained for that topic.",
+          "req_type": "PUBLISH",
+          "req_fields": [
+              "Fixed Header",
+              "RETAIN flag",
+              "QoS"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "If the RETAIN flag is set to 1 in a PUBLISH Packet sent by a Client to a Server, the Server MUST store the Application Message and its QoS level, so that the stored Application Message can be delivered to future subscribers whose subscriptions match the message's topic name [MQTT-3.3.1-5].",
+          "req_type": "PUBLISH",
+          "req_fields": [
+              "Fixed Header",
+              "RETAIN",
+              "QoS",
+              "Variable Header",
+              "Topic Name",
+              "Payload"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "If the Server receives a QoS 0 PUBLISH Packet with the RETAIN flag set to 1, it SHOULD store the new QoS 0 message as the retained message for that topic, but MAY discard the newly stored message at any time, resulting in no retained message for the topic [MQTT-3.3.1-7].",
+          "req_type": "PUBLISH",
+          "req_fields": [
+              "Fixed Header",
+              "QoS",
+              "RETAIN flag",
+              "Topic Name"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "A PUBLISH Packet with a zero-byte payload and RETAIN flag set to 1 MUST NOT be stored as a retained message on the Server [MQTT-3.3.1-11].",
+          "req_type": "PUBLISH",
+          "req_fields": [
+              "fixed_header",
+              "retain_flag",
+              "payload"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "If the RETAIN flag is 0 in a PUBLISH Packet sent by a Client to a Server, the Server MUST NOT store the message and MUST NOT remove or replace any existing retained message [MQTT-3.3.1-12].",
+          "req_type": "PUBLISH",
+          "req_fields": [
+              "Fixed Header",
+              "RETAIN"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "When a Server processes a message that has been published to an Ordered Topic, the Server MUST send PUBLISH packets to consumers (for the same Topic and QoS) in the order that the packets were received from any given Client [MQTT-4.6.0-6].",
+          "req_type": "PUBLISH",
+          "req_fields": [
+              "Fixed Header",
+              "QoS",
+              "Variable Header",
+              "Topic Name"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "Each non-wildcarded level in the Topic Filter must exactly match the corresponding level in the Topic Name, character for character, for the subscription match to succeed.",
+          "req_type": "PUBLISH",
+          "req_fields": [
+              "topic_name"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "Additionally, Topic Names and Topic Filters must be UTF-8 encoded strings that do not exceed 65535 bytes in length.",
+          "req_type": "PUBLISH",
+          "req_fields": [
+              "topic_name",
+              "payload",
+              "topic_filter"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "req_type": "PUBLISH",
+          "req_fields": [
+              "Fixed Header",
+              "QoS",
+              "Topic Name",
+              "Payload"
+          ],
+          "res_type": "PUBLISH",
+          "res_fields": [
+              "Fixed Header",
+              "QoS"
+          ],
+          "rule": "The QoS of Payload Messages in PUBLISH packets sent in response to a Subscription MUST be the minimum value between the original message's QoS and the maximum QoS granted by the Server."
+      },
+      {
+          "rule": "In the QoS 2 delivery protocol, the Receiver MUST respond with a PUBREC containing the Packet Identifier from the incoming PUBLISH Packet after accepting ownership of the Application Message.",
+          "req_type": "PUBLISH",
+          "req_fields": [
+              "Packet Identifier",
+              "Variable Header"
+          ],
+          "res_type": "PUBREC",
+          "res_fields": [
+              "Packet Identifier",
+              "Variable Header"
+          ]
+      },
+      {
+          "rule": "The Server SHOULD prevent Clients from using Topic Names starting with a wildcard character to exchange messages with other Clients.",
+          "req_type": "PUBLISH",
+          "req_fields": [
+              "Topic Name"
+          ],
+          "res_type": "",
+          "res_fields": []
+      }
+  ],
+  "PUBREL": [
+      {
+          "rule": "In the PUBREL Packet structure, the variable header MUST contain the same Packet Identifier as the PUBREC Packet being acknowledged by this PUBREL control packet.",
+          "req_type": "PUBREL",
+          "req_fields": [
+              "Variable Header",
+              "Packet Identifier"
+          ],
+          "res_type": "PUBCOMP",
+          "res_fields": [
+              "Variable Header",
+              "Packet Identifier"
+          ]
+      },
+      {
+          "rule": "The Receiver MUST respond to a PUBREL packet by sending a PUBCOMP packet containing the same Packet Identifier as the PUBREL.",
+          "req_type": "PUBREL",
+          "req_fields": [
+              "Packet Identifier"
+          ],
+          "res_type": "PUBCOMP",
+          "res_fields": [
+              "Packet Identifier"
+          ]
+      }
+  ],
+  "SUBSCRIBE": [
+      {
+          "rule": "The Topic Filters in a SUBSCRIBE packet payload MUST be UTF-8 encoded strings as defined in Section 1.5.3 [MQTT-3.8.3-1].",
+          "req_type": "SUBSCRIBE",
+          "req_fields": [
+              "Payload",
+              "Topic Filters"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "If the Server chooses not to support topic filters that contain wildcard characters, the Server MUST reject any Subscription request whose filter contains wildcard characters [MQTT-3.8.3-2].",
+          "req_type": "SUBSCRIBE",
+          "req_fields": [
+              "Payload",
+              "Payload.Topic Filter"
+          ],
+          "res_type": "SUBACK",
+          "res_fields": [
+              "Payload",
+              "Payload.Return Code"
+          ]
+      },
+      {
+          "rule": "The payload of a SUBSCRIBE packet MUST contain at least one Topic Filter / QoS pair.",
+          "req_type": "SUBSCRIBE",
+          "req_fields": [
+              "Payload",
+              "Topic Filter",
+              "QoS"
+          ],
+          "res_type": "SUBACK",
+          "res_fields": [
+              "Packet Identifier",
+              "Return Code"
+          ]
+      },
+      {
+          "rule": "If a Server receives a SUBSCRIBE Packet containing a Topic Filter identical to an existing Subscription's Topic Filter, the Server MUST completely replace the existing Subscription with a new Subscription.",
+          "req_type": "SUBSCRIBE",
+          "req_fields": [
+              "packet_identifier",
+              "payload",
+              "payload.topic_filter",
+              "payload.requested_qos"
+          ],
+          "res_type": "SUBACK",
+          "res_fields": [
+              "packet_identifier",
+              "return_codes"
+          ]
+      },
+      {
+          "rule": "If a Server receives a SUBSCRIBE Packet containing a Topic Filter identical to an existing Subscription's Topic Filter, the Topic Filter in the new Subscription will be identical to that in the previous Subscription, although its maximum QoS value could be different.",
+          "req_type": "SUBSCRIBE",
+          "req_fields": [
+              "packet_identifier",
+              "subscriptions",
+              "topic_filter",
+              "requested_qos"
+          ],
+          "res_type": "SUBACK",
+          "res_fields": [
+              "packet_identifier",
+              "return_codes"
+          ]
+      },
+      {
+          "rule": "If the subscribing Client has been granted maximum QoS 0, then an Application Message originally published as QoS 2 might get lost on the hop to the Client, but the Server should never send a duplicate of that Message.",
+          "req_type": "SUBSCRIBE",
+          "req_fields": [
+              "packet_id",
+              "topic_filter",
+              "requested_qos"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "When the Server receives a SUBSCRIBE Packet from a Client, the Server MUST respond with a SUBACK Packet [MQTT-3.8.4-1].",
+          "req_type": "SUBSCRIBE",
+          "req_fields": [],
+          "res_type": "SUBACK",
+          "res_fields": []
+      },
+      {
+          "rule": "If a Server receives a SUBSCRIBE packet containing multiple Topic Filters, the Server MUST process the packet as multiple SUBSCRIBE packets, but combine all responses into a single SUBACK response [MQTT-3.8.4-4].",
+          "req_type": "SUBSCRIBE",
+          "req_fields": [
+              "List of Topic Subscriptions",
+              "Topic Filters"
+          ],
+          "res_type": "SUBACK",
+          "res_fields": [
+              "Packet Identifier",
+              "Return Codes"
+          ]
+      },
+      {
+          "rule": "If a Server receives a SUBSCRIBE Packet containing a Topic Filter identical to an existing Subscription's Topic Filter, any existing retained messages matching the Topic Filter MUST be re-sent, but the flow of publications MUST NOT be interrupted [MQTT-3.8.4-3].",
+          "req_type": "SUBSCRIBE",
+          "req_fields": [
+              "Payload",
+              "Topic Filter"
+          ],
+          "res_type": "SUBACK",
+          "res_fields": [
+              "Packet Identifier",
+              "Return Code"
+          ]
+      },
+      {
+          "rule": "The multi-level wildcard character MUST be the last character specified in the Topic Filter when it is specified either on its own or following a topic level separator [MQTT-4.7.1-2].",
+          "req_type": "SUBSCRIBE",
+          "req_fields": [
+              "topics",
+              "topic_filter"
+          ],
+          "res_type": "SUBACK",
+          "res_fields": [
+              "return_codes"
+          ]
+      },
+      {
+          "rule": "The Server might grant a lower maximum QoS than the subscriber requested.",
+          "req_type": "SUBSCRIBE",
+          "req_fields": [
+              "Payload",
+              "Topic Filter",
+              "Requested QoS"
+          ],
+          "res_type": "SUBACK",
+          "res_fields": [
+              "Payload",
+              "Return Code",
+              "Packet Identifier"
+          ]
+      },
+      {
+          "rule": "The Server MUST NOT match Topic Filters starting with a wildcard character (# or +) with Topic Names beginning with a wildcard character [MQTT-4.7.2-1].",
+          "req_type": "SUBSCRIBE",
+          "req_fields": [
+              "payload",
+              "payload.topic_filters"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "If a subscribing Client has been granted maximum QoS 1 for a particular Topic Filter, a QoS 2 Message published to the same topic is downgraded by the Server to QoS 1 for delivery to the Client, so that Client might receive duplicate copies of the Message.",
+          "req_type": "SUBSCRIBE",
+          "req_fields": [
+              "Packet Identifier",
+              "Topic Filter",
+              "QoS"
+          ],
+          "res_type": "SUBACK",
+          "res_fields": [
+              "Packet Identifier",
+              "Return Code"
+          ]
+      },
+      {
+          "rule": "When the Server performs subscription matching, it must not normalize Topic Names or Topic Filters, modify unrecognized characters, or substitute any characters during the process.",
+          "req_type": "SUBSCRIBE",
+          "req_fields": [
+              "payload",
+              "payload.topic_filter"
+          ],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "Additionally, Topic Names and Topic Filters must be UTF-8 encoded strings that do not exceed 65535 bytes in length.",
+          "req_type": "SUBSCRIBE",
+          "req_fields": [
+              "topic_name",
+              "payload",
+              "topic_filter"
+          ],
+          "res_type": "",
+          "res_fields": []
+      }
+  ],
+  "UNKNOWN": [
+      {
+          "rule": "If the Server determines that the protocol is MQTT 3.1.1 and does not receive a CONNECT Packet within a reasonable amount of time after the Network Connection is established, the Server SHOULD close the connection.\n\n理由：\n1. 通过上下文锚点识别出原句是嵌套在\"If the Server determines that the protocol is MQTT 3.1.1\"下的子条件，属于强逻辑绑定\n2. \"reasonable amount of time\"虽然存在模糊性，但在协议规范中属于可接受的术语惯例\n3. 合并了必要的上级条件但未添加额外例外，保持了最小前提原则\n4. 消除了对MQTT协议版本条件的隐性依赖，使规则自包含\n\n输出严格遵循：\n- 仅合并直接上级的条件分支\n- 保持原句核心动作(SHOULD close)\n- 未添加其他段落中的验证步骤或异常处理",
+          "req_type": "UNKNOWN",
+          "req_fields": [],
+          "res_type": "",
+          "res_fields": []
+      },
+      {
+          "rule": "When a Client reconnects with CleanSession set to 0, this is the only circumstance where a Client or Server is REQUIRED to redeliver unacknowledged PUBLISH (QoS>0) and PUBREL messages using original Packet Identifiers.  \n\n(注：通过合并前句的关键操作要素「重传未确认的PUBLISH/PUBREL消息」和「使用原始报文标识符」，消除了原句对前文语义的隐含依赖，同时保持条件分支完整性。未新增独立条件或例外，仅压缩了同一上下文下强关联的规范要素)",
+          "req_type": "UNKNOWN",
+          "req_fields": [],
+          "res_type": "",
+          "res_fields": []
+      }
+  ],
+  "PINGREQ": [
+      {
+          "rule": "When the MQTT server receives a PINGREQ Packet from a client, the server MUST send a PINGRESP Packet to acknowledge the connection keep-alive mechanism [MQTT-3.12.4-1].",
+          "req_type": "PINGREQ",
+          "req_fields": [],
+          "res_type": "PINGRESP",
+          "res_fields": []
+      }
+  ],
+  "DISCONNECT": [
+      {
+          "rule": "On receipt of a DISCONNECT Packet, the Server MUST discard any Will Message associated with the current connection without publishing the Will Message.",
+          "req_type": "DISCONNECT",
+          "req_fields": [],
+          "res_type": "",
+          "res_fields": []
+      }
+  ],
+  "UNSUBSCRIBE": [
+      {
+          "rule": "If a Server receives an UNSUBSCRIBE packet containing multiple Topic Filters, the Server MUST process the packet as a sequence of individual UNSUBSCRIBE requests, but only send a single UNSUBACK response.",
+          "req_type": "UNSUBSCRIBE",
+          "req_fields": [
+              "Variable Header",
+              "Packet Identifier",
+              "Payload",
+              "Topic Filters"
+          ],
+          "res_type": "UNSUBACK",
+          "res_fields": [
+              "Variable Header",
+              "Packet Identifier"
+          ]
+      },
+      {
+          "rule": "The Topic Filters (whether they contain wildcards or not) supplied in an UNSUBSCRIBE packet MUST be compared character-by-character with the current set of Topic Filters held by the Server for the Client.",
+          "req_type": "UNSUBSCRIBE",
+          "req_fields": [
+              "Payload",
+              "Topic Filters"
+          ],
+          "res_type": "UNSUBACK",
+          "res_fields": [
+              "Packet Identifier"
+          ]
+      },
+      {
+          "rule": "If any Topic Filter matches exactly with a Subscription held by the Server, the Server MUST delete the corresponding Subscription; otherwise, no additional processing occurs [MQTT-3.10.4-1].",
+          "req_type": "UNSUBSCRIBE",
+          "req_fields": [
+              "Variable Header",
+              "Packet Identifier",
+              "Payload",
+              "Topic Filters"
+          ],
+          "res_type": "UNSUBACK",
+          "res_fields": [
+              "Variable Header",
+              "Packet Identifier"
+          ]
+      },
+      {
+          "rule": "The Topic Filters in an UNSUBSCRIBE packet MUST be UTF-8 encoded strings as defined in Section 1.5.3, packed contiguously [MQTT-3.10.3-1].",
+          "req_type": "UNSUBSCRIBE",
+          "req_fields": [
+              "Payload",
+              "Topic Filters"
+          ],
+          "res_type": "UNSUBACK",
+          "res_fields": [
+              "Packet Identifier"
+          ]
+      },
+      {
+          "rule": "The Server MUST respond to an UNSUBSCRIBE request by sending an UNSUBACK packet.",
+          "req_type": "UNSUBSCRIBE",
+          "req_fields": [],
+          "res_type": "UNSUBACK",
+          "res_fields": []
+      },
+      {
+          "rule": "Additionally, Topic Names and Topic Filters must be UTF-8 encoded strings that do not exceed 65535 bytes in length.",
+          "req_type": "UNSUBSCRIBE",
+          "req_fields": [
+              "topic_name",
+              "payload",
+              "topic_filter"
+          ],
+          "res_type": "",
+          "res_fields": []
+      }
+  ],
+  "PUBREC": [
+      {
+          "rule": "The PUBREL packet sent when the Sender receives a PUBREC packet MUST contain the same Packet Identifier as the original PUBLISH packet.",
+          "req_type": "PUBREC",
+          "req_fields": [
+              "Variable Header",
+              "Packet Identifier"
+          ],
+          "res_type": "PUBREL",
+          "res_fields": [
+              "Variable Header",
+              "Packet Identifier"
+          ]
+      }
+  ]
+}
