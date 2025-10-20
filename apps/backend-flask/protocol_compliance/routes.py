@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import subprocess
+import threading
 from typing import Iterable, Optional
 
 from flask import Blueprint, make_response, request
@@ -238,3 +241,202 @@ def _strip_extension(filename: str) -> str:
     if "." not in filename:
         return filename
     return filename.rsplit(".", 1)[0]
+
+
+# RTSP Protocol Specific Routes ---------------------------------------------
+
+# RTSP协议配置 - 在这里修改路径和命令
+RTSP_CONFIG = {
+    "script_path": "/home/hhh/下载/AFLNET/commands/run-aflnet.sh",  # 修改为你的脚本文件路径
+    "shell_command": "cd /home/hhh/下载/AFLNET/ && docker run -d --privileged -v $(pwd)/output:/home/live555/testProgs/out-live555 -v $(pwd)/commands:/host-commands -p 8554:8554 aflnet-live555",  # 修改为你的启动命令
+    "log_file_path": "/home/hhh/下载/AFLNET/output/plot_data"  # 修改为你的日志文件路径
+}
+
+@bp.route("/write-script", methods=["POST"])
+def write_script():
+    """写入脚本文件到指定路径"""
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+    
+    data = request.get_json()
+    if not data:
+        return make_response(error_response("请求数据不能为空"), 400)
+    
+    content = data.get("content")
+    protocol = data.get("protocol", "UNKNOWN")
+    
+    if not content:
+        return make_response(error_response("脚本内容不能为空"), 400)
+    
+    # 根据协议获取配置
+    if protocol == "RTSP":
+        file_path = RTSP_CONFIG["script_path"]
+    else:
+        return make_response(error_response(f"不支持的协议类型: {protocol}"), 400)
+    
+    try:
+        # 确保目录存在
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        
+        # 写入文件（覆盖模式）
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        
+        # 如果是shell脚本，设置执行权限
+        if file_path.endswith('.sh'):
+            os.chmod(file_path, 0o755)
+        
+        return success_response({
+            "message": f"{protocol}脚本文件写入成功",
+            "filePath": file_path,
+            "size": len(content.encode('utf-8'))
+        })
+        
+    except Exception as e:
+        return make_response(error_response(f"写入文件失败: {str(e)}"), 500)
+
+
+@bp.route("/execute-command", methods=["POST"])
+def execute_command():
+    """执行shell命令启动程序"""
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+    
+    data = request.get_json()
+    if not data:
+        return make_response(error_response("请求数据不能为空"), 400)
+    
+    protocol = data.get("protocol", "UNKNOWN")
+    
+    # 根据协议获取配置
+    if protocol == "RTSP":
+        command = RTSP_CONFIG["shell_command"]
+    else:
+        return make_response(error_response(f"不支持的协议类型: {protocol}"), 400)
+    
+    try:
+        print(f"[DEBUG] 执行命令: {command}")  # 调试日志
+        
+        # 使用subprocess.run等待命令完成，而不是Popen
+        result = subprocess.run(
+            command,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=30  # 30秒超时
+        )
+        
+        print(f"[DEBUG] 命令返回码: {result.returncode}")  # 调试日志
+        
+        if result.returncode == 0:
+            # 命令执行成功
+            print(f"[DEBUG] 命令执行成功")
+            print(f"[DEBUG] stdout: {result.stdout}")
+            
+            # 对于docker run -d，成功的话stdout通常包含容器ID
+            container_id = result.stdout.strip() if result.stdout.strip() else "unknown"
+            
+            return success_response({
+                "message": f"{protocol}命令执行成功",
+                "command": command,
+                "container_id": container_id,
+                "pid": "docker_container"  # Docker容器没有传统意义的PID
+            })
+        else:
+            # 命令执行失败
+            error_msg = result.stderr.strip() if result.stderr.strip() else "未知错误"
+            print(f"[DEBUG] 命令执行失败: {error_msg}")
+            return make_response(error_response(f"命令执行失败: {error_msg}"), 500)
+        
+    except subprocess.TimeoutExpired:
+        print(f"[DEBUG] 命令执行超时")
+        return make_response(error_response("命令执行超时"), 500)
+    except Exception as e:
+        print(f"[DEBUG] 异常: {str(e)}")  # 调试日志
+        return make_response(error_response(f"执行命令失败: {str(e)}"), 500)
+
+
+@bp.route("/read-log", methods=["POST"])
+def read_log():
+    """实时读取日志文件内容"""
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+    
+    data = request.get_json()
+    if not data:
+        return make_response(error_response("请求数据不能为空"), 400)
+    
+    protocol = data.get("protocol", "UNKNOWN")
+    last_position = data.get("lastPosition", 0)
+    
+    # 根据协议获取配置
+    if protocol == "RTSP":
+        file_path = RTSP_CONFIG["log_file_path"]
+    else:
+        return make_response(error_response(f"不支持的协议类型: {protocol}"), 400)
+    
+    try:
+        if not os.path.exists(file_path):
+            return success_response({
+                "content": "",
+                "position": last_position,
+                "message": "日志文件尚未创建"
+            })
+        
+        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+            # 移动到上次读取的位置
+            f.seek(last_position)
+            
+            # 读取新内容
+            new_content = f.read()
+            
+            # 获取当前位置
+            current_position = f.tell()
+        
+        return success_response({
+            "content": new_content,
+            "position": current_position,
+            "protocol": protocol,
+            "message": f"成功读取{len(new_content)}字符"
+        })
+        
+    except Exception as e:
+        return make_response(error_response(f"读取日志文件失败: {str(e)}"), 500)
+
+
+@bp.route("/stop-process", methods=["POST"])
+def stop_process():
+    """停止指定进程"""
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+    
+    data = request.get_json()
+    if not data:
+        return make_response(error_response("请求数据不能为空"), 400)
+    
+    pid = data.get("pid")
+    protocol = data.get("protocol", "UNKNOWN")
+    
+    if not pid:
+        return make_response(error_response("进程ID不能为空"), 400)
+    
+    try:
+        if os.name == 'nt':  # Windows
+            subprocess.run(['taskkill', '/F', '/PID', str(pid)], check=True)
+        else:  # Unix/Linux
+            os.killpg(os.getpgid(pid), 9)
+        
+        return success_response({
+            "message": f"{protocol}进程停止成功",
+            "pid": pid
+        })
+        
+    except subprocess.CalledProcessError:
+        return make_response(error_response(f"进程 {pid} 不存在或已停止"), 404)
+    except Exception as e:
+        return make_response(error_response(f"停止进程失败: {str(e)}"), 500)
