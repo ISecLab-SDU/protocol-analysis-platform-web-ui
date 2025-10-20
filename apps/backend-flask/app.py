@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from flask import Flask
-
+from flask_cors import CORS
 try:
     # Support running as a module (python -m backend_flask) and as a script (uv run app.py).
     from .auth import bp as auth_blueprint
