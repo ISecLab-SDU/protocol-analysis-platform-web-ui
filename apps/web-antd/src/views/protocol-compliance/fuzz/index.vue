@@ -77,7 +77,7 @@ watch(protocolType, (newProtocol) => {
     targetPort.value = 1883;
   }
 });
-const showCharts = ref(true);
+const showCharts = ref(false);
 const crashDetails = ref<any>(null);
 const logEntries = ref<any[]>([]);
 const startTime = ref<string>('');
@@ -588,6 +588,7 @@ async function startTest() {
   resetTestState();
   isRunning.value = true;
   isTestCompleted.value = false;
+  showCharts.value = false; // 测试开始时隐藏图表
   testStartTime.value = new Date();
   
   // 根据协议类型执行不同的启动逻辑
@@ -1057,10 +1058,7 @@ function loop() {
   currentPacketIndex.value++;
   packetCount.value++;
   
-  if (packetCount.value === 1 || packetCount.value % 50 === 0 || currentPacketIndex.value >= fuzzData.value.length) {
-    updateCharts();
-    showCharts.value = true;
-  }
+  // 测试过程中不更新图表，只在测试结束时更新
   
   // Check for crash and stop if detected
   if (packet?.result === 'crash') {
@@ -1410,9 +1408,12 @@ onMounted(async () => {
   const success = initCharts();
   if (success) {
     console.log('Charts initialized successfully on mount');
-    // Update charts with initial data
+    // Update charts with initial data but don't show them yet
     updateCharts();
-    showCharts.value = true;
+    // 只有在有完整数据且测试已完成时才显示图表
+    if (isTestCompleted.value) {
+      showCharts.value = true;
+    }
   } else {
     console.error('Failed to initialize charts');
   }
@@ -1675,8 +1676,8 @@ onMounted(async () => {
               <div>
                 <h4 class="text-base font-medium mb-3 text-dark/80 text-center">消息类型分布</h4>
                 <div class="h-60 relative">
-                  <canvas ref="messageCanvas" id="messageTypeMainChart" class="absolute inset-0 transition-opacity duration-500"></canvas>
-                  <div v-if="!isTestCompleted && !showCharts" class="absolute inset-0 flex flex-col items-center justify-center text-dark/50 bg-white rounded-lg">
+                  <canvas ref="messageCanvas" id="messageTypeMainChart" class="absolute inset-0 transition-opacity duration-500" :class="{ 'opacity-0': !isTestCompleted }"></canvas>
+                  <div v-if="!isTestCompleted" class="absolute inset-0 flex flex-col items-center justify-center text-dark/50 bg-white rounded-lg">
                     <div class="bg-primary/10 p-3 rounded-full mb-2">
                       <i class="fa fa-pie-chart text-2xl text-primary/70"></i>
                     </div>
@@ -1688,8 +1689,8 @@ onMounted(async () => {
               <div>
                 <h4 class="text-base font-medium mb-3 text-dark/80 text-center">SNMP版本分布</h4>
                 <div class="h-60 relative">
-                  <canvas ref="versionCanvas" id="versionDistributionChart" class="absolute inset-0 transition-opacity duration-500"></canvas>
-                  <div v-if="!isTestCompleted && !showCharts" class="absolute inset-0 flex flex-col items-center justify-center text-dark/50 bg-white rounded-lg">
+                  <canvas ref="versionCanvas" id="versionDistributionChart" class="absolute inset-0 transition-opacity duration-500" :class="{ 'opacity-0': !isTestCompleted }"></canvas>
+                  <div v-if="!isTestCompleted" class="absolute inset-0 flex flex-col items-center justify-center text-dark/50 bg-white rounded-lg">
                     <div class="bg-primary/10 p-3 rounded-full mb-2">
                       <i class="fa fa-chart-pie text-2xl text-primary/70"></i>
                     </div>
