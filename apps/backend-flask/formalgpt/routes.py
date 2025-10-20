@@ -11,8 +11,15 @@ import uuid
 bp = Blueprint('formal_gpt', __name__, url_prefix='/api/formal-gpt')
 # 在文件开头添加配置
 # 配置路径
-CASE_FOLDER = '/amax/bxy/formalgpt/case'
-UPLOAD_FOLDER = '/amax/bxy/formalgpt/uploads'  # 上传文件存储路径
+# CASE_FOLDER = '/amax/bxy/formalgpt/case'
+# UPLOAD_FOLDER = '/amax/bxy/formalgpt/uploads'  # 上传文件存储路径
+# ALLOWED_EXTENSIONS = {'txt', 'pdf', 'doc', 'docx'}
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# 构建相对路径
+CASE_FOLDER = os.path.join(BASE_DIR, '../../../../formalgpt/case')
+UPLOAD_FOLDER = os.path.join(BASE_DIR, '../../../../formalgpt/uploads')  # 上传文件存储路径
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'doc', 'docx'}
 
 def allowed_file(filename):
