@@ -705,8 +705,12 @@ class ProtocolGuardDockerRunner:
         context_dir: Path,
         dockerfile_path: Path,
     ) -> str:
-        if docker is None:
-            raise ProtocolGuardNotAvailableError("Docker SDK is not available; cannot build builder image.")
+        """Build the builder image for the uploaded project.
+
+        Always uses the docker CLI with BuildKit enabled so Dockerfiles with
+        heredocs and other BuildKit features parse reliably without any
+        environment toggles on the user's side.
+        """
 
         try:
             dockerfile_rel = dockerfile_path.relative_to(context_dir)
@@ -719,101 +723,12 @@ class ProtocolGuardDockerRunner:
         self._log_step(
             job_paths,
             "builder",
-            f"docker-py build start (tag={tag}, context={context_dir}, dockerfile={dockerfile_rel})",
+            f"Using docker CLI (BuildKit) for builder image (tag={tag}, context={context_dir}, dockerfile={dockerfile_rel})",
         )
+
         proxy_url = self._detect_builder_proxy()
-        buildargs: Dict[str, str] = {}
-        network_mode: Optional[str] = None
-        if proxy_url:
-            self._log_step(
-                job_paths,
-                "builder",
-                f"Detected local proxy at {proxy_url}; enabling host networking for builder build",
-            )
-            buildargs = {
-                "HTTP_PROXY": proxy_url,
-                "HTTPS_PROXY": proxy_url,
-                "http_proxy": proxy_url,
-                "https_proxy": proxy_url,
-            }
-            network_mode = "host"
-        build_output = None
+        # Prefer the CLI with BuildKit support by default
         try:
-            build_output = self._client.api.build(
-                path=str(context_dir),
-                dockerfile=str(dockerfile_rel),
-                tag=tag,
-                rm=True,
-                buildargs=buildargs or None,
-                network_mode=network_mode,
-                decode=True,
-            )
-        except DockerException as exc:
-            raise ProtocolGuardDockerError(f"Failed to start builder image build via Docker API: {exc}") from exc
-
-        fallback_to_cli = False
-        try:
-            for chunk in build_output:
-                if not chunk:
-                    continue
-                status = chunk.get("status")
-                progress = chunk.get("progress")
-                if status:
-                    text = status.strip()
-                    identifier = chunk.get("id")
-                    if identifier:
-                        text = f"{identifier} {text}"
-                    if progress:
-                        text = f"{text} {progress.strip()}"
-                    if text:
-                        self._log_step(job_paths, "builder-status", text)
-                stream = chunk.get("stream")
-                if stream:
-                    text = stream.strip()
-                    if text:
-                        self._log_step(job_paths, "builder-log", text)
-                aux = chunk.get("aux")
-                if isinstance(aux, dict):
-                    raw_image_id = aux.get("ID") or aux.get("id")
-                    if isinstance(raw_image_id, str):
-                        image_id = raw_image_id.strip()
-                        if image_id:
-                            self._log_step(job_paths, "builder-status", f"Image ID reported: {image_id}")
-                error = chunk.get("error")
-                error_detail = chunk.get("errorDetail", {})
-                message = ""
-                if isinstance(error, str):
-                    message = error.strip()
-                elif isinstance(error_detail, dict):
-                    message = (error_detail.get("message") or "").strip()
-                if message:
-                    self._log_step(job_paths, "builder", f"Docker build error: {message}", level=logging.ERROR)
-                    lowered = message.lower()
-                    if any(
-                        token in lowered
-                        for token in (
-                            "requires buildkit",
-                            "<<'",
-                            "here-document",
-                            "here document",
-                            "heredoc",
-                        )
-                    ):
-                        fallback_to_cli = True
-                        break
-                    raise ProtocolGuardDockerError(f"Builder image build failed: {message}")
-        finally:
-            close_fn = getattr(build_output, "close", None)
-            if callable(close_fn):
-                close_fn()
-
-        if fallback_to_cli:
-            self._log_step(
-                job_paths,
-                "builder",
-                "Builder image requires BuildKit; retrying with docker CLI fallback",
-                level=logging.WARNING,
-            )
             return self._build_builder_image_with_cli(
                 job_paths=job_paths,
                 context_dir=context_dir,
@@ -821,9 +736,11 @@ class ProtocolGuardDockerRunner:
                 tag=tag,
                 proxy_url=proxy_url,
             )
-
-        self._log_step(job_paths, "builder", f"docker-py build completed for {tag}")
-        return tag
+        except ProtocolGuardDockerError:
+            # If CLI build fails for reasons other than Dockerfile syntax,
+            # surface the error as-is. Falling back to the legacy API build
+            # would not handle heredocs anyway, so it's not useful here.
+            raise
 
     def _build_builder_image_with_cli(
         self,
@@ -866,13 +783,16 @@ class ProtocolGuardDockerRunner:
             raise ProtocolGuardDockerError(f"Failed to invoke docker CLI for builder image build: {exc}") from exc
 
         assert process.stdout is not None
-        try:
-            for line in process.stdout:
-                text = line.rstrip()
-                if text:
-                    LOGGER.info("[builder build %s] %s", job_paths.job_id, text)
-        finally:
-            process.stdout.close()
+        # Stream CLI output both to progress events and to the job log file
+        with job_paths.log_file.open("a", encoding="utf-8") as log_file:
+            try:
+                for line in process.stdout:
+                    text = line.rstrip()
+                    if text:
+                        log_file.write(text + "\n")
+                        self._log_step(job_paths, "builder-log", text)
+            finally:
+                process.stdout.close()
         exit_code = process.wait()
         if exit_code != 0:
             raise ProtocolGuardDockerError(
