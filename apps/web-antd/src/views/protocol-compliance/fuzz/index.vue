@@ -577,8 +577,12 @@ function resetTestState() {
   showCrashDetails.value = false;
   logEntries.value = [];
   
-  if (logContainer.value) {
-    logContainer.value.innerHTML = '';
+  try {
+    if (logContainer.value && !showHistoryView.value) {
+      logContainer.value.innerHTML = '';
+    }
+  } catch (error) {
+    console.warn('Failed to reset log container:', error);
   }
 }
 
@@ -980,10 +984,15 @@ function togglePauseTest() {
 }
 
 function clearLog() {
-  if (logContainer.value) {
-    logContainer.value.innerHTML = '<div class="text-dark/50 italic">测试未开始，请配置参数并点击"开始测试"</div>';
+  try {
+    if (logContainer.value && !showHistoryView.value) {
+      logContainer.value.innerHTML = '<div class="text-dark/50 italic">测试未开始，请配置参数并点击"开始测试"</div>';
+    }
+    logEntries.value = [];
+  } catch (error) {
+    console.warn('Failed to clear log:', error);
+    logEntries.value = [];
   }
-  logEntries.value = [];
 }
 
 function saveLog() {
@@ -1044,7 +1053,10 @@ function generateTestReport() {
 }
 
 function loop() {
-  if (!isRunning.value || isPaused.value) return;
+  // 检查测试是否应该继续运行
+  if (!isRunning.value || isPaused.value || showHistoryView.value) {
+    return;
+  }
   
   if (currentPacketIndex.value >= fuzzData.value.length) {
     return stopTest();
@@ -1068,8 +1080,10 @@ function loop() {
     return;
   }
   
-  // Continue loop with appropriate delay
-  window.setTimeout(() => loop(), packetDelay.value);
+  // Continue loop with appropriate delay, but check again if we should continue
+  if (isRunning.value && !isPaused.value && !showHistoryView.value) {
+    window.setTimeout(() => loop(), packetDelay.value);
+  }
 }
 
 function processPacket(packet: FuzzPacket) {
@@ -1103,35 +1117,48 @@ function processPacket(packet: FuzzPacket) {
 }
 
 function addLogToUI(packet: FuzzPacket, isCrash: boolean) {
-  if (!logContainer.value) return;
-  
-  const div = document.createElement('div');
-  div.className = isCrash ? 'crash-highlight' : 'packet-highlight';
-  
-  if (isCrash) {
-    div.innerHTML = `<span class="text-dark/50">[${packet.timestamp || ''}]</span> <span class="text-danger font-bold">CRASH DETECTED</span> <span class="text-danger">${packet.version?.toUpperCase()}</span> <span class="text-danger">${packet.type?.toUpperCase()}</span>`;
-  } else {
-    const protocol = packet.version?.toUpperCase() || 'UNKNOWN';
-    const op = packet.type?.toUpperCase() || 'UNKNOWN';
-    const time = packet.timestamp || '';
-    const content = packet.oids?.[0] || '';
-    const hex = (packet.hex || '').slice(0, 40);
-    const resultText = packet.result === 'success' ? `正常响应 (${packet.responseSize || 0}字节)` : 
-                      packet.result === 'timeout' ? '接收超时' : 
-                      packet.result === 'failed' ? '构造失败' : '未知状态';
-    const resultClass = packet.result === 'success' ? 'text-success' : 
-                       packet.result === 'timeout' ? 'text-warning' : 
-                       packet.result === 'failed' ? 'text-danger' : 'text-warning';
-    
-    div.innerHTML = `<span class="text-dark/50">[${time}]</span> <span class="text-primary">SNMP${protocol}</span> <span class="text-info">${op}</span> <span class="text-dark/70 truncate inline-block w-32" title="${content}">${content}</span> <span class="${resultClass} font-medium">${resultText}</span> <span class="text-dark/40">${hex}...</span>`;
+  // 检查DOM元素是否存在且在实时测试视图中
+  if (!logContainer.value || showHistoryView.value || !isRunning.value) {
+    return;
   }
   
-  logContainer.value.appendChild(div);
-  logContainer.value.scrollTop = logContainer.value.scrollHeight;
-  
-  // Limit log entries for performance
-  if (logContainer.value.children.length > 200) {
-    logContainer.value.removeChild(logContainer.value.firstChild as any);
+  try {
+    const div = document.createElement('div');
+    div.className = isCrash ? 'crash-highlight' : 'packet-highlight';
+    
+    if (isCrash) {
+      div.innerHTML = `<span class="text-dark/50">[${packet.timestamp || ''}]</span> <span class="text-danger font-bold">CRASH DETECTED</span> <span class="text-danger">${packet.version?.toUpperCase()}</span> <span class="text-danger">${packet.type?.toUpperCase()}</span>`;
+    } else {
+      const protocol = packet.version?.toUpperCase() || 'UNKNOWN';
+      const op = packet.type?.toUpperCase() || 'UNKNOWN';
+      const time = packet.timestamp || '';
+      const content = packet.oids?.[0] || '';
+      const hex = (packet.hex || '').slice(0, 40);
+      const resultText = packet.result === 'success' ? `正常响应 (${packet.responseSize || 0}字节)` : 
+                        packet.result === 'timeout' ? '接收超时' : 
+                        packet.result === 'failed' ? '构造失败' : '未知状态';
+      const resultClass = packet.result === 'success' ? 'text-success' : 
+                         packet.result === 'timeout' ? 'text-warning' : 
+                         packet.result === 'failed' ? 'text-danger' : 'text-warning';
+      
+      div.innerHTML = `<span class="text-dark/50">[${time}]</span> <span class="text-primary">SNMP${protocol}</span> <span class="text-info">${op}</span> <span class="text-dark/70 truncate inline-block w-32" title="${content}">${content}</span> <span class="${resultClass} font-medium">${resultText}</span> <span class="text-dark/40">${hex}...</span>`;
+    }
+    
+    // 再次检查DOM元素是否仍然存在
+    if (logContainer.value && logContainer.value.appendChild) {
+      logContainer.value.appendChild(div);
+      logContainer.value.scrollTop = logContainer.value.scrollHeight;
+      
+      // Limit log entries for performance
+      if (logContainer.value.children.length > 200) {
+        const firstChild = logContainer.value.firstChild;
+        if (firstChild) {
+          logContainer.value.removeChild(firstChild);
+        }
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to add log to UI:', error);
   }
 }
 
@@ -1213,22 +1240,30 @@ function addRealCrashLogEntries(crashEvent: any) {
   );
   
   // Add to UI
-  if (logContainer.value) {
-    const logs = [
-      `<span class="text-dark/50">[${time}]</span> <span class="text-danger font-medium">${crashEvent.message}</span>`,
-      `<span class="text-dark/50">[${time}]</span> <span class="text-danger">[崩溃信息] 疑似崩溃数据包: ${crashEvent.crashPacket}</span>`,
-      `<span class="text-dark/50">[${time}]</span> <span class="text-danger">[崩溃信息] 崩溃队列信息导出: ${crashEvent.crashLogPath}</span>`,
-      `<span class="text-dark/50">[${time}]</span> <span class="text-danger font-medium">[运行监控] 检测到崩溃，停止 fuzz 循环</span>`
-    ];
-    
-    logs.forEach(logHtml => {
-      const div = document.createElement('div');
-      div.className = 'crash-highlight';
-      div.innerHTML = logHtml;
-      logContainer.value!.appendChild(div);
-    });
-    
-    logContainer.value.scrollTop = logContainer.value.scrollHeight;
+  try {
+    if (logContainer.value && !showHistoryView.value && isRunning.value) {
+      const logs = [
+        `<span class="text-dark/50">[${time}]</span> <span class="text-danger font-medium">${crashEvent.message}</span>`,
+        `<span class="text-dark/50">[${time}]</span> <span class="text-danger">[崩溃信息] 疑似崩溃数据包: ${crashEvent.crashPacket}</span>`,
+        `<span class="text-dark/50">[${time}]</span> <span class="text-danger">[崩溃信息] 崩溃队列信息导出: ${crashEvent.crashLogPath}</span>`,
+        `<span class="text-dark/50">[${time}]</span> <span class="text-danger font-medium">[运行监控] 检测到崩溃，停止 fuzz 循环</span>`
+      ];
+      
+      logs.forEach(logHtml => {
+        if (logContainer.value && logContainer.value.appendChild) {
+          const div = document.createElement('div');
+          div.className = 'crash-highlight';
+          div.innerHTML = logHtml;
+          logContainer.value.appendChild(div);
+        }
+      });
+      
+      if (logContainer.value) {
+        logContainer.value.scrollTop = logContainer.value.scrollHeight;
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to add crash log to UI:', error);
   }
 }
 
@@ -1244,24 +1279,32 @@ function addCrashLogEntries(crashDetails: any, protocol: string, hex: string) {
     { time, type: 'stop_fuzz', message: '检测到崩溃，停止 fuzz 循环' }
   );
   
-  if (logContainer.value) {
-    const logs = [
-      `<span class="text-dark/50">[${time}]</span> <span class="text-danger font-medium">[运行监控] 收到崩溃通知: 健康服务报告 VM 不可达</span>`,
-      `<span class="text-dark/50">[${time}]</span> <span class="text-danger">[崩溃信息] 疑似崩溃数据包: ${hex}</span>`,
-      `<span class="text-dark/50">[${time}]</span> <span class="text-danger">[崩溃信息] 日志导出目录: ${crashDetails.logPath}</span>`,
-      `<span class="text-dark/50">[${time}]</span> <span class="text-warning">  [接收超时]</span>`,
-      `<span class="text-dark/50">[${time}]</span> <span class="text-warning">  响应: 无</span>`,
-      `<span class="text-dark/50">[${time}]</span> <span class="text-danger font-medium">[运行监控] 检测到崩溃，停止 fuzz 循环</span>`
-    ];
-    
-    logs.forEach(logHtml => {
-      const div = document.createElement('div');
-      div.className = 'crash-highlight';
-      div.innerHTML = logHtml;
-      logContainer.value!.appendChild(div);
-    });
-    
-    logContainer.value.scrollTop = logContainer.value.scrollHeight;
+  try {
+    if (logContainer.value && !showHistoryView.value && isRunning.value) {
+      const logs = [
+        `<span class="text-dark/50">[${time}]</span> <span class="text-danger font-medium">[运行监控] 收到崩溃通知: 健康服务报告 VM 不可达</span>`,
+        `<span class="text-dark/50">[${time}]</span> <span class="text-danger">[崩溃信息] 疑似崩溃数据包: ${hex}</span>`,
+        `<span class="text-dark/50">[${time}]</span> <span class="text-danger">[崩溃信息] 日志导出目录: ${crashDetails.logPath}</span>`,
+        `<span class="text-dark/50">[${time}]</span> <span class="text-warning">  [接收超时]</span>`,
+        `<span class="text-dark/50">[${time}]</span> <span class="text-warning">  响应: 无</span>`,
+        `<span class="text-dark/50">[${time}]</span> <span class="text-danger font-medium">[运行监控] 检测到崩溃，停止 fuzz 循环</span>`
+      ];
+      
+      logs.forEach(logHtml => {
+        if (logContainer.value && logContainer.value.appendChild) {
+          const div = document.createElement('div');
+          div.className = 'crash-highlight';
+          div.innerHTML = logHtml;
+          logContainer.value.appendChild(div);
+        }
+      });
+      
+      if (logContainer.value) {
+        logContainer.value.scrollTop = logContainer.value.scrollHeight;
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to add crash log entries to UI:', error);
   }
 }
 
