@@ -103,7 +103,9 @@ export interface ProtocolStaticAnalysisResult {
 }
 
 export interface RunProtocolStaticAnalysisPayload {
-  code: File;
+  builderDockerfile: File;
+  codeArchive: File;
+  config: File;
   notes?: string;
   rules: File;
 }
@@ -161,10 +163,18 @@ export async function downloadProtocolComplianceTaskResult(taskId: string) {
 export function runProtocolStaticAnalysis(
   payload: RunProtocolStaticAnalysisPayload,
 ) {
-  const { code, notes, rules } = payload;
+  const {
+    builderDockerfile,
+    codeArchive,
+    config,
+    notes,
+    rules,
+  } = payload;
   const formData = new FormData();
+  formData.append('codeArchive', codeArchive);
+  formData.append('builderDockerfile', builderDockerfile);
   formData.append('rules', rules);
-  formData.append('code', code);
+  formData.append('config', config);
   if (notes?.trim()) {
     formData.append('notes', notes.trim());
   }

@@ -8,9 +8,12 @@ import logging
 import os
 import shutil
 import sqlite3
+import tarfile
 import tempfile
 import time
 import uuid
+import zipfile
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,10 +21,11 @@ from typing import BinaryIO, Dict, Iterable, List, Mapping, Optional, Sequence, 
 
 try:
     import docker
-    from docker.errors import DockerException
+    from docker.errors import BuildError, DockerException
 except ModuleNotFoundError:  # pragma: no cover - optional dependency
     docker = None  # type: ignore
     DockerException = RuntimeError  # type: ignore
+    BuildError = RuntimeError  # type: ignore
 
 import toml
 
@@ -357,6 +361,10 @@ class ProtocolGuardDockerRunner:
         *,
         code_stream: BinaryIO,
         code_filename: str,
+        builder_stream: BinaryIO,
+        builder_filename: str,
+        config_stream: BinaryIO,
+        config_filename: str,
         rules_stream: BinaryIO,
         rules_filename: str,
         notes: Optional[str],
@@ -371,36 +379,77 @@ class ProtocolGuardDockerRunner:
 
         LOGGER.info("Starting ProtocolGuard static analysis job %s", job_id)
 
+        built_builder_image: Optional[str] = None
+
         try:
             self._stage_workspace(job_paths)
-            code_path = self._write_stream(job_paths.workspace / "uploads" / code_filename, code_stream)
-            rules_path = self._write_stream(
-                job_paths.workspace / self._settings.artifacts.rule_config, rules_stream
-            )
-            LOGGER.debug("Staged code at %s and rules at %s", code_path, rules_path)
+            self._ensure_workspace_structure(job_paths)
 
-            if self._settings.builder_image:
-                self._run_builder(job_paths)
+            uploads_dir = job_paths.workspace / "uploads"
+            code_filename_real = code_filename or "source-archive"
+            code_path = self._write_stream(uploads_dir / code_filename_real, code_stream)
+            rules_filename_real = rules_filename or self._settings.artifacts.rule_config.name
+            builder_filename_real = builder_filename or "Dockerfile"
+            config_filename_real = config_filename or "config.toml"
 
-            self._validate_required_inputs(job_paths)
+            project_dir = job_paths.workspace / "project"
+            self._reset_directory(project_dir)
+            self._extract_archive(code_path, project_dir)
+            if not any(project_dir.iterdir()):
+                raise ProtocolGuardDockerError(
+                    "Source archive did not contain any files. Please verify the uploaded archive."
+                )
 
-            config_data = self._build_config(
+            dockerfile_path = project_dir / builder_filename_real
+            self._write_stream(dockerfile_path, builder_stream)
+
+            builder_image = None
+            if builder_stream:
+                builder_image = self._build_builder_image(
+                    job_paths=job_paths,
+                    context_dir=project_dir,
+                    dockerfile_path=dockerfile_path,
+                )
+                built_builder_image = builder_image
+            elif self._settings.builder_image:
+                builder_image = self._settings.builder_image
+            else:
+                raise ProtocolGuardDockerError(
+                    "Builder Dockerfile not provided and no default builder image configured."
+                )
+
+            rules_path = self._stage_rules_file(job_paths, rules_stream)
+            LOGGER.debug("Staged code archive at %s, project at %s, rules at %s", code_path, project_dir, rules_path)
+
+            config_data = self._load_config(config_stream, config_filename)
+            prepared_config = self._prepare_config(
+                config_data=config_data,
                 job_paths=job_paths,
-                rules_path=rules_path,
                 protocol_name=protocol_name,
                 protocol_version=protocol_version,
             )
-            self._write_config(job_paths.config_file, config_data)
+            self._write_config(job_paths.config_file, prepared_config)
+
+            if builder_image:
+                self._run_builder(
+                    job_paths,
+                    image=builder_image,
+                    command=self._settings.builder_command,
+                )
+
+            self._validate_required_inputs(job_paths)
 
             logs = self._run_analysis(job_paths)
 
             result = self._collect_results(
                 job_paths=job_paths,
                 start_time=start,
-                code_filename=Path(code_filename).name,
+                code_filename=Path(code_filename_real).name,
+                builder_filename=Path(builder_filename_real).name,
+                config_filename=Path(config_filename_real).name,
                 notes=notes,
                 rules_summary=rules_summary,
-                rules_filename=Path(rules_filename).name,
+                rules_filename=Path(rules_filename_real).name,
                 protocol_name=protocol_name,
                 protocol_version=protocol_version,
                 docker_logs=logs,
@@ -411,6 +460,8 @@ class ProtocolGuardDockerRunner:
             LOGGER.exception("ProtocolGuard job %s failed", job_id)
             raise
         finally:
+            if built_builder_image:
+                self._remove_builder_image(built_builder_image)
             if not self._settings.keep_artifacts:
                 self._cleanup_job(job_paths)
 
@@ -460,6 +511,192 @@ class ProtocolGuardDockerRunner:
             shutil.copyfileobj(stream, handle)
         return destination
 
+    def _reset_directory(self, target: Path) -> None:
+        if target.exists():
+            shutil.rmtree(target)
+        target.mkdir(parents=True, exist_ok=True)
+
+    def _ensure_workspace_structure(self, job_paths: JobPaths) -> None:
+        workspace = job_paths.workspace
+        artifacts = self._settings.artifacts
+        for relative in (
+            artifacts.bitcode,
+            artifacts.build_log,
+            artifacts.wpa_report,
+            artifacts.packet_callgraph,
+            artifacts.function_summary,
+            artifacts.rule_config,
+        ):
+            (workspace / relative).parent.mkdir(parents=True, exist_ok=True)
+        database_dir = workspace / artifacts.database
+        database_dir.mkdir(parents=True, exist_ok=True)
+
+    def _extract_archive(self, archive: Path, destination: Path) -> None:
+        if tarfile.is_tarfile(archive):
+            with tarfile.open(archive, "r:*") as tar:
+                self._safe_extract_tar(tar, destination)
+            return
+        if zipfile.is_zipfile(archive):
+            with zipfile.ZipFile(archive, "r") as zip_file:
+                self._safe_extract_zip(zip_file, destination)
+            return
+        # Fallback: treat as single file
+        shutil.copy2(archive, destination / archive.name)
+
+    def _safe_extract_tar(self, tar_obj: tarfile.TarFile, destination: Path) -> None:
+        for member in tar_obj.getmembers():
+            member_path = destination / member.name
+            if not self._is_within_directory(destination, member_path):
+                raise ProtocolGuardDockerError(
+                    f"Tar archive contains unsafe path traversal entry: {member.name}"
+                )
+        tar_obj.extractall(destination)
+
+    def _safe_extract_zip(self, zip_obj: zipfile.ZipFile, destination: Path) -> None:
+        for member in zip_obj.namelist():
+            member_path = destination / member
+            if not self._is_within_directory(destination, member_path):
+                raise ProtocolGuardDockerError(
+                    f"Zip archive contains unsafe path traversal entry: {member}"
+                )
+        zip_obj.extractall(destination)
+
+    def _is_within_directory(self, base: Path, target: Path) -> bool:
+        try:
+            target.resolve(strict=False).relative_to(base.resolve(strict=False))
+            return True
+        except ValueError:
+            return False
+
+    def _stage_rules_file(self, job_paths: JobPaths, stream: BinaryIO) -> Path:
+        rules_path = job_paths.workspace / self._settings.artifacts.rule_config
+        return self._write_stream(rules_path, stream)
+
+    def _load_config(self, stream: BinaryIO, filename: str) -> Dict[str, object]:
+        with contextlib.suppress(Exception):
+            stream.seek(0)
+        raw = stream.read()
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise ProtocolGuardDockerError(
+                f"Configuration file {filename!r} must be UTF-8 encoded."
+            ) from exc
+        try:
+            data = toml.loads(text)
+        except toml.TomlDecodeError as exc:
+            raise ProtocolGuardDockerError(
+                f"Failed to parse configuration file {filename!r}: {exc}"
+            ) from exc
+        return data
+
+    def _prepare_config(
+        self,
+        *,
+        config_data: Dict[str, object],
+        job_paths: JobPaths,
+        protocol_name: Optional[str],
+        protocol_version: Optional[str],
+    ) -> Dict[str, object]:
+        data: Dict[str, object] = deepcopy(config_data)
+        artifacts = self._settings.artifacts
+        protocol = protocol_name or self._settings.default_protocol_name
+        version = protocol_version or self._settings.default_protocol_version
+        workspace_prefix = "/workspace"
+
+        def container_path(relative: Path) -> str:
+            rel = relative.as_posix()
+            if rel in ("", "."):
+                return workspace_prefix
+            return f"{workspace_prefix}/{rel}"
+
+        project_section = dict(data.get("project") or {})
+        project_section["project_name"] = project_section.get("project_name") or self._settings.project_name
+        project_section["project_path"] = f"{workspace_prefix}/project"
+        project_section["protocol_name"] = protocol
+        project_section["protocol_version"] = version
+        project_section["bitcode_path"] = container_path(artifacts.bitcode)
+        project_section["binary_path"] = container_path(artifacts.binary_path)
+        project_section["build_log_path"] = container_path(artifacts.build_log)
+        project_section["original_llvm_ir_path"] = container_path(artifacts.original_ir)
+        project_section["packet_related_callgraph_path"] = container_path(artifacts.packet_callgraph)
+        project_section["function_arg_path"] = container_path(artifacts.function_summary)
+        project_section["rule_path"] = container_path(artifacts.rule_config)
+        data["project"] = project_section
+
+        database_section = dict(data.get("database") or {})
+        database_section["path"] = container_path(artifacts.database)
+        data["database"] = database_section
+
+        wpa_section = dict(data.get("wpa") or {})
+        wpa_section["path"] = container_path(artifacts.wpa_report)
+        data["wpa"] = wpa_section
+
+        debug_section = dict(data.get("debug") or {})
+        debug_section["code_slice_replace_mode"] = self._settings.debug_code_slice_mode
+        debug_section["log_print"] = _env_int("PG_DEBUG_LOG_PRINT", 0) or 0
+        data["debug"] = debug_section
+
+        config_section = dict(data.get("config") or {})
+        for key, values in DEFAULT_CONFIG_PACKET_TYPES.items():
+            config_section.setdefault(key, list(values))
+        data["config"] = config_section
+
+        return data
+
+    def _build_builder_image(
+        self,
+        *,
+        job_paths: JobPaths,
+        context_dir: Path,
+        dockerfile_path: Path,
+    ) -> str:
+        if docker is None:
+            raise ProtocolGuardNotAvailableError("Docker SDK is not available; cannot build builder image.")
+
+        try:
+            dockerfile_rel = dockerfile_path.relative_to(context_dir)
+        except ValueError as exc:
+            raise ProtocolGuardDockerError(
+                f"Builder Dockerfile {dockerfile_path} must reside within the uploaded project directory."
+            ) from exc
+
+        tag = f"protocolguard-builder:{job_paths.job_id}"
+        LOGGER.info("Building builder image %s using context %s", tag, context_dir)
+        try:
+            _image, build_logs = self._client.images.build(
+                path=str(context_dir),
+                dockerfile=str(dockerfile_rel),
+                tag=tag,
+                rm=True,
+            )
+        except BuildError as exc:
+            logs = getattr(exc, "build_log", None) or []
+            rendered = [chunk.get("stream", "") for chunk in logs if isinstance(chunk, dict)]
+            LOGGER.error("Builder image build failed: %s", exc)
+            if rendered:
+                for line in rendered:
+                    LOGGER.error("[builder build %s] %s", job_paths.job_id, line.rstrip())
+            raise ProtocolGuardDockerError(f"Builder image build failed: {exc}") from exc
+        except DockerException as exc:
+            raise ProtocolGuardDockerError(f"Failed to build builder image: {exc}") from exc
+
+        for chunk in build_logs or []:
+            stream = chunk.get("stream")
+            if stream:
+                LOGGER.debug("[builder build %s] %s", job_paths.job_id, stream.rstrip())
+        LOGGER.debug("Builder image %s build completed", tag)
+        return tag
+
+    def _remove_builder_image(self, tag: str) -> None:
+        if not tag or docker is None:
+            return
+        try:
+            self._client.images.remove(tag, force=True)
+            LOGGER.debug("Removed temporary builder image %s", tag)
+        except DockerException as exc:
+            LOGGER.warning("Failed to remove builder image %s: %s", tag, exc)
+
     # Container orchestration ----------------------------------------------------
 
     def _build_volumes(self, job_paths: JobPaths, *, include_config: bool) -> Mapping[str, Mapping[str, str]]:
@@ -479,16 +716,22 @@ class ProtocolGuardDockerRunner:
                 env[name] = value
         return env
 
-    def _run_builder(self, job_paths: JobPaths) -> None:
-        assert self._settings.builder_image  # guarded by caller
-        command = self._settings.builder_command if self._settings.builder_command else None
+    def _run_builder(
+        self,
+        job_paths: JobPaths,
+        *,
+        image: str,
+        command: Optional[Sequence[str]] = None,
+    ) -> None:
+        if not image:
+            raise ProtocolGuardDockerError("Builder image is required to execute the ProtocolGuard pipeline.")
         LOGGER.info(
             "Running ProtocolGuard builder image %s for job %s",
-            self._settings.builder_image,
+            image,
             job_paths.job_id,
         )
         self._run_container(
-            image=self._settings.builder_image,
+            image=image,
             command=command,
             volumes=self._build_volumes(job_paths, include_config=False),
             environment=self._build_environment(),
@@ -644,6 +887,8 @@ class ProtocolGuardDockerRunner:
         job_paths: JobPaths,
         start_time: float,
         code_filename: str,
+        builder_filename: str,
+        config_filename: str,
         notes: Optional[str],
         rules_summary: Optional[str],
         rules_filename: str,
@@ -674,6 +919,8 @@ class ProtocolGuardDockerRunner:
             "durationMs": int((end - start_time) * 1000),
             "inputs": {
                 "codeFileName": code_filename,
+                "builderDockerfileName": builder_filename,
+                "configFileName": config_filename,
                 "notes": notes or None,
                 "protocolName": protocol,
                 "rulesFileName": rules_filename,
