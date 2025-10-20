@@ -1525,11 +1525,14 @@ function toggleCrashDetailsView() {
 }
 
 // 历史结果相关函数
-function toggleHistoryView() {
-  showHistoryView.value = !showHistoryView.value;
-  if (!showHistoryView.value) {
-    selectedHistoryItem.value = null;
-  }
+function goToHistoryView() {
+  showHistoryView.value = true;
+  selectedHistoryItem.value = null;
+}
+
+function backToMainView() {
+  showHistoryView.value = false;
+  selectedHistoryItem.value = null;
 }
 
 function viewHistoryDetail(item: HistoryResult) {
@@ -1773,9 +1776,10 @@ onMounted(async () => {
           </div>
           
           <!-- 历史结果按钮 -->
-          <button @click="toggleHistoryView" class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg transition-all duration-300 flex items-center space-x-2 shadow-md" title="查看历史结果">
+          <button @click="goToHistoryView" class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg transition-all duration-300 flex items-center space-x-2 shadow-md" title="查看历史结果">
             <i class="fa fa-history"></i>
             <span class="hidden md:inline">历史记录</span>
+            <span v-if="historyResults.length > 0" class="bg-white/20 text-xs px-2 py-0.5 rounded-full ml-1">{{ historyResults.length }}</span>
           </button>
           
           <button class="bg-primary/10 hover:bg-primary/20 text-primary p-2 rounded-lg transition-all duration-300">
@@ -1799,25 +1803,6 @@ onMounted(async () => {
 
       <!-- 主要内容 -->
       <div v-else>
-        <!-- 视图切换标签 -->
-        <div class="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-primary/20 shadow-card mb-6">
-          <div class="flex items-center space-x-4">
-            <button @click="showHistoryView = false" 
-                    :class="['px-4 py-2 rounded-lg transition-all duration-300 flex items-center space-x-2', 
-                             !showHistoryView ? 'bg-primary text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200']">
-              <i class="fa fa-play"></i>
-              <span>实时测试</span>
-            </button>
-            <button @click="showHistoryView = true" 
-                    :class="['px-4 py-2 rounded-lg transition-all duration-300 flex items-center space-x-2', 
-                             showHistoryView ? 'bg-orange-500 text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200']">
-              <i class="fa fa-history"></i>
-              <span>历史记录</span>
-              <span class="bg-white/20 text-xs px-2 py-0.5 rounded-full">{{ historyResults.length }}</span>
-            </button>
-          </div>
-        </div>
-
         <!-- 实时测试视图 -->
         <div v-if="!showHistoryView">
         
@@ -2178,6 +2163,14 @@ onMounted(async () => {
 
         <!-- 历史记录视图 -->
         <div v-else>
+          <!-- 返回按钮 -->
+          <div class="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-orange-200 shadow-card mb-6">
+            <button @click="backToMainView" class="flex items-center space-x-2 text-orange-600 hover:text-orange-700 transition-colors">
+              <i class="fa fa-arrow-left"></i>
+              <span>返回测试界面</span>
+            </button>
+          </div>
+
           <!-- 历史记录列表 -->
           <div v-if="!selectedHistoryItem" class="space-y-6">
             <div class="bg-white/80 backdrop-blur-sm rounded-xl p-6 border border-orange-200 shadow-card">
@@ -2286,10 +2279,16 @@ onMounted(async () => {
           <div v-else class="space-y-6">
             <!-- 返回按钮 -->
             <div class="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-orange-200 shadow-card">
-              <button @click="backToHistoryList" class="flex items-center space-x-2 text-orange-600 hover:text-orange-700 transition-colors">
-                <i class="fa fa-arrow-left"></i>
-                <span>返回历史记录列表</span>
-              </button>
+              <div class="flex items-center justify-between">
+                <button @click="backToHistoryList" class="flex items-center space-x-2 text-orange-600 hover:text-orange-700 transition-colors">
+                  <i class="fa fa-arrow-left"></i>
+                  <span>返回历史记录列表</span>
+                </button>
+                <button @click="backToMainView" class="flex items-center space-x-2 text-gray-600 hover:text-gray-700 transition-colors">
+                  <i class="fa fa-home"></i>
+                  <span>返回测试界面</span>
+                </button>
+              </div>
             </div>
 
             <!-- 详情头部信息 -->
