@@ -95,6 +95,10 @@ const packetDelay = ref(33); // 1000/30 = 33ms for 30 packets/second
 const showHistoryView = ref(false);
 const selectedHistoryItem = ref<any>(null);
 
+// 通知相关状态
+const showNotification = ref(false);
+const notificationMessage = ref('');
+
 // 历史结果数据接口
 interface HistoryResult {
   id: string;
@@ -989,6 +993,9 @@ function stopTest() {
     // Update final statistics
     updateTestSummary();
     
+    // Save test results to history
+    saveTestToHistory();
+    
     console.log('Test completed, updating charts:', {
       isTestCompleted: isTestCompleted.value,
       protocolStats: protocolStats.value,
@@ -1429,6 +1436,90 @@ function updateTestSummary() {
   }
 }
 
+// 保存测试结果到历史记录
+function saveTestToHistory() {
+  try {
+    // 计算实际的测试统计数据
+    const actualTotalPackets = fileTotalPackets.value || packetCount.value;
+    const actualSuccessCount = fileSuccessCount.value || successCount.value;
+    const actualTimeoutCount = fileTimeoutCount.value || timeoutCount.value;
+    const actualFailedCount = fileFailedCount.value || failedCount.value;
+    const actualCrashCount = crashCount.value;
+    
+    // 计算测试持续时间
+    const duration = testStartTime.value && testEndTime.value 
+      ? Math.round((testEndTime.value.getTime() - testStartTime.value.getTime()) / 1000)
+      : elapsedTime.value;
+    
+    // 计算成功率
+    const total = actualTotalPackets || (actualSuccessCount + actualTimeoutCount + actualFailedCount + actualCrashCount);
+    const successRate = total > 0 ? Math.round((actualSuccessCount / total) * 100) : 0;
+    
+    // 生成唯一ID
+    const historyId = `test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // 创建历史记录条目
+    const historyItem: HistoryResult = {
+      id: historyId,
+      timestamp: testStartTime.value ? testStartTime.value.toLocaleString() : new Date().toLocaleString(),
+      protocol: protocolType.value,
+      fuzzEngine: fuzzEngine.value,
+      targetHost: targetHost.value,
+      targetPort: targetPort.value,
+      duration: duration,
+      totalPackets: total,
+      successCount: actualSuccessCount,
+      timeoutCount: actualTimeoutCount,
+      failedCount: actualFailedCount,
+      crashCount: actualCrashCount,
+      successRate: successRate,
+      protocolStats: {
+        v1: protocolStats.value.v1,
+        v2c: protocolStats.value.v2c,
+        v3: protocolStats.value.v3
+      },
+      messageTypeStats: {
+        get: messageTypeStats.value.get,
+        set: messageTypeStats.value.set,
+        getnext: messageTypeStats.value.getnext,
+        getbulk: messageTypeStats.value.getbulk
+      },
+      hasCrash: actualCrashCount > 0,
+      crashDetails: crashDetails.value ? {
+        id: crashDetails.value.id,
+        time: crashDetails.value.time,
+        type: crashDetails.value.type,
+        dumpFile: crashDetails.value.dumpFile,
+        logPath: crashDetails.value.logPath,
+        details: crashDetails.value.details,
+        packetContent: crashDetails.value.packetContent
+      } : undefined
+    };
+    
+    // 将新的测试结果添加到历史记录的开头
+    historyResults.value.unshift(historyItem);
+    
+    // 限制历史记录数量，保留最新的50条
+    if (historyResults.value.length > 50) {
+      historyResults.value = historyResults.value.slice(0, 50);
+    }
+    
+    // 保存到本地存储
+    try {
+      localStorage.setItem('fuzz_test_history', JSON.stringify(historyResults.value));
+      console.log('Test results saved to history:', historyItem);
+      
+      // 显示保存成功的通知
+      showSaveNotification();
+    } catch (storageError) {
+      console.warn('Failed to save history to localStorage:', storageError);
+    }
+    
+  } catch (error) {
+    console.error('Error saving test to history:', error);
+  }
+}
+
 function toggleCrashDetailsView() {
   showCrashDetails.value = !showCrashDetails.value;
 }
@@ -1453,6 +1544,14 @@ function deleteHistoryItem(id: string) {
   const index = historyResults.value.findIndex(item => item.id === id);
   if (index > -1) {
     historyResults.value.splice(index, 1);
+    
+    // 同步到本地存储
+    try {
+      localStorage.setItem('fuzz_test_history', JSON.stringify(historyResults.value));
+      console.log('History item deleted and saved to localStorage');
+    } catch (error) {
+      console.warn('Failed to save updated history to localStorage:', error);
+    }
   }
 }
 
@@ -1492,6 +1591,66 @@ function exportHistoryItem(item: HistoryResult) {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+// 清空所有历史记录
+function clearAllHistory() {
+  if (confirm('确定要清空所有历史记录吗？此操作不可撤销。')) {
+    historyResults.value = [];
+    
+    // 同步到本地存储
+    try {
+      localStorage.removeItem('fuzz_test_history');
+      console.log('All history cleared');
+    } catch (error) {
+      console.warn('Failed to clear history from localStorage:', error);
+    }
+  }
+}
+
+// 导出所有历史记录
+function exportAllHistory() {
+  if (historyResults.value.length === 0) {
+    alert('没有历史记录可导出');
+    return;
+  }
+  
+  const reportContent = `Fuzz测试历史记录汇总\n` +
+                       `==================\n\n` +
+                       `导出时间: ${new Date().toLocaleString()}\n` +
+                       `总记录数: ${historyResults.value.length}\n\n` +
+                       historyResults.value.map((item, index) => 
+                         `${index + 1}. [${item.timestamp}] ${item.protocol} - ${item.fuzzEngine}\n` +
+                         `   目标: ${item.targetHost}:${item.targetPort}\n` +
+                         `   耗时: ${item.duration}秒, 总包数: ${item.totalPackets}, 成功率: ${item.successRate}%\n` +
+                         `   崩溃: ${item.hasCrash ? '是' : '否'}\n`
+                       ).join('\n');
+  
+  const blob = new Blob([reportContent], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `fuzz_history_summary_${new Date().getTime()}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// 显示保存成功通知
+function showSaveNotification() {
+  notificationMessage.value = '测试结果已保存到历史记录';
+  showNotification.value = true;
+  
+  // 3秒后自动隐藏通知
+  setTimeout(() => {
+    showNotification.value = false;
+  }, 3000);
+}
+
+// 手动关闭通知
+function closeNotification() {
+  showNotification.value = false;
 }
 
 // Computed properties for button states
@@ -1534,7 +1693,27 @@ const testStatusClass = computed(() => {
   return 'text-warning';
 });
 
+// 从本地存储加载历史记录
+function loadHistoryFromStorage() {
+  try {
+    const stored = localStorage.getItem('fuzz_test_history');
+    if (stored) {
+      const parsedHistory = JSON.parse(stored);
+      if (Array.isArray(parsedHistory)) {
+        historyResults.value = parsedHistory;
+        console.log(`Loaded ${parsedHistory.length} history items from localStorage`);
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to load history from localStorage:', error);
+    // 如果加载失败，保持默认的模拟数据
+  }
+}
+
 onMounted(async () => {
+  // 加载历史记录
+  loadHistoryFromStorage();
+  
   await fetchText();
   if (rawText.value) {
     parseText(rawText.value);
@@ -2012,6 +2191,21 @@ onMounted(async () => {
                     <p class="text-sm text-gray-500">共 {{ historyResults.length }} 条记录</p>
                   </div>
                 </div>
+                
+                <div class="flex items-center space-x-3">
+                  <button v-if="historyResults.length > 0" @click="exportAllHistory" 
+                          class="bg-blue-50 hover:bg-blue-100 text-blue-600 px-4 py-2 rounded-lg transition-colors flex items-center space-x-2"
+                          title="导出所有历史记录">
+                    <i class="fa fa-download"></i>
+                    <span class="text-sm">导出全部</span>
+                  </button>
+                  <button v-if="historyResults.length > 0" @click="clearAllHistory" 
+                          class="bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-lg transition-colors flex items-center space-x-2"
+                          title="清空所有历史记录">
+                    <i class="fa fa-trash"></i>
+                    <span class="text-sm">清空全部</span>
+                  </button>
+                </div>
               </div>
 
               <div v-if="historyResults.length === 0" class="text-center py-12">
@@ -2336,6 +2530,14 @@ onMounted(async () => {
       </div>
     </footer>
 
+    <!-- 通知组件 -->
+    <div v-if="showNotification" class="fixed top-4 right-4 z-50 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center space-x-3 animate-slide-in">
+      <i class="fa fa-check-circle"></i>
+      <span>{{ notificationMessage }}</span>
+      <button @click="closeNotification" class="ml-2 text-white hover:text-green-200 transition-colors">
+        <i class="fa fa-times"></i>
+      </button>
+    </div>
   </div>
 </template>
 
@@ -2354,6 +2556,19 @@ onMounted(async () => {
 @keyframes crashHighlight { 
   0%, 100% { background-color: rgba(239,68,68,0.1);} 
   50% { background-color: rgba(239,68,68,0.2);} 
+}
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+.animate-slide-in {
+  animation: slideIn 0.3s ease-out;
 }
 
 /* 背景网格效果 */
