@@ -9,4 +9,5 @@ dependencies = [
     "faker>=33.0.0",
     "docker>=7.0.0",
     "toml>=0.10.2",
+    "flask-cors>=6.0.1",
 ]

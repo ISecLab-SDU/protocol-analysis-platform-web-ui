@@ -1,33 +1,32 @@
 <script lang="ts" setup>
-import { ref, computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
+
 import {
-  Card,
-  Empty,
-  Space,
   Button,
-  Tag,
+  Card,
+  Divider,
+  Empty,
   message,
-  Divider
+  Space,
+  Tag,
 } from 'ant-design-vue';
 
 // 类型定义
 type RuleItem = {
   analysis: string;
-  rule: string;
   code?: string;
+  rule: string;
 };
 
 type RawAnalysisResult = {
-  result: string;
   reason: string;
+  result: string;
 };
 
 // 路由与标题
 const route = useRoute();
-const title = computed(() =>
-  String(route.meta?.title ?? '静态规则分析' ?? '功能建设中'),
-);
+const title = computed(() => String(route.meta?.title ?? '静态规则分析'));
 
 // 状态管理
 const analysisGroups = ref<Record<string, RuleItem[]>>({});
@@ -43,11 +42,11 @@ const itemsPerPage = 5;
 const currentPage = ref(1);
 const totalPages = ref(1);
 const currentRules = ref<RuleItem[]>([]);
-const activeAnalysisKey = ref<string | null>(null);
+const activeAnalysisKey = ref<null | string>(null);
 
 // 右侧当前分析结果
-const currentResult = ref<RawAnalysisResult | null>(null);
-const currentRule = ref<string | null>(null);
+const currentResult = ref<null | RawAnalysisResult>(null);
+const currentRule = ref<null | string>(null);
 
 // 加载规则与分析结果
 async function loadData() {
@@ -55,11 +54,13 @@ async function loadData() {
     // 1. 加载规则数据
     const rulesRes = await fetch('/rule.json');
     const rulesObj = await rulesRes.json();
-    const rulesData: RuleItem[] = Object.entries(rulesObj).map(([rule, code]) => ({
-      analysis: '默认规则组',
-      rule,
-      code: code as string,
-    }));
+    const rulesData: RuleItem[] = Object.entries(rulesObj).map(
+      ([rule, code]) => ({
+        analysis: '默认规则组',
+        rule,
+        code: code as string,
+      }),
+    );
 
     // 2. 加载分析结果
     const resultsRes = await fetch('/rules.json');
@@ -75,17 +76,17 @@ async function loadData() {
         }
         const parsed = JSON.parse(resultStr) as RawAnalysisResult;
         parsedResults[rule] = parsed;
-      } catch (e) {
+      } catch (error) {
         parsedResults[rule] = {
           result: '解析错误',
-          reason: `分析结果格式错误: ${(e as Error).message}`
+          reason: `分析结果格式错误: ${(error as Error).message}`,
         };
       }
     });
 
     // 3. 分组处理
     const groups: Record<string, RuleItem[]> = {};
-    rulesData.forEach(item => {
+    rulesData.forEach((item) => {
       if (!groups[item.analysis]) {
         groups[item.analysis] = [];
         groupExpanded.value[item.analysis] = false; // 初始化为收起状态
@@ -98,8 +99,8 @@ async function loadData() {
     lastFetchError.value = null;
     dataLoaded.value = true; // 标记数据已加载
     message.success('数据加载成功');
-  } catch (err: any) {
-    lastFetchError.value = `加载数据失败: ${err.message}`;
+  } catch (error: any) {
+    lastFetchError.value = `加载数据失败: ${error.message}`;
     message.error(lastFetchError.value);
   }
 }
@@ -113,13 +114,15 @@ onMounted(() => {
 function toggleAnalysisGroup(key: string) {
   // 切换状态
   groupExpanded.value[key] = !groupExpanded.value[key];
-  
+
   // 处理展开状态
   if (groupExpanded.value[key]) {
     activeAnalysisKey.value = key;
     currentPage.value = 1;
     currentRules.value = analysisGroups.value[key] || [];
-    totalPages.value = Math.ceil((currentRules.value.length || 0) / itemsPerPage);
+    totalPages.value = Math.ceil(
+      (currentRules.value.length || 0) / itemsPerPage,
+    );
   } else {
     activeAnalysisKey.value = null;
     currentRules.value = [];
@@ -133,7 +136,7 @@ function viewAnalysisResult(rule: string) {
   currentRule.value = rule;
   currentResult.value = analysisResults.value[rule] || {
     result: '未找到',
-    reason: '未找到对应的分析结果'
+    reason: '未找到对应的分析结果',
   };
 }
 
@@ -214,13 +217,13 @@ const resultStatusText = computed(() => {
         </div>
 
         <div v-else>
-          <div 
-            v-for="(rules, groupName, idx) in analysisGroups" 
-            :key="groupName" 
+          <div
+            v-for="(rules, groupName, idx) in analysisGroups"
+            :key="groupName"
             class="group-wrapper"
           >
-            <Card 
-              size="small" 
+            <Card
+              size="small"
               class="group-card cursor-pointer"
               :class="{ 'active-group': groupExpanded[groupName] }"
               @click="toggleAnalysisGroup(groupName)"
@@ -230,31 +233,35 @@ const resultStatusText = computed(() => {
                   <span>{{ idx + 1 }}. {{ groupName }}</span>
                   <Tag color="blue">{{ rules.length }} 条规则</Tag>
                   <!-- 展开/收起图标 -->
-                  <span class="expand-icon">{{ groupExpanded[groupName] ? '▼' : '►' }}</span>
+                  <span class="expand-icon">{{
+                    groupExpanded[groupName] ? '▼' : '►'
+                  }}</span>
                 </Space>
               </template>
 
               <!-- 仅在展开状态显示规则列表 -->
               <div v-if="groupExpanded[groupName]" class="group-rules">
-                <div 
-                  v-for="(item, i) in currentPageSlice" 
-                  :key="i" 
+                <div
+                  v-for="(item, i) in currentPageSlice"
+                  :key="i"
                   class="rule-item cursor-pointer"
                   @click.stop="viewAnalysisResult(item.rule)"
                 >
                   <div class="rule-header">
-                    <span class="rule-index">{{ (currentPage - 1) * itemsPerPage + i + 1 }}.</span>
+                    <span class="rule-index"
+                      >{{ (currentPage - 1) * itemsPerPage + i + 1 }}.</span
+                    >
                     <span class="rule-content">{{ item.rule }}</span>
                   </div>
-                  
+
                   <Divider orientation="left">对应代码</Divider>
                   <pre class="rule-code">{{ item.code || '无对应代码' }}</pre>
                 </div>
 
                 <Space class="pagination-controls" @click.stop>
-                  <Button 
-                    size="small" 
-                    :disabled="currentPage === 1" 
+                  <Button
+                    size="small"
+                    :disabled="currentPage === 1"
                     @click="prevPage($event)"
                   >
                     上一页
@@ -262,9 +269,9 @@ const resultStatusText = computed(() => {
                   <span>
                     第 {{ currentPage }} 页 / 共 {{ totalPages }} 页
                   </span>
-                  <Button 
-                    size="small" 
-                    :disabled="currentPage >= totalPages" 
+                  <Button
+                    size="small"
+                    :disabled="currentPage >= totalPages"
                     @click="nextPage($event)"
                   >
                     下一页
@@ -279,8 +286,15 @@ const resultStatusText = computed(() => {
       <!-- 右侧：分析结果 -->
       <Card class="analysis-right" title="分析结果详情">
         <template #extra>
-          <Tag :color="currentResult?.result.includes('no violation') ? 'green' : 
-                         currentResult?.result.includes('violation') ? 'red' : 'orange'">
+          <Tag
+            :color="
+              currentResult?.result.includes('no violation')
+                ? 'green'
+                : currentResult?.result.includes('violation')
+                  ? 'red'
+                  : 'orange'
+            "
+          >
             {{ currentResult ? resultStatusText : '未选择规则' }}
           </Tag>
         </template>
@@ -333,7 +347,7 @@ const resultStatusText = computed(() => {
 
 .page-header p {
   margin: 8px 0 0;
-  color: rgba(0, 0, 0, 0.65);
+  color: rgb(0 0 0 / 65%);
 }
 
 .analysis-container {
@@ -342,11 +356,12 @@ const resultStatusText = computed(() => {
   height: calc(100vh - 160px);
 }
 
-.analysis-left, .analysis-right {
-  flex: 1;
-  overflow: auto;
+.analysis-left,
+.analysis-right {
   display: flex;
+  flex: 1;
   flex-direction: column;
+  overflow: auto;
 }
 
 .group-wrapper {
@@ -359,43 +374,44 @@ const resultStatusText = computed(() => {
 
 .group-card.active-group {
   border-color: #1890ff;
-  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.2);
+  box-shadow: 0 2px 8px rgb(24 144 255 / 20%);
 }
 
 .expand-icon {
-  color: #1890ff;
   font-size: 14px;
+  color: #1890ff;
   transition: transform 0.2s;
 }
 
 .group-rules {
-  margin-top: 8px;
   padding-top: 8px;
+  margin-top: 8px;
   border-top: 1px dashed #e8e8e8;
 }
 
 .rule-item {
   padding: 12px;
+  margin-bottom: 12px;
   border: 1px solid #e8e8e8;
   border-radius: 4px;
-  margin-bottom: 12px;
   transition: all 0.2s;
 }
 
 .rule-item:hover {
-  border-color: #1890ff;
   background-color: #f0f7ff;
+  border-color: #1890ff;
 }
 
 .rule-header {
   margin-bottom: 8px;
-  word-break: break-word;
+  word-break: normal;
+  overflow-wrap: anywhere;
 }
 
 .rule-index {
   display: inline-block;
   width: 30px;
-  color: rgba(0, 0, 0, 0.5);
+  color: rgb(0 0 0 / 50%);
 }
 
 .rule-content {
@@ -403,34 +419,36 @@ const resultStatusText = computed(() => {
 }
 
 .rule-code {
-  margin: 0;
+  max-height: 200px;
   padding: 8px;
-  background: #f5f5f5;
-  border-radius: 4px;
-  font-family: "Fira Code", monospace;
+  margin: 0;
+  overflow: auto;
+  font-family: 'Fira Code', monospace;
   font-size: 13px;
   line-height: 1.6;
   white-space: pre-wrap;
-  max-height: 200px;
-  overflow: auto;
+  background: #f5f5f5;
+  border-radius: 4px;
 }
 
 .pagination-controls {
   display: flex;
   justify-content: center;
-  margin-top: 16px;
   padding: 8px;
+  margin-top: 16px;
 }
 
 .result-details {
   padding: 8px 0;
 }
 
-.result-rule p, .result-description p {
+.result-rule p,
+.result-description p {
   margin: 8px 0;
   line-height: 1.6;
+  word-break: normal;
+  overflow-wrap: anywhere;
   white-space: pre-wrap;
-  word-break: break-word;
 }
 
 .status-text {
@@ -440,8 +458,19 @@ const resultStatusText = computed(() => {
 }
 
 /* 状态颜色类 */
-.text-success { color: #52c41a; }
-.text-error { color: #f5222d; }
-.text-warning { color: #faad14; }
-.text-gray { color: #8c8c8c; }
+.text-success {
+  color: #52c41a;
+}
+
+.text-error {
+  color: #f5222d;
+}
+
+.text-warning {
+  color: #faad14;
+}
+
+.text-gray {
+  color: #8c8c8c;
+}
 </style>
