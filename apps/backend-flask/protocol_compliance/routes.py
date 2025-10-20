@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+import logging
 import json
 import re
 from typing import Iterable, Optional
@@ -11,21 +13,22 @@ from werkzeug.datastructures import FileStorage
 
 try:
     from ..utils.auth import verify_access_token
-    from ..utils.responses import (
-        error_response,
-        paginate,
-        success_response,
-        unauthorized,
-    )
+    from ..utils.responses import error_response, paginate, success_response, unauthorized
 except ImportError:
     from utils.auth import verify_access_token
     from utils.responses import error_response, paginate, success_response, unauthorized
 from .analysis import (
-    build_mock_analysis,
+    AnalysisError,
+    AnalysisExecutionError,
+    AnalysisNotReadyError,
+    extract_protocol_version,
     normalize_protocol_name,
+    run_static_analysis,
     try_extract_rules_summary,
 )
 from .store import STORE, TaskStatus
+
+LOGGER = logging.getLogger(__name__)
 
 bp = Blueprint("protocol_compliance", __name__, url_prefix="/api/protocol-compliance")
 
@@ -82,7 +85,27 @@ def _parse_tags(raw: Optional[str]) -> Optional[list[str]]:
 def _read_upload(upload: FileStorage) -> tuple[str, Optional[bytes]]:
     filename = upload.filename or "upload.bin"
     data = upload.read() if upload else None
+    if upload:
+        with contextlib.suppress(Exception):
+            upload.stream.seek(0)
     return filename, data
+
+
+def _collect_exception_details(exc: Exception, *, max_logs: int = 40) -> dict:
+    details = {"message": str(exc)}
+    extra = getattr(exc, "details", None)
+    if isinstance(extra, dict) and extra:
+        details.update(extra)
+
+    logs = getattr(exc, "logs", None)
+    if isinstance(logs, list) and logs:
+        details["logs"] = logs[-max_logs:]
+
+    excerpt = getattr(exc, "log_excerpt", None)
+    if excerpt and "logExcerpt" not in details:
+        details["logExcerpt"] = excerpt
+
+    return details
 
 
 # Routes --------------------------------------------------------------------
@@ -219,16 +242,39 @@ def static_analysis():
             parsed_rules = None
 
     protocol_name = normalize_protocol_name(parsed_rules, rules_name)
+    protocol_version = extract_protocol_version(parsed_rules, None)
     rules_summary = try_extract_rules_summary(parsed_rules)
     notes = request.form.get("notes")
 
-    analysis = build_mock_analysis(
-        code_file_name=code_name,
-        rules_file_name=rules_name,
-        protocol_name=protocol_name,
-        notes=notes,
-        rules_summary=rules_summary,
-    )
+    try:
+        analysis = run_static_analysis(
+            code_stream=code_upload.stream,
+            code_file_name=code_name,
+            rules_stream=rules_upload.stream,
+            rules_file_name=rules_name,
+            notes=notes,
+            protocol_name=protocol_name,
+            protocol_version=protocol_version,
+            rules_summary=rules_summary,
+        )
+    except AnalysisNotReadyError as exc:
+        LOGGER.warning("ProtocolGuard Docker not ready: %s", exc)
+        details = _collect_exception_details(exc)
+        return make_response(error_response(f"后端尚未就绪: {exc}", details), 503)
+    except AnalysisExecutionError as exc:
+        LOGGER.error("ProtocolGuard Docker execution failed: %s", exc)
+        details = _collect_exception_details(exc)
+        return make_response(
+            error_response("静态分析执行失败。请查看日志了解详情。", details),
+            502,
+        )
+    except AnalysisError as exc:
+        LOGGER.error("ProtocolGuard Docker integration error: %s", exc)
+        details = _collect_exception_details(exc)
+        return make_response(
+            error_response("静态分析服务出现异常。", details),
+            500,
+        )
 
     payload = success_response(analysis)
     return payload
