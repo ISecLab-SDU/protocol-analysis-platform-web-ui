@@ -91,6 +91,108 @@ const testEndTime = ref<Date | null>(null);
 const currentPacketIndex = ref(0);
 const packetDelay = ref(33); // 1000/30 = 33ms for 30 packets/second
 
+// 历史结果相关状态
+const showHistoryModal = ref(false);
+const showHistoryDetail = ref(false);
+const selectedHistoryItem = ref<any>(null);
+
+// 历史结果数据接口
+interface HistoryResult {
+  id: string;
+  timestamp: string;
+  protocol: string;
+  fuzzEngine: string;
+  targetHost: string;
+  targetPort: number;
+  duration: number;
+  totalPackets: number;
+  successCount: number;
+  timeoutCount: number;
+  failedCount: number;
+  crashCount: number;
+  successRate: number;
+  protocolStats: {
+    v1: number;
+    v2c: number;
+    v3: number;
+  };
+  messageTypeStats: {
+    get: number;
+    set: number;
+    getnext: number;
+    getbulk: number;
+  };
+  hasCrash: boolean;
+  crashDetails?: any;
+}
+
+// 模拟历史结果数据
+const historyResults = ref<HistoryResult[]>([
+  {
+    id: 'hist_001',
+    timestamp: '2025-01-20 14:30:25',
+    protocol: 'SNMP',
+    fuzzEngine: 'SNMP_Fuzz',
+    targetHost: '192.168.102.2',
+    targetPort: 161,
+    duration: 127,
+    totalPackets: 2847,
+    successCount: 2156,
+    timeoutCount: 542,
+    failedCount: 149,
+    crashCount: 0,
+    successRate: 76,
+    protocolStats: { v1: 1203, v2c: 892, v3: 752 },
+    messageTypeStats: { get: 1124, set: 678, getnext: 589, getbulk: 456 },
+    hasCrash: false
+  },
+  {
+    id: 'hist_002',
+    timestamp: '2025-01-20 11:15:42',
+    protocol: 'SNMP',
+    fuzzEngine: 'SNMP_Fuzz',
+    targetHost: '192.168.102.5',
+    targetPort: 161,
+    duration: 89,
+    totalPackets: 1924,
+    successCount: 1456,
+    timeoutCount: 321,
+    failedCount: 89,
+    crashCount: 58,
+    successRate: 76,
+    protocolStats: { v1: 823, v2c: 612, v3: 489 },
+    messageTypeStats: { get: 756, set: 445, getnext: 398, getbulk: 325 },
+    hasCrash: true,
+    crashDetails: {
+      id: 1847,
+      time: '11:16:23',
+      type: 'Segmentation Fault (SIGSEGV)',
+      dumpFile: '/var/crash/SNMP_crash_1737360983.dmp',
+      logPath: '/home/hhh/下载/snmp_fuzz/snmp_github/snmp_fuzz/scan_result/crash_logs/20250120-111623',
+      details: '[11:16:23] Segmentation Fault (SIGSEGV)\nProcess ID: 8472\nFault Address: 0x7F8B2C40\nRegisters:\n  EAX: 0x00000000  EBX: 0x7F8B2C40\n  ECX: 0x12345678  EDX: 0xDEADBEEF\n  ESI: 0x87654321  EDI: 0xCAFEBABE\n  EBP: 0x7FFF1234  ESP: 0x7FFF1200\nBacktrace:\n  #0  0x08048567 in get_handler()\n  #1  0x08048234 in packet_processor()\n  #2  0x08047890 in main_loop()',
+      packetContent: '302902010004067075626C6963A01C02040E8F83C502010002010030'
+    }
+  },
+  {
+    id: 'hist_003',
+    timestamp: '2025-01-19 16:45:18',
+    protocol: 'SNMP',
+    fuzzEngine: 'AFLNET',
+    targetHost: '10.0.0.15',
+    targetPort: 161,
+    duration: 203,
+    totalPackets: 4521,
+    successCount: 3892,
+    timeoutCount: 456,
+    failedCount: 173,
+    crashCount: 0,
+    successRate: 86,
+    protocolStats: { v1: 1789, v2c: 1456, v3: 1276 },
+    messageTypeStats: { get: 1823, set: 1124, getnext: 892, getbulk: 682 },
+    hasCrash: false
+  }
+]);
+
 // UI refs
 const logContainer = ref<HTMLDivElement | null>(null);
 const messageCanvas = ref<HTMLCanvasElement>();
@@ -1194,6 +1296,74 @@ function toggleCrashDetailsView() {
   showCrashDetails.value = !showCrashDetails.value;
 }
 
+// 历史结果相关函数
+function openHistoryModal() {
+  showHistoryModal.value = true;
+  showHistoryDetail.value = false;
+  selectedHistoryItem.value = null;
+}
+
+function closeHistoryModal() {
+  showHistoryModal.value = false;
+  showHistoryDetail.value = false;
+  selectedHistoryItem.value = null;
+}
+
+function viewHistoryDetail(item: HistoryResult) {
+  selectedHistoryItem.value = item;
+  showHistoryDetail.value = true;
+}
+
+function backToHistoryList() {
+  showHistoryDetail.value = false;
+  selectedHistoryItem.value = null;
+}
+
+function deleteHistoryItem(id: string) {
+  const index = historyResults.value.findIndex(item => item.id === id);
+  if (index > -1) {
+    historyResults.value.splice(index, 1);
+  }
+}
+
+function exportHistoryItem(item: HistoryResult) {
+  const reportContent = `Fuzz测试历史报告\n` +
+                       `================\n\n` +
+                       `测试ID: ${item.id}\n` +
+                       `协议: ${item.protocol}\n` +
+                       `引擎: ${item.fuzzEngine}\n` +
+                       `目标: ${item.targetHost}:${item.targetPort}\n` +
+                       `测试时间: ${item.timestamp}\n` +
+                       `总耗时: ${item.duration}秒\n\n` +
+                       `性能统计:\n` +
+                       `总发包数: ${item.totalPackets}\n` +
+                       `正常响应: ${item.successCount} (${item.successRate}%)\n` +
+                       `超时: ${item.timeoutCount}\n` +
+                       `失败: ${item.failedCount}\n` +
+                       `崩溃: ${item.crashCount}\n\n` +
+                       `协议版本分布:\n` +
+                       `SNMP v1: ${item.protocolStats.v1}\n` +
+                       `SNMP v2c: ${item.protocolStats.v2c}\n` +
+                       `SNMP v3: ${item.protocolStats.v3}\n\n` +
+                       `消息类型分布:\n` +
+                       `GET: ${item.messageTypeStats.get}\n` +
+                       `SET: ${item.messageTypeStats.set}\n` +
+                       `GETNEXT: ${item.messageTypeStats.getnext}\n` +
+                       `GETBULK: ${item.messageTypeStats.getbulk}\n\n` +
+                       `崩溃信息: ${item.hasCrash ? '检测到崩溃' : '无崩溃'}\n` +
+                       `生成时间: ${new Date().toLocaleString()}`;
+  
+  const blob = new Blob([reportContent], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `history_report_${item.id}_${new Date().getTime()}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 // Computed properties for button states
 const canStartTest = computed(() => {
   return !loading.value && 
@@ -1286,6 +1456,11 @@ onMounted(async () => {
             <div class="animate-spin rounded-full h-3 w-3 border-b-2 border-primary"></div>
             <span>加载中...</span>
           </div>
+          
+          <!-- 历史结果按钮 -->
+          <button @click="openHistoryModal" class="bg-secondary/10 hover:bg-secondary/20 text-secondary p-2 rounded-lg transition-all duration-300" title="查看历史结果">
+            <i class="fa fa-history"></i>
+          </button>
           
           <button class="bg-primary/10 hover:bg-primary/20 text-primary p-2 rounded-lg transition-all duration-300">
             <i class="fa fa-cog"></i>
@@ -1678,6 +1853,303 @@ onMounted(async () => {
         </div>
       </div>
     </footer>
+
+    <!-- 历史结果弹窗 -->
+    <div v-if="showHistoryModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" @click="closeHistoryModal">
+      <div class="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden" @click.stop>
+        <!-- 历史结果列表视图 -->
+        <div v-if="!showHistoryDetail" class="flex flex-col h-full">
+          <!-- 弹窗头部 -->
+          <div class="flex items-center justify-between p-6 border-b border-gray-200">
+            <div class="flex items-center space-x-3">
+              <div class="bg-secondary/10 p-2 rounded-lg">
+                <i class="fa fa-history text-secondary text-xl"></i>
+              </div>
+              <h2 class="text-xl font-bold text-dark">历史测试结果</h2>
+            </div>
+            <button @click="closeHistoryModal" class="text-gray-400 hover:text-gray-600 transition-colors">
+              <i class="fa fa-times text-xl"></i>
+            </button>
+          </div>
+
+          <!-- 历史结果列表 -->
+          <div class="flex-1 overflow-y-auto p-6">
+            <div v-if="historyResults.length === 0" class="text-center py-12">
+              <div class="bg-gray-100 p-4 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                <i class="fa fa-inbox text-2xl text-gray-400"></i>
+              </div>
+              <p class="text-gray-500">暂无历史测试结果</p>
+            </div>
+            
+            <div v-else class="space-y-4">
+              <div v-for="item in historyResults" :key="item.id" 
+                   class="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-all duration-300 cursor-pointer"
+                   @click="viewHistoryDetail(item)">
+                <div class="flex items-center justify-between">
+                  <div class="flex-1">
+                    <div class="flex items-center space-x-4 mb-2">
+                      <h3 class="font-semibold text-lg text-dark">{{ item.timestamp }}</h3>
+                      <span class="bg-primary/10 text-primary px-2 py-1 rounded-full text-xs font-medium">
+                        {{ item.protocol }}
+                      </span>
+                      <span class="bg-secondary/10 text-secondary px-2 py-1 rounded-full text-xs font-medium">
+                        {{ item.fuzzEngine }}
+                      </span>
+                      <span v-if="item.hasCrash" class="bg-danger/10 text-danger px-2 py-1 rounded-full text-xs font-medium animate-pulse">
+                        <i class="fa fa-exclamation-triangle mr-1"></i>崩溃
+                      </span>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600">
+                      <div>
+                        <span class="text-gray-500">目标:</span>
+                        <span class="ml-1 font-mono">{{ item.targetHost }}:{{ item.targetPort }}</span>
+                      </div>
+                      <div>
+                        <span class="text-gray-500">耗时:</span>
+                        <span class="ml-1">{{ item.duration }}秒</span>
+                      </div>
+                      <div>
+                        <span class="text-gray-500">总包数:</span>
+                        <span class="ml-1 font-medium">{{ item.totalPackets }}</span>
+                      </div>
+                      <div>
+                        <span class="text-gray-500">成功率:</span>
+                        <span class="ml-1 font-medium" :class="item.successRate >= 80 ? 'text-success' : item.successRate >= 60 ? 'text-warning' : 'text-danger'">
+                          {{ item.successRate }}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div class="flex items-center space-x-2 ml-4">
+                    <button @click.stop="exportHistoryItem(item)" 
+                            class="text-xs bg-primary/10 hover:bg-primary/20 text-primary px-2 py-1 rounded transition-colors"
+                            title="导出报告">
+                      <i class="fa fa-download"></i>
+                    </button>
+                    <button @click.stop="deleteHistoryItem(item.id)" 
+                            class="text-xs bg-danger/10 hover:bg-danger/20 text-danger px-2 py-1 rounded transition-colors"
+                            title="删除记录">
+                      <i class="fa fa-trash"></i>
+                    </button>
+                    <i class="fa fa-chevron-right text-gray-400"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 历史结果详情视图 -->
+        <div v-else-if="selectedHistoryItem" class="flex flex-col h-full">
+          <!-- 详情头部 -->
+          <div class="flex items-center justify-between p-6 border-b border-gray-200">
+            <div class="flex items-center space-x-3">
+              <button @click="backToHistoryList" class="text-gray-400 hover:text-gray-600 transition-colors">
+                <i class="fa fa-arrow-left text-lg"></i>
+              </button>
+              <div class="bg-secondary/10 p-2 rounded-lg">
+                <i class="fa fa-chart-bar text-secondary text-xl"></i>
+              </div>
+              <div>
+                <h2 class="text-xl font-bold text-dark">测试详情</h2>
+                <p class="text-sm text-gray-500">{{ selectedHistoryItem.timestamp }}</p>
+              </div>
+            </div>
+            <button @click="closeHistoryModal" class="text-gray-400 hover:text-gray-600 transition-colors">
+              <i class="fa fa-times text-xl"></i>
+            </button>
+          </div>
+
+          <!-- 详情内容 -->
+          <div class="flex-1 overflow-y-auto p-6">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <!-- 基本信息 -->
+              <div class="lg:col-span-1">
+                <div class="bg-gray-50 rounded-lg p-4 mb-6">
+                  <h3 class="font-semibold text-lg mb-4">基本信息</h3>
+                  <div class="space-y-3 text-sm">
+                    <div class="flex justify-between">
+                      <span class="text-gray-600">测试ID:</span>
+                      <span class="font-mono">{{ selectedHistoryItem.id }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span class="text-gray-600">协议类型:</span>
+                      <span class="font-medium">{{ selectedHistoryItem.protocol }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span class="text-gray-600">Fuzz引擎:</span>
+                      <span class="font-medium">{{ selectedHistoryItem.fuzzEngine }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span class="text-gray-600">目标主机:</span>
+                      <span class="font-mono">{{ selectedHistoryItem.targetHost }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span class="text-gray-600">目标端口:</span>
+                      <span class="font-mono">{{ selectedHistoryItem.targetPort }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span class="text-gray-600">测试时长:</span>
+                      <span class="font-medium">{{ selectedHistoryItem.duration }}秒</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 崩溃信息 -->
+                <div v-if="selectedHistoryItem.hasCrash && selectedHistoryItem.crashDetails" class="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <h3 class="font-semibold text-lg text-danger mb-4">
+                    <i class="fa fa-exclamation-triangle mr-2"></i>崩溃信息
+                  </h3>
+                  <div class="space-y-3 text-sm">
+                    <div>
+                      <span class="text-gray-600">崩溃时间:</span>
+                      <p class="font-mono mt-1">{{ selectedHistoryItem.crashDetails.time }}</p>
+                    </div>
+                    <div>
+                      <span class="text-gray-600">崩溃类型:</span>
+                      <p class="text-danger font-medium mt-1">{{ selectedHistoryItem.crashDetails.type }}</p>
+                    </div>
+                    <div>
+                      <span class="text-gray-600">触发包ID:</span>
+                      <p class="font-mono mt-1">#{{ selectedHistoryItem.crashDetails.id }}</p>
+                    </div>
+                    <div>
+                      <span class="text-gray-600">日志路径:</span>
+                      <p class="font-mono text-xs mt-1 break-all">{{ selectedHistoryItem.crashDetails.logPath }}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 统计信息 -->
+              <div class="lg:col-span-2">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                  <!-- 测试结果统计 -->
+                  <div class="bg-gray-50 rounded-lg p-4">
+                    <h3 class="font-semibold text-lg mb-4">测试结果统计</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                      <div class="text-center">
+                        <div class="text-2xl font-bold text-success">{{ selectedHistoryItem.successCount }}</div>
+                        <div class="text-xs text-gray-600">正常响应</div>
+                      </div>
+                      <div class="text-center">
+                        <div class="text-2xl font-bold text-warning">{{ selectedHistoryItem.timeoutCount }}</div>
+                        <div class="text-xs text-gray-600">超时</div>
+                      </div>
+                      <div class="text-center">
+                        <div class="text-2xl font-bold text-danger">{{ selectedHistoryItem.failedCount }}</div>
+                        <div class="text-xs text-gray-600">失败</div>
+                      </div>
+                      <div class="text-center">
+                        <div class="text-2xl font-bold text-danger">{{ selectedHistoryItem.crashCount }}</div>
+                        <div class="text-xs text-gray-600">崩溃</div>
+                      </div>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-gray-200">
+                      <div class="flex justify-between items-center">
+                        <span class="text-gray-600">总发包数:</span>
+                        <span class="text-xl font-bold">{{ selectedHistoryItem.totalPackets }}</span>
+                      </div>
+                      <div class="flex justify-between items-center mt-2">
+                        <span class="text-gray-600">成功率:</span>
+                        <span class="text-lg font-bold" :class="selectedHistoryItem.successRate >= 80 ? 'text-success' : selectedHistoryItem.successRate >= 60 ? 'text-warning' : 'text-danger'">
+                          {{ selectedHistoryItem.successRate }}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 协议版本分布 -->
+                  <div class="bg-gray-50 rounded-lg p-4">
+                    <h3 class="font-semibold text-lg mb-4">协议版本分布</h3>
+                    <div class="space-y-3">
+                      <div class="flex justify-between items-center">
+                        <span class="text-gray-600">SNMP v1:</span>
+                        <div class="flex items-center space-x-2">
+                          <div class="w-20 bg-gray-200 rounded-full h-2">
+                            <div class="bg-yellow-500 h-2 rounded-full" :style="{ width: (selectedHistoryItem.protocolStats.v1 / selectedHistoryItem.totalPackets * 100) + '%' }"></div>
+                          </div>
+                          <span class="text-sm font-medium">{{ selectedHistoryItem.protocolStats.v1 }}</span>
+                        </div>
+                      </div>
+                      <div class="flex justify-between items-center">
+                        <span class="text-gray-600">SNMP v2c:</span>
+                        <div class="flex items-center space-x-2">
+                          <div class="w-20 bg-gray-200 rounded-full h-2">
+                            <div class="bg-purple-500 h-2 rounded-full" :style="{ width: (selectedHistoryItem.protocolStats.v2c / selectedHistoryItem.totalPackets * 100) + '%' }"></div>
+                          </div>
+                          <span class="text-sm font-medium">{{ selectedHistoryItem.protocolStats.v2c }}</span>
+                        </div>
+                      </div>
+                      <div class="flex justify-between items-center">
+                        <span class="text-gray-600">SNMP v3:</span>
+                        <div class="flex items-center space-x-2">
+                          <div class="w-20 bg-gray-200 rounded-full h-2">
+                            <div class="bg-red-500 h-2 rounded-full" :style="{ width: (selectedHistoryItem.protocolStats.v3 / selectedHistoryItem.totalPackets * 100) + '%' }"></div>
+                          </div>
+                          <span class="text-sm font-medium">{{ selectedHistoryItem.protocolStats.v3 }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 消息类型分布 -->
+                <div class="bg-gray-50 rounded-lg p-4">
+                  <h3 class="font-semibold text-lg mb-4">消息类型分布</h3>
+                  <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div class="text-center">
+                      <div class="text-xl font-bold text-blue-600">{{ selectedHistoryItem.messageTypeStats.get }}</div>
+                      <div class="text-xs text-gray-600">GET</div>
+                    </div>
+                    <div class="text-center">
+                      <div class="text-xl font-bold text-indigo-600">{{ selectedHistoryItem.messageTypeStats.set }}</div>
+                      <div class="text-xs text-gray-600">SET</div>
+                    </div>
+                    <div class="text-center">
+                      <div class="text-xl font-bold text-pink-600">{{ selectedHistoryItem.messageTypeStats.getnext }}</div>
+                      <div class="text-xs text-gray-600">GETNEXT</div>
+                    </div>
+                    <div class="text-center">
+                      <div class="text-xl font-bold text-green-600">{{ selectedHistoryItem.messageTypeStats.getbulk }}</div>
+                      <div class="text-xs text-gray-600">GETBULK</div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 崩溃详情 -->
+                <div v-if="selectedHistoryItem.hasCrash && selectedHistoryItem.crashDetails" class="bg-red-50 border border-red-200 rounded-lg p-4 mt-6">
+                  <h3 class="font-semibold text-lg text-danger mb-4">崩溃详细信息</h3>
+                  <div class="bg-white rounded border p-3 font-mono text-xs overflow-x-auto">
+                    <pre>{{ selectedHistoryItem.crashDetails.details }}</pre>
+                  </div>
+                  <div class="mt-4">
+                    <h4 class="font-medium text-sm text-gray-700 mb-2">触发数据包内容:</h4>
+                    <div class="bg-white rounded border p-3 font-mono text-xs break-all">
+                      {{ selectedHistoryItem.crashDetails.packetContent }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 详情底部操作 -->
+          <div class="border-t border-gray-200 p-4 flex justify-end space-x-3">
+            <button @click="exportHistoryItem(selectedHistoryItem)" 
+                    class="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg transition-colors flex items-center">
+              <i class="fa fa-download mr-2"></i>导出报告
+            </button>
+            <button @click="backToHistoryList" 
+                    class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg transition-colors">
+              返回列表
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
