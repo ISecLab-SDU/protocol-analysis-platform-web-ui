@@ -9,6 +9,7 @@ import type {
 
 import { 
   fetchFormalGptHistory,
+  uploadProtocolFile,
   fetchFormalGptProtocolDetail,
   transformIRDataForSequence
 } from '#/api/formal-gpt';
@@ -179,19 +180,50 @@ export default {
 
     const handleFileUpload = async (e) => {
       const file = e.target.files[0];
-      if (file) {
-        resetAllStates();
-        uploadedFile.value = file;
-        // TODO: Implement real file upload and parsing API call
-        // For now, just show the file and move to the next step for demonstration
-        isParsing.value = true;
-        // Simulate a short delay for UX
-        setTimeout(() => {
-          isParsing.value = false;
-          // After real parsing, you would get the IR and move to step 1
-          // currentStep.value = 1;
-          alert("文件已选择，请继续操作。真实解析流程待实现。");
-        }, 1000);
+      
+      if (!file) {
+        return;
+      }
+      
+      // 重置所有状态
+      resetAllStates();
+      
+      // 设置上传中状态
+      isParsing.value = true;
+      uploadedFile.value = file;
+      
+      try {
+        console.log('📤 准备上传文件:', file.name);
+        
+        // 调用上传 API
+        const uploadResult = await uploadProtocolFile(file);
+        
+        console.log('✅ 文件上传成功:', uploadResult);
+        
+        // 保存文件ID，用于后续处理
+        currentFileId.value = uploadResult.fileId;
+        
+        // 更新上传的文件信息
+        uploadedFile.value = {
+          name: uploadResult.fileName,
+          size: uploadResult.fileSize
+        };
+        
+        // 显示成功提示
+        alert(`文件上传成功！\n文件ID: ${uploadResult.fileId}\n文件名: ${uploadResult.fileName}`);
+        
+        // 可以选择自动跳转到下一步，或者让用户手动点击
+        // nextStep();
+        
+      } catch (error) {
+        console.error('❌ 文件上传失败:', error);
+        alert(`文件上传失败: ${error.message || '未知错误'}`);
+        
+        // 重置状态
+        uploadedFile.value = null;
+        
+      } finally {
+        isParsing.value = false;
       }
     };
 

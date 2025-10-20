@@ -1,14 +1,106 @@
 """Routes for formal verification system."""
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, request, jsonify
 import os
 import json
 from datetime import datetime
+from werkzeug.utils import secure_filename
+import uuid
+
 
 bp = Blueprint('formal_gpt', __name__, url_prefix='/api/formal-gpt')
-
+# 在文件开头添加配置
 # 配置路径
 CASE_FOLDER = '/amax/bxy/formalgpt/case'
+UPLOAD_FOLDER = '/amax/bxy/formalgpt/uploads'  # 上传文件存储路径
+ALLOWED_EXTENSIONS = {'txt', 'pdf', 'doc', 'docx'}
+
+def allowed_file(filename):
+    """检查文件扩展名是否允许"""
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def ensure_upload_folder():
+    """确保上传文件夹存在"""
+    if not os.path.exists(UPLOAD_FOLDER):
+        os.makedirs(UPLOAD_FOLDER)
+
+@bp.route('/upload', methods=['POST'])
+def upload_file():
+    """处理文件上传"""
+    try:
+        # 检查是否有文件
+        if 'file' not in request.files:
+            return jsonify({
+                'code': 1,
+                'success': False,
+                'error': '没有文件被上传'
+            }), 400
+        
+        file = request.files['file']
+        
+        # 检查文件名是否为空
+        if file.filename == '':
+            return jsonify({
+                'code': 1,
+                'success': False,
+                'error': '文件名为空'
+            }), 400
+        
+        # 检查文件类型
+        if not allowed_file(file.filename):
+            return jsonify({
+                'code': 1,
+                'success': False,
+                'error': f'不支持的文件类型。支持的格式: {", ".join(ALLOWED_EXTENSIONS)}'
+            }), 400
+        
+        # 确保上传文件夹存在
+        ensure_upload_folder()
+        
+        # 生成唯一的文件ID
+        file_id = str(uuid.uuid4())
+        
+        # 获取安全的文件名
+        original_filename = secure_filename(file.filename)
+        
+        # 创建该文件的专属文件夹
+        file_folder = os.path.join(UPLOAD_FOLDER, file_id)
+        os.makedirs(file_folder, exist_ok=True)
+        
+        # 保存文件
+        file_path = os.path.join(file_folder, original_filename)
+        file.save(file_path)
+        
+        # 获取文件大小
+        file_size = os.path.getsize(file_path)
+        
+        print(f"✅ 文件上传成功: {file_path}")
+        
+        return jsonify({
+            'code': 0,
+            'success': True,
+            'message': '文件上传成功',
+            'data': {
+                'fileId': file_id,
+                'fileName': original_filename,
+                'fileSize': file_size,
+                'filePath': file_path,
+                'uploadTime': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            }
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ 文件上传失败: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'code': 1,
+            'success': False,
+            'error': f'文件上传失败: {str(e)}'
+        }), 500
+
+
 
 def get_proverif_code(protocol_path):
     """读取 ProVerif 形式化验证代码"""

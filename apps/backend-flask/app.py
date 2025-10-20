@@ -20,6 +20,9 @@ from formalgpt.routes import bp as formal_gpt_bp
 
 def create_app() -> Flask:
     app = Flask(__name__)
+
+        # ✅ 新增：配置文件上传大小限制（例如 16MB）
+    app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
     
     # 启用 CORS
     CORS(app, resources={

@@ -4,6 +4,14 @@
 
 // ==================== 类型定义 ====================
 
+export interface UploadFileResponse {
+  fileId: string;
+  fileName: string;
+  fileSize: number;
+  filePath: string;
+  uploadTime: string;
+}
+
 export interface IRDataItem {
   desc: string;
   direction?: string;
@@ -14,6 +22,7 @@ export interface IRDataItem {
   receiver?: string;
   sender?: string;
 }
+
 
 export interface ProtocolIRItem {
   desc: string;
@@ -124,6 +133,49 @@ export function transformIRDataForSequence(
 }
 
 // ==================== API 接口 ====================
+
+// ==================== 文件上传接口 ====================
+
+/**
+ * 上传协议文件
+ * @param file - 要上传的文件对象
+ * @returns 上传结果，包含文件ID等信息
+ */
+export async function uploadProtocolFile(file: File): Promise<UploadFileResponse> {
+  try {
+    console.log('📤 开始上传文件:', file.name);
+    
+    // 创建 FormData 对象
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    // 发送请求
+    const response = await fetch(`${BASE_PATH}/upload`, {
+      method: 'POST',
+      body: formData,
+      // 注意：不要设置 Content-Type，让浏览器自动设置
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const result: ApiResponse<UploadFileResponse> = await response.json();
+    
+    console.log('📦 上传响应:', result);
+    
+    if (result.code === 0 && result.data) {
+      console.log('✅ 文件上传成功:', result.data);
+      return result.data;
+    }
+    
+    throw new Error(result.error || '文件上传失败');
+    
+  } catch (error: any) {
+    console.error('❌ uploadProtocolFile 错误:', error);
+    throw error;
+  }
+}
 
 const BASE_PATH = '/api/formal-gpt';
 
