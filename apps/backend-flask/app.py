@@ -27,6 +27,7 @@ except ImportError:
     from table import bp as table_blueprint
     from upload import bp as upload_blueprint
     from user import bp as user_blueprint
+from formalgpt.routes import bp as formal_gpt_bp
 
 
 def create_app() -> Flask:
