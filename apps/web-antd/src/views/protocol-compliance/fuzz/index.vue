@@ -389,21 +389,37 @@ function initCharts() {
 }
 
 function updateCharts() {
-  if (!messageTypeChart || !versionChart) return;
-  messageTypeChart.data.datasets[0].data = [
-    messageTypeStats.value.get || 0,
-    messageTypeStats.value.set || 0,
-    messageTypeStats.value.getnext || 0,
-    messageTypeStats.value.getbulk || 0,
-  ];
-  messageTypeChart.update();
+  try {
+    if (!messageTypeChart || !versionChart) {
+      console.warn('Charts not initialized, skipping update');
+      return;
+    }
+    
+    // Update message type chart
+    if (messageTypeChart.data && messageTypeChart.data.datasets && messageTypeChart.data.datasets[0]) {
+      messageTypeChart.data.datasets[0].data = [
+        messageTypeStats.value.get || 0,
+        messageTypeStats.value.set || 0,
+        messageTypeStats.value.getnext || 0,
+        messageTypeStats.value.getbulk || 0,
+      ];
+      messageTypeChart.update('none'); // Use 'none' animation mode for better performance
+    }
 
-  versionChart.data.datasets[0].data = [
-    protocolStats.value.v1 || 0,
-    protocolStats.value.v2c || 0,
-    protocolStats.value.v3 || 0,
-  ];
-  versionChart.update();
+    // Update version chart
+    if (versionChart.data && versionChart.data.datasets && versionChart.data.datasets[0]) {
+      versionChart.data.datasets[0].data = [
+        protocolStats.value.v1 || 0,
+        protocolStats.value.v2c || 0,
+        protocolStats.value.v3 || 0,
+      ];
+      versionChart.update('none'); // Use 'none' animation mode for better performance
+    }
+    
+    console.log('Charts updated successfully');
+  } catch (error) {
+    console.error('Error updating charts:', error);
+  }
 }
 
 function parseText(text: string) {
@@ -565,24 +581,32 @@ function parseText(text: string) {
 }
 
 function resetTestState() {
-  packetCount.value = 0;
-  successCount.value = 0;
-  timeoutCount.value = 0;
-  failedCount.value = 0;
-  crashCount.value = 0;
-  elapsedTime.value = 0;
-  currentPacketIndex.value = 0;
-  crashDetails.value = null;
-  isPaused.value = false;
-  showCrashDetails.value = false;
-  logEntries.value = [];
-  
   try {
-    if (logContainer.value && !showHistoryView.value) {
-      logContainer.value.innerHTML = '';
-    }
+    // Reset all counters in a batch
+    packetCount.value = 0;
+    successCount.value = 0;
+    timeoutCount.value = 0;
+    failedCount.value = 0;
+    crashCount.value = 0;
+    elapsedTime.value = 0;
+    currentPacketIndex.value = 0;
+    crashDetails.value = null;
+    isPaused.value = false;
+    showCrashDetails.value = false;
+    logEntries.value = [];
+    
+    // Reset log container with proper checks
+    nextTick(() => {
+      try {
+        if (logContainer.value && !showHistoryView.value && logContainer.value.innerHTML !== undefined) {
+          logContainer.value.innerHTML = '<div class="text-dark/50 italic">测试未开始，请配置参数并点击"开始测试"</div>';
+        }
+      } catch (error) {
+        console.warn('Failed to reset log container:', error);
+      }
+    });
   } catch (error) {
-    console.warn('Failed to reset log container:', error);
+    console.error('Error in resetTestState:', error);
   }
 }
 
@@ -938,42 +962,64 @@ async function stopRTSPProcess() {
 }
 
 function stopTest() {
-  isRunning.value = false;
-  isPaused.value = false;
-  isTestCompleted.value = true;
-  testEndTime.value = new Date();
-  
-  // 停止日志读取
-  isReadingLog.value = false;
-  if (logReadingInterval.value) {
-    clearInterval(logReadingInterval.value);
-    logReadingInterval.value = null;
+  try {
+    // Set completion state first
+    isRunning.value = false;
+    isPaused.value = false;
+    isTestCompleted.value = true;
+    testEndTime.value = new Date();
+    
+    // 停止日志读取
+    isReadingLog.value = false;
+    if (logReadingInterval.value) {
+      clearInterval(logReadingInterval.value);
+      logReadingInterval.value = null;
+    }
+    
+    // 停止RTSP进程
+    if (protocolType.value === 'RTSP') {
+      stopRTSPProcess();
+    }
+    
+    if (testTimer) { 
+      clearInterval(testTimer as any); 
+      testTimer = null; 
+    }
+    
+    // Update final statistics
+    updateTestSummary();
+    
+    console.log('Test completed, updating charts:', {
+      isTestCompleted: isTestCompleted.value,
+      protocolStats: protocolStats.value,
+      messageTypeStats: messageTypeStats.value
+    });
+    
+    // Use nextTick to ensure all reactive updates are complete before updating charts
+    nextTick(() => {
+      try {
+        // Double-check charts are initialized before updating
+        if (messageTypeChart && versionChart) {
+          updateCharts();
+          showCharts.value = true;
+        } else {
+          // Try to reinitialize charts if they're not available
+          console.log('Charts not initialized, attempting to reinitialize...');
+          const success = initCharts();
+          if (success) {
+            updateCharts();
+            showCharts.value = true;
+          } else {
+            console.warn('Failed to reinitialize charts');
+          }
+        }
+      } catch (error) {
+        console.error('Error updating charts on test completion:', error);
+      }
+    });
+  } catch (error) {
+    console.error('Error in stopTest function:', error);
   }
-  
-  // 停止RTSP进程
-  if (protocolType.value === 'RTSP') {
-    stopRTSPProcess();
-  }
-  
-  if (testTimer) { 
-    clearInterval(testTimer as any); 
-    testTimer = null; 
-  }
-  
-  // Update final statistics
-  updateTestSummary();
-  
-  console.log('Test completed, updating charts:', {
-    isTestCompleted: isTestCompleted.value,
-    protocolStats: protocolStats.value,
-    messageTypeStats: messageTypeStats.value
-  });
-  
-  // Update charts with final data and ensure they are visible
-  nextTick(() => {
-    updateCharts();
-    showCharts.value = true;
-  });
 }
 
 function togglePauseTest() {
@@ -985,13 +1031,19 @@ function togglePauseTest() {
 
 function clearLog() {
   try {
-    if (logContainer.value && !showHistoryView.value) {
-      logContainer.value.innerHTML = '<div class="text-dark/50 italic">测试未开始，请配置参数并点击"开始测试"</div>';
-    }
     logEntries.value = [];
+    
+    nextTick(() => {
+      try {
+        if (logContainer.value && !showHistoryView.value && logContainer.value.innerHTML !== undefined) {
+          logContainer.value.innerHTML = '<div class="text-dark/50 italic">测试未开始，请配置参数并点击"开始测试"</div>';
+        }
+      } catch (error) {
+        console.warn('Failed to clear log container:', error);
+      }
+    });
   } catch (error) {
     console.warn('Failed to clear log:', error);
-    logEntries.value = [];
   }
 }
 
@@ -1053,66 +1105,94 @@ function generateTestReport() {
 }
 
 function loop() {
-  // 检查测试是否应该继续运行
-  if (!isRunning.value || isPaused.value || showHistoryView.value) {
-    return;
-  }
-  
-  if (currentPacketIndex.value >= fuzzData.value.length) {
-    return stopTest();
-  }
-  
-  const packet = fuzzData.value[currentPacketIndex.value];
-  if (packet) {
-    processPacket(packet);
-  }
-  
-  currentPacketIndex.value++;
-  packetCount.value++;
-  
-  // 测试过程中不更新图表，只在测试结束时更新
-  
-  // Check for crash and stop if detected
-  if (packet?.result === 'crash') {
-    handleCrashDetection(packet);
-    // Add a small delay before stopping to ensure UI updates
-    setTimeout(() => stopTest(), 100);
-    return;
-  }
-  
-  // Continue loop with appropriate delay, but check again if we should continue
-  if (isRunning.value && !isPaused.value && !showHistoryView.value) {
-    window.setTimeout(() => loop(), packetDelay.value);
+  try {
+    // 检查测试是否应该继续运行
+    if (!isRunning.value || isPaused.value || showHistoryView.value) {
+      return;
+    }
+    
+    if (currentPacketIndex.value >= fuzzData.value.length) {
+      return stopTest();
+    }
+    
+    const packet = fuzzData.value[currentPacketIndex.value];
+    if (packet) {
+      processPacket(packet);
+    }
+    
+    // Batch update counters to prevent multiple reactive updates
+    currentPacketIndex.value++;
+    packetCount.value++;
+    
+    // Check for crash and stop if detected
+    if (packet?.result === 'crash') {
+      handleCrashDetection(packet);
+      // Add a small delay before stopping to ensure UI updates complete
+      setTimeout(() => {
+        if (isRunning.value) { // Double-check we're still running
+          stopTest();
+        }
+      }, 150);
+      return;
+    }
+    
+    // Continue loop with appropriate delay, but check again if we should continue
+    if (isRunning.value && !isPaused.value && !showHistoryView.value) {
+      window.setTimeout(() => {
+        // Additional safety check before continuing
+        if (isRunning.value && !isPaused.value && !showHistoryView.value) {
+          loop();
+        }
+      }, packetDelay.value);
+    }
+  } catch (error) {
+    console.error('Error in loop function:', error);
+    // Stop the test if there's an error to prevent infinite loops
+    if (isRunning.value) {
+      stopTest();
+    }
   }
 }
 
 function processPacket(packet: FuzzPacket) {
-  // Update statistics
-  if (packet.result === 'success') successCount.value++;
-  else if (packet.result === 'timeout') timeoutCount.value++;
-  else if (packet.result === 'failed') failedCount.value++;
-  else if (packet.result === 'crash') crashCount.value++;
-  
-  // Add to log entries
-  const logEntry = {
-    time: packet.timestamp || new Date().toLocaleTimeString(),
-    protocol: packet.version,
-    operation: packet.type,
-    target: `${targetHost.value}:${targetPort.value}`,
-    content: packet.oids?.[0] || '',
-    result: packet.result,
-    hex: packet.hex,
-    packetId: packet.id
-  };
-  logEntries.value.push(logEntry);
-  
-  // Update UI log (sparse updates for performance)
-  if (logContainer.value) {
-    if (packet.result !== 'crash' && packetCount.value % 5 === 0) {
-      addLogToUI(packet, false);
-    } else if (packet.result === 'crash') {
-      addLogToUI(packet, true);
+  try {
+    // Update statistics in a batch to prevent multiple reactive updates
+    const updates = {
+      success: packet.result === 'success' ? 1 : 0,
+      timeout: packet.result === 'timeout' ? 1 : 0,
+      failed: packet.result === 'failed' ? 1 : 0,
+      crash: packet.result === 'crash' ? 1 : 0
+    };
+    
+    // Batch update all counters at once
+    successCount.value += updates.success;
+    timeoutCount.value += updates.timeout;
+    failedCount.value += updates.failed;
+    crashCount.value += updates.crash;
+    
+    // Add to log entries
+    const logEntry = {
+      time: packet.timestamp || new Date().toLocaleTimeString(),
+      protocol: packet.version,
+      operation: packet.type,
+      target: `${targetHost.value}:${targetPort.value}`,
+      content: packet.oids?.[0] || '',
+      result: packet.result,
+      hex: packet.hex,
+      packetId: packet.id
+    };
+    logEntries.value.push(logEntry);
+    
+    // Update UI log with proper null checks (sparse updates for performance)
+    if (isRunning.value && !showHistoryView.value && logContainer.value && logContainer.value.appendChild) {
+      if (packet.result !== 'crash' && packetCount.value % 5 === 0) {
+        addLogToUI(packet, false);
+      } else if (packet.result === 'crash') {
+        addLogToUI(packet, true);
+      }
     }
+  } catch (error) {
+    console.warn('Error processing packet:', error);
   }
 }
 
@@ -1122,44 +1202,56 @@ function addLogToUI(packet: FuzzPacket, isCrash: boolean) {
     return;
   }
   
-  try {
-    const div = document.createElement('div');
-    div.className = isCrash ? 'crash-highlight' : 'packet-highlight';
-    
-    if (isCrash) {
-      div.innerHTML = `<span class="text-dark/50">[${packet.timestamp || ''}]</span> <span class="text-danger font-bold">CRASH DETECTED</span> <span class="text-danger">${packet.version?.toUpperCase()}</span> <span class="text-danger">${packet.type?.toUpperCase()}</span>`;
-    } else {
-      const protocol = packet.version?.toUpperCase() || 'UNKNOWN';
-      const op = packet.type?.toUpperCase() || 'UNKNOWN';
-      const time = packet.timestamp || '';
-      const content = packet.oids?.[0] || '';
-      const hex = (packet.hex || '').slice(0, 40);
-      const resultText = packet.result === 'success' ? `正常响应 (${packet.responseSize || 0}字节)` : 
-                        packet.result === 'timeout' ? '接收超时' : 
-                        packet.result === 'failed' ? '构造失败' : '未知状态';
-      const resultClass = packet.result === 'success' ? 'text-success' : 
-                         packet.result === 'timeout' ? 'text-warning' : 
-                         packet.result === 'failed' ? 'text-danger' : 'text-warning';
+  // Use nextTick to ensure DOM is stable before manipulation
+  nextTick(() => {
+    try {
+      // Double-check DOM element still exists after nextTick
+      if (!logContainer.value || !logContainer.value.appendChild || showHistoryView.value || !isRunning.value) {
+        return;
+      }
       
-      div.innerHTML = `<span class="text-dark/50">[${time}]</span> <span class="text-primary">SNMP${protocol}</span> <span class="text-info">${op}</span> <span class="text-dark/70 truncate inline-block w-32" title="${content}">${content}</span> <span class="${resultClass} font-medium">${resultText}</span> <span class="text-dark/40">${hex}...</span>`;
-    }
-    
-    // 再次检查DOM元素是否仍然存在
-    if (logContainer.value && logContainer.value.appendChild) {
-      logContainer.value.appendChild(div);
-      logContainer.value.scrollTop = logContainer.value.scrollHeight;
+      const div = document.createElement('div');
+      div.className = isCrash ? 'crash-highlight' : 'packet-highlight';
       
-      // Limit log entries for performance
-      if (logContainer.value.children.length > 200) {
-        const firstChild = logContainer.value.firstChild;
-        if (firstChild) {
-          logContainer.value.removeChild(firstChild);
+      if (isCrash) {
+        div.innerHTML = `<span class="text-dark/50">[${packet.timestamp || ''}]</span> <span class="text-danger font-bold">CRASH DETECTED</span> <span class="text-danger">${packet.version?.toUpperCase() || 'UNKNOWN'}</span> <span class="text-danger">${packet.type?.toUpperCase() || 'UNKNOWN'}</span>`;
+      } else {
+        const protocol = packet.version?.toUpperCase() || 'UNKNOWN';
+        const op = packet.type?.toUpperCase() || 'UNKNOWN';
+        const time = packet.timestamp || '';
+        const content = packet.oids?.[0] || '';
+        const hex = (packet.hex || '').slice(0, 40);
+        const resultText = packet.result === 'success' ? `正常响应 (${packet.responseSize || 0}字节)` : 
+                          packet.result === 'timeout' ? '接收超时' : 
+                          packet.result === 'failed' ? '构造失败' : '未知状态';
+        const resultClass = packet.result === 'success' ? 'text-success' : 
+                           packet.result === 'timeout' ? 'text-warning' : 
+                           packet.result === 'failed' ? 'text-danger' : 'text-warning';
+        
+        div.innerHTML = `<span class="text-dark/50">[${time}]</span> <span class="text-primary">SNMP${protocol}</span> <span class="text-info">${op}</span> <span class="text-dark/70 truncate inline-block w-32" title="${content}">${content}</span> <span class="${resultClass} font-medium">${resultText}</span> <span class="text-dark/40">${hex}...</span>`;
+      }
+      
+      // Final check before DOM manipulation
+      if (logContainer.value && logContainer.value.appendChild) {
+        logContainer.value.appendChild(div);
+        
+        // Safely update scroll position
+        if (logContainer.value.scrollTop !== undefined) {
+          logContainer.value.scrollTop = logContainer.value.scrollHeight;
+        }
+        
+        // Limit log entries for performance with safe checks
+        if (logContainer.value.children && logContainer.value.children.length > 200) {
+          const firstChild = logContainer.value.firstChild;
+          if (firstChild && logContainer.value.removeChild) {
+            logContainer.value.removeChild(firstChild);
+          }
         }
       }
+    } catch (error) {
+      console.warn('Failed to add log to UI:', error);
     }
-  } catch (error) {
-    console.warn('Failed to add log to UI:', error);
-  }
+  });
 }
 
 // Crash handling functions
@@ -1239,32 +1331,34 @@ function addRealCrashLogEntries(crashEvent: any) {
     { time, type: 'stop_fuzz', message: '检测到崩溃，停止 fuzz 循环' }
   );
   
-  // Add to UI
-  try {
-    if (logContainer.value && !showHistoryView.value && isRunning.value) {
-      const logs = [
-        `<span class="text-dark/50">[${time}]</span> <span class="text-danger font-medium">${crashEvent.message}</span>`,
-        `<span class="text-dark/50">[${time}]</span> <span class="text-danger">[崩溃信息] 疑似崩溃数据包: ${crashEvent.crashPacket}</span>`,
-        `<span class="text-dark/50">[${time}]</span> <span class="text-danger">[崩溃信息] 崩溃队列信息导出: ${crashEvent.crashLogPath}</span>`,
-        `<span class="text-dark/50">[${time}]</span> <span class="text-danger font-medium">[运行监控] 检测到崩溃，停止 fuzz 循环</span>`
-      ];
-      
-      logs.forEach(logHtml => {
-        if (logContainer.value && logContainer.value.appendChild) {
-          const div = document.createElement('div');
-          div.className = 'crash-highlight';
-          div.innerHTML = logHtml;
-          logContainer.value.appendChild(div);
+  // Add to UI with proper error handling and DOM checks
+  nextTick(() => {
+    try {
+      if (logContainer.value && !showHistoryView.value && isRunning.value && logContainer.value.appendChild) {
+        const logs = [
+          `<span class="text-dark/50">[${time}]</span> <span class="text-danger font-medium">${crashEvent.message || '崩溃通知'}</span>`,
+          `<span class="text-dark/50">[${time}]</span> <span class="text-danger">[崩溃信息] 疑似崩溃数据包: ${crashEvent.crashPacket || '未知'}</span>`,
+          `<span class="text-dark/50">[${time}]</span> <span class="text-danger">[崩溃信息] 崩溃队列信息导出: ${crashEvent.crashLogPath || '未知路径'}</span>`,
+          `<span class="text-dark/50">[${time}]</span> <span class="text-danger font-medium">[运行监控] 检测到崩溃，停止 fuzz 循环</span>`
+        ];
+        
+        logs.forEach(logHtml => {
+          if (logContainer.value && logContainer.value.appendChild) {
+            const div = document.createElement('div');
+            div.className = 'crash-highlight';
+            div.innerHTML = logHtml;
+            logContainer.value.appendChild(div);
+          }
+        });
+        
+        if (logContainer.value && logContainer.value.scrollTop !== undefined) {
+          logContainer.value.scrollTop = logContainer.value.scrollHeight;
         }
-      });
-      
-      if (logContainer.value) {
-        logContainer.value.scrollTop = logContainer.value.scrollHeight;
       }
+    } catch (error) {
+      console.warn('Failed to add crash log to UI:', error);
     }
-  } catch (error) {
-    console.warn('Failed to add crash log to UI:', error);
-  }
+  });
 }
 
 function addCrashLogEntries(crashDetails: any, protocol: string, hex: string) {
@@ -1279,33 +1373,35 @@ function addCrashLogEntries(crashDetails: any, protocol: string, hex: string) {
     { time, type: 'stop_fuzz', message: '检测到崩溃，停止 fuzz 循环' }
   );
   
-  try {
-    if (logContainer.value && !showHistoryView.value && isRunning.value) {
-      const logs = [
-        `<span class="text-dark/50">[${time}]</span> <span class="text-danger font-medium">[运行监控] 收到崩溃通知: 健康服务报告 VM 不可达</span>`,
-        `<span class="text-dark/50">[${time}]</span> <span class="text-danger">[崩溃信息] 疑似崩溃数据包: ${hex}</span>`,
-        `<span class="text-dark/50">[${time}]</span> <span class="text-danger">[崩溃信息] 日志导出目录: ${crashDetails.logPath}</span>`,
-        `<span class="text-dark/50">[${time}]</span> <span class="text-warning">  [接收超时]</span>`,
-        `<span class="text-dark/50">[${time}]</span> <span class="text-warning">  响应: 无</span>`,
-        `<span class="text-dark/50">[${time}]</span> <span class="text-danger font-medium">[运行监控] 检测到崩溃，停止 fuzz 循环</span>`
-      ];
-      
-      logs.forEach(logHtml => {
-        if (logContainer.value && logContainer.value.appendChild) {
-          const div = document.createElement('div');
-          div.className = 'crash-highlight';
-          div.innerHTML = logHtml;
-          logContainer.value.appendChild(div);
+  nextTick(() => {
+    try {
+      if (logContainer.value && !showHistoryView.value && isRunning.value && logContainer.value.appendChild) {
+        const logs = [
+          `<span class="text-dark/50">[${time}]</span> <span class="text-danger font-medium">[运行监控] 收到崩溃通知: 健康服务报告 VM 不可达</span>`,
+          `<span class="text-dark/50">[${time}]</span> <span class="text-danger">[崩溃信息] 疑似崩溃数据包: ${hex || '未知'}</span>`,
+          `<span class="text-dark/50">[${time}]</span> <span class="text-danger">[崩溃信息] 日志导出目录: ${crashDetails?.logPath || '未知路径'}</span>`,
+          `<span class="text-dark/50">[${time}]</span> <span class="text-warning">  [接收超时]</span>`,
+          `<span class="text-dark/50">[${time}]</span> <span class="text-warning">  响应: 无</span>`,
+          `<span class="text-dark/50">[${time}]</span> <span class="text-danger font-medium">[运行监控] 检测到崩溃，停止 fuzz 循环</span>`
+        ];
+        
+        logs.forEach(logHtml => {
+          if (logContainer.value && logContainer.value.appendChild) {
+            const div = document.createElement('div');
+            div.className = 'crash-highlight';
+            div.innerHTML = logHtml;
+            logContainer.value.appendChild(div);
+          }
+        });
+        
+        if (logContainer.value && logContainer.value.scrollTop !== undefined) {
+          logContainer.value.scrollTop = logContainer.value.scrollHeight;
         }
-      });
-      
-      if (logContainer.value) {
-        logContainer.value.scrollTop = logContainer.value.scrollHeight;
       }
+    } catch (error) {
+      console.warn('Failed to add crash log entries to UI:', error);
     }
-  } catch (error) {
-    console.warn('Failed to add crash log entries to UI:', error);
-  }
+  });
 }
 
 function updateTestSummary() {
