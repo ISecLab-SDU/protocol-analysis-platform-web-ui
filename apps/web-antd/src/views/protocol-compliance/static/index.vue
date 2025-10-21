@@ -14,6 +14,7 @@ import type {
 
 import {
   computed,
+  nextTick,
   onBeforeUnmount,
   onMounted,
   reactive,
@@ -1021,6 +1022,16 @@ const progressText = computed(() => {
 const progressHtml = computed(() => ansiToHtml(progressText.value));
 const canCopyProgressLogs = computed(() => progressLogs.value.length > 0);
 
+const progressTextRef = ref<HTMLDivElement>();
+
+watch(progressText, () => {
+  nextTick(() => {
+    if (progressTextRef.value) {
+      progressTextRef.value.scrollTop = progressTextRef.value.scrollHeight;
+    }
+  });
+});
+
 function toProgressLine(event: ProtocolStaticAnalysisProgressEvent) {
   const timeLabel = (() => {
     try {
@@ -1404,6 +1415,7 @@ async function handleSubmit() {
               <span class="progress-message">{{ progressMessage }}</span>
             </Space>
             <div
+              ref="progressTextRef"
               aria-live="polite"
               class="progress-text"
               role="log"
@@ -1904,6 +1916,11 @@ async function handleSubmit() {
   flex-direction: column;
   overflow: hidden;
   min-height: 0;
+}
+
+.progress-text {
+  flex: 1;
+  overflow-y: auto;
 }
 
 .progress-text {
