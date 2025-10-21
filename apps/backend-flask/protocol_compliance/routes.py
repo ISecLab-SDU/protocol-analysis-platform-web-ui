@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import contextlib
-import logging
 import json
+import logging
 import os
 import re
 import subprocess
 import threading
-from typing import Iterable, Optional
+import sqlite3
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Optional, cast
 
+import toml
 from flask import Blueprint, make_response, request
 from werkzeug.datastructures import FileStorage
 
@@ -21,12 +25,12 @@ except ImportError:
     from utils.auth import verify_access_token
     from utils.responses import error_response, paginate, success_response, unauthorized
 from .analysis import (
-    AnalysisError,
-    AnalysisExecutionError,
-    AnalysisNotReadyError,
     extract_protocol_version,
+    get_static_analysis_job,
+    get_static_analysis_result,
+    list_static_analysis_history,
     normalize_protocol_name,
-    run_static_analysis,
+    submit_static_analysis_job,
     try_extract_rules_summary,
 )
 from .store import STORE, TaskStatus
@@ -92,6 +96,37 @@ def _read_upload(upload: FileStorage) -> tuple[str, Optional[bytes]]:
         with contextlib.suppress(Exception):
             upload.stream.seek(0)
     return filename, data
+
+
+def _extract_protocol_metadata_from_config(
+    raw: Optional[bytes], source_label: str
+) -> tuple[Optional[str], Optional[str]]:
+    if not raw:
+        LOGGER.debug("Config payload %s is empty; skipping protocol metadata extraction", source_label)
+        return None, None
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        LOGGER.warning("Failed to decode %s as UTF-8 while extracting protocol metadata: %s", source_label, exc)
+        return None, None
+    try:
+        parsed = toml.loads(text)
+    except toml.TomlDecodeError as exc:
+        LOGGER.warning("Failed to parse %s as TOML while extracting protocol metadata: %s", source_label, exc)
+        return None, None
+
+    project = parsed.get("project")
+    if isinstance(project, dict):
+        raw_name = project.get("protocol_name") or project.get("protocol")
+        raw_version = project.get("protocol_version") or project.get("version")
+        name = raw_name.strip() if isinstance(raw_name, str) else None
+        version = raw_version.strip() if isinstance(raw_version, str) else None
+        return (name or None, version or None)
+
+    LOGGER.debug(
+        "Config %s does not define a [project] section when extracting protocol metadata", source_label
+    )
+    return None, None
 
 
 def _collect_exception_details(exc: Exception, *, max_logs: int = 40) -> dict:
@@ -224,18 +259,44 @@ def static_analysis():
         return error
 
     if not request.files:
-        return make_response(error_response("请上传协议规则和代码片段"), 400)
+        return make_response(
+            error_response("请上传源码、Builder Dockerfile、协议规则和配置文件"), 400
+        )
 
-    rules_upload = request.files.get("rules")
-    code_upload = request.files.get("code")
+    uploads_map = {
+        "codeArchive": request.files.get("codeArchive"),
+        "builderDockerfile": request.files.get("builderDockerfile"),
+        "rules": request.files.get("rules"),
+        "config": request.files.get("config"),
+    }
 
-    if not isinstance(rules_upload, FileStorage) or not isinstance(
-        code_upload, FileStorage
-    ):
-        return make_response(error_response("请同时上传协议规则 JSON 和代码片段文件"), 400)
+    missing = [
+        key for key, value in uploads_map.items() if not isinstance(value, FileStorage)
+    ]
+    if missing:
+        labels = {
+            "codeArchive": "源码压缩包",
+            "builderDockerfile": "Builder Dockerfile",
+            "rules": "协议规则 JSON",
+            "config": "分析配置 TOML",
+        }
+        readable = "、".join(labels.get(item, item) for item in missing)
+        return make_response(
+            error_response(f"请上传完整文件：{readable}"), 400
+        )
 
+    code_upload = cast(FileStorage, uploads_map["codeArchive"])
+    builder_upload = cast(FileStorage, uploads_map["builderDockerfile"])
+    rules_upload = cast(FileStorage, uploads_map["rules"])
+    config_upload = cast(FileStorage, uploads_map["config"])
+
+    code_name, code_data = _read_upload(code_upload)
+    builder_name, builder_data = _read_upload(builder_upload)
     rules_name, rules_data = _read_upload(rules_upload)
-    code_name, _ = _read_upload(code_upload)
+    config_name, config_data = _read_upload(config_upload)
+
+    if code_data is None or builder_data is None or config_data is None or rules_data is None:
+        return make_response(error_response("上传的文件内容为空，请重新上传"), 400)
 
     parsed_rules = None
     if rules_data:
@@ -244,43 +305,344 @@ def static_analysis():
         except (json.JSONDecodeError, UnicodeDecodeError):
             parsed_rules = None
 
-    protocol_name = normalize_protocol_name(parsed_rules, rules_name)
-    protocol_version = extract_protocol_version(parsed_rules, None)
+    config_protocol_name, config_protocol_version = _extract_protocol_metadata_from_config(config_data, config_name)
+
+    rules_protocol_fallback = normalize_protocol_name(parsed_rules, _strip_extension(rules_name))
+    protocol_name = config_protocol_name or rules_protocol_fallback
+    if config_protocol_name:
+        LOGGER.info(
+            "Static analysis protocol resolved from config %s: %s",
+            config_name,
+            config_protocol_name,
+        )
+    else:
+        LOGGER.info(
+            "Static analysis protocol falling back to %s (config %s missing protocol_name)",
+            rules_protocol_fallback,
+            config_name,
+        )
+
+    rules_version_fallback = extract_protocol_version(parsed_rules, None)
+    protocol_version = config_protocol_version or rules_version_fallback
+    if config_protocol_version:
+        LOGGER.info(
+            "Static analysis protocol version resolved from config %s: %s",
+            config_name,
+            config_protocol_version,
+        )
+    elif rules_version_fallback:
+        LOGGER.info(
+            "Static analysis protocol version falling back to %s (config %s missing protocol_version)",
+            rules_version_fallback,
+            config_name,
+        )
     rules_summary = try_extract_rules_summary(parsed_rules)
     notes = request.form.get("notes")
 
+    snapshot = submit_static_analysis_job(
+        code_payload=(code_name, code_data),
+        builder_payload=(builder_name, builder_data),
+        config_payload=(config_name, config_data),
+        rules_payload=(rules_name, rules_data),
+        notes=notes,
+        protocol_name=protocol_name,
+        protocol_version=protocol_version,
+        rules_summary=rules_summary,
+    )
+    return make_response(success_response(snapshot), 202)
+
+
+@bp.route("/static-analysis/history", methods=["GET"])
+def static_analysis_history():
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+
+    limit = _to_int(request.args.get("limit"), 50)
+    limit = max(1, min(limit, 200))
+    history = list_static_analysis_history(limit=limit)
+    payload = success_response({"items": history, "limit": limit, "count": len(history)})
+    return make_response(payload, 200)
+
+
+def _expand_path(raw: Optional[str]) -> Optional[Path]:
+    if not raw or not isinstance(raw, str):
+        return None
     try:
-        analysis = run_static_analysis(
-            code_stream=code_upload.stream,
-            code_file_name=code_name,
-            rules_stream=rules_upload.stream,
-            rules_file_name=rules_name,
-            notes=notes,
-            protocol_name=protocol_name,
-            protocol_version=protocol_version,
-            rules_summary=rules_summary,
-        )
-    except AnalysisNotReadyError as exc:
-        LOGGER.warning("ProtocolGuard Docker not ready: %s", exc)
-        details = _collect_exception_details(exc)
-        return make_response(error_response(f"后端尚未就绪: {exc}", details), 503)
-    except AnalysisExecutionError as exc:
-        LOGGER.error("ProtocolGuard Docker execution failed: %s", exc)
-        details = _collect_exception_details(exc)
+        return Path(raw).expanduser()
+    except (OSError, ValueError):
+        return None
+
+
+def _find_sqlite_file(
+    database_path: Optional[str],
+    workspace_path: Optional[str],
+) -> tuple[Optional[Path], list[str]]:
+    """Resolve the SQLite database path, collecting warnings."""
+    warnings: list[str] = []
+
+    candidate = _expand_path(database_path)
+    if candidate and candidate.is_file():
+        return candidate, warnings
+    if candidate and not candidate.exists():
+        warnings.append(f"指定的数据库路径不存在：{candidate}")
+
+    workspace = _expand_path(workspace_path)
+    if workspace:
+        if workspace.is_dir():
+            matches = sorted(workspace.glob("sqlite_*.db"))
+            if matches:
+                return matches[0], warnings
+            warnings.append(
+                f"在工作目录 {workspace} 中未找到 sqlite_*.db 文件"
+            )
+        else:
+            warnings.append(f"工作目录不存在或不可访问：{workspace}")
+
+    return None, warnings
+
+
+def _parse_llm_response(payload: Any) -> Dict[str, Any]:
+    if isinstance(payload, str):
+        payload = payload.strip()
+        if not payload or payload.lower() == "null":
+            return {}
+        try:
+            decoded = json.loads(payload)
+        except json.JSONDecodeError:
+            return {"raw": payload}
+        payload = decoded
+    if isinstance(payload, dict):
+        return payload
+    return {}
+
+
+def _classify_rule_result(llm_payload: Dict[str, Any]) -> tuple[str, str]:
+    result_text = str(llm_payload.get("result") or "").lower()
+    if "violation" in result_text and "no violation" not in result_text:
+        return "violation_found", "发现违规"
+    if "no violation" in result_text:
+        return "no_violation", "未发现违规"
+    return "unknown", "未判定"
+
+
+@bp.route("/static-analysis/database-insights", methods=["POST"])
+def static_analysis_database_insights():
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+
+    payload = request.get_json(silent=True)
+    if payload is None:
         return make_response(
-            error_response("静态分析执行失败。请查看日志了解详情。", details),
-            502,
+            error_response("请求体必须为 JSON 对象"),
+            400,
         )
-    except AnalysisError as exc:
-        LOGGER.error("ProtocolGuard Docker integration error: %s", exc)
-        details = _collect_exception_details(exc)
+    if not isinstance(payload, dict):
         return make_response(
-            error_response("静态分析服务出现异常。", details),
+            error_response("请求体必须为 JSON 对象"),
+            400,
+        )
+
+    job_id = payload.get("jobId")
+    database_path_raw = cast(Optional[str], payload.get("databasePath"))
+    workspace_path_raw = cast(Optional[str], payload.get("workspacePath"))
+
+    LOGGER.info(
+        "Static analysis database insights requested",
+        extra={
+            "jobId": job_id,
+            "databasePath": database_path_raw,
+            "workspacePath": workspace_path_raw,
+        },
+    )
+
+    resolved_path, warnings = _find_sqlite_file(database_path_raw, workspace_path_raw)
+    if not resolved_path:
+        detail = {
+            "jobId": job_id,
+            "databasePath": database_path_raw,
+            "workspacePath": workspace_path_raw,
+            "warnings": warnings or None,
+        }
+        LOGGER.warning(
+            "Unable to resolve SQLite database for static analysis insights",
+            extra=detail,
+        )
+        return make_response(
+            error_response("未找到静态分析结果数据库文件", detail),
+            404,
+        )
+
+    LOGGER.info(
+        "Resolved static analysis database file",
+        extra={
+            "jobId": job_id,
+            "databasePath": str(resolved_path),
+            "workspacePath": workspace_path_raw,
+        },
+    )
+
+    try:
+        conn = sqlite3.connect(resolved_path)
+    except sqlite3.Error as exc:
+        detail = {
+            "jobId": job_id,
+            "databasePath": str(resolved_path),
+            "exception": exc.__class__.__name__,
+            "args": [str(item) for item in exc.args],
+        }
+        LOGGER.exception(
+            "Failed to open SQLite database for static analysis insights",
+            extra=detail,
+        )
+        return make_response(
+            error_response("无法打开静态分析结果数据库", detail),
             500,
         )
 
-    payload = success_response(analysis)
-    return payload
+    conn.row_factory = sqlite3.Row
+
+    query = (
+        "SELECT rule_desc, code_snippet, call_graph, llm_response "
+        "FROM rule_code_snippet"
+    )
+    try:
+        cursor = conn.execute(query)
+        rows = cursor.fetchall()
+    except sqlite3.Error as exc:
+        detail = {
+            "jobId": job_id,
+            "databasePath": str(resolved_path),
+            "exception": exc.__class__.__name__,
+            "args": [str(item) for item in exc.args],
+            "query": query,
+        }
+        LOGGER.exception(
+            "Failed to query rule_code_snippet from SQLite database",
+            extra=detail,
+        )
+        conn.close()
+        return make_response(
+            error_response("读取静态分析规则结果失败", detail),
+            500,
+        )
+
+    findings: List[Dict[str, Any]] = []
+    parsing_warnings: List[str] = []
+
+    for row in rows:
+        rule_desc = row["rule_desc"]
+        code_snippet = row["code_snippet"]
+        call_graph = row["call_graph"]
+        raw_llm_response = row["llm_response"]
+
+        llm_payload = _parse_llm_response(raw_llm_response)
+        result_status, result_label = _classify_rule_result(llm_payload)
+
+        reason = llm_payload.get("reason")
+        if isinstance(reason, str):
+            reason = reason.strip()
+        elif reason is not None:
+            reason = json.dumps(reason, ensure_ascii=False)
+
+        violations_payload = llm_payload.get("violations")
+        violations: List[Dict[str, Any]] = []
+        if isinstance(violations_payload, list):
+            for entry in violations_payload:
+                if not isinstance(entry, dict):
+                    continue
+                code_lines = entry.get("code_lines") or entry.get("codeLines")
+                if isinstance(code_lines, list):
+                    lines = []
+                    for item in code_lines:
+                        try:
+                            lines.append(int(item))
+                        except (TypeError, ValueError):
+                            continue
+                    code_lines = lines or None
+                else:
+                    code_lines = None
+                violations.append(
+                    {
+                        "filename": entry.get("filename"),
+                        "functionName": entry.get("function_name") or entry.get("functionName"),
+                        "codeLines": code_lines,
+                    }
+                )
+
+        findings.append(
+            {
+                "ruleDesc": rule_desc,
+                "codeSnippet": code_snippet,
+                "callGraph": call_graph,
+                "llmRaw": raw_llm_response,
+                "reason": reason,
+                "result": result_status,
+                "resultLabel": result_label,
+                "violations": violations or None,
+            }
+        )
+
+        if not llm_payload and raw_llm_response:
+            parsing_warnings.append(
+                f"规则[{rule_desc}]的 LLM 结果无法解析为 JSON，已返回原始字符串"
+            )
+
+    conn.close()
+
+    response_payload: Dict[str, Any] = {
+        "databasePath": str(resolved_path),
+        "workspacePath": workspace_path_raw,
+        "extractedAt": datetime.now(timezone.utc).isoformat(),
+        "findings": findings,
+    }
+    all_warnings = warnings + parsing_warnings
+    if all_warnings:
+        response_payload["warnings"] = all_warnings
+
+    LOGGER.info(
+        "Static analysis database insights resolved",
+        extra={
+            "jobId": job_id,
+            "databasePath": str(resolved_path),
+            "findings": len(findings),
+            "warnings": all_warnings,
+        },
+    )
+
+    return make_response(success_response(response_payload), 200)
+
+
+@bp.route("/static-analysis/<job_id>/progress", methods=["GET"])
+def static_analysis_progress(job_id: str):
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+
+    snapshot = get_static_analysis_job(job_id)
+    if not snapshot:
+        return make_response(error_response("未找到静态分析任务"), 404)
+    return make_response(success_response(snapshot), 200)
+
+
+@bp.route("/static-analysis/<job_id>/result", methods=["GET"])
+def static_analysis_result(job_id: str):
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+
+    result = get_static_analysis_result(job_id)
+    if result is None:
+        snapshot = get_static_analysis_job(job_id)
+        if not snapshot:
+            return make_response(error_response("未找到静态分析任务"), 404)
+        status = snapshot.get("status")
+        return make_response(
+            error_response("静态分析任务尚未完成", {"status": status}),
+            409,
+        )
+    return make_response(success_response(result), 200)
 
 
 def _strip_extension(filename: str) -> str:

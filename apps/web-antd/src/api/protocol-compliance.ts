@@ -78,6 +78,7 @@ export interface ProtocolStaticAnalysisModelMetadata {
   generatedAt: string;
   modelVersion: string;
   protocol: string;
+  protocolVersion?: string;
   ruleSet: string;
 }
 
@@ -103,9 +104,111 @@ export interface ProtocolStaticAnalysisResult {
 }
 
 export interface RunProtocolStaticAnalysisPayload {
-  code: File;
+  builderDockerfile: File;
+  codeArchive: File;
+  config: File;
   notes?: string;
   rules: File;
+}
+
+export type ProtocolStaticAnalysisJobStatus =
+  | 'queued'
+  | 'running'
+  | 'completed'
+  | 'failed';
+
+export interface ProtocolStaticAnalysisProgressEvent {
+  message: string;
+  stage: string;
+  timestamp: string;
+}
+
+export interface ProtocolStaticAnalysisJob {
+  createdAt: string;
+  details?: Record<string, unknown> | null;
+  error?: string | null;
+  events: ProtocolStaticAnalysisProgressEvent[];
+  jobId: string;
+  message: string;
+  result?: ProtocolStaticAnalysisResult | null;
+  stage: string;
+  status: ProtocolStaticAnalysisJobStatus;
+  updatedAt: string;
+}
+
+export interface ProtocolStaticAnalysisHistoryEntry {
+  analysisId?: string | null;
+  completedAt?: string | null;
+  configPath?: string | null;
+  createdAt: string;
+  databasePath?: string | null;
+  details?: Record<string, unknown> | null;
+  durationMs?: number | null;
+  error?: string | null;
+  jobId: string;
+  logsPath?: string | null;
+  message: string;
+  model?: string | null;
+  modelVersion?: string | null;
+  overallStatus?: ProtocolStaticAnalysisComplianceStatus | null;
+  outputPath?: string | null;
+  protocolName?: string | null;
+  protocolVersion?: string | null;
+  ruleSet?: string | null;
+  rulesFileName?: string | null;
+  stage: string;
+  status: ProtocolStaticAnalysisJobStatus;
+  submittedAt?: string | null;
+  summary?: ProtocolStaticAnalysisSummary | null;
+  updatedAt: string;
+  workspacePath?: string | null;
+  workspaceSnapshots?: { path?: string; stage?: string }[] | null;
+}
+
+export interface FetchProtocolStaticAnalysisHistoryParams {
+  limit?: number;
+}
+
+export interface FetchProtocolStaticAnalysisHistoryResponse {
+  count: number;
+  items: ProtocolStaticAnalysisHistoryEntry[];
+  limit: number;
+}
+
+export type ProtocolStaticAnalysisRuleResultStatus =
+  | 'violation_found'
+  | 'no_violation'
+  | 'unknown';
+
+export interface ProtocolStaticAnalysisRuleViolationDetail {
+  codeLines?: number[] | null;
+  filename?: string | null;
+  functionName?: string | null;
+}
+
+export interface ProtocolStaticAnalysisDatabaseRuleInsight {
+  callGraph?: string | null;
+  codeSnippet?: string | null;
+  llmRaw?: unknown;
+  reason?: string | null;
+  result: ProtocolStaticAnalysisRuleResultStatus;
+  resultLabel: string;
+  ruleDesc: string;
+  violations?: ProtocolStaticAnalysisRuleViolationDetail[];
+}
+
+export interface ProtocolStaticAnalysisDatabaseInsights {
+  databasePath?: string | null;
+  extractedAt: string;
+  findings: ProtocolStaticAnalysisDatabaseRuleInsight[];
+  warnings?: string[];
+  workspacePath?: string | null;
+}
+
+export interface FetchProtocolStaticAnalysisDatabaseInsightsPayload {
+  databasePath?: string;
+  jobId?: string;
+  workspacePath?: string;
 }
 
 const BASE_PATH = '/protocol-compliance/tasks';
@@ -161,15 +264,17 @@ export async function downloadProtocolComplianceTaskResult(taskId: string) {
 export function runProtocolStaticAnalysis(
   payload: RunProtocolStaticAnalysisPayload,
 ) {
-  const { code, notes, rules } = payload;
+  const { builderDockerfile, codeArchive, config, notes, rules } = payload;
   const formData = new FormData();
+  formData.append('codeArchive', codeArchive);
+  formData.append('builderDockerfile', builderDockerfile);
   formData.append('rules', rules);
-  formData.append('code', code);
+  formData.append('config', config);
   if (notes?.trim()) {
     formData.append('notes', notes.trim());
   }
 
-  return requestClient.post<ProtocolStaticAnalysisResult>(
+  return requestClient.post<ProtocolStaticAnalysisJob>(
     '/protocol-compliance/static-analysis',
     formData,
     {
@@ -180,22 +285,32 @@ export function runProtocolStaticAnalysis(
   );
 }
 
-// 获取检测结果
-export function getDetectionResults(implementationName: string) {
-  return requestClient.get(
-    `/protocol-compliance/detection-results/${implementationName}`,
+export function fetchProtocolStaticAnalysisProgress(jobId: string) {
+  return requestClient.get<ProtocolStaticAnalysisJob>(
+    `/protocol-compliance/static-analysis/${jobId}/progress`,
   );
 }
 
-// 添加历史记录
-export function addAnalysisHistory(data: {
-  implementationName: string;
-  protocolName: string;
-}) {
-  return requestClient.post('/protocol-compliance/analysis-history', data);
+export function fetchProtocolStaticAnalysisResult(jobId: string) {
+  return requestClient.get<ProtocolStaticAnalysisResult>(
+    `/protocol-compliance/static-analysis/${jobId}/result`,
+  );
 }
 
-// 获取历史记录
-export function getAnalysisHistory() {
-  return requestClient.get('/protocol-compliance/analysis-history');
+export function fetchProtocolStaticAnalysisHistory(
+  params?: FetchProtocolStaticAnalysisHistoryParams,
+) {
+  return requestClient.get<FetchProtocolStaticAnalysisHistoryResponse>(
+    '/protocol-compliance/static-analysis/history',
+    { params },
+  );
+}
+
+export function fetchProtocolStaticAnalysisDatabaseInsights(
+  payload: FetchProtocolStaticAnalysisDatabaseInsightsPayload,
+) {
+  return requestClient.post<ProtocolStaticAnalysisDatabaseInsights>(
+    '/protocol-compliance/static-analysis/database-insights',
+    payload,
+  );
 }

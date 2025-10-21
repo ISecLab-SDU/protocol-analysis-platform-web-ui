@@ -4,6 +4,56 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 LOG_FILE=${SCRIPT_DIR}/build-local-docker-image.log
 ERROR=""
 IMAGE_NAME="vben-admin-local"
+PROXY_HOST="127.0.0.1"
+PROXY_PORT="63333"
+PROXY_ARGS=()
+
+function is_port_open() {
+    local host=$1
+    local port=$2
+
+    if command -v nc >/dev/null 2>&1; then
+        nc -z "${host}" "${port}" >/dev/null 2>&1
+        return $?
+    elif command -v python3 >/dev/null 2>&1; then
+        python3 - "${host}" "${port}" <<'PY'
+import socket
+import sys
+
+host = sys.argv[1]
+port = int(sys.argv[2])
+
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+    sock.settimeout(1.0)
+    try:
+        sock.connect((host, port))
+    except OSError:
+        sys.exit(1)
+sys.exit(0)
+PY
+        return $?
+    else
+        bash -c "echo >/dev/tcp/${host}/${port}" >/dev/null 2>&1
+        return $?
+    fi
+}
+
+function prepare_proxy_args() {
+    if is_port_open "${PROXY_HOST}" "${PROXY_PORT}"; then
+        local proxy_url="http://${PROXY_HOST}:${PROXY_PORT}"
+        echo "Info: Detected proxy at ${proxy_url}; docker build will use this proxy"
+        PROXY_ARGS=(
+            --network=host
+            --build-arg "HTTP_PROXY=${proxy_url}"
+            --build-arg "HTTPS_PROXY=${proxy_url}"
+            --build-arg "http_proxy=${proxy_url}"
+            --build-arg "https_proxy=${proxy_url}"
+        )
+    else
+        echo "Info: Proxy ${PROXY_HOST}:${PROXY_PORT} not available; continuing without proxy"
+        PROXY_ARGS=()
+    fi
+}
 
 function stop_and_remove_container() {
     # Stop and remove the existing container
@@ -24,7 +74,8 @@ function install_dependencies() {
 
 function build_image() {
     # build docker
-    docker build ../../ -f Dockerfile -t ${IMAGE_NAME} || ERROR="build_image failed"
+    prepare_proxy_args
+    docker build "${PROXY_ARGS[@]}" -f Dockerfile -t ${IMAGE_NAME} ../../ || ERROR="build_image failed"
 }
 
 function log_message() {
