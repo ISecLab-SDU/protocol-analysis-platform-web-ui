@@ -2014,7 +2014,8 @@ onMounted(async () => {
             </div>
             
             <!-- 崩溃信息占位卡片 -->
-            <div v-else class="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-secondary/20 shadow-card h-full">
+            <div v-else class="bg-white/80 backdrop-blur-sm rounded-xl p-4 h-full" 
+                 :class="protocolType === 'RTSP' && rtspStats.unique_crashes > 0 ? 'border border-red-300 shadow-crash' : 'border border-secondary/20 shadow-card'">
               <div class="flex justify-between items-center mb-4">
                 <h3 class="font-semibold text-lg">崩溃监控</h3>
                 <span v-if="protocolType === 'RTSP' && rtspStats.unique_crashes > 0" 
@@ -2042,8 +2043,10 @@ onMounted(async () => {
                 <div class="bg-gray-50 rounded-lg p-3 border border-gray-200">
                   <div class="text-xs text-gray-600 mb-2">监控状态</div>
                   <div class="flex items-center space-x-2">
-                    <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    <span class="text-sm text-gray-700">
+                    <div class="w-2 h-2 rounded-full animate-pulse" 
+                         :class="rtspStats.unique_crashes > 0 ? 'bg-red-500' : 'bg-green-500'"></div>
+                    <span class="text-sm" 
+                          :class="rtspStats.unique_crashes > 0 ? 'text-red-700 font-medium' : 'text-gray-700'">
                       {{ rtspStats.unique_crashes > 0 ? '检测到异常' : '持续监控中...' }}
                     </span>
                   </div>
@@ -2230,13 +2233,13 @@ onMounted(async () => {
             <div v-else class="space-y-4">
               <div>
                 <div class="flex justify-between items-center mb-1">
-                  <span class="text-sm text-dark/70">测试进度</span>
-                  <span class="text-xl font-bold">{{ Math.round((elapsedTime / Math.max(testDuration, 1)) * 100) }}%</span>
+                  <span class="text-sm text-dark/70">当前执行路径</span>
+                  <span class="text-xl font-bold">#{{ rtspStats.cur_path }}</span>
                 </div>
                 <div class="w-full bg-light-gray rounded-full h-1.5 overflow-hidden">
-                  <div class="h-full bg-primary" :style="{ width: Math.min(100, (elapsedTime / Math.max(testDuration, 1)) * 100) + '%' }"></div>
+                  <div class="h-full bg-primary" :style="{ width: rtspStats.paths_total > 0 ? Math.min(100, (rtspStats.cur_path / rtspStats.paths_total) * 100) : 0 + '%' }"></div>
                 </div>
-                <div class="text-xs text-dark/60 mt-1">{{ elapsedTime }}s / {{ testDuration }}s</div>
+                <div class="text-xs text-dark/60 mt-1">{{ rtspStats.cur_path }} / {{ rtspStats.paths_total }} 路径</div>
               </div>
               
               <div class="grid grid-cols-1 gap-3">
@@ -2284,7 +2287,7 @@ onMounted(async () => {
         </div>
         
         <!-- 测试总结 -->
-        <div v-if="!showCrashDetails" class="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-secondary/20 shadow-card">
+        <div v-if="!showCrashDetails && (isTestCompleted || (!isRunning && (packetCount > 0 || elapsedTime > 0)))" class="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-secondary/20 shadow-card">
             <div class="flex justify-between items-center mb-4">
               <h3 class="font-semibold text-lg">测试总结</h3>
               <div class="flex space-x-2">
@@ -2301,12 +2304,12 @@ onMounted(async () => {
             <div class="bg-light-gray rounded-lg p-3 border border-dark/10">
               <h4 class="font-medium mb-2 text-dark/80">测试信息</h4>
               <div class="space-y-1">
-                <p><span class="text-dark/60">协议名称:</span> <span>{{ isTestCompleted ? protocolType.toUpperCase() : '未测试' }}</span></p>
-                <p><span class="text-dark/60">Fuzz引擎:</span> <span>{{ isTestCompleted ? fuzzEngine : '未设置' }}</span></p>
-                <p><span class="text-dark/60">测试目标:</span> <span>{{ isTestCompleted ? `${targetHost}:${targetPort}` : '未设置' }}</span></p>
-                <p><span class="text-dark/60">开始时间:</span> <span>{{ isTestCompleted ? (startTime || (testStartTime ? testStartTime.toLocaleString() : '未开始')) : '未开始' }}</span></p>
-                <p><span class="text-dark/60">结束时间:</span> <span>{{ isTestCompleted ? (endTime || (testEndTime ? testEndTime.toLocaleString() : '未结束')) : '未结束' }}</span></p>
-                <p><span class="text-dark/60">总耗时:</span> <span>{{ isTestCompleted ? elapsedTime : 0 }}秒</span></p>
+                <p><span class="text-dark/60">协议名称:</span> <span>{{ (isTestCompleted || (!isRunning && packetCount > 0)) ? protocolType.toUpperCase() : '未测试' }}</span></p>
+                <p><span class="text-dark/60">Fuzz引擎:</span> <span>{{ (isTestCompleted || (!isRunning && packetCount > 0)) ? fuzzEngine : '未设置' }}</span></p>
+                <p><span class="text-dark/60">测试目标:</span> <span>{{ (isTestCompleted || (!isRunning && packetCount > 0)) ? `${targetHost}:${targetPort}` : '未设置' }}</span></p>
+                <p><span class="text-dark/60">开始时间:</span> <span>{{ (isTestCompleted || (!isRunning && packetCount > 0)) ? (startTime || (testStartTime ? testStartTime.toLocaleString() : '未开始')) : '未开始' }}</span></p>
+                <p><span class="text-dark/60">结束时间:</span> <span>{{ (isTestCompleted || (!isRunning && packetCount > 0)) ? (endTime || (testEndTime ? testEndTime.toLocaleString() : '未结束')) : '未结束' }}</span></p>
+                <p><span class="text-dark/60">总耗时:</span> <span>{{ (isTestCompleted || (!isRunning && packetCount > 0)) ? elapsedTime : 0 }}秒</span></p>
               </div>
             </div>
             
@@ -2315,21 +2318,21 @@ onMounted(async () => {
               <div class="space-y-1">
                 <!-- SNMP协议统计 -->
                 <template v-if="protocolType !== 'RTSP'">
-                  <p><span class="text-dark/60">SNMP_v1发包数:</span> <span>{{ isTestCompleted ? protocolStats.v1 : 0 }}</span></p>
-                  <p><span class="text-dark/60">SNMP_v2发包数:</span> <span>{{ isTestCompleted ? protocolStats.v2c : 0 }}</span></p>
-                  <p><span class="text-dark/60">SNMP_v3发包数:</span> <span>{{ isTestCompleted ? protocolStats.v3 : 0 }}</span></p>
-                  <p><span class="text-dark/60">总发包数:</span> <span>{{ isTestCompleted ? fileTotalPackets : 0 }}</span></p>
-                  <p><span class="text-dark/60">正常响应率:</span> <span>{{ isTestCompleted ? Math.round((fileSuccessCount / Math.max(fileTotalPackets, 1)) * 100) : 0 }}%</span></p>
-                  <p><span class="text-dark/60">超时率:</span> <span>{{ isTestCompleted ? Math.round((fileTimeoutCount / Math.max(fileTotalPackets, 1)) * 100) : 0 }}%</span></p>
+                  <p><span class="text-dark/60">SNMP_v1发包数:</span> <span>{{ (isTestCompleted || (!isRunning && packetCount > 0)) ? protocolStats.v1 : 0 }}</span></p>
+                  <p><span class="text-dark/60">SNMP_v2发包数:</span> <span>{{ (isTestCompleted || (!isRunning && packetCount > 0)) ? protocolStats.v2c : 0 }}</span></p>
+                  <p><span class="text-dark/60">SNMP_v3发包数:</span> <span>{{ (isTestCompleted || (!isRunning && packetCount > 0)) ? protocolStats.v3 : 0 }}</span></p>
+                  <p><span class="text-dark/60">总发包数:</span> <span>{{ (isTestCompleted || (!isRunning && packetCount > 0)) ? fileTotalPackets : 0 }}</span></p>
+                  <p><span class="text-dark/60">正常响应率:</span> <span>{{ (isTestCompleted || (!isRunning && packetCount > 0)) ? Math.round((fileSuccessCount / Math.max(fileTotalPackets, 1)) * 100) : 0 }}%</span></p>
+                  <p><span class="text-dark/60">超时率:</span> <span>{{ (isTestCompleted || (!isRunning && packetCount > 0)) ? Math.round((fileTimeoutCount / Math.max(fileTotalPackets, 1)) * 100) : 0 }}%</span></p>
                 </template>
                 <!-- RTSP协议统计 -->
                 <template v-else>
-                  <p><span class="text-dark/60">执行速度:</span> <span>{{ isTestCompleted ? rtspStats.execs_per_sec.toFixed(2) : 0 }} exec/sec</span></p>
-                  <p><span class="text-dark/60">代码覆盖率:</span> <span>{{ isTestCompleted ? rtspStats.map_size : '0%' }}</span></p>
-                  <p><span class="text-dark/60">发现路径数:</span> <span>{{ isTestCompleted ? rtspStats.paths_total : 0 }}</span></p>
-                  <p><span class="text-dark/60">状态节点数:</span> <span>{{ isTestCompleted ? rtspStats.n_nodes : 0 }}</span></p>
-                  <p><span class="text-dark/60">状态转换数:</span> <span>{{ isTestCompleted ? rtspStats.n_edges : 0 }}</span></p>
-                  <p><span class="text-dark/60">最大深度:</span> <span>{{ isTestCompleted ? rtspStats.max_depth : 0 }}</span></p>
+                  <p><span class="text-dark/60">执行速度:</span> <span>{{ (isTestCompleted || (!isRunning && packetCount > 0)) ? rtspStats.execs_per_sec.toFixed(2) : 0 }} exec/sec</span></p>
+                  <p><span class="text-dark/60">代码覆盖率:</span> <span>{{ (isTestCompleted || (!isRunning && packetCount > 0)) ? rtspStats.map_size : '0%' }}</span></p>
+                  <p><span class="text-dark/60">发现路径数:</span> <span>{{ (isTestCompleted || (!isRunning && packetCount > 0)) ? rtspStats.paths_total : 0 }}</span></p>
+                  <p><span class="text-dark/60">状态节点数:</span> <span>{{ (isTestCompleted || (!isRunning && packetCount > 0)) ? rtspStats.n_nodes : 0 }}</span></p>
+                  <p><span class="text-dark/60">状态转换数:</span> <span>{{ (isTestCompleted || (!isRunning && packetCount > 0)) ? rtspStats.n_edges : 0 }}</span></p>
+                  <p><span class="text-dark/60">最大深度:</span> <span>{{ (isTestCompleted || (!isRunning && packetCount > 0)) ? rtspStats.max_depth : 0 }}</span></p>
                 </template>
               </div>
             </div>
@@ -2341,7 +2344,7 @@ onMounted(async () => {
                   <i class="fa fa-file-text-o text-primary mr-2"></i>
                   <div class="flex-1">
                     <p class="truncate text-xs">运行日志信息</p>
-                    <p class="truncate text-xs text-dark/50">{{ isTestCompleted ? 'scan_result/fuzz_logs/fuzz_output.txt' : '无' }}</p>
+                    <p class="truncate text-xs text-dark/50">{{ (isTestCompleted || (!isRunning && packetCount > 0)) ? 'scan_result/fuzz_logs/fuzz_output.txt' : '无' }}</p>
                   </div>
                   <button @click="saveLog" class="text-xs bg-primary/10 hover:bg-primary/20 text-primary px-1.5 py-0.5 rounded">
                     下载
@@ -2351,7 +2354,7 @@ onMounted(async () => {
                   <i class="fa fa-file-excel-o text-success mr-2"></i>
                   <div class="flex-1">
                     <p class="truncate text-xs">Fuzz报告信息</p>
-                    <p class="truncate text-xs text-dark/50">{{ isTestCompleted ? `fuzz_report_${new Date().getTime()}.txt` : '无' }}</p>
+                    <p class="truncate text-xs text-dark/50">{{ (isTestCompleted || (!isRunning && packetCount > 0)) ? `fuzz_report_${new Date().getTime()}.txt` : '无' }}</p>
                   </div>
                   <button @click="saveLog" class="text-xs bg-primary/10 hover:bg-primary/20 text-primary px-1.5 py-0.5 rounded">
                     下载
