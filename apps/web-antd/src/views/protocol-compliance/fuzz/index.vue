@@ -41,6 +41,22 @@ const fileFailedCount = ref(0);
 const protocolStats = ref({ v1: 0, v2c: 0, v3: 0 });
 const messageTypeStats = ref({ get: 0, set: 0, getnext: 0, getbulk: 0 });
 
+// RTSP/AFLNET specific stats
+const rtspStats = ref({
+  cycles_done: 0,
+  paths_total: 0,
+  cur_path: 0,
+  pending_total: 0,
+  pending_favs: 0,
+  map_size: '0%',
+  unique_crashes: 0,
+  unique_hangs: 0,
+  max_depth: 0,
+  execs_per_sec: 0,
+  n_nodes: 0,
+  n_edges: 0
+});
+
 // Runtime stats
 const packetCount = ref(0);
 const successCount = ref(0);
@@ -124,6 +140,21 @@ interface HistoryResult {
     set: number;
     getnext: number;
     getbulk: number;
+  };
+  // RTSP协议专用统计
+  rtspStats?: {
+    cycles_done: number;
+    paths_total: number;
+    cur_path: number;
+    pending_total: number;
+    pending_favs: number;
+    map_size: string;
+    unique_crashes: number;
+    unique_hangs: number;
+    max_depth: number;
+    execs_per_sec: number;
+    n_nodes: number;
+    n_edges: number;
   };
   hasCrash: boolean;
   crashDetails?: any;
@@ -886,10 +917,27 @@ function processRTSPLogLine(line: string) {
         }
       });
       
-      // 更新统计信息
+      // 更新RTSP统计信息
+      rtspStats.value = {
+        cycles_done: parseInt(cycles_done),
+        paths_total: parseInt(paths_total),
+        cur_path: parseInt(cur_path),
+        pending_total: parseInt(pending_total),
+        pending_favs: parseInt(pending_favs),
+        map_size: map_size,
+        unique_crashes: parseInt(unique_crashes),
+        unique_hangs: parseInt(unique_hangs),
+        max_depth: parseInt(max_depth),
+        execs_per_sec: parseFloat(execs_per_sec),
+        n_nodes: parseInt(n_nodes),
+        n_edges: parseInt(n_edges)
+      };
+      
+      // 更新通用统计信息
       packetCount.value = parseInt(cur_path);
       successCount.value = parseInt(paths_total) - parseInt(pending_total);
       failedCount.value = parseInt(unique_crashes);
+      crashCount.value = parseInt(unique_crashes);
       currentSpeed.value = Math.round(parseFloat(execs_per_sec));
     }
   } else {
@@ -1484,6 +1532,21 @@ function saveTestToHistory() {
         getnext: messageTypeStats.value.getnext,
         getbulk: messageTypeStats.value.getbulk
       },
+      // 保存RTSP协议统计数据
+      rtspStats: protocolType.value === 'RTSP' ? {
+        cycles_done: rtspStats.value.cycles_done,
+        paths_total: rtspStats.value.paths_total,
+        cur_path: rtspStats.value.cur_path,
+        pending_total: rtspStats.value.pending_total,
+        pending_favs: rtspStats.value.pending_favs,
+        map_size: rtspStats.value.map_size,
+        unique_crashes: rtspStats.value.unique_crashes,
+        unique_hangs: rtspStats.value.unique_hangs,
+        max_depth: rtspStats.value.max_depth,
+        execs_per_sec: rtspStats.value.execs_per_sec,
+        n_nodes: rtspStats.value.n_nodes,
+        n_edges: rtspStats.value.n_edges
+      } : undefined,
       hasCrash: actualCrashCount > 0,
       crashDetails: crashDetails.value ? {
         id: crashDetails.value.id,
@@ -1969,12 +2032,16 @@ onMounted(async () => {
         
         <!-- 测试结果分析 -->
         <div class="grid grid-cols-1 xl:grid-cols-4 gap-6 mb-6">
-          <!-- 消息类型分布和版本统计 -->
+          <!-- 消息类型分布和版本统计 / RTSP状态机统计 -->
           <div class="xl:col-span-3 bg-white/80 backdrop-blur-sm rounded-xl p-6 border border-secondary/20 shadow-card">
             <div class="flex justify-between items-center mb-6">
-              <h3 class="font-semibold text-xl">消息类型分布与版本统计</h3>
+              <h3 class="font-semibold text-xl">
+                {{ protocolType === 'RTSP' ? 'RTSP协议状态机统计' : '消息类型分布与版本统计' }}
+              </h3>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 h-72">
+            
+            <!-- SNMP协议图表 -->
+            <div v-if="protocolType !== 'RTSP'" class="grid grid-cols-1 md:grid-cols-2 gap-8 h-72">
               <!-- 消息类型分布饼状图 -->
               <div>
                 <h4 class="text-base font-medium mb-3 text-dark/80 text-center">消息类型分布</h4>
@@ -2002,12 +2069,88 @@ onMounted(async () => {
                 </div>
               </div>
             </div>
+            
+            <!-- RTSP协议统计 -->
+            <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-8 h-72">
+              <!-- 路径发现趋势 -->
+              <div>
+                <h4 class="text-base font-medium mb-3 text-dark/80 text-center">路径发现统计</h4>
+                <div class="h-60 bg-white rounded-lg border border-gray-200 p-4">
+                  <div class="grid grid-cols-2 gap-4 h-full">
+                    <div class="flex flex-col justify-center items-center bg-blue-50 rounded-lg p-4">
+                      <div class="text-3xl font-bold text-blue-600 mb-2">{{ rtspStats.paths_total }}</div>
+                      <div class="text-sm text-gray-600 text-center">总路径数</div>
+                      <div class="text-xs text-gray-500 mt-1">Total Paths</div>
+                    </div>
+                    <div class="flex flex-col justify-center items-center bg-green-50 rounded-lg p-4">
+                      <div class="text-3xl font-bold text-green-600 mb-2">{{ rtspStats.cur_path }}</div>
+                      <div class="text-sm text-gray-600 text-center">当前路径</div>
+                      <div class="text-xs text-gray-500 mt-1">Current Path</div>
+                    </div>
+                    <div class="flex flex-col justify-center items-center bg-yellow-50 rounded-lg p-4">
+                      <div class="text-3xl font-bold text-yellow-600 mb-2">{{ rtspStats.pending_total }}</div>
+                      <div class="text-sm text-gray-600 text-center">待处理</div>
+                      <div class="text-xs text-gray-500 mt-1">Pending</div>
+                    </div>
+                    <div class="flex flex-col justify-center items-center bg-purple-50 rounded-lg p-4">
+                      <div class="text-3xl font-bold text-purple-600 mb-2">{{ rtspStats.pending_favs }}</div>
+                      <div class="text-sm text-gray-600 text-center">优先路径</div>
+                      <div class="text-xs text-gray-500 mt-1">Favored</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- 状态机拓扑 -->
+              <div>
+                <h4 class="text-base font-medium mb-3 text-dark/80 text-center">协议状态机拓扑</h4>
+                <div class="h-60 bg-white rounded-lg border border-gray-200 p-4">
+                  <div class="flex flex-col h-full">
+                    <!-- 状态机可视化区域 -->
+                    <div class="flex-1 bg-gray-50 rounded-lg p-4 mb-4 flex items-center justify-center">
+                      <div class="text-center">
+                        <div class="flex items-center justify-center space-x-4 mb-4">
+                          <div class="bg-blue-500 w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                            {{ rtspStats.n_nodes }}
+                          </div>
+                          <div class="text-gray-400">
+                            <i class="fa fa-arrow-right text-lg"></i>
+                          </div>
+                          <div class="bg-green-500 w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                            {{ rtspStats.n_edges }}
+                          </div>
+                        </div>
+                        <div class="text-xs text-gray-600">
+                          <span class="text-blue-600 font-medium">{{ rtspStats.n_nodes }} 个状态节点</span>
+                          <span class="mx-2">•</span>
+                          <span class="text-green-600 font-medium">{{ rtspStats.n_edges }} 个状态转换</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <!-- 状态机统计信息 -->
+                    <div class="grid grid-cols-2 gap-2 text-xs">
+                      <div class="bg-blue-50 rounded p-2 text-center">
+                        <div class="font-bold text-blue-600">{{ rtspStats.max_depth }}</div>
+                        <div class="text-gray-600">最大深度</div>
+                      </div>
+                      <div class="bg-green-50 rounded p-2 text-center">
+                        <div class="font-bold text-green-600">{{ rtspStats.map_size }}</div>
+                        <div class="text-gray-600">覆盖率</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
           
           <!-- 实时统计 -->
           <div class="xl:col-span-1 bg-white/80 backdrop-blur-sm rounded-xl p-6 border border-primary/20 shadow-card">
             <h3 class="font-semibold text-lg mb-4">实时统计</h3>
-            <div class="space-y-6">
+            
+            <!-- SNMP协议统计 -->
+            <div v-if="protocolType !== 'RTSP'" class="space-y-6">
               <div>
                 <div class="flex justify-between items-center mb-1">
                   <span class="text-sm text-dark/70">总发送包数</span>
@@ -2050,6 +2193,78 @@ onMounted(async () => {
                 </div>
               </div>
             </div>
+            
+            <!-- RTSP协议统计 -->
+            <div v-else class="space-y-4">
+              <div>
+                <div class="flex justify-between items-center mb-1">
+                  <span class="text-sm text-dark/70">当前路径/总路径</span>
+                  <span class="text-xl font-bold">{{ rtspStats.cur_path }}/{{ rtspStats.paths_total }}</span>
+                </div>
+                <div class="w-full bg-light-gray rounded-full h-1.5 overflow-hidden">
+                  <div class="h-full bg-primary" :style="{ width: rtspStats.paths_total > 0 ? Math.min(100, (rtspStats.cur_path / rtspStats.paths_total) * 100) : 0 + '%' }"></div>
+                </div>
+              </div>
+              
+              <div class="grid grid-cols-1 gap-3">
+                <!-- 第一行：执行速度和覆盖率 -->
+                <div class="grid grid-cols-2 gap-3">
+                  <div class="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                    <p class="text-xs text-blue-700 mb-1">执行速度</p>
+                    <h4 class="text-2xl font-bold text-blue-600">{{ rtspStats.execs_per_sec.toFixed(1) }}</h4>
+                    <p class="text-xs text-dark/60 mt-1">exec/sec</p>
+                  </div>
+                  
+                  <div class="bg-green-50 rounded-lg p-3 border border-green-200">
+                    <p class="text-xs text-green-700 mb-1">代码覆盖率</p>
+                    <h4 class="text-2xl font-bold text-green-600">{{ rtspStats.map_size }}</h4>
+                    <p class="text-xs text-dark/60 mt-1">coverage</p>
+                  </div>
+                </div>
+                
+                <!-- 第二行：崩溃和挂起 -->
+                <div class="grid grid-cols-2 gap-3">
+                  <div class="bg-red-50 rounded-lg p-3 border border-red-200">
+                    <p class="text-xs text-red-700 mb-1">崩溃数</p>
+                    <h4 class="text-2xl font-bold text-red-600">{{ rtspStats.unique_crashes }}</h4>
+                    <p class="text-xs text-dark/60 mt-1">crashes</p>
+                  </div>
+                  
+                  <div class="bg-yellow-50 rounded-lg p-3 border border-yellow-200">
+                    <p class="text-xs text-yellow-700 mb-1">挂起数</p>
+                    <h4 class="text-2xl font-bold text-yellow-600">{{ rtspStats.unique_hangs }}</h4>
+                    <p class="text-xs text-dark/60 mt-1">hangs</p>
+                  </div>
+                </div>
+                
+                <!-- 第三行：状态机信息 -->
+                <div class="grid grid-cols-2 gap-3">
+                  <div class="bg-purple-50 rounded-lg p-3 border border-purple-200">
+                    <p class="text-xs text-purple-700 mb-1">状态节点</p>
+                    <h4 class="text-2xl font-bold text-purple-600">{{ rtspStats.n_nodes }}</h4>
+                    <p class="text-xs text-dark/60 mt-1">nodes</p>
+                  </div>
+                  
+                  <div class="bg-indigo-50 rounded-lg p-3 border border-indigo-200">
+                    <p class="text-xs text-indigo-700 mb-1">状态转换</p>
+                    <h4 class="text-2xl font-bold text-indigo-600">{{ rtspStats.n_edges }}</h4>
+                    <p class="text-xs text-dark/60 mt-1">edges</p>
+                  </div>
+                </div>
+                
+                <!-- 第四行：待处理信息 -->
+                <div class="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                  <div class="flex justify-between items-center mb-2">
+                    <span class="text-xs text-gray-700">待处理路径</span>
+                    <span class="text-sm font-bold text-gray-600">{{ rtspStats.pending_total }}</span>
+                  </div>
+                  <div class="flex justify-between items-center">
+                    <span class="text-xs text-gray-700">优先路径</span>
+                    <span class="text-sm font-bold text-gray-600">{{ rtspStats.pending_favs }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
         
@@ -2083,12 +2298,24 @@ onMounted(async () => {
             <div class="bg-light-gray rounded-lg p-3 border border-dark/10">
               <h4 class="font-medium mb-2 text-dark/80">性能统计</h4>
               <div class="space-y-1">
-                <p><span class="text-dark/60">SNMP_v1发包数:</span> <span>{{ isTestCompleted ? protocolStats.v1 : 0 }}</span></p>
-                <p><span class="text-dark/60">SNMP_v2发包数:</span> <span>{{ isTestCompleted ? protocolStats.v2c : 0 }}</span></p>
-                <p><span class="text-dark/60">SNMP_v3发包数:</span> <span>{{ isTestCompleted ? protocolStats.v3 : 0 }}</span></p>
-                <p><span class="text-dark/60">总发包数:</span> <span>{{ isTestCompleted ? fileTotalPackets : 0 }}</span></p>
-                <p><span class="text-dark/60">正常响应率:</span> <span>{{ isTestCompleted ? Math.round((fileSuccessCount / Math.max(fileTotalPackets, 1)) * 100) : 0 }}%</span></p>
-                <p><span class="text-dark/60">超时率:</span> <span>{{ isTestCompleted ? Math.round((fileTimeoutCount / Math.max(fileTotalPackets, 1)) * 100) : 0 }}%</span></p>
+                <!-- SNMP协议统计 -->
+                <template v-if="protocolType !== 'RTSP'">
+                  <p><span class="text-dark/60">SNMP_v1发包数:</span> <span>{{ isTestCompleted ? protocolStats.v1 : 0 }}</span></p>
+                  <p><span class="text-dark/60">SNMP_v2发包数:</span> <span>{{ isTestCompleted ? protocolStats.v2c : 0 }}</span></p>
+                  <p><span class="text-dark/60">SNMP_v3发包数:</span> <span>{{ isTestCompleted ? protocolStats.v3 : 0 }}</span></p>
+                  <p><span class="text-dark/60">总发包数:</span> <span>{{ isTestCompleted ? fileTotalPackets : 0 }}</span></p>
+                  <p><span class="text-dark/60">正常响应率:</span> <span>{{ isTestCompleted ? Math.round((fileSuccessCount / Math.max(fileTotalPackets, 1)) * 100) : 0 }}%</span></p>
+                  <p><span class="text-dark/60">超时率:</span> <span>{{ isTestCompleted ? Math.round((fileTimeoutCount / Math.max(fileTotalPackets, 1)) * 100) : 0 }}%</span></p>
+                </template>
+                <!-- RTSP协议统计 -->
+                <template v-else>
+                  <p><span class="text-dark/60">执行速度:</span> <span>{{ isTestCompleted ? rtspStats.execs_per_sec.toFixed(2) : 0 }} exec/sec</span></p>
+                  <p><span class="text-dark/60">代码覆盖率:</span> <span>{{ isTestCompleted ? rtspStats.map_size : '0%' }}</span></p>
+                  <p><span class="text-dark/60">发现路径数:</span> <span>{{ isTestCompleted ? rtspStats.paths_total : 0 }}</span></p>
+                  <p><span class="text-dark/60">状态节点数:</span> <span>{{ isTestCompleted ? rtspStats.n_nodes : 0 }}</span></p>
+                  <p><span class="text-dark/60">状态转换数:</span> <span>{{ isTestCompleted ? rtspStats.n_edges : 0 }}</span></p>
+                  <p><span class="text-dark/60">最大深度:</span> <span>{{ isTestCompleted ? rtspStats.max_depth : 0 }}</span></p>
+                </template>
               </div>
             </div>
             
@@ -2339,11 +2566,22 @@ onMounted(async () => {
                 </div>
 
                 <div class="bg-gray-50 rounded-lg p-3">
-                  <h4 class="font-medium mb-2 text-gray-800">协议版本</h4>
+                  <h4 class="font-medium mb-2 text-gray-800">
+                    {{ selectedHistoryItem.protocol === 'RTSP' ? 'AFLNET统计' : '协议版本' }}
+                  </h4>
                   <div class="space-y-1">
-                    <p><span class="text-gray-600">SNMP v1:</span> <span>{{ selectedHistoryItem.protocolStats.v1 }}</span></p>
-                    <p><span class="text-gray-600">SNMP v2c:</span> <span>{{ selectedHistoryItem.protocolStats.v2c }}</span></p>
-                    <p><span class="text-gray-600">SNMP v3:</span> <span>{{ selectedHistoryItem.protocolStats.v3 }}</span></p>
+                    <!-- SNMP协议版本统计 -->
+                    <template v-if="selectedHistoryItem.protocol !== 'RTSP'">
+                      <p><span class="text-gray-600">SNMP v1:</span> <span>{{ selectedHistoryItem.protocolStats.v1 }}</span></p>
+                      <p><span class="text-gray-600">SNMP v2c:</span> <span>{{ selectedHistoryItem.protocolStats.v2c }}</span></p>
+                      <p><span class="text-gray-600">SNMP v3:</span> <span>{{ selectedHistoryItem.protocolStats.v3 }}</span></p>
+                    </template>
+                    <!-- RTSP协议AFLNET统计 -->
+                    <template v-else-if="selectedHistoryItem.rtspStats">
+                      <p><span class="text-gray-600">执行速度:</span> <span>{{ selectedHistoryItem.rtspStats.execs_per_sec.toFixed(2) }} exec/sec</span></p>
+                      <p><span class="text-gray-600">代码覆盖率:</span> <span>{{ selectedHistoryItem.rtspStats.map_size }}</span></p>
+                      <p><span class="text-gray-600">状态节点:</span> <span>{{ selectedHistoryItem.rtspStats.n_nodes }}</span></p>
+                    </template>
                   </div>
                 </div>
               </div>
@@ -2397,10 +2635,14 @@ onMounted(async () => {
                 </div>
               </div>
 
-              <!-- 消息类型分布和版本统计 -->
+              <!-- 消息类型分布和版本统计 / RTSP状态机统计 -->
               <div class="xl:col-span-3 bg-white/80 backdrop-blur-sm rounded-xl p-6 border border-orange-200 shadow-card">
-                <h3 class="font-semibold text-xl mb-6">消息类型分布与版本统计</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <h3 class="font-semibold text-xl mb-6">
+                  {{ selectedHistoryItem.protocol === 'RTSP' ? 'RTSP协议状态机统计' : '消息类型分布与版本统计' }}
+                </h3>
+                
+                <!-- SNMP协议图表 -->
+                <div v-if="selectedHistoryItem.protocol !== 'RTSP'" class="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <!-- 消息类型分布 -->
                   <div>
                     <h4 class="text-base font-medium mb-4 text-gray-800 text-center">消息类型分布</h4>
@@ -2463,6 +2705,74 @@ onMounted(async () => {
                           <div class="bg-red-500 h-2 rounded-full" :style="{ width: (selectedHistoryItem.protocolStats.v3 / selectedHistoryItem.totalPackets * 100) + '%' }"></div>
                         </div>
                         <div class="text-xs text-gray-500 mt-1">{{ Math.round((selectedHistoryItem.protocolStats.v3 / selectedHistoryItem.totalPackets) * 100) }}%</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- RTSP协议统计 -->
+                <div v-else-if="selectedHistoryItem.rtspStats" class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <!-- 路径发现统计 -->
+                  <div>
+                    <h4 class="text-base font-medium mb-4 text-gray-800 text-center">路径发现统计</h4>
+                    <div class="grid grid-cols-2 gap-4">
+                      <div class="text-center bg-blue-50 rounded-lg p-4">
+                        <div class="text-2xl font-bold text-blue-600">{{ selectedHistoryItem.rtspStats.paths_total }}</div>
+                        <div class="text-sm text-gray-600">总路径数</div>
+                        <div class="text-xs text-gray-500">Total Paths</div>
+                      </div>
+                      <div class="text-center bg-green-50 rounded-lg p-4">
+                        <div class="text-2xl font-bold text-green-600">{{ selectedHistoryItem.rtspStats.cur_path }}</div>
+                        <div class="text-sm text-gray-600">当前路径</div>
+                        <div class="text-xs text-gray-500">Current Path</div>
+                      </div>
+                      <div class="text-center bg-yellow-50 rounded-lg p-4">
+                        <div class="text-2xl font-bold text-yellow-600">{{ selectedHistoryItem.rtspStats.pending_total }}</div>
+                        <div class="text-sm text-gray-600">待处理</div>
+                        <div class="text-xs text-gray-500">Pending</div>
+                      </div>
+                      <div class="text-center bg-purple-50 rounded-lg p-4">
+                        <div class="text-2xl font-bold text-purple-600">{{ selectedHistoryItem.rtspStats.pending_favs }}</div>
+                        <div class="text-sm text-gray-600">优先路径</div>
+                        <div class="text-xs text-gray-500">Favored</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 状态机与性能统计 -->
+                  <div>
+                    <h4 class="text-base font-medium mb-4 text-gray-800 text-center">状态机与性能统计</h4>
+                    <div class="space-y-4">
+                      <div class="bg-blue-50 rounded-lg p-4">
+                        <div class="flex justify-between items-center mb-2">
+                          <span class="text-gray-700 font-medium">状态节点数</span>
+                          <span class="text-lg font-bold text-blue-600">{{ selectedHistoryItem.rtspStats.n_nodes }}</span>
+                        </div>
+                        <div class="text-xs text-gray-500">State Nodes</div>
+                      </div>
+                      
+                      <div class="bg-green-50 rounded-lg p-4">
+                        <div class="flex justify-between items-center mb-2">
+                          <span class="text-gray-700 font-medium">状态转换数</span>
+                          <span class="text-lg font-bold text-green-600">{{ selectedHistoryItem.rtspStats.n_edges }}</span>
+                        </div>
+                        <div class="text-xs text-gray-500">State Transitions</div>
+                      </div>
+                      
+                      <div class="bg-purple-50 rounded-lg p-4">
+                        <div class="flex justify-between items-center mb-2">
+                          <span class="text-gray-700 font-medium">执行速度</span>
+                          <span class="text-lg font-bold text-purple-600">{{ selectedHistoryItem.rtspStats.execs_per_sec.toFixed(1) }}</span>
+                        </div>
+                        <div class="text-xs text-gray-500">Executions per Second</div>
+                      </div>
+                      
+                      <div class="bg-orange-50 rounded-lg p-4">
+                        <div class="flex justify-between items-center mb-2">
+                          <span class="text-gray-700 font-medium">代码覆盖率</span>
+                          <span class="text-lg font-bold text-orange-600">{{ selectedHistoryItem.rtspStats.map_size }}</span>
+                        </div>
+                        <div class="text-xs text-gray-500">Code Coverage</div>
                       </div>
                     </div>
                   </div>
