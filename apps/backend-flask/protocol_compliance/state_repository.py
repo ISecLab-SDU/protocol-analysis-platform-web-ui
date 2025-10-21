@@ -276,6 +276,23 @@ class AnalysisStateRepository:
             )
         return history
 
+    def delete_job(self, job_id: str) -> bool:
+        """Delete a job and its events from the database.
+        
+        Returns True if the job was deleted, False if it didn't exist.
+        """
+        self._ensure_initialized()
+        try:
+            with self._connect() as conn:
+                cursor = conn.execute(
+                    "DELETE FROM analysis_jobs WHERE job_id = ?",
+                    (job_id,)
+                )
+                return cursor.rowcount > 0
+        except sqlite3.DatabaseError as exc:
+            LOGGER.error("Failed to delete analysis job %s: %s", job_id, exc)
+            raise
+
     def _ensure_initialized(self) -> None:
         if self._initialized and self._db_path.exists():
             return

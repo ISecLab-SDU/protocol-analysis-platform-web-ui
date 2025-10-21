@@ -314,3 +314,9 @@ export function fetchProtocolStaticAnalysisDatabaseInsights(
     payload,
   );
 }
+
+export function deleteProtocolStaticAnalysisJob(jobId: string) {
+  return requestClient.delete<{ deleted: boolean; jobId: string }>(
+    `/protocol-compliance/static-analysis/history/${jobId}`,
+  );
+}

@@ -643,3 +643,12 @@ def list_static_analysis_history(limit: int = 50) -> List[Dict[str, object]]:
             }
         )
     return history
+
+
+def delete_static_analysis_job(job_id: str) -> bool:
+    """Delete a static analysis job from the database.
+    
+    Returns True if the job was deleted, False if it didn't exist.
+    Raises an exception if the deletion failed.
+    """
+    return analysis_state_repository.delete_job(job_id)

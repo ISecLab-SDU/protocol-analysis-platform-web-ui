@@ -12,7 +12,14 @@ import type {
   ProtocolStaticAnalysisRuleResultStatus,
 } from '#/api/protocol-compliance';
 
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import {
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  reactive,
+  ref,
+  watch,
+} from 'vue';
 
 import { Page } from '@vben/common-ui';
 
@@ -26,6 +33,7 @@ import {
   FormItem,
   Input,
   message,
+  Popconfirm,
   Space,
   Table,
   Tag,
@@ -34,6 +42,7 @@ import {
 } from 'ant-design-vue';
 
 import {
+  deleteProtocolStaticAnalysisJob,
   fetchProtocolStaticAnalysisDatabaseInsights,
   fetchProtocolStaticAnalysisProgress,
   fetchProtocolStaticAnalysisResult,
@@ -167,6 +176,7 @@ const historyColumns: HistoryColumn[] = [
     title: '规则检测结果',
   },
   { dataIndex: 'updatedAt', key: 'updatedAt', title: '更新时间', width: 180 },
+  { dataIndex: 'actions', key: 'actions', title: '操作', width: 100 },
 ];
 
 const historyItems = ref<ProtocolStaticAnalysisHistoryEntry[]>([]);
@@ -205,11 +215,10 @@ const historyDetailRecord = computed(() => {
     ) ?? null
   );
 });
-const historyDetailInsight = computed(
-  () =>
-    (historyDetailJobId.value
-      ? historyInsights.value[historyDetailJobId.value] ?? null
-      : null),
+const historyDetailInsight = computed(() =>
+  historyDetailJobId.value
+    ? (historyInsights.value[historyDetailJobId.value] ?? null)
+    : null,
 );
 const historyDetailError = computed(() => {
   if (!historyDetailJobId.value) {
@@ -281,7 +290,9 @@ function resolveRuleResultMeta(status: unknown) {
   if (typeof status !== 'string') {
     return null;
   }
-  return RULE_RESULT_META[status as ProtocolStaticAnalysisRuleResultStatus] ?? null;
+  return (
+    RULE_RESULT_META[status as ProtocolStaticAnalysisRuleResultStatus] ?? null
+  );
 }
 
 function formatDebugJson(source: unknown) {
@@ -377,8 +388,7 @@ async function loadInsightsForHistory(
         jobId: entry.jobId,
         workspacePath: entry.workspacePath ?? undefined,
       };
-      const referencePath =
-        entry.databasePath ?? entry.workspacePath ?? null;
+      const referencePath = entry.databasePath ?? entry.workspacePath ?? null;
       if (!referencePath) {
         historyInsightErrors.value[entry.jobId] = '缺少数据库路径';
         historyInsightDebug.value[entry.jobId] = {
@@ -392,9 +402,8 @@ async function loadInsightsForHistory(
       }
       console.info('[StaticAnalysis][History] 请求数据库详情', payload);
       try {
-        const insight = await fetchProtocolStaticAnalysisDatabaseInsights(
-          payload,
-        );
+        const insight =
+          await fetchProtocolStaticAnalysisDatabaseInsights(payload);
         historyInsights.value[entry.jobId] = insight;
         historyInsightSummaries.value[entry.jobId] =
           buildInsightSummary(insight);
@@ -438,9 +447,9 @@ function openHistoryDetail(jobId: string) {
 }
 
 function resolveHistoryOverallStatus(
-  record: ProtocolStaticAnalysisHistoryEntry,
+  record: ProtocolStaticAnalysisHistoryEntry | Record<string, unknown>,
 ) {
-  const summary = historyInsightSummaries.value[record.jobId];
+  const summary = historyInsightSummaries.value[record.jobId as string];
   if (summary) {
     if (summary.violation > 0) {
       return 'non_compliant';
@@ -452,11 +461,13 @@ function resolveHistoryOverallStatus(
       return 'compliant';
     }
   }
-  const original = record.overallStatus;
+  const original = (record as ProtocolStaticAnalysisHistoryEntry).overallStatus;
   return typeof original === 'string' && original ? original : null;
 }
 
-function resolveHistoryOverallLabel(record: ProtocolStaticAnalysisHistoryEntry) {
+function resolveHistoryOverallLabel(
+  record: ProtocolStaticAnalysisHistoryEntry | Record<string, unknown>,
+) {
   const status = resolveHistoryOverallStatus(record);
   if (!status) {
     return null;
@@ -490,7 +501,9 @@ async function loadHistory(options: { silent?: boolean } = {}) {
     historyLoading.value = false;
     if (
       historyDetailJobId.value &&
-      !historyItems.value.find((entry) => entry.jobId === historyDetailJobId.value)
+      !historyItems.value.find(
+        (entry) => entry.jobId === historyDetailJobId.value,
+      )
     ) {
       historyDetailVisible.value = false;
       historyDetailJobId.value = null;
@@ -500,6 +513,18 @@ async function loadHistory(options: { silent?: boolean } = {}) {
 
 async function handleRefreshHistory() {
   await loadHistory();
+}
+
+async function handleDeleteHistory(jobId: string) {
+  try {
+    await deleteProtocolStaticAnalysisJob(jobId);
+    message.success('删除成功');
+    await loadHistory({ silent: true });
+  } catch (error) {
+    const messageText =
+      error instanceof Error ? error.message : String(error ?? '');
+    message.error(`删除失败：${messageText}`);
+  }
 }
 
 function resolveHistoryValue(
@@ -1283,378 +1308,116 @@ async function handleSubmit() {
     title="协议静态分析"
   >
     <div class="static-analysis">
-      <Card title="流程说明">
-        <div class="intro">
-          <TypographyParagraph class="intro-text">
-            该流程会在可信环境内串联 ProtocolGuard 的 Builder / Main 双容器。
-            请提前确认上传的 artefacts 与论文示例结构保持一致。
-          </TypographyParagraph>
-          <ul class="guide-list">
-            <li>准备协议规则提取结果（JSON）与静态分析配置（TOML）。</li>
-            <li>提供完整源码压缩包以及用于构建 Builder 镜像的 Dockerfile。</li>
-            <li>可选填写备注，记录协议版本、提交 SHA 或其他上下文信息。</li>
-          </ul>
-          <TypographyText class="placeholder-hint" type="secondary">
-            所有文件会直接挂载到容器内部执行分析，请勿上传未经脱敏的敏感数据。
-          </TypographyText>
-        </div>
-      </Card>
+      <!-- 主工作区域 -->
+      <div class="layout-grid">
+        <Card class="upload-card" title="上传分析材料">
+          <Form
+            ref="formRef"
+            :model="formState"
+            :rules="formRules"
+            class="compact-form"
+            layout="vertical"
+          >
+            <div class="form-grid">
+              <FormItem label="源码压缩包" name="archive" required>
+                <Upload
+                  :before-upload="handleArchiveBeforeUpload"
+                  :file-list="archiveFileList"
+                  :max-count="1"
+                  :on-remove="handleArchiveRemove"
+                  accept=".zip,.tar,.gz,.tgz,.bz2,.xz,.7z,application/zip,application/x-tar"
+                >
+                  <Button block type="dashed">选择源码压缩包</Button>
+                </Upload>
+              </FormItem>
 
-      <Card title="上传分析材料">
-        <Form
-          ref="formRef"
-          :model="formState"
-          :rules="formRules"
-          colon
-          layout="vertical"
-        >
-          <FormItem label="源码压缩包" name="archive" required>
-            <Upload
-              :before-upload="handleArchiveBeforeUpload"
-              :file-list="archiveFileList"
-              :max-count="1"
-              :on-remove="handleArchiveRemove"
-              accept=".zip,.tar,.gz,.tgz,.bz2,.xz,.7z,application/zip,application/x-tar"
+              <FormItem label="Builder Dockerfile" name="builder" required>
+                <Upload
+                  :before-upload="handleBuilderBeforeUpload"
+                  :file-list="builderFileList"
+                  :max-count="1"
+                  :on-remove="handleBuilderRemove"
+                >
+                  <Button block type="dashed">选择 Dockerfile</Button>
+                </Upload>
+              </FormItem>
+
+              <FormItem label="协议规则（JSON）" name="rules" required>
+                <Upload
+                  :before-upload="handleRulesBeforeUpload"
+                  :file-list="rulesFileList"
+                  :max-count="1"
+                  :on-remove="handleRulesRemove"
+                  accept=".json,.JSON,application/json,text/json"
+                >
+                  <Button block type="dashed">选择规则 JSON</Button>
+                </Upload>
+              </FormItem>
+
+              <FormItem label="分析配置（TOML）" name="config" required>
+                <Upload
+                  :before-upload="handleConfigBeforeUpload"
+                  :file-list="configFileList"
+                  :max-count="1"
+                  :on-remove="handleConfigRemove"
+                  accept=".toml,.TOML,text/toml,text/x-toml,application/toml,text/plain"
+                >
+                  <Button block type="dashed">选择配置文件</Button>
+                </Upload>
+              </FormItem>
+            </div>
+
+            <FormItem label="备注" name="notes">
+              <Input.TextArea
+                v-model:value="formState.notes"
+                :auto-size="{ minRows: 2, maxRows: 4 }"
+                placeholder="可选：说明协议版本、提交记录或其他上下文信息"
+              />
+            </FormItem>
+
+            <FormItem class="form-actions" :colon="false">
+              <Space>
+                <Button @click="handleReset">清空</Button>
+                <Button
+                  :loading="isSubmitting"
+                  type="primary"
+                  @click="handleSubmit"
+                >
+                  启动分析
+                </Button>
+              </Space>
+            </FormItem>
+          </Form>
+        </Card>
+
+        <Card class="progress-card" title="分析进度">
+          <template #extra>
+            <Button
+              :disabled="!canCopyProgressLogs"
+              size="small"
+              type="link"
+              @click="handleCopyProgressLogs"
             >
-              <Button block type="dashed">选择源码压缩包</Button>
-            </Upload>
-            <p class="upload-helper">
-              压缩包需包含项目完整源码及其构建脚本，保持目录结构以便 Builder
-              复现编译过程。
-            </p>
-          </FormItem>
-
-          <FormItem label="Builder Dockerfile" name="builder" required>
-            <Upload
-              :before-upload="handleBuilderBeforeUpload"
-              :file-list="builderFileList"
-              :max-count="1"
-              :on-remove="handleBuilderRemove"
-            >
-              <Button block type="dashed">选择 Dockerfile</Button>
-            </Upload>
-            <p class="upload-helper">
-              Dockerfile 需可独立构建出 Builder 镜像，并在容器运行时写出
-              <code>program.bc</code> 等必需 artefact。
-            </p>
-          </FormItem>
-
-          <FormItem label="协议规则（JSON）" name="rules" required>
-            <Upload
-              :before-upload="handleRulesBeforeUpload"
-              :file-list="rulesFileList"
-              :max-count="1"
-              :on-remove="handleRulesRemove"
-              accept=".json,.JSON,application/json,text/json"
-            >
-              <Button block type="dashed">选择规则 JSON</Button>
-            </Upload>
-            <p class="upload-helper">
-              上传上一阶段规则抽取的输出（例如 MQTTv5.json），用于驱动 LLM
-              切片与一致性检测。
-            </p>
-          </FormItem>
-
-          <FormItem label="分析配置（.toml）" name="config" required>
-            <Upload
-              :before-upload="handleConfigBeforeUpload"
-              :file-list="configFileList"
-              :max-count="1"
-              :on-remove="handleConfigRemove"
-              accept=".toml,.TOML,text/toml,text/x-toml,application/toml,text/plain"
-            >
-              <Button block type="dashed">选择配置文件</Button>
-            </Upload>
-            <p class="upload-helper">
-              配置文件将被注入容器的
-              <code>/config</code>，我们会自动重写路径指向当前任务工作目录。
-            </p>
-          </FormItem>
-
-          <FormItem label="备注" name="notes">
-            <Input.TextArea
-              v-model:value="formState.notes"
-              :auto-size="{ minRows: 3, maxRows: 6 }"
-              placeholder="可选：说明协议版本、提交记录或其他上下文信息"
-            />
-          </FormItem>
-
-          <FormItem class="form-actions" :colon="false">
-            <Space>
-              <Button @click="handleReset">清空</Button>
-              <Button
-                :loading="isSubmitting"
-                type="primary"
-                @click="handleSubmit"
-              >
-                启动分析
-              </Button>
+              复制日志
+            </Button>
+          </template>
+          <div class="progress-box">
+            <Space class="progress-status" wrap>
+              <Tag :color="progressStatusColor">{{ progressStatusLabel }}</Tag>
+              <span class="progress-message">{{ progressMessage }}</span>
             </Space>
-          </FormItem>
-        </Form>
-      </Card>
-
-      <Card title="分析进度">
-        <template #extra>
-          <Button
-            :disabled="!canCopyProgressLogs"
-            size="small"
-            type="link"
-            @click="handleCopyProgressLogs"
-          >
-            复制日志
-          </Button>
-        </template>
-        <div class="progress-box">
-          <Space class="progress-status" wrap>
-            <Tag :color="progressStatusColor">{{ progressStatusLabel }}</Tag>
-            <span class="progress-message">{{ progressMessage }}</span>
-          </Space>
-          <div
-            aria-live="polite"
-            class="progress-text"
-            role="log"
-            v-html="progressHtml"
-          ></div>
-          <p v-if="progressError" class="progress-error">
-            {{ progressError }}
-          </p>
-        </div>
-      </Card>
-
-      <Card v-if="hasSelection" title="已选文件概览">
-        <Descriptions bordered :column="1" size="small">
-          <Descriptions.Item v-if="archiveMeta" label="源码压缩包">
-            <div class="file-meta">
-              <TypographyText strong>{{ archiveMeta.name }}</TypographyText>
-              <span class="file-detail">大小：{{ archiveMeta.size }}</span>
-              <span class="file-detail">更新：{{ archiveMeta.updatedAt }}</span>
-            </div>
-          </Descriptions.Item>
-          <Descriptions.Item v-if="builderMeta" label="Builder Dockerfile">
-            <div class="file-meta">
-              <TypographyText strong>{{ builderMeta.name }}</TypographyText>
-              <span class="file-detail">大小：{{ builderMeta.size }}</span>
-              <span class="file-detail">更新：{{ builderMeta.updatedAt }}</span>
-            </div>
-          </Descriptions.Item>
-          <Descriptions.Item v-if="rulesMeta" label="协议规则 (JSON)">
-            <div class="file-meta">
-              <TypographyText strong>{{ rulesMeta.name }}</TypographyText>
-              <span class="file-detail">大小：{{ rulesMeta.size }}</span>
-              <span class="file-detail">更新：{{ rulesMeta.updatedAt }}</span>
-            </div>
-          </Descriptions.Item>
-          <Descriptions.Item v-if="configMeta" label="分析配置 (TOML)">
-            <div class="file-meta">
-              <TypographyText strong>{{ configMeta.name }}</TypographyText>
-              <span class="file-detail">大小：{{ configMeta.size }}</span>
-              <span class="file-detail">更新：{{ configMeta.updatedAt }}</span>
-            </div>
-          </Descriptions.Item>
-          <Descriptions.Item label="备注">
-            {{ formState.notes.trim() || '未填写' }}
-          </Descriptions.Item>
-        </Descriptions>
-        <TypographyParagraph class="preview-tip" type="secondary">
-          上传后即会发送至后端容器，请确认内容无误再启动分析。
-        </TypographyParagraph>
-      </Card>
-
-      <Card title="历史记录">
-        <template #extra>
-          <Button
-            :loading="historyLoading"
-            size="small"
-            type="link"
-            @click="handleRefreshHistory"
-          >
-            刷新
-          </Button>
-        </template>
-        <TypographyParagraph
-          v-if="historyError && !historyLoading"
-          class="history-error"
-          type="danger"
-        >
-          {{ historyError }}
-        </TypographyParagraph>
-        <TypographyParagraph
-          v-else-if="!historyLoading && !hasHistory"
-          class="history-tip"
-          type="secondary"
-        >
-          暂无历史记录，提交任务后会显示最近的运行记录。
-        </TypographyParagraph>
-        <TypographyParagraph v-else class="history-tip" type="secondary">
-          历史数据取自任务工作区中的 SQLite 结果数据库，可查看各规则的判定摘要。
-        </TypographyParagraph>
-        <Table
-          :columns="historyColumns"
-          :data-source="historyItems"
-          :loading="historyLoading"
-          :pagination="false"
-          :scroll="{ x: 'max-content' }"
-          class="history-table"
-          row-key="jobId"
-          size="small"
-        >
-          <template #emptyText>
-            <span v-if="historyLoading">正在加载历史记录...</span>
-            <span v-else-if="historyError">{{ historyError }}</span>
-            <span v-else>暂无历史记录</span>
-          </template>
-          <template #bodyCell="{ column, record }">
-            <template v-if="column.key === 'jobId'">
-              <TypographyParagraph
-                :copyable="{ text: record.jobId }"
-                :ellipsis="{ rows: 1, tooltip: record.jobId }"
-                class="history-job"
-              >
-                {{ record.jobId }}
-              </TypographyParagraph>
-            </template>
-            <template v-else-if="column.key === 'status'">
-              <Tag
-                :color="resolveJobStatusMeta(record.status)?.color ?? 'default'"
-              >
-                {{
-                  resolveJobStatusMeta(record.status)?.label ?? record.status
-                }}
-              </Tag>
-            </template>
-            <template v-else-if="column.key === 'overallStatus'">
-              <span
-                v-if="resolveHistoryOverallStatus(record)"
-                class="status-tag"
-                :class="[`status-${resolveHistoryOverallStatus(record)}`]"
-              >
-                {{ resolveHistoryOverallLabel(record) }}
-              </span>
-              <span v-else>-</span>
-            </template>
-            <template v-else-if="column.key === 'protocol'">
-              <span v-if="record.protocolName">
-                {{ record.protocolName }}
-                <template v-if="record.protocolVersion">
-                  ({{ record.protocolVersion }})
-                </template>
-              </span>
-              <span v-else>-</span>
-            </template>
-            <template v-else-if="column.key === 'ruleInsights'">
-              <div class="history-insight">
-                <template v-if="historyInsightErrors[record.jobId]">
-                  <TypographyParagraph
-                    class="history-insight-error"
-                    type="danger"
-                  >
-                    {{ historyInsightErrors[record.jobId] }}
-                  </TypographyParagraph>
-                  <TypographyParagraph
-                    v-if="historyInsightDebug[record.jobId]?.status"
-                    class="history-insight-meta"
-                    type="secondary"
-                  >
-                    响应状态：HTTP
-                    {{ historyInsightDebug[record.jobId]?.status }}
-                    {{
-                      historyInsightDebug[record.jobId]?.statusText
-                        ? `(${historyInsightDebug[record.jobId]?.statusText})`
-                        : ''
-                    }}
-                  </TypographyParagraph>
-                  <TypographyParagraph
-                    v-if="record.workspacePath"
-                    class="history-insight-meta"
-                    type="secondary"
-                  >
-                    工作目录：{{ record.workspacePath }}
-                  </TypographyParagraph>
-                  <pre
-                    v-if="historyInsightDebug[record.jobId]?.payload"
-                    class="history-insight-debug"
-                  >
-{{ formatDebugJson(historyInsightDebug[record.jobId]?.payload) }}
-                  </pre>
-                  <pre
-                    v-if="historyInsightDebug[record.jobId]?.responseData"
-                    class="history-insight-debug"
-                  >
-{{ formatDebugJson(historyInsightDebug[record.jobId]?.responseData) }}
-                  </pre>
-                </template>
-                <template v-else-if="historyInsights[record.jobId]">
-                  <div class="history-insight-summary">
-                    <span class="history-insight-counts">
-                      <span
-                        class="history-insight-count history-insight-count--violation"
-                      >
-                        违规
-                        {{
-                          historyInsightSummaries[record.jobId]?.violation ?? 0
-                        }}
-                      </span>
-                      <span class="history-insight-count">
-                        合规
-                        {{
-                          historyInsightSummaries[record.jobId]?.noViolation ??
-                          0
-                        }}
-                      </span>
-                      <span class="history-insight-count">
-                        未判定
-                        {{
-                          historyInsightSummaries[record.jobId]?.unknown ?? 0
-                        }}
-                      </span>
-                    </span>
-                    <Button
-                      size="small"
-                      type="link"
-                      @click="openHistoryDetail(record.jobId)"
-                    >
-                      查看详情
-                    </Button>
-                  </div>
-                  <TypographyParagraph
-                    v-if="historyInsights[record.jobId]?.warnings?.length"
-                    class="history-insight-warning"
-                    type="warning"
-                  >
-                    {{ historyInsights[record.jobId]?.warnings?.[0] }}
-                  </TypographyParagraph>
-                  <TypographyParagraph
-                    v-if="historyInsights[record.jobId]?.workspacePath"
-                    class="history-insight-meta"
-                    type="secondary"
-                  >
-                    工作目录：{{ historyInsights[record.jobId]?.workspacePath }}
-                  </TypographyParagraph>
-                  <TypographyParagraph
-                    v-else-if="record.workspacePath"
-                    class="history-insight-meta"
-                    type="secondary"
-                  >
-                    工作目录：{{ record.workspacePath }}
-                  </TypographyParagraph>
-                </template>
-                <template v-else>
-                  <span class="history-insight-loading">
-                    {{ historyInsightsLoading ? '解析中…' : '暂无数据' }}
-                  </span>
-                </template>
-              </div>
-            </template>
-            <template v-else-if="column.key === 'updatedAt'">
-              {{ formatIsoDate(record.completedAt ?? record.updatedAt) }}
-            </template>
-            <template v-else>
-              {{ resolveHistoryValue(record, column.dataIndex) }}
-            </template>
-          </template>
-        </Table>
-      </Card>
+            <div
+              aria-live="polite"
+              class="progress-text"
+              role="log"
+              v-html="progressHtml"
+            ></div>
+            <p v-if="progressError" class="progress-error">
+              {{ progressError }}
+            </p>
+          </div>
+        </Card>
+      </div>
 
       <Card v-if="analysisResult" title="最新分析结果">
         <Descriptions bordered :column="1" size="small">
@@ -1705,14 +1468,14 @@ async function handleSubmit() {
         placement="right"
       >
         <template v-if="historyDetailRecord">
-          <TypographyParagraph
-            class="history-detail-meta"
-            type="secondary"
-          >
+          <TypographyParagraph class="history-detail-meta" type="secondary">
             任务 ID：{{ historyDetailRecord?.jobId }}
           </TypographyParagraph>
           <TypographyParagraph
-            v-if="historyDetailInsight?.workspacePath || historyDetailRecord?.workspacePath"
+            v-if="
+              historyDetailInsight?.workspacePath ||
+              historyDetailRecord?.workspacePath
+            "
             :ellipsis="{
               rows: 1,
               tooltip:
@@ -1761,17 +1524,13 @@ async function handleSubmit() {
             响应状态：HTTP {{ historyDetailDebug?.status }}
             {{ historyDetailDebug?.statusText || '' }}
           </TypographyParagraph>
-          <pre
-            v-if="historyDetailDebug?.payload"
-            class="history-detail-debug"
-          >
-{{ formatDebugJson(historyDetailDebug?.payload) }}
+          <pre v-if="historyDetailDebug?.payload" class="history-detail-debug"
+            >{{ formatDebugJson(historyDetailDebug?.payload) }}
           </pre>
           <pre
             v-if="historyDetailDebug?.responseData"
             class="history-detail-debug"
-          >
-{{ formatDebugJson(historyDetailDebug?.responseData) }}
+            >{{ formatDebugJson(historyDetailDebug?.responseData) }}
           </pre>
           <TypographyParagraph
             v-if="historyDetailInsight?.warnings?.length"
@@ -1826,16 +1585,10 @@ async function handleSubmit() {
                   </span>
                 </li>
               </ul>
-              <div
-                v-if="finding.codeSnippet"
-                class="history-detail-snippet"
-              >
+              <div v-if="finding.codeSnippet" class="history-detail-snippet">
                 <pre>{{ finding.codeSnippet }}</pre>
               </div>
-              <div
-                v-if="finding.llmRaw"
-                class="history-detail-raw"
-              >
+              <div v-if="finding.llmRaw" class="history-detail-raw">
                 <pre>{{ formatDebugJson(finding.llmRaw) }}</pre>
               </div>
               <Divider
@@ -1863,6 +1616,225 @@ async function handleSubmit() {
           </TypographyParagraph>
         </template>
       </Drawer>
+
+      <!-- 历史记录区域 -->
+      <Card class="history-card" title="历史记录">
+        <template #extra>
+          <Button
+            :loading="historyLoading"
+            size="small"
+            type="link"
+            @click="handleRefreshHistory"
+          >
+            刷新
+          </Button>
+        </template>
+        <TypographyParagraph
+          v-if="historyError && !historyLoading"
+          class="history-error"
+          type="danger"
+        >
+          {{ historyError }}
+        </TypographyParagraph>
+        <TypographyParagraph
+          v-else-if="!historyLoading && !hasHistory"
+          class="history-tip"
+          type="secondary"
+        >
+          暂无历史记录，提交任务后会显示最近的运行记录。
+        </TypographyParagraph>
+        <TypographyParagraph v-else class="history-tip" type="secondary">
+          历史数据取自任务工作区中的 SQLite 结果数据库，可查看各规则的判定摘要。
+        </TypographyParagraph>
+        <div class="history-table-wrapper">
+          <Table
+            :columns="historyColumns"
+            :data-source="historyItems"
+            :loading="historyLoading"
+            :pagination="false"
+            :scroll="{ x: 'max-content' }"
+            class="history-table"
+            row-key="jobId"
+            size="small"
+          >
+            <template #emptyText>
+              <span v-if="historyLoading">正在加载历史记录...</span>
+              <span v-else-if="historyError">{{ historyError }}</span>
+              <span v-else>暂无历史记录</span>
+            </template>
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'jobId'">
+                <TypographyParagraph
+                  :copyable="{ text: record.jobId }"
+                  :ellipsis="{ rows: 1, tooltip: record.jobId }"
+                  class="history-job"
+                >
+                  {{ record.jobId }}
+                </TypographyParagraph>
+              </template>
+              <template v-else-if="column.key === 'status'">
+                <Tag
+                  :color="
+                    resolveJobStatusMeta(record.status)?.color ?? 'default'
+                  "
+                >
+                  {{
+                    resolveJobStatusMeta(record.status)?.label ?? record.status
+                  }}
+                </Tag>
+              </template>
+              <template v-else-if="column.key === 'overallStatus'">
+                <span
+                  v-if="resolveHistoryOverallStatus(record)"
+                  class="status-tag"
+                  :class="[`status-${resolveHistoryOverallStatus(record)}`]"
+                >
+                  {{ resolveHistoryOverallLabel(record) }}
+                </span>
+                <span v-else>-</span>
+              </template>
+              <template v-else-if="column.key === 'protocol'">
+                <span v-if="record.protocolName">
+                  {{ record.protocolName }}
+                  <template v-if="record.protocolVersion">
+                    ({{ record.protocolVersion }})
+                  </template>
+                </span>
+                <span v-else>-</span>
+              </template>
+              <template v-else-if="column.key === 'ruleInsights'">
+                <div class="history-insight">
+                  <template v-if="historyInsightErrors[record.jobId]">
+                    <TypographyParagraph
+                      class="history-insight-error"
+                      type="danger"
+                    >
+                      {{ historyInsightErrors[record.jobId] }}
+                    </TypographyParagraph>
+                    <TypographyParagraph
+                      v-if="historyInsightDebug[record.jobId]?.status"
+                      class="history-insight-meta"
+                      type="secondary"
+                    >
+                      响应状态：HTTP
+                      {{ historyInsightDebug[record.jobId]?.status }}
+                      {{
+                        historyInsightDebug[record.jobId]?.statusText
+                          ? `(${historyInsightDebug[record.jobId]?.statusText})`
+                          : ''
+                      }}
+                    </TypographyParagraph>
+                    <TypographyParagraph
+                      v-if="record.workspacePath"
+                      class="history-insight-meta"
+                      type="secondary"
+                    >
+                      工作目录：{{ record.workspacePath }}
+                    </TypographyParagraph>
+                    <pre
+                      v-if="historyInsightDebug[record.jobId]?.payload"
+                      class="history-insight-debug"
+                      >{{
+                        formatDebugJson(
+                          historyInsightDebug[record.jobId]?.payload,
+                        )
+                      }}
+                    </pre>
+                    <pre
+                      v-if="historyInsightDebug[record.jobId]?.responseData"
+                      class="history-insight-debug"
+                      >{{
+                        formatDebugJson(
+                          historyInsightDebug[record.jobId]?.responseData,
+                        )
+                      }}
+                    </pre>
+                  </template>
+                  <template v-else-if="historyInsights[record.jobId]">
+                    <div class="history-insight-summary">
+                      <span class="history-insight-counts">
+                        <span
+                          class="history-insight-count history-insight-count--violation"
+                        >
+                          违规
+                          {{
+                            historyInsightSummaries[record.jobId]?.violation ??
+                            0
+                          }}
+                        </span>
+                        <span class="history-insight-count">
+                          合规
+                          {{
+                            historyInsightSummaries[record.jobId]
+                              ?.noViolation ?? 0
+                          }}
+                        </span>
+                        <span class="history-insight-count">
+                          未判定
+                          {{
+                            historyInsightSummaries[record.jobId]?.unknown ?? 0
+                          }}
+                        </span>
+                      </span>
+                      <Button
+                        size="small"
+                        type="link"
+                        @click="openHistoryDetail(record.jobId)"
+                      >
+                        查看详情
+                      </Button>
+                    </div>
+                    <TypographyParagraph
+                      v-if="historyInsights[record.jobId]?.warnings?.length"
+                      class="history-insight-warning"
+                      type="warning"
+                    >
+                      {{ historyInsights[record.jobId]?.warnings?.[0] }}
+                    </TypographyParagraph>
+                    <TypographyParagraph
+                      v-if="historyInsights[record.jobId]?.workspacePath"
+                      class="history-insight-meta"
+                      type="secondary"
+                    >
+                      工作目录：{{
+                        historyInsights[record.jobId]?.workspacePath
+                      }}
+                    </TypographyParagraph>
+                    <TypographyParagraph
+                      v-else-if="record.workspacePath"
+                      class="history-insight-meta"
+                      type="secondary"
+                    >
+                      工作目录：{{ record.workspacePath }}
+                    </TypographyParagraph>
+                  </template>
+                  <template v-else>
+                    <span class="history-insight-loading">
+                      {{ historyInsightsLoading ? '解析中…' : '暂无数据' }}
+                    </span>
+                  </template>
+                </div>
+              </template>
+              <template v-else-if="column.key === 'updatedAt'">
+                {{ formatIsoDate(record.completedAt ?? record.updatedAt) }}
+              </template>
+              <template v-else-if="column.key === 'actions'">
+                <Popconfirm
+                  cancel-text="取消"
+                  ok-text="确定"
+                  title="确定要删除这条历史记录吗？"
+                  @confirm="handleDeleteHistory(record.jobId)"
+                >
+                  <Button danger size="small" type="link"> 删除 </Button>
+                </Popconfirm>
+              </template>
+              <template v-else>
+                {{ resolveHistoryValue(record, column.dataIndex) }}
+              </template>
+            </template>
+          </Table>
+        </div>
+      </Card>
     </div>
   </Page>
 </template>
@@ -1872,40 +1844,89 @@ async function handleSubmit() {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  height: 100%;
 }
 
-.intro {
+.history-table-wrapper {
+  max-height: 300px;
+  overflow-y: auto;
+  margin-top: 8px;
+}
+
+.layout-grid {
+  display: grid;
+  grid-template-columns: 400px 1fr;
+  gap: 16px;
+  align-items: stretch;
+  flex: 1;
+  min-height: 0;
+}
+
+.upload-card,
+.progress-card {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  height: 100%;
+  min-height: 600px;
 }
 
-.intro-text {
-  margin: 0;
-  line-height: 1.6;
+.upload-card :deep(.ant-card-body),
+.progress-card :deep(.ant-card-body) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
-.guide-list {
-  padding-left: 20px;
-  margin: 0;
+.compact-form {
   font-size: 13px;
-  line-height: 1.6;
-  color: var(--ant-text-color);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
-.placeholder-hint {
-  font-size: 13px;
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
 }
 
-.upload-helper {
-  margin-top: 8px;
-  margin-bottom: 0;
-  font-size: 13px;
-  color: var(--ant-text-color-secondary);
+.progress-box {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.progress-text {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 200px;
+}
+
+@media (max-width: 1200px) {
+  .layout-grid {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+
+  .upload-card,
+  .progress-card {
+    min-height: 400px;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .history-table-wrapper {
+    max-height: 250px;
+  }
 }
 
 .form-actions {
   margin-bottom: 0;
+  margin-top: 8px;
 }
 
 .file-meta {
@@ -1930,6 +1951,7 @@ async function handleSubmit() {
   gap: 8px;
   align-items: center;
   font-size: 13px;
+  margin-bottom: 12px;
 }
 
 .progress-message {
@@ -1937,10 +1959,10 @@ async function handleSubmit() {
 }
 
 .progress-text {
-  min-height: 120px;
-  max-height: 240px;
-  padding: 12px;
+  flex: 1;
   overflow-y: auto;
+  min-height: 200px;
+  padding: 12px;
   font-family:
     ui-monospace, SFMono-Regular, SFMono, Menlo, Monaco, Consolas,
     'Liberation Mono', 'Courier New', monospace;

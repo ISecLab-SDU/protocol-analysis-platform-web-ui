@@ -25,6 +25,7 @@ except ImportError:
     from utils.auth import verify_access_token
     from utils.responses import error_response, paginate, success_response, unauthorized
 from .analysis import (
+    delete_static_analysis_job,
     extract_protocol_version,
     get_static_analysis_job,
     get_static_analysis_result,
@@ -363,6 +364,26 @@ def static_analysis_history():
     history = list_static_analysis_history(limit=limit)
     payload = success_response({"items": history, "limit": limit, "count": len(history)})
     return make_response(payload, 200)
+
+
+@bp.route("/static-analysis/history/<job_id>", methods=["DELETE"])
+def delete_static_analysis_history(job_id: str):
+    """Delete a static analysis job from the history."""
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+
+    if not job_id or not isinstance(job_id, str):
+        return make_response(error_response("无效的任务 ID"), 400)
+
+    try:
+        deleted = delete_static_analysis_job(job_id)
+        if not deleted:
+            return make_response(error_response("任务不存在"), 404)
+        return make_response(success_response({"jobId": job_id, "deleted": True}), 200)
+    except Exception as exc:
+        LOGGER.error("Failed to delete static analysis job %s: %s", job_id, exc)
+        return make_response(error_response(f"删除失败：{str(exc)}"), 500)
 
 
 def _expand_path(raw: Optional[str]) -> Optional[Path]:
