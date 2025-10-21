@@ -2017,9 +2017,41 @@ onMounted(async () => {
             <div v-else class="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-secondary/20 shadow-card h-full">
               <div class="flex justify-between items-center mb-4">
                 <h3 class="font-semibold text-lg">崩溃监控</h3>
-                <span class="bg-success/10 text-success text-xs px-2 py-0.5 rounded-full">正常</span>
+                <span v-if="protocolType === 'RTSP' && rtspStats.unique_crashes > 0" 
+                      class="bg-danger/10 text-danger text-xs px-2 py-0.5 rounded-full animate-pulse">
+                  {{ rtspStats.unique_crashes }} 个崩溃
+                </span>
+                <span v-else class="bg-success/10 text-success text-xs px-2 py-0.5 rounded-full">正常</span>
               </div>
-              <div class="h-full flex flex-col items-center justify-center text-dark/50 text-sm">
+              
+              <!-- RTSP协议崩溃统计 -->
+              <div v-if="protocolType === 'RTSP'" class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                  <div class="bg-red-50 rounded-lg p-3 border border-red-200 text-center">
+                    <div class="text-2xl font-bold text-red-600 mb-1">{{ rtspStats.unique_crashes }}</div>
+                    <div class="text-xs text-red-700">崩溃数</div>
+                    <div class="text-xs text-gray-500 mt-1">Crashes</div>
+                  </div>
+                  <div class="bg-yellow-50 rounded-lg p-3 border border-yellow-200 text-center">
+                    <div class="text-2xl font-bold text-yellow-600 mb-1">{{ rtspStats.unique_hangs }}</div>
+                    <div class="text-xs text-yellow-700">挂起数</div>
+                    <div class="text-xs text-gray-500 mt-1">Hangs</div>
+                  </div>
+                </div>
+                
+                <div class="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                  <div class="text-xs text-gray-600 mb-2">监控状态</div>
+                  <div class="flex items-center space-x-2">
+                    <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span class="text-sm text-gray-700">
+                      {{ rtspStats.unique_crashes > 0 ? '检测到异常' : '持续监控中...' }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- 其他协议的默认显示 -->
+              <div v-else class="h-full flex flex-col items-center justify-center text-dark/50 text-sm">
                 <div class="bg-success/10 p-4 rounded-full mb-4">
                   <i class="fa fa-shield text-3xl text-success/70"></i>
                 </div>
@@ -2198,16 +2230,17 @@ onMounted(async () => {
             <div v-else class="space-y-4">
               <div>
                 <div class="flex justify-between items-center mb-1">
-                  <span class="text-sm text-dark/70">当前路径/总路径</span>
-                  <span class="text-xl font-bold">{{ rtspStats.cur_path }}/{{ rtspStats.paths_total }}</span>
+                  <span class="text-sm text-dark/70">测试进度</span>
+                  <span class="text-xl font-bold">{{ Math.round((elapsedTime / Math.max(testDuration, 1)) * 100) }}%</span>
                 </div>
                 <div class="w-full bg-light-gray rounded-full h-1.5 overflow-hidden">
-                  <div class="h-full bg-primary" :style="{ width: rtspStats.paths_total > 0 ? Math.min(100, (rtspStats.cur_path / rtspStats.paths_total) * 100) : 0 + '%' }"></div>
+                  <div class="h-full bg-primary" :style="{ width: Math.min(100, (elapsedTime / Math.max(testDuration, 1)) * 100) + '%' }"></div>
                 </div>
+                <div class="text-xs text-dark/60 mt-1">{{ elapsedTime }}s / {{ testDuration }}s</div>
               </div>
               
               <div class="grid grid-cols-1 gap-3">
-                <!-- 第一行：执行速度和覆盖率 -->
+                <!-- 第一行：执行速度和测试时长 -->
                 <div class="grid grid-cols-2 gap-3">
                   <div class="bg-blue-50 rounded-lg p-3 border border-blue-200">
                     <p class="text-xs text-blue-700 mb-1">执行速度</p>
@@ -2216,52 +2249,34 @@ onMounted(async () => {
                   </div>
                   
                   <div class="bg-green-50 rounded-lg p-3 border border-green-200">
-                    <p class="text-xs text-green-700 mb-1">代码覆盖率</p>
-                    <h4 class="text-2xl font-bold text-green-600">{{ rtspStats.map_size }}</h4>
-                    <p class="text-xs text-dark/60 mt-1">coverage</p>
+                    <p class="text-xs text-green-700 mb-1">运行时长</p>
+                    <h4 class="text-2xl font-bold text-green-600">{{ elapsedTime }}</h4>
+                    <p class="text-xs text-dark/60 mt-1">seconds</p>
                   </div>
                 </div>
                 
-                <!-- 第二行：崩溃和挂起 -->
-                <div class="grid grid-cols-2 gap-3">
-                  <div class="bg-red-50 rounded-lg p-3 border border-red-200">
-                    <p class="text-xs text-red-700 mb-1">崩溃数</p>
-                    <h4 class="text-2xl font-bold text-red-600">{{ rtspStats.unique_crashes }}</h4>
-                    <p class="text-xs text-dark/60 mt-1">crashes</p>
-                  </div>
-                  
-                  <div class="bg-yellow-50 rounded-lg p-3 border border-yellow-200">
-                    <p class="text-xs text-yellow-700 mb-1">挂起数</p>
-                    <h4 class="text-2xl font-bold text-yellow-600">{{ rtspStats.unique_hangs }}</h4>
-                    <p class="text-xs text-dark/60 mt-1">hangs</p>
-                  </div>
-                </div>
-                
-                <!-- 第三行：状态机信息 -->
+                <!-- 第二行：循环次数和最大深度 -->
                 <div class="grid grid-cols-2 gap-3">
                   <div class="bg-purple-50 rounded-lg p-3 border border-purple-200">
-                    <p class="text-xs text-purple-700 mb-1">状态节点</p>
-                    <h4 class="text-2xl font-bold text-purple-600">{{ rtspStats.n_nodes }}</h4>
-                    <p class="text-xs text-dark/60 mt-1">nodes</p>
+                    <p class="text-xs text-purple-700 mb-1">完成循环</p>
+                    <h4 class="text-2xl font-bold text-purple-600">{{ rtspStats.cycles_done }}</h4>
+                    <p class="text-xs text-dark/60 mt-1">cycles</p>
                   </div>
                   
                   <div class="bg-indigo-50 rounded-lg p-3 border border-indigo-200">
-                    <p class="text-xs text-indigo-700 mb-1">状态转换</p>
-                    <h4 class="text-2xl font-bold text-indigo-600">{{ rtspStats.n_edges }}</h4>
-                    <p class="text-xs text-dark/60 mt-1">edges</p>
+                    <p class="text-xs text-indigo-700 mb-1">最大深度</p>
+                    <h4 class="text-2xl font-bold text-indigo-600">{{ rtspStats.max_depth }}</h4>
+                    <p class="text-xs text-dark/60 mt-1">depth</p>
                   </div>
                 </div>
                 
-                <!-- 第四行：待处理信息 -->
-                <div class="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                <!-- 第三行：代码覆盖率 -->
+                <div class="bg-orange-50 rounded-lg p-3 border border-orange-200">
                   <div class="flex justify-between items-center mb-2">
-                    <span class="text-xs text-gray-700">待处理路径</span>
-                    <span class="text-sm font-bold text-gray-600">{{ rtspStats.pending_total }}</span>
+                    <span class="text-xs text-orange-700">代码覆盖率</span>
+                    <span class="text-lg font-bold text-orange-600">{{ rtspStats.map_size }}</span>
                   </div>
-                  <div class="flex justify-between items-center">
-                    <span class="text-xs text-gray-700">优先路径</span>
-                    <span class="text-sm font-bold text-gray-600">{{ rtspStats.pending_favs }}</span>
-                  </div>
+                  <div class="text-xs text-dark/60">Coverage Bitmap</div>
                 </div>
               </div>
             </div>
@@ -2327,16 +2342,6 @@ onMounted(async () => {
                   <div class="flex-1">
                     <p class="truncate text-xs">运行日志信息</p>
                     <p class="truncate text-xs text-dark/50">{{ isTestCompleted ? 'scan_result/fuzz_logs/fuzz_output.txt' : '无' }}</p>
-                  </div>
-                  <button @click="saveLog" class="text-xs bg-primary/10 hover:bg-primary/20 text-primary px-1.5 py-0.5 rounded">
-                    下载
-                  </button>
-                </div>
-                <div class="flex items-center">
-                  <i class="fa fa-file-excel-o text-danger mr-2"></i>
-                  <div class="flex-1">
-                    <p class="truncate text-xs">崩溃队列信息</p>
-                    <p class="truncate text-xs text-dark/50">{{ isTestCompleted ? 'scan_result/crash_logs/20251014-110318' : '无' }}</p>
                   </div>
                   <button @click="saveLog" class="text-xs bg-primary/10 hover:bg-primary/20 text-primary px-1.5 py-0.5 rounded">
                     下载
