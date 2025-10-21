@@ -486,3 +486,204 @@ def stop_process():
         return make_response(error_response(f"进程 {pid} 不存在或已停止"), 404)
     except Exception as e:
         return make_response(error_response(f"停止进程失败: {str(e)}"), 500)
+        
+import os  
+import sqlite3  
+import uuid  
+from datetime import datetime  
+  
+# 新增的路由端点  
+  
+@bp.route("/detection-results/<implementation_name>", methods=["GET"])  
+def get_detection_results(implementation_name: str):  
+    """获取指定协议实现的检测结果"""  
+    _, error = _ensure_authenticated()  
+    if error:  
+        return error  
+      
+    # 数据库文件路径  
+    db_path = os.path.join(  
+        os.path.dirname(__file__),   
+        "databases",   
+        f"sqlite_{implementation_name}.db"  
+    )  
+      
+    # 检查文件是否存在  
+    if not os.path.exists(db_path):  
+        return make_response(  
+            error_response(f"未找到协议实现 '{implementation_name}' 的数据库文件"),   
+            404  
+        )  
+      
+    try:  
+        conn = sqlite3.connect(db_path)  
+        conn.row_factory = sqlite3.Row  
+        cursor = conn.cursor()  
+          
+        # 从 rule_code_snippet 表读取数据  
+        cursor.execute("""  
+            SELECT rule_desc, code_snippet, llm_response   
+            FROM rule_code_snippet  
+        """)  
+          
+        rows = cursor.fetchall()  
+        items = []  
+          
+        for idx, row in enumerate(rows):  
+            # 解析 JSON 格式的 llm_response  
+            llm_response = {}  
+            if row['llm_response']:  
+                try:  
+                    llm_response = json.loads(row['llm_response'])  
+                except json.JSONDecodeError:  
+                    llm_response = {'result': 'error', 'reason': '解析失败'}  
+              
+            items.append({  
+                'id': idx + 1,  # 使用索引作为 id  
+                'rule_desc': row['rule_desc'],  
+                'code_snippet': row['code_snippet'],  
+                'llm_response': llm_response  
+            })  
+          
+        conn.close()  
+        return success_response({'items': items})  
+          
+    except sqlite3.Error as e:  
+        return make_response(  
+            error_response(f"数据库读取错误: {str(e)}"),   
+            500  
+        )  
+  
+  
+@bp.route("/available-implementations", methods=["GET"])  
+def list_available_implementations():  
+    """获取所有可用的协议实现列表"""  
+    _, error = _ensure_authenticated()  
+    if error:  
+        return error  
+      
+    db_dir = os.path.join(os.path.dirname(__file__), "databases")  
+      
+    if not os.path.exists(db_dir):  
+        return success_response({'items': []})  
+      
+    # 扫描目录中的所有 .db 文件  
+    implementations = []  
+    for filename in os.listdir(db_dir):  
+        if filename.startswith("sqlite_") and filename.endswith(".db"):  
+            # 提取实现名称（去掉 sqlite_ 前缀和 .db 后缀）  
+            impl_name = filename[7:-3]  
+            implementations.append(impl_name)  
+      
+    return success_response({'items': implementations})  
+  
+  
+@bp.route("/analysis-history", methods=["GET"])  
+def get_analysis_history():  
+    """获取历史记录"""  
+    _, error = _ensure_authenticated()  
+    if error:  
+        return error  
+      
+    history_file = os.path.join(os.path.dirname(__file__), "query_history.json")  
+      
+    if not os.path.exists(history_file):  
+        return success_response({'items': []})  
+      
+    try:  
+        with open(history_file, 'r', encoding='utf-8') as f:  
+            history = json.load(f)  
+        return success_response({'items': history})  
+    except (json.JSONDecodeError, IOError) as e:  
+        return make_response(  
+            error_response(f"读取历史记录失败: {str(e)}"),   
+            500  
+        )  
+  
+  
+@bp.route("/analysis-history", methods=["POST"])  
+def add_analysis_history():  
+    """添加历史记录"""  
+    _, error = _ensure_authenticated()  
+    if error:  
+        return error  
+      
+    data = request.get_json()  
+    implementation_name = data.get('implementationName')  
+    protocol_name = data.get('protocolName')  
+      
+    if not implementation_name or not protocol_name:  
+        return make_response(  
+            error_response("缺少必要参数"),   
+            400  
+        )  
+      
+    # 读取数据库统计信息  
+    db_path = os.path.join(  
+        os.path.dirname(__file__),   
+        "databases",   
+        f"sqlite_{implementation_name}.db"  
+    )  
+      
+    statistics = {'total': 0, 'violations': 0, 'noViolations': 0, 'noResult': 0}  
+      
+    if os.path.exists(db_path):  
+        try:  
+            conn = sqlite3.connect(db_path)  
+            cursor = conn.cursor()  
+              
+            # 从 rule_code_snippet 表读取  
+            cursor.execute("SELECT llm_response FROM rule_code_snippet")  
+            rows = cursor.fetchall()  
+              
+            statistics['total'] = len(rows)  
+            for row in rows:  
+                if row[0]:  
+                    try:  
+                        response = json.loads(row[0])  
+                        result = response.get('result', '').lower()  
+                        if 'no violation' in result:  
+                            statistics['noViolations'] += 1  
+                        elif 'violation' in result:  
+                            statistics['violations'] += 1  
+                        else:  
+                            statistics['noResult'] += 1  
+                    except json.JSONDecodeError:  
+                        statistics['noResult'] += 1  
+              
+            conn.close()  
+        except sqlite3.Error:  
+            pass  
+      
+    # 保存历史记录  
+    history_file = os.path.join(os.path.dirname(__file__), "query_history.json")  
+    history = []  
+      
+    if os.path.exists(history_file):  
+        try:  
+            with open(history_file, 'r', encoding='utf-8') as f:  
+                history = json.load(f)  
+        except (json.JSONDecodeError, IOError):  
+            history = []  
+      
+    history.insert(0, {  
+        'id': str(uuid.uuid4()),  
+        'implementationName': implementation_name,  
+        'protocolName': protocol_name,  
+        'statistics': statistics,  
+        'createdAt': datetime.now().isoformat()  
+    })  
+      
+    # 只保留最近 50 条记录  
+    history = history[:50]  
+      
+    try:  
+        with open(history_file, 'w', encoding='utf-8') as f:  
+            json.dump(history, f, ensure_ascii=False, indent=2)  
+    except IOError as e:  
+        return make_response(  
+            error_response(f"保存历史记录失败: {str(e)}"),   
+            500  
+        )  
+      
+    return success_response({'message': '已添加到历史记录'})
