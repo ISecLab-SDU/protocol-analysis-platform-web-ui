@@ -1,5 +1,53 @@
 [
   {
+    "id": "f7ddbb42-6eca-4758-b99d-ecc49f60c426",
+    "implementationName": "sol",
+    "protocolName": "MQTTv5",
+    "statistics": {
+      "total": 83,
+      "violations": 40,
+      "noViolations": 43,
+      "noResult": 0
+    },
+    "createdAt": "2025-10-21T10:10:25.217733"
+  },
+  {
+    "id": "251e5e53-d20b-47b9-8a9b-9e68e17eda58",
+    "implementationName": "sol",
+    "protocolName": "MQTTv5",
+    "statistics": {
+      "total": 83,
+      "violations": 40,
+      "noViolations": 43,
+      "noResult": 0
+    },
+    "createdAt": "2025-10-21T09:59:42.154751"
+  },
+  {
+    "id": "3fdbfcec-1a3a-4bde-8c27-6aa3f1dd0262",
+    "implementationName": "sol",
+    "protocolName": "MQTTv5",
+    "statistics": {
+      "total": 83,
+      "violations": 40,
+      "noViolations": 43,
+      "noResult": 0
+    },
+    "createdAt": "2025-10-20T18:55:51.346418"
+  },
+  {
+    "id": "4d46320c-97ea-410d-ac3f-fd09b34d67b2",
+    "implementationName": "sol",
+    "protocolName": "MQTTv5",
+    "statistics": {
+      "total": 83,
+      "violations": 40,
+      "noViolations": 43,
+      "noResult": 0
+    },
+    "createdAt": "2025-10-20T16:57:17.496901"
+  },
+  {
     "id": "1a63ff63-7994-4afa-9b05-561427e0267d",
     "implementationName": "sol",
     "protocolName": "MQTTv5",
