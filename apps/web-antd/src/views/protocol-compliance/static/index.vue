@@ -3,13 +3,16 @@ import type { FormInstance, UploadFile, UploadProps } from 'ant-design-vue';
 import type { Rule } from 'ant-design-vue/es/form';
 
 import type {
+  ProtocolStaticAnalysisDatabaseInsights,
+  FetchProtocolStaticAnalysisDatabaseInsightsPayload,
+  ProtocolStaticAnalysisHistoryEntry,
   ProtocolStaticAnalysisJob,
   ProtocolStaticAnalysisProgressEvent,
   ProtocolStaticAnalysisResult,
-  ProtocolStaticAnalysisHistoryEntry,
+  ProtocolStaticAnalysisRuleResultStatus,
 } from '#/api/protocol-compliance';
 
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 
 import { Page } from '@vben/common-ui';
 
@@ -17,6 +20,8 @@ import {
   Button,
   Card,
   Descriptions,
+  Divider,
+  Drawer,
   Form,
   FormItem,
   Input,
@@ -29,6 +34,7 @@ import {
 } from 'ant-design-vue';
 
 import {
+  fetchProtocolStaticAnalysisDatabaseInsights,
   fetchProtocolStaticAnalysisProgress,
   fetchProtocolStaticAnalysisResult,
   fetchProtocolStaticAnalysisHistory,
@@ -120,6 +126,22 @@ const STATUS_LABELS: Record<string, string> = {
   non_compliant: '发现问题',
 };
 
+const RULE_RESULT_META: Record<
+  ProtocolStaticAnalysisRuleResultStatus,
+  { color: string; label: string }
+> = {
+  no_violation: { color: 'success', label: '未发现违规' },
+  unknown: { color: 'default', label: '未判定' },
+  violation_found: { color: 'error', label: '发现违规' },
+};
+
+interface HistoryInsightSummary {
+  noViolation: number;
+  total: number;
+  unknown: number;
+  violation: number;
+}
+
 interface HistoryColumn {
   dataIndex: string;
   key: string;
@@ -139,15 +161,308 @@ const historyColumns: HistoryColumn[] = [
     width: 140,
   },
   { dataIndex: 'protocolName', key: 'protocol', title: '协议', width: 160 },
-  { dataIndex: 'workspacePath', key: 'workspacePath', title: '工作区路径' },
+  {
+    dataIndex: 'ruleInsights',
+    key: 'ruleInsights',
+    title: '规则检测结果',
+  },
   { dataIndex: 'updatedAt', key: 'updatedAt', title: '更新时间', width: 180 },
 ];
 
 const historyItems = ref<ProtocolStaticAnalysisHistoryEntry[]>([]);
 const historyLoading = ref(false);
 const historyError = ref<null | string>(null);
+const historyInsightsLoading = ref(false);
+const historyInsights = ref<
+  Record<string, ProtocolStaticAnalysisDatabaseInsights>
+>({});
+const historyInsightSummaries = ref<Record<string, HistoryInsightSummary>>({});
+const historyInsightErrors = ref<Record<string, string>>({});
+const historyInsightDebug = ref<
+  Record<
+    string,
+    {
+      payload: FetchProtocolStaticAnalysisDatabaseInsightsPayload & {
+        jobId: string;
+      };
+      responseData?: unknown;
+      status?: number;
+      statusText?: string;
+    }
+  >
+>({});
+const historyDetailVisible = ref(false);
+const historyDetailJobId = ref<null | string>(null);
 
 const hasHistory = computed(() => historyItems.value.length > 0);
+const historyDetailRecord = computed(() => {
+  if (!historyDetailJobId.value) {
+    return null;
+  }
+  return (
+    historyItems.value.find(
+      (entry) => entry.jobId === historyDetailJobId.value,
+    ) ?? null
+  );
+});
+const historyDetailInsight = computed(
+  () =>
+    (historyDetailJobId.value
+      ? historyInsights.value[historyDetailJobId.value] ?? null
+      : null),
+);
+const historyDetailError = computed(() => {
+  if (!historyDetailJobId.value) {
+    return null;
+  }
+  return historyInsightErrors.value[historyDetailJobId.value] ?? null;
+});
+const historyDetailDebug = computed(() => {
+  if (!historyDetailJobId.value) {
+    return null;
+  }
+  return historyInsightDebug.value[historyDetailJobId.value] ?? null;
+});
+const historyDetailTitle = computed(() => {
+  const record = historyDetailRecord.value;
+  if (!record) {
+    return '规则检测详情';
+  }
+  const protocolSegments: string[] = [];
+  if (record.protocolName) {
+    protocolSegments.push(record.protocolName);
+  }
+  if (record.protocolVersion) {
+    protocolSegments.push(record.protocolVersion);
+  }
+  const protocolLabel = protocolSegments.length
+    ? protocolSegments.join(' · ')
+    : '未知协议';
+  return `规则检测详情｜${protocolLabel}`;
+});
+
+watch(historyDetailVisible, (visible) => {
+  if (!visible) {
+    historyDetailJobId.value = null;
+  }
+});
+
+function resetHistoryInsights() {
+  historyInsights.value = {};
+  historyInsightSummaries.value = {};
+  historyInsightErrors.value = {};
+  historyInsightDebug.value = {};
+}
+
+function buildInsightSummary(
+  insight: ProtocolStaticAnalysisDatabaseInsights,
+): HistoryInsightSummary {
+  const summary: HistoryInsightSummary = {
+    noViolation: 0,
+    total: insight.findings.length,
+    unknown: 0,
+    violation: 0,
+  };
+  insight.findings.forEach((finding) => {
+    if (finding.result === 'violation_found') {
+      summary.violation += 1;
+      return;
+    }
+    if (finding.result === 'no_violation') {
+      summary.noViolation += 1;
+      return;
+    }
+    summary.unknown += 1;
+  });
+  return summary;
+}
+
+function resolveRuleResultMeta(status: unknown) {
+  if (typeof status !== 'string') {
+    return null;
+  }
+  return RULE_RESULT_META[status as ProtocolStaticAnalysisRuleResultStatus] ?? null;
+}
+
+function formatDebugJson(source: unknown) {
+  if (source === null || source === undefined) {
+    return '';
+  }
+  if (typeof source === 'string') {
+    return source;
+  }
+  try {
+    return JSON.stringify(source, null, 2);
+  } catch {
+    return String(source);
+  }
+}
+
+function resolveRequestErrorDetail(error: unknown) {
+  const result: {
+    message: string;
+    responseData?: unknown;
+    status?: number;
+    statusText?: string;
+  } = {
+    message: '读取数据库内容失败',
+  };
+  if (!error || typeof error !== 'object') {
+    return result;
+  }
+  const source = error as Record<string, unknown>;
+  const response = source.response as Record<string, unknown> | undefined;
+  const status = (response?.status ?? response?.code) as number | undefined;
+  const statusText = response?.statusText as string | undefined;
+  const responseData = response?.data;
+  const rawMessage =
+    (typeof source.message === 'string' && source.message) || undefined;
+  const detailParts: string[] = [];
+  if (typeof status === 'number') {
+    detailParts.push(`HTTP ${status}`);
+  }
+  if (statusText) {
+    detailParts.push(statusText);
+  }
+  const dataMessage =
+    (responseData &&
+      typeof responseData === 'object' &&
+      ('error' in responseData
+        ? String((responseData as Record<string, unknown>).error)
+        : 'message' in responseData
+          ? String((responseData as Record<string, unknown>).message)
+          : null)) ||
+    null;
+  if (typeof dataMessage === 'string' && dataMessage) {
+    detailParts.push(dataMessage);
+  }
+  if (!detailParts.length && rawMessage) {
+    detailParts.push(rawMessage);
+  }
+  if (detailParts.length) {
+    result.message = `请求失败：${detailParts.join(' / ')}`;
+  }
+  if (!detailParts.length && error instanceof Error && error.message) {
+    result.message = error.message;
+  }
+  if (typeof status === 'number') {
+    result.status = status;
+  }
+  if (statusText) {
+    result.statusText = statusText;
+  }
+  if (responseData !== undefined) {
+    result.responseData = responseData;
+  }
+  return result;
+}
+
+async function loadInsightsForHistory(
+  entries: ProtocolStaticAnalysisHistoryEntry[],
+  options: { silent?: boolean } = {},
+) {
+  resetHistoryInsights();
+  if (!entries.length) {
+    historyInsightsLoading.value = false;
+    return;
+  }
+  const { silent = false } = options;
+  historyInsightsLoading.value = true;
+  try {
+    for (const entry of entries) {
+      const payload: FetchProtocolStaticAnalysisDatabaseInsightsPayload & {
+        jobId: string;
+      } = {
+        databasePath: entry.databasePath ?? undefined,
+        jobId: entry.jobId,
+        workspacePath: entry.workspacePath ?? undefined,
+      };
+      const referencePath =
+        entry.databasePath ?? entry.workspacePath ?? null;
+      if (!referencePath) {
+        historyInsightErrors.value[entry.jobId] = '缺少数据库路径';
+        historyInsightDebug.value[entry.jobId] = {
+          payload,
+        };
+        console.warn(
+          '[StaticAnalysis][History] 跳过数据库解析，缺少路径',
+          payload,
+        );
+        continue;
+      }
+      console.info('[StaticAnalysis][History] 请求数据库详情', payload);
+      try {
+        const insight = await fetchProtocolStaticAnalysisDatabaseInsights(
+          payload,
+        );
+        historyInsights.value[entry.jobId] = insight;
+        historyInsightSummaries.value[entry.jobId] =
+          buildInsightSummary(insight);
+        historyInsightDebug.value[entry.jobId] = {
+          payload,
+        };
+        console.info('[StaticAnalysis][History] 成功解析数据库详情', {
+          jobId: entry.jobId,
+          summary: historyInsightSummaries.value[entry.jobId],
+        });
+      } catch (error) {
+        const messageText =
+          error instanceof Error ? error.message : String(error ?? '');
+        const detail = resolveRequestErrorDetail(error);
+        historyInsightErrors.value[entry.jobId] =
+          detail.message || messageText || '读取数据库内容失败';
+        historyInsightDebug.value[entry.jobId] = {
+          payload,
+          responseData: detail.responseData,
+          status: detail.status,
+          statusText: detail.statusText,
+        };
+        console.error('[StaticAnalysis][History] 解析数据库详情失败', {
+          jobId: entry.jobId,
+          payload,
+          error: detail,
+        });
+        if (!silent && !historyError.value) {
+          historyError.value = '部分历史记录解析失败';
+        }
+      }
+    }
+  } finally {
+    historyInsightsLoading.value = false;
+  }
+}
+
+function openHistoryDetail(jobId: string) {
+  historyDetailJobId.value = jobId;
+  historyDetailVisible.value = true;
+}
+
+function resolveHistoryOverallStatus(
+  record: ProtocolStaticAnalysisHistoryEntry,
+) {
+  const summary = historyInsightSummaries.value[record.jobId];
+  if (summary) {
+    if (summary.violation > 0) {
+      return 'non_compliant';
+    }
+    if (summary.unknown > 0) {
+      return 'needs_review';
+    }
+    if (summary.total > 0) {
+      return 'compliant';
+    }
+  }
+  const original = record.overallStatus;
+  return typeof original === 'string' && original ? original : null;
+}
+
+function resolveHistoryOverallLabel(record: ProtocolStaticAnalysisHistoryEntry) {
+  const status = resolveHistoryOverallStatus(record);
+  if (!status) {
+    return null;
+  }
+  return STATUS_LABELS[status] ?? status;
+}
 
 async function loadHistory(options: { silent?: boolean } = {}) {
   if (historyLoading.value) {
@@ -156,11 +471,14 @@ async function loadHistory(options: { silent?: boolean } = {}) {
   const { silent = false } = options;
   historyLoading.value = true;
   historyError.value = null;
+  resetHistoryInsights();
   try {
     const response = await fetchProtocolStaticAnalysisHistory({
       limit: HISTORY_DEFAULT_LIMIT,
     });
-    historyItems.value = response.items ?? [];
+    const items = response.items ?? [];
+    historyItems.value = items;
+    await loadInsightsForHistory(items, { silent });
   } catch (error) {
     const messageText =
       error instanceof Error ? error.message : String(error ?? '');
@@ -170,6 +488,13 @@ async function loadHistory(options: { silent?: boolean } = {}) {
     }
   } finally {
     historyLoading.value = false;
+    if (
+      historyDetailJobId.value &&
+      !historyItems.value.find((entry) => entry.jobId === historyDetailJobId.value)
+    ) {
+      historyDetailVisible.value = false;
+      historyDetailJobId.value = null;
+    }
   }
 }
 
@@ -1162,7 +1487,7 @@ async function handleSubmit() {
           暂无历史记录，提交任务后会显示最近的运行记录。
         </TypographyParagraph>
         <TypographyParagraph v-else class="history-tip" type="secondary">
-          历史数据存储于后端 SQLite，工作区路径显示容器挂载的主机目录。
+          历史数据取自任务工作区中的 SQLite 结果数据库，可查看各规则的判定摘要。
         </TypographyParagraph>
         <Table
           :columns="historyColumns"
@@ -1200,13 +1525,11 @@ async function handleSubmit() {
             </template>
             <template v-else-if="column.key === 'overallStatus'">
               <span
-                v-if="record.overallStatus"
+                v-if="resolveHistoryOverallStatus(record)"
                 class="status-tag"
-                :class="[`status-${record.overallStatus}`]"
+                :class="[`status-${resolveHistoryOverallStatus(record)}`]"
               >
-                {{
-                  STATUS_LABELS[record.overallStatus] ?? record.overallStatus
-                }}
+                {{ resolveHistoryOverallLabel(record) }}
               </span>
               <span v-else>-</span>
             </template>
@@ -1219,16 +1542,109 @@ async function handleSubmit() {
               </span>
               <span v-else>-</span>
             </template>
-            <template v-else-if="column.key === 'workspacePath'">
-              <TypographyParagraph
-                v-if="record.workspacePath"
-                :copyable="{ text: record.workspacePath }"
-                :ellipsis="{ rows: 1, tooltip: record.workspacePath }"
-                class="history-path"
-              >
-                {{ record.workspacePath }}
-              </TypographyParagraph>
-              <span v-else>-</span>
+            <template v-else-if="column.key === 'ruleInsights'">
+              <div class="history-insight">
+                <template v-if="historyInsightErrors[record.jobId]">
+                  <TypographyParagraph
+                    class="history-insight-error"
+                    type="danger"
+                  >
+                    {{ historyInsightErrors[record.jobId] }}
+                  </TypographyParagraph>
+                  <TypographyParagraph
+                    v-if="historyInsightDebug[record.jobId]?.status"
+                    class="history-insight-meta"
+                    type="secondary"
+                  >
+                    响应状态：HTTP
+                    {{ historyInsightDebug[record.jobId]?.status }}
+                    {{
+                      historyInsightDebug[record.jobId]?.statusText
+                        ? `(${historyInsightDebug[record.jobId]?.statusText})`
+                        : ''
+                    }}
+                  </TypographyParagraph>
+                  <TypographyParagraph
+                    v-if="record.workspacePath"
+                    class="history-insight-meta"
+                    type="secondary"
+                  >
+                    工作目录：{{ record.workspacePath }}
+                  </TypographyParagraph>
+                  <pre
+                    v-if="historyInsightDebug[record.jobId]?.payload"
+                    class="history-insight-debug"
+                  >
+{{ formatDebugJson(historyInsightDebug[record.jobId]?.payload) }}
+                  </pre>
+                  <pre
+                    v-if="historyInsightDebug[record.jobId]?.responseData"
+                    class="history-insight-debug"
+                  >
+{{ formatDebugJson(historyInsightDebug[record.jobId]?.responseData) }}
+                  </pre>
+                </template>
+                <template v-else-if="historyInsights[record.jobId]">
+                  <div class="history-insight-summary">
+                    <span class="history-insight-counts">
+                      <span
+                        class="history-insight-count history-insight-count--violation"
+                      >
+                        违规
+                        {{
+                          historyInsightSummaries[record.jobId]?.violation ?? 0
+                        }}
+                      </span>
+                      <span class="history-insight-count">
+                        合规
+                        {{
+                          historyInsightSummaries[record.jobId]?.noViolation ??
+                          0
+                        }}
+                      </span>
+                      <span class="history-insight-count">
+                        未判定
+                        {{
+                          historyInsightSummaries[record.jobId]?.unknown ?? 0
+                        }}
+                      </span>
+                    </span>
+                    <Button
+                      size="small"
+                      type="link"
+                      @click="openHistoryDetail(record.jobId)"
+                    >
+                      查看详情
+                    </Button>
+                  </div>
+                  <TypographyParagraph
+                    v-if="historyInsights[record.jobId]?.warnings?.length"
+                    class="history-insight-warning"
+                    type="warning"
+                  >
+                    {{ historyInsights[record.jobId]?.warnings?.[0] }}
+                  </TypographyParagraph>
+                  <TypographyParagraph
+                    v-if="historyInsights[record.jobId]?.workspacePath"
+                    class="history-insight-meta"
+                    type="secondary"
+                  >
+                    工作目录：{{ historyInsights[record.jobId]?.workspacePath }}
+                  </TypographyParagraph>
+                  <TypographyParagraph
+                    v-else-if="record.workspacePath"
+                    class="history-insight-meta"
+                    type="secondary"
+                  >
+                    工作目录：{{ record.workspacePath }}
+                  </TypographyParagraph>
+                </template>
+                <template v-else>
+                  <span class="history-insight-loading">
+                    {{ historyInsightsLoading ? '解析中…' : '暂无数据' }}
+                  </span>
+                </template>
+              </div>
             </template>
             <template v-else-if="column.key === 'updatedAt'">
               {{ formatIsoDate(record.completedAt ?? record.updatedAt) }}
@@ -1279,6 +1695,174 @@ async function handleSubmit() {
           {{ analysisSummary?.notes }}
         </TypographyParagraph>
       </Card>
+
+      <Drawer
+        v-model:open="historyDetailVisible"
+        :title="historyDetailTitle"
+        :width="720"
+        class="history-detail-drawer"
+        destroy-on-close
+        placement="right"
+      >
+        <template v-if="historyDetailRecord">
+          <TypographyParagraph
+            class="history-detail-meta"
+            type="secondary"
+          >
+            任务 ID：{{ historyDetailRecord?.jobId }}
+          </TypographyParagraph>
+          <TypographyParagraph
+            v-if="historyDetailInsight?.workspacePath || historyDetailRecord?.workspacePath"
+            :ellipsis="{
+              rows: 1,
+              tooltip:
+                historyDetailInsight?.workspacePath ||
+                historyDetailRecord?.workspacePath,
+            }"
+            class="history-detail-meta"
+            type="secondary"
+          >
+            工作目录：
+            {{
+              historyDetailInsight?.workspacePath ||
+              historyDetailRecord?.workspacePath
+            }}
+          </TypographyParagraph>
+          <TypographyParagraph
+            v-if="historyDetailInsight?.databasePath"
+            :ellipsis="{
+              rows: 1,
+              tooltip: historyDetailInsight?.databasePath,
+            }"
+            class="history-detail-meta"
+            type="secondary"
+          >
+            数据库：{{ historyDetailInsight?.databasePath }}
+          </TypographyParagraph>
+          <TypographyParagraph
+            v-if="historyDetailInsight?.extractedAt"
+            class="history-detail-meta"
+            type="secondary"
+          >
+            提取时间：{{ formatIsoDate(historyDetailInsight?.extractedAt) }}
+          </TypographyParagraph>
+          <TypographyParagraph
+            v-if="historyDetailError"
+            class="history-detail-error"
+            type="danger"
+          >
+            {{ historyDetailError }}
+          </TypographyParagraph>
+          <TypographyParagraph
+            v-if="historyDetailDebug?.status"
+            class="history-detail-meta"
+            type="secondary"
+          >
+            响应状态：HTTP {{ historyDetailDebug?.status }}
+            {{ historyDetailDebug?.statusText || '' }}
+          </TypographyParagraph>
+          <pre
+            v-if="historyDetailDebug?.payload"
+            class="history-detail-debug"
+          >
+{{ formatDebugJson(historyDetailDebug?.payload) }}
+          </pre>
+          <pre
+            v-if="historyDetailDebug?.responseData"
+            class="history-detail-debug"
+          >
+{{ formatDebugJson(historyDetailDebug?.responseData) }}
+          </pre>
+          <TypographyParagraph
+            v-if="historyDetailInsight?.warnings?.length"
+            class="history-detail-warning"
+            type="warning"
+          >
+            {{ historyDetailInsight?.warnings?.[0] }}
+          </TypographyParagraph>
+          <template v-if="historyDetailInsight?.findings?.length">
+            <div
+              v-for="(finding, index) in historyDetailInsight?.findings"
+              :key="`${finding.ruleDesc}-${index}`"
+              class="history-detail-item"
+            >
+              <div class="history-detail-header">
+                <TypographyText class="history-detail-rule" strong>
+                  {{ finding.ruleDesc }}
+                </TypographyText>
+                <Tag
+                  :color="
+                    resolveRuleResultMeta(finding.result)?.color ?? 'default'
+                  "
+                >
+                  {{
+                    resolveRuleResultMeta(finding.result)?.label ??
+                    finding.resultLabel
+                  }}
+                </Tag>
+              </div>
+              <TypographyParagraph
+                v-if="finding.reason"
+                class="history-detail-reason"
+              >
+                {{ finding.reason }}
+              </TypographyParagraph>
+              <ul
+                v-if="finding.violations?.length"
+                class="history-detail-violations"
+              >
+                <li
+                  v-for="(violation, violationIndex) in finding.violations"
+                  :key="violationIndex"
+                >
+                  <span v-if="violation.filename">
+                    {{ violation.filename }}
+                  </span>
+                  <span v-if="violation.functionName">
+                    · {{ violation.functionName }}
+                  </span>
+                  <span v-if="violation.codeLines?.length">
+                    · 行 {{ violation.codeLines.join(', ') }}
+                  </span>
+                </li>
+              </ul>
+              <div
+                v-if="finding.codeSnippet"
+                class="history-detail-snippet"
+              >
+                <pre>{{ finding.codeSnippet }}</pre>
+              </div>
+              <div
+                v-if="finding.llmRaw"
+                class="history-detail-raw"
+              >
+                <pre>{{ formatDebugJson(finding.llmRaw) }}</pre>
+              </div>
+              <Divider
+                v-if="
+                  historyDetailInsight?.findings &&
+                  index < historyDetailInsight.findings.length - 1
+                "
+              />
+            </div>
+          </template>
+          <template v-else-if="historyInsightsLoading">
+            <TypographyParagraph type="secondary">
+              正在从数据库解析规则详情...
+            </TypographyParagraph>
+          </template>
+          <template v-else>
+            <TypographyParagraph type="secondary">
+              暂无可展示的数据。
+            </TypographyParagraph>
+          </template>
+        </template>
+        <template v-else>
+          <TypographyParagraph type="secondary">
+            请选择历史记录查看详情。
+          </TypographyParagraph>
+        </template>
+      </Drawer>
     </div>
   </Page>
 </template>
@@ -1447,7 +2031,179 @@ async function handleSubmit() {
   margin-top: 8px;
 }
 
-.history-path,
+.history-insight {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.history-insight-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.history-insight-counts {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ant-text-color-secondary);
+}
+
+.history-insight-count {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.history-insight-count--violation {
+  color: var(--ant-color-error);
+}
+
+.history-insight-loading {
+  font-size: 12px;
+  color: var(--ant-text-color-secondary);
+}
+
+.history-insight-warning,
+.history-insight-error {
+  margin: 0;
+  font-size: 12px;
+}
+
+.history-insight-meta {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ant-text-color-secondary);
+}
+
+.history-insight-debug {
+  margin: 4px 0;
+  padding: 8px;
+  overflow-x: auto;
+  font-family:
+    ui-monospace, SFMono-Regular, SFMono, Menlo, Monaco, Consolas,
+    'Liberation Mono', 'Courier New', monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ant-text-color-secondary);
+  background-color: var(--ant-color-bg-container);
+  border: 1px dashed var(--ant-color-border);
+  border-radius: var(--ant-border-radius-sm);
+}
+
+.history-detail-drawer .ant-drawer-body {
+  padding-top: 12px;
+}
+
+.history-detail-meta {
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--ant-text-color-secondary);
+}
+
+.history-detail-warning {
+  margin-bottom: 16px;
+  font-size: 12px;
+}
+
+.history-detail-error {
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--ant-color-error);
+}
+
+.history-detail-debug {
+  margin: 8px 0;
+  padding: 10px;
+  overflow-x: auto;
+  font-family:
+    ui-monospace, SFMono-Regular, SFMono, Menlo, Monaco, Consolas,
+    'Liberation Mono', 'Courier New', monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ant-text-color-secondary);
+  background-color: var(--ant-color-bg-container);
+  border: 1px dashed var(--ant-color-border);
+  border-radius: var(--ant-border-radius-sm);
+}
+
+.history-detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.history-detail-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.history-detail-rule {
+  flex: 1;
+  min-width: 0;
+}
+
+.history-detail-reason {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.history-detail-violations {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--ant-text-color-secondary);
+}
+
+.history-detail-violations li {
+  margin-bottom: 4px;
+}
+
+.history-detail-snippet {
+  margin: 0;
+}
+
+.history-detail-snippet pre {
+  margin: 0;
+  padding: 12px;
+  overflow-x: auto;
+  font-family:
+    ui-monospace, SFMono-Regular, SFMono, Menlo, Monaco, Consolas,
+    'Liberation Mono', 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ant-text-color);
+  background-color: var(--ant-color-bg-container);
+  border: 1px solid var(--ant-color-border);
+  border-radius: var(--ant-border-radius-sm);
+}
+
+.history-detail-raw {
+  margin: 0;
+}
+
+.history-detail-raw pre {
+  margin: 0;
+  padding: 12px;
+  overflow-x: auto;
+  font-family:
+    ui-monospace, SFMono-Regular, SFMono, Menlo, Monaco, Consolas,
+    'Liberation Mono', 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ant-text-color);
+  background-color: var(--ant-color-bg-container);
+  border: 1px solid var(--ant-color-border);
+  border-radius: var(--ant-border-radius-sm);
+}
+
 .history-job {
   margin-bottom: 0;
   font-family:
