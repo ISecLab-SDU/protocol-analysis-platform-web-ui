@@ -381,6 +381,19 @@ async function loadInsightsForHistory(
   historyInsightsLoading.value = true;
   try {
     for (const entry of entries) {
+      // 跳过正在运行中、排队中或已失败的任务
+      if (
+        entry.status === 'running' ||
+        entry.status === 'queued' ||
+        entry.status === 'failed'
+      ) {
+        console.info(
+          `[StaticAnalysis][History] 跳过状态为 ${entry.status} 的任务`,
+          { jobId: entry.jobId },
+        );
+        continue;
+      }
+
       const payload: FetchProtocolStaticAnalysisDatabaseInsightsPayload & {
         jobId: string;
       } = {
@@ -449,6 +462,12 @@ function openHistoryDetail(jobId: string) {
 function resolveHistoryOverallStatus(
   record: ProtocolStaticAnalysisHistoryEntry | Record<string, unknown>,
 ) {
+  const status = (record as ProtocolStaticAnalysisHistoryEntry).status;
+  // 对于运行中、排队中或失败的任务，不显示整体判定
+  if (status === 'running' || status === 'queued' || status === 'failed') {
+    return null;
+  }
+
   const summary = historyInsightSummaries.value[record.jobId as string];
   if (summary) {
     if (summary.violation > 0) {
@@ -892,20 +911,6 @@ function ansiToHtml(raw: string) {
   return result;
 }
 
-function formatFileSize(bytes: null | number | undefined) {
-  if (!bytes || bytes <= 0) {
-    return '0 B';
-  }
-  const units = ['B', 'KB', 'MB', 'GB'];
-  const exponent = Math.min(
-    Math.floor(Math.log(bytes) / Math.log(1024)),
-    units.length - 1,
-  );
-  const value = bytes / 1024 ** exponent;
-  const digits = value >= 10 || exponent === 0 ? 0 : 1;
-  return `${value.toFixed(digits)} ${units[exponent]}`;
-}
-
 function formatIsoDate(value: null | string | undefined) {
   if (!value) {
     return '未知';
@@ -917,64 +922,6 @@ function formatIsoDate(value: null | string | undefined) {
   return formatter.format(parsed);
 }
 
-const configMeta = computed(() => {
-  const file = formState.config;
-  if (!file) {
-    return null;
-  }
-  return {
-    name: file.name,
-    size: formatFileSize(file.size),
-    updatedAt: formatter.format(file.lastModified),
-  };
-});
-
-const builderMeta = computed(() => {
-  const file = formState.builder;
-  if (!file) {
-    return null;
-  }
-  return {
-    name: file.name,
-    size: formatFileSize(file.size),
-    updatedAt: formatter.format(file.lastModified),
-  };
-});
-
-const archiveMeta = computed(() => {
-  const file = formState.archive;
-  if (!file) {
-    return null;
-  }
-  return {
-    name: file.name,
-    size: formatFileSize(file.size),
-    updatedAt: formatter.format(file.lastModified),
-  };
-});
-
-const rulesMeta = computed(() => {
-  const file = formState.rules;
-  if (!file) {
-    return null;
-  }
-  return {
-    name: file.name,
-    size: formatFileSize(file.size),
-    updatedAt: formatter.format(file.lastModified),
-  };
-});
-
-const hasSelection = computed(() =>
-  Boolean(
-    configMeta.value ||
-      archiveMeta.value ||
-      builderMeta.value ||
-      rulesMeta.value ||
-      formState.notes.trim(),
-  ),
-);
-
 const analysisSummary = computed(
   () => analysisResult.value?.modelResponse.summary ?? null,
 );
@@ -984,8 +931,58 @@ const analysisMetadata = computed(
 const analysisVerdictCount = computed(
   () => analysisResult.value?.modelResponse.verdicts.length ?? 0,
 );
+
+// 基于数据库 insights 计算真实的整体状态
+const analysisRealOverallStatus = computed(() => {
+  if (!activeJobId.value) {
+    return analysisSummary.value?.overallStatus ?? null;
+  }
+  const insight = historyInsights.value[activeJobId.value];
+  if (!insight) {
+    return analysisSummary.value?.overallStatus ?? null;
+  }
+  const summary = historyInsightSummaries.value[activeJobId.value];
+  if (!summary) {
+    return analysisSummary.value?.overallStatus ?? null;
+  }
+  if (summary.violation > 0) {
+    return 'non_compliant';
+  }
+  if (summary.unknown > 0) {
+    return 'needs_review';
+  }
+  if (summary.total > 0) {
+    return 'compliant';
+  }
+  return analysisSummary.value?.overallStatus ?? null;
+});
+
+// 基于数据库 insights 计算真实的统计数字
+const analysisRealCounts = computed(() => {
+  if (!activeJobId.value) {
+    return {
+      compliant: analysisSummary.value?.compliantCount ?? 0,
+      needsReview: analysisSummary.value?.needsReviewCount ?? 0,
+      nonCompliant: analysisSummary.value?.nonCompliantCount ?? 0,
+    };
+  }
+  const summary = historyInsightSummaries.value[activeJobId.value];
+  if (!summary) {
+    return {
+      compliant: analysisSummary.value?.compliantCount ?? 0,
+      needsReview: analysisSummary.value?.needsReviewCount ?? 0,
+      nonCompliant: analysisSummary.value?.nonCompliantCount ?? 0,
+    };
+  }
+  return {
+    compliant: summary.noViolation,
+    needsReview: summary.unknown,
+    nonCompliant: summary.violation,
+  };
+});
+
 const analysisStatusLabel = computed(() => {
-  const status = analysisSummary.value?.overallStatus ?? '';
+  const status = analysisRealOverallStatus.value ?? '';
   if (!status) {
     return '未知';
   }
@@ -1425,16 +1422,14 @@ async function handleSubmit() {
             <div class="analysis-overview">
               <span
                 class="status-tag"
-                :class="[
-                  `status-${analysisSummary?.overallStatus ?? 'unknown'}`,
-                ]"
+                :class="[`status-${analysisRealOverallStatus ?? 'unknown'}`]"
               >
                 {{ analysisStatusLabel }}
               </span>
               <span class="analysis-detail">
-                合规 {{ analysisSummary?.compliantCount ?? 0 }} · 需复核
-                {{ analysisSummary?.needsReviewCount ?? 0 }} · 不合规
-                {{ analysisSummary?.nonCompliantCount ?? 0 }}
+                合规 {{ analysisRealCounts.compliant }} · 需复核
+                {{ analysisRealCounts.needsReview }} · 不合规
+                {{ analysisRealCounts.nonCompliant }}
               </span>
             </div>
           </Descriptions.Item>
@@ -1704,7 +1699,19 @@ async function handleSubmit() {
               </template>
               <template v-else-if="column.key === 'ruleInsights'">
                 <div class="history-insight">
-                  <template v-if="historyInsightErrors[record.jobId]">
+                  <template
+                    v-if="
+                      record.status === 'running' || record.status === 'queued'
+                    "
+                  >
+                    <span class="history-insight-loading">
+                      {{ record.status === 'running' ? '分析中…' : '排队中…' }}
+                    </span>
+                  </template>
+                  <template v-else-if="record.status === 'failed'">
+                    <span class="history-insight-loading"> 任务失败 </span>
+                  </template>
+                  <template v-else-if="historyInsightErrors[record.jobId]">
                     <TypographyParagraph
                       class="history-insight-error"
                       type="danger"
@@ -1896,12 +1903,14 @@ async function handleSubmit() {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-height: 0;
 }
 
 .progress-text {
   flex: 1;
   overflow-y: auto;
   min-height: 200px;
+  max-height: 500px;
 }
 
 @media (max-width: 1200px) {
@@ -1962,6 +1971,7 @@ async function handleSubmit() {
   flex: 1;
   overflow-y: auto;
   min-height: 200px;
+  max-height: 500px;
   padding: 12px;
   font-family:
     ui-monospace, SFMono-Regular, SFMono, Menlo, Monaco, Consolas,
