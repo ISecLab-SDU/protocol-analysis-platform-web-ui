@@ -1,23 +1,39 @@
 <script lang="ts" setup>
-import { ref, reactive, computed, h, onMounted } from 'vue';
-import { Card, Empty, Space, Button, Tag, message, Upload, Spin, Table, Typography, Divider, Select, Tabs } from 'ant-design-vue';
-import type { UploadFile, UploadProps, TableColumnType } from 'ant-design-vue';
+import type { TableColumnType, UploadFile, UploadProps } from 'ant-design-vue';
+
+import { computed, h, onMounted, reactive, ref } from 'vue';
+
+import {
+  Button,
+  Card,
+  Divider,
+  Empty,
+  message,
+  Select,
+  Space,
+  Spin,
+  Table,
+  Tabs,
+  Tag,
+  Typography,
+  Upload,
+} from 'ant-design-vue';
 
 // -------- 数据类型 --------
 type RuleItem = {
-  rule: string;
-  req_type: string[];
-  req_fields: string[];
-  res_type: string[];
-  res_fields: string[];
   group?: string;
+  req_fields: string[];
+  req_type: string[];
+  res_fields: string[];
+  res_type: string[];
+  rule: string;
 };
 
 type HistoryItem = {
-  protocol: string;
-  ruleCount: number;
   analysisTime: string;
   categories: string[];
+  protocol: string;
+  ruleCount: number;
   rules: RuleItem[];
 };
 
@@ -38,14 +54,30 @@ const historyData = ref<HistoryItem[]>([]);
 
 // -------- 规则分类 --------
 const ruleCategories = [
-  '安全', '性能', '兼容', '基础', '高级',
-  '加密', '认证', '会话管理', '可靠性', '优化',
-  '错误处理', '日志', '扩展性', 'QoS', '协议约束'
+  '安全',
+  '性能',
+  '兼容',
+  '基础',
+  '高级',
+  '加密',
+  '认证',
+  '会话管理',
+  '可靠性',
+  '优化',
+  '错误处理',
+  '日志',
+  '扩展性',
+  'QoS',
+  '协议约束',
 ];
 
 // -------- 工具函数 --------
 function normalizeProtocolName(input: string) {
-  return input.trim().replace(/\s+/g, '').replace(/[^a-zA-Z0-9._/-]/g, '').toLowerCase();
+  return input
+    .trim()
+    .replaceAll(/\s+/g, '')
+    .replaceAll(/[^\w./-]/g, '')
+    .toLowerCase();
 }
 
 function randomCategories(): string[] {
@@ -58,7 +90,9 @@ function randomCategories(): string[] {
 const beforeUploadRFC: UploadProps['beforeUpload'] = (file) => {
   const allowedTypes = ['application/pdf', 'text/plain', 'application/json'];
   const isAllowed = allowedTypes.includes(file.type);
-  const isAllowedExt = ['.pdf', '.txt', '.json'].some(ext => file.name.toLowerCase().endsWith(ext));
+  const isAllowedExt = ['.pdf', '.txt', '.json'].some((ext) =>
+    file.name.toLowerCase().endsWith(ext),
+  );
   if (!isAllowed && !isAllowedExt) {
     message.error('仅支持上传 PDF、TXT 或 JSON 格式的 RFC 文件');
     return false;
@@ -77,11 +111,7 @@ function loadHistoryFromStorage() {
   try {
     const saved = localStorage.getItem(HISTORY_KEY);
     const parsed = saved ? JSON.parse(saved) : [];
-    if (Array.isArray(parsed)) {
-      historyData.value = parsed;
-    } else {
-      historyData.value = [];
-    }
+    historyData.value = Array.isArray(parsed) ? parsed : [];
   } catch {
     historyData.value = [];
   }
@@ -93,7 +123,7 @@ async function startAnalysis() {
     message.warning('请先上传 RFC 文件');
     return;
   }
-  if (!formData.protocol.replace(/\s/g, '')) {
+  if (!formData.protocol.replaceAll(/\s/g, '')) {
     message.warning('请输入或选择协议类型');
     return;
   }
@@ -103,11 +133,12 @@ async function startAnalysis() {
   stagedResults.value = [];
 
   try {
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    await new Promise((resolve) => setTimeout(resolve, 1500));
     const normalizedProtocol = normalizeProtocolName(formData.protocol);
     const fileName = `ruleConfig_${normalizedProtocol}.json`;
     const response = await fetch(`/${fileName}`);
-    if (!response.ok) throw new Error(`未找到 ${formData.protocol} 对应的规则文件`);
+    if (!response.ok)
+      throw new Error(`未找到 ${formData.protocol} 对应的规则文件`);
 
     const rawData = await response.json();
     let rules: RuleItem[] = [];
@@ -115,7 +146,8 @@ async function startAnalysis() {
       rules = rawData;
     } else if (typeof rawData === 'object' && rawData !== null) {
       Object.entries(rawData).forEach(([groupName, arr]) => {
-        if (Array.isArray(arr)) arr.forEach(rule => rules.push({ ...rule, group: groupName }));
+        if (Array.isArray(arr))
+          arr.forEach((rule) => rules.push({ ...rule, group: groupName }));
       });
     } else throw new Error('规则文件格式不正确，应为数组或对象类型');
 
@@ -131,7 +163,7 @@ async function startAnalysis() {
       ruleCount: rules.length,
       analysisTime: now,
       categories: randomCategories(),
-      rules: rules,
+      rules,
     };
 
     // 插入历史记录并持久化
@@ -139,8 +171,8 @@ async function startAnalysis() {
     localStorage.setItem(HISTORY_KEY, JSON.stringify(historyData.value));
 
     message.success(`成功加载 ${rules.length} 条规则`);
-  } catch (err: any) {
-    message.error(`分析失败: ${err.message}`);
+  } catch (error: any) {
+    message.error(`分析失败: ${error.message}`);
   } finally {
     isAnalyzing.value = false;
   }
@@ -176,14 +208,16 @@ function openFromHistory(item: HistoryItem) {
 }
 
 // -------- 表格相关 --------
-const selectedGroup = ref<string | null>(null);
+const selectedGroup = ref<null | string>(null);
 const groupList = computed(() => {
-  const groups = new Set(stagedResults.value.map(r => r.group).filter(Boolean));
-  return Array.from(groups);
+  const groups = new Set(
+    stagedResults.value.map((r) => r.group).filter(Boolean),
+  );
+  return [...groups];
 });
 const filteredResults = computed(() => {
   if (!selectedGroup.value) return stagedResults.value;
-  return stagedResults.value.filter(r => r.group === selectedGroup.value);
+  return stagedResults.value.filter((r) => r.group === selectedGroup.value);
 });
 const currentPageData = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value;
@@ -191,15 +225,46 @@ const currentPageData = computed(() => {
 });
 
 const columns: TableColumnType<RuleItem>[] = [
-  { title: '序号', key: 'index', width: 60, customRender: ({ index }) => ((currentPage.value - 1) * pageSize.value + index + 1) },
-  { title: '规则描述', dataIndex: 'rule', key: 'rule', width: 400, customRender: ({ text }) => h('div', { style: 'white-space: pre-wrap;' }, text) },
+  {
+    title: '序号',
+    key: 'index',
+    width: 60,
+    customRender: ({ index }) =>
+      (currentPage.value - 1) * pageSize.value + index + 1,
+  },
+  {
+    title: '规则描述',
+    dataIndex: 'rule',
+    key: 'rule',
+    width: 400,
+    customRender: ({ text }) =>
+      h('div', { style: 'white-space: pre-wrap;' }, text),
+  },
   { title: '协议消息类型', dataIndex: 'req_type', key: 'req_type', width: 140 },
-  { title: '请求字段', dataIndex: 'req_fields', key: 'req_fields', width: 220,
-    customRender: ({ text }) => Array.isArray(text) ? text.map(f => h(Tag, { color: 'blue', style: 'margin:2px' }, () => f)) : text
+  {
+    title: '请求字段',
+    dataIndex: 'req_fields',
+    key: 'req_fields',
+    width: 220,
+    customRender: ({ text }) =>
+      Array.isArray(text)
+        ? text.map((f) =>
+            h(Tag, { color: 'blue', style: 'margin:2px' }, () => f),
+          )
+        : text,
   },
   { title: '响应类型', dataIndex: 'res_type', key: 'res_type', width: 140 },
-  { title: '响应字段', dataIndex: 'res_fields', key: 'res_fields', width: 220,
-    customRender: ({ text }) => Array.isArray(text) ? text.map(f => h(Tag, { color: 'green', style: 'margin:2px' }, () => f)) : text
+  {
+    title: '响应字段',
+    dataIndex: 'res_fields',
+    key: 'res_fields',
+    width: 220,
+    customRender: ({ text }) =>
+      Array.isArray(text)
+        ? text.map((f) =>
+            h(Tag, { color: 'green', style: 'margin:2px' }, () => f),
+          )
+        : text,
   },
 ];
 
@@ -216,7 +281,7 @@ onMounted(() => {
 
 <template>
   <div class="page-container">
-    <Tabs v-model:activeKey="activeMenuKey">
+    <Tabs v-model:active-key="activeMenuKey">
       <Tabs.TabPane key="analyze" tab="规则提取" />
       <Tabs.TabPane key="history" tab="历史记录" />
     </Tabs>
@@ -229,7 +294,7 @@ onMounted(() => {
 
       <Card class="card-upload">
         <div class="upload-header">
-          <Typography.Title level="4" style="margin-bottom:8px;">
+          <Typography.Title level="4" style="margin-bottom: 8px">
             📄 上传 RFC 文件
           </Typography.Title>
           <Typography.Text type="secondary">
@@ -244,7 +309,10 @@ onMounted(() => {
             placeholder="选择或输入协议类型"
             class="input-protocol"
             allow-clear
-            :filter-option="(input, option) => option?.value?.toLowerCase().includes(input.toLowerCase())"
+            :filter-option="
+              (input, option) =>
+                option?.value?.toLowerCase().includes(input.toLowerCase())
+            "
           >
             <Select.Option value="CoAP">CoAP</Select.Option>
             <Select.Option value="DHCPv6">DHCPv6</Select.Option>
@@ -254,11 +322,21 @@ onMounted(() => {
             <Select.Option value="FTP">FTP</Select.Option>
           </Select>
 
-          <Upload :file-list="rfcFileList" :before-upload="beforeUploadRFC" :on-remove="removeRFC" :max-count="1">
+          <Upload
+            :file-list="rfcFileList"
+            :before-upload="beforeUploadRFC"
+            :on-remove="removeRFC"
+            :max-count="1"
+          >
             <Button type="default" ghost>选择 RFC 文件</Button>
           </Upload>
 
-          <Button type="primary" class="btn-analyze" :loading="isAnalyzing" @click="startAnalysis">
+          <Button
+            type="primary"
+            class="btn-analyze"
+            :loading="isAnalyzing"
+            @click="startAnalysis"
+          >
             🚀 开始分析
           </Button>
         </div>
@@ -270,13 +348,24 @@ onMounted(() => {
 
       <Card v-if="analysisCompleted" class="card-result">
         <div class="result-header">
-          <Typography.Title level="4">{{ formData.protocol }} 协议规则</Typography.Title>
+          <Typography.Title level="4">
+            {{ formData.protocol }} 协议规则
+          </Typography.Title>
           <div class="result-tools">
             <Typography.Text>共 {{ totalItems }} 条规则</Typography.Text>
-            <Select v-model:value="selectedGroup" allow-clear placeholder="筛选消息组别" class="select-group">
-              <Select.Option v-for="g in groupList" :key="g" :value="g">{{ g }}</Select.Option>
+            <Select
+              v-model:value="selectedGroup"
+              allow-clear
+              placeholder="筛选消息组别"
+              class="select-group"
+            >
+              <Select.Option v-for="g in groupList" :key="g" :value="g">
+                {{ g }}
+              </Select.Option>
             </Select>
-            <Button type="primary" @click="downloadAnalysisResult">⬇️ 下载 JSON</Button>
+            <Button type="primary" @click="downloadAnalysisResult">
+              ⬇️ 下载 JSON
+            </Button>
           </div>
         </div>
         <Divider />
@@ -289,11 +378,11 @@ onMounted(() => {
             :data-source="currentPageData"
             :pagination="{
               current: currentPage,
-              pageSize: pageSize,
+              pageSize,
               total: filteredResults.length,
               showSizeChanger: true,
               showQuickJumper: true,
-              showTotal: total => `共 ${total} 条规则`
+              showTotal: (total) => `共 ${total} 条规则`,
             }"
             :row-key="(record, index) => index"
             @change="handleTableChange"
@@ -310,7 +399,9 @@ onMounted(() => {
         <div class="analyzed-protocols">
           <Typography.Text strong>已分析的协议：</Typography.Text>
           <Space size="small" wrap>
-            <Tag v-for="item in historyData" :key="item.protocol" color="blue">{{ item.protocol }}</Tag>
+            <Tag v-for="item in historyData" :key="item.protocol" color="blue">
+              {{ item.protocol }}
+            </Tag>
           </Space>
         </div>
 
@@ -320,24 +411,55 @@ onMounted(() => {
               title: '协议',
               dataIndex: 'protocol',
               key: 'protocol',
-              customRender: ({ text, record }) => h(Tag, { color: 'cyan', style:'cursor:pointer' }, () =>
-                h('a', { onClick: () => openFromHistory(record) }, text)
-              )
+              customRender: ({ text, record }) =>
+                h(Tag, { color: 'cyan', style: 'cursor:pointer' }, () =>
+                  h('a', { onClick: () => openFromHistory(record) }, text),
+                ),
             },
-            { title: '规则数量', dataIndex: 'ruleCount', key: 'ruleCount', customRender: ({ text }) => h(Tag, { color: 'green' }, text) },
-            { title: '分析时间', dataIndex: 'analysisTime', key: 'analysisTime', customRender: ({ text }) => h(Tag, { color: 'default' }, text) },
-            { 
-              title: '规则分类', 
-              dataIndex: 'categories', 
-              key: 'categories', 
-              customRender: ({ text }) => text.map((c, idx) => {
-                const colors = ['magenta','purple','blue','cyan','green','orange','volcano'];
-                return h(Tag, { color: colors[idx % colors.length], style: 'margin-right:4px' }, c)
-              })
-            }
+            {
+              title: '规则数量',
+              dataIndex: 'ruleCount',
+              key: 'ruleCount',
+              customRender: ({ text }) => h(Tag, { color: 'green' }, text),
+            },
+            {
+              title: '分析时间',
+              dataIndex: 'analysisTime',
+              key: 'analysisTime',
+              customRender: ({ text }) => h(Tag, { color: 'default' }, text),
+            },
+            {
+              title: '规则分类',
+              dataIndex: 'categories',
+              key: 'categories',
+              customRender: ({ text }) =>
+                text.map((c, idx) => {
+                  const colors = [
+                    'magenta',
+                    'purple',
+                    'blue',
+                    'cyan',
+                    'green',
+                    'orange',
+                    'volcano',
+                  ];
+                  return h(
+                    Tag,
+                    {
+                      color: colors[idx % colors.length],
+                      style: 'margin-right:4px',
+                    },
+                    c,
+                  );
+                }),
+            },
           ]"
           :data-source="historyData"
-          :pagination="{ pageSize: 10, showSizeChanger: true, showQuickJumper: true }"
+          :pagination="{
+            pageSize: 10,
+            showSizeChanger: true,
+            showQuickJumper: true,
+          }"
           :row-key="(record, index) => index"
           bordered
           :scroll="{ x: 'max-content' }"
@@ -349,22 +471,22 @@ onMounted(() => {
 
 <style scoped>
 .page-container {
+  max-width: 1200px;
   min-height: 100vh;
   padding: 24px;
-  max-width: 1200px;
   margin: 0 auto;
-  font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+  font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
 }
 
 .step-desc {
-  font-size: 15px;
-  color: #333;
-  background: linear-gradient(90deg, #f0f5ff 0%, #f9faff 100%);
   padding: 10px 18px;
-  border-radius: 8px;
-  text-align: center;
   margin-bottom: 18px;
+  font-size: 15px;
   font-weight: 500;
+  color: #333;
+  text-align: center;
+  background: linear-gradient(90deg, #f0f5ff 0%, #f9faff 100%);
+  border-radius: 8px;
 }
 
 .main-content {
@@ -373,11 +495,13 @@ onMounted(() => {
   gap: 20px;
 }
 
-.card-upload, .card-result, .card-history {
+.card-upload,
+.card-result,
+.card-history {
   padding: 24px;
+  background: #fff;
   border-radius: 12px;
-  background: #ffffff;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 8%);
 }
 
 .upload-header {
@@ -387,10 +511,10 @@ onMounted(() => {
 
 .upload-row {
   display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 12px;
   flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
 }
 
 .input-protocol {
@@ -402,6 +526,7 @@ onMounted(() => {
   border: none;
   transition: all 0.3s;
 }
+
 .btn-analyze:hover {
   filter: brightness(1.1);
   transform: translateY(-1px);
@@ -410,26 +535,26 @@ onMounted(() => {
 .spin-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(255,255,255,0.7);
   display: flex;
-  justify-content: center;
   align-items: center;
+  justify-content: center;
+  background: rgb(255 255 255 / 70%);
   border-radius: 8px;
 }
 
 .result-header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
   flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 12px;
 }
 
 .result-tools {
   display: flex;
-  align-items: center;
-  gap: 12px;
   flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
 }
 
 .select-group {
@@ -442,13 +567,12 @@ onMounted(() => {
 }
 
 .analyzed-protocols {
-  margin-bottom: 12px;
   padding: 8px 0;
+  margin-bottom: 12px;
 }
 
 :deep(.ant-table-cell) {
-  white-space: pre-wrap;
   word-break: break-word;
+  white-space: pre-wrap;
 }
 </style>
-

@@ -1,15 +1,31 @@
 <script lang="ts" setup>
-import { ref, reactive, computed, h } from 'vue';
-import { Card, Empty, Space, Button, Tag, message, Input, Upload, Spin, Table, Typography, Divider, Modal } from 'ant-design-vue';
-import type { UploadFile, UploadProps, TableColumnType } from 'ant-design-vue';
+import type { TableColumnType, UploadFile, UploadProps } from 'ant-design-vue';
+
+import { computed, h, reactive, ref } from 'vue';
+
+import {
+  Button,
+  Card,
+  Divider,
+  Empty,
+  Input,
+  message,
+  Modal,
+  Space,
+  Spin,
+  Table,
+  Tag,
+  Typography,
+  Upload,
+} from 'ant-design-vue';
 
 // 类型定义
 type RuleItem = {
-  rule: string;
-  req_type: string;
   req_fields: string[];
-  res_type: string;
+  req_type: string;
   res_fields: string[];
+  res_type: string;
+  rule: string;
 };
 
 // 状态管理
@@ -24,8 +40,12 @@ const formData = reactive({
   protocol: '',
 });
 const supportedProtocols = [
-  'TLSv1_3', 'CoAP', 
-  'DHCPv6', 'FTP', 'MQTTv3_1_1', 'MQTTv5'
+  'TLSv1_3',
+  'CoAP',
+  'DHCPv6',
+  'FTP',
+  'MQTTv3_1_1',
+  'MQTTv5',
 ];
 
 // 表格分页
@@ -37,8 +57,8 @@ const totalItems = ref(0);
 const beforeUploadRFC: UploadProps['beforeUpload'] = (file) => {
   const allowedTypes = ['application/pdf', 'text/plain', 'application/json'];
   const isAllowed = allowedTypes.includes(file.type);
-  const isAllowedExt = ['.pdf', '.txt', '.json'].some(ext =>
-    file.name.toLowerCase().endsWith(ext)
+  const isAllowedExt = ['.pdf', '.txt', '.json'].some((ext) =>
+    file.name.toLowerCase().endsWith(ext),
   );
 
   if (!isAllowed && !isAllowedExt) {
@@ -59,8 +79,8 @@ const removeRFC: UploadProps['onRemove'] = () => {
 function normalizeProtocolName(input: string) {
   return input
     .trim()
-    .replace(/\s+/g, '')                 // 去掉所有空格
-    .replace(/[^a-zA-Z0-9._\/-]/g, '')   // ✅ 保留下划线和点
+    .replaceAll(/\s+/g, '') // 去掉所有空格
+    .replaceAll(/[^\w./-]/g, '') // ✅ 保留下划线和点
     .toLowerCase();
 }
 
@@ -73,7 +93,7 @@ async function startAnalysis() {
     return;
   }
 
-  if (!formData.protocol.replace(/\s/g, '')) {
+  if (!formData.protocol.replaceAll(/\s/g, '')) {
     message.warning('请输入协议类型');
     return;
   }
@@ -83,7 +103,7 @@ async function startAnalysis() {
   stagedResults.value = [];
 
   try {
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    await new Promise((resolve) => setTimeout(resolve, 1500));
 
     const normalizedProtocol = normalizeProtocolName(formData.protocol);
     const fileName = `ruleConfig_${normalizedProtocol}.json`;
@@ -103,7 +123,7 @@ async function startAnalysis() {
     if (Array.isArray(rawData)) {
       rules = rawData;
     } else if (typeof rawData === 'object' && rawData !== null) {
-      Object.keys(rawData).forEach(key => {
+      Object.keys(rawData).forEach((key) => {
         const arr = rawData[key];
         if (Array.isArray(arr)) {
           rules.push(...arr);
@@ -123,15 +143,15 @@ async function startAnalysis() {
 
     activeMenuKey.value = 'result';
     message.success(`成功加载 ${rules.length} 条规则`);
-  } catch (err: any) {
-    message.error(`分析失败: ${err.message}`);
+  } catch (error: any) {
+    message.error(`分析失败: ${error.message}`);
   } finally {
     isAnalyzing.value = false;
   }
 }
 
 // 规则详情
-const currentRule = ref<RuleItem | null>(null);
+const currentRule = ref<null | RuleItem>(null);
 const showDetailModal = ref(false);
 
 function showRuleDetails(rule: RuleItem) {
@@ -146,16 +166,26 @@ const columns: TableColumnType<RuleItem>[] = [
     dataIndex: 'index',
     key: 'index',
     width: 80,
-    render: (_, __, index) => (currentPage.value - 1) * pageSize.value + index + 1,
+    render: (_, __, index) =>
+      (currentPage.value - 1) * pageSize.value + index + 1,
   },
-  { title: '规则描述', dataIndex: 'rule', key: 'rule', ellipsis: { showTitle: true } },
+  {
+    title: '规则描述',
+    dataIndex: 'rule',
+    key: 'rule',
+    ellipsis: { showTitle: true },
+  },
   { title: '协议消息类型', dataIndex: 'req_type', key: 'req_type' },
   {
     title: '操作',
     key: 'action',
     width: 120,
     render: (_, record) =>
-      h(Button, { type: 'text', size: 'small', onClick: () => showRuleDetails(record) }, { default: () => '查看详情' }),
+      h(
+        Button,
+        { type: 'text', size: 'small', onClick: () => showRuleDetails(record) },
+        { default: () => '查看详情' },
+      ),
   },
 ];
 
@@ -179,16 +209,16 @@ const currentPageData = computed(() => {
 
     <div class="main-container">
       <div class="menu-bar">
-        <Button 
-          type="primary" 
+        <Button
+          type="primary"
           :ghost="activeMenuKey !== 'upload'"
           @click="activeMenuKey = 'upload'"
-          style="margin-right: 8px;"
+          style="margin-right: 8px"
         >
           上传 RFC 文件
         </Button>
-        <Button 
-          type="primary" 
+        <Button
+          type="primary"
           :ghost="activeMenuKey !== 'result'"
           @click="activeMenuKey = 'result'"
           :disabled="!analysisCompleted"
@@ -197,13 +227,15 @@ const currentPageData = computed(() => {
         </Button>
       </div>
 
-      <Divider style="margin: 16px 0;" />
+      <Divider style="margin: 16px 0" />
 
       <!-- 上传页面 -->
       <Card v-if="activeMenuKey === 'upload'">
         <div class="upload-container">
           <div class="upload-info">
-            <Typography.Title level="4">上传 RFC 文件并指定协议</Typography.Title>
+            <Typography.Title level="4">
+              上传 RFC 文件并指定协议
+            </Typography.Title>
             <Typography.Paragraph>
               上传 RFC 文档后，系统将分析并提取其中的协议规则。
             </Typography.Paragraph>
@@ -211,7 +243,13 @@ const currentPageData = computed(() => {
             <div class="protocol-hint">
               <Typography.Text strong>支持的协议类型：</Typography.Text>
               <Space size="small" wrap>
-                <Tag v-for="proto in supportedProtocols" :key="proto" color="blue">{{ proto }}</Tag>
+                <Tag
+                  v-for="proto in supportedProtocols"
+                  :key="proto"
+                  color="blue"
+                >
+                  {{ proto }}
+                </Tag>
               </Space>
             </div>
           </div>
@@ -222,7 +260,7 @@ const currentPageData = computed(() => {
               <Input
                 v-model:value.trim="formData.protocol"
                 placeholder="请输入协议类型（如 TLS、MQTTv5）"
-                style="width: 300px; margin-left: 8px;"
+                style="width: 300px; margin-left: 8px"
               />
             </div>
 
@@ -233,14 +271,19 @@ const currentPageData = computed(() => {
                 :before-upload="beforeUploadRFC"
                 :on-remove="removeRFC"
                 :max-count="1"
-                style="margin-left: 8px;"
+                style="margin-left: 8px"
               >
                 <Button>选择文件</Button>
               </Upload>
             </div>
 
             <div class="analysis-btn">
-              <Button type="primary" :loading="isAnalyzing" @click="startAnalysis" :disabled="isAnalyzing">
+              <Button
+                type="primary"
+                :loading="isAnalyzing"
+                @click="startAnalysis"
+                :disabled="isAnalyzing"
+              >
                 开始分析
               </Button>
             </div>
@@ -257,7 +300,9 @@ const currentPageData = computed(() => {
       <!-- 结果展示页面 -->
       <Card v-if="activeMenuKey === 'result'">
         <div class="result-header">
-          <Typography.Title level="4">{{ formData.protocol }} 协议规则提取结果</Typography.Title>
+          <Typography.Title level="4">
+            {{ formData.protocol }} 协议规则提取结果
+          </Typography.Title>
           <Typography.Text>共提取到 {{ totalItems }} 条规则</Typography.Text>
         </div>
 
@@ -270,11 +315,11 @@ const currentPageData = computed(() => {
             :data-source="currentPageData"
             :pagination="{
               current: currentPage,
-              pageSize: pageSize,
+              pageSize,
               total: totalItems,
               showSizeChanger: true,
               showQuickJumper: true,
-              showTotal: (total) => `共 ${total} 条规则`
+              showTotal: (total) => `共 ${total} 条规则`,
             }"
             :row-key="(record, index) => index"
             @change="handleTableChange"
@@ -285,7 +330,12 @@ const currentPageData = computed(() => {
     </div>
 
     <!-- 规则详情 -->
-    <Modal v-model:visible="showDetailModal" title="规则详情" :width="700" destroy-on-close>
+    <Modal
+      v-model:visible="showDetailModal"
+      title="规则详情"
+      :width="700"
+      destroy-on-close
+    >
       <template v-if="currentRule">
         <div class="rule-detail">
           <Typography.Title level="5">规则描述</Typography.Title>
@@ -294,11 +344,15 @@ const currentPageData = computed(() => {
           <Typography.Title level="5">发送消息信息</Typography.Title>
           <p><strong>消息类型：</strong>{{ currentRule.req_type }}</p>
           <p><strong>涉及字段：</strong></p>
-          <Tag v-for="f in currentRule.req_fields" :key="f" color="blue">{{ f }}</Tag>
+          <Tag v-for="f in currentRule.req_fields" :key="f" color="blue">
+            {{ f }}
+          </Tag>
           <Divider />
           <Typography.Title level="5">返回消息信息</Typography.Title>
           <p><strong>消息类型：</strong>{{ currentRule.res_type }}</p>
-          <Tag v-for="f in currentRule.res_fields" :key="f" color="green">{{ f }}</Tag>
+          <Tag v-for="f in currentRule.res_fields" :key="f" color="green">
+            {{ f }}
+          </Tag>
         </div>
       </template>
     </Modal>
@@ -306,17 +360,69 @@ const currentPageData = computed(() => {
 </template>
 
 <style scoped>
-.page-container { padding: 24px; }
-.main-container { max-width: 1200px; margin: 0 auto; }
-.menu-bar { margin-bottom: 16px; }
-.upload-container { padding: 24px; }
-.upload-info { margin-bottom: 24px; }
-.protocol-hint { margin: 16px 0; padding: 12px; background-color: #f5f7fa; border-radius: 4px; }
-.upload-form { display: flex; flex-direction: column; gap: 24px; align-items: flex-start; }
-.form-item { display: flex; align-items: center; width: 100%; }
-.analysis-btn { margin-top: 16px; align-self: flex-start; }
-.analyzing-state { margin-top: 32px; display: flex; justify-content: center; align-items: center; padding: 40px 0; }
-.spin-content { height: 100px; }
-.result-header { margin-bottom: 24px; }
-.rule-detail { padding: 8px 0; }
+.page-container {
+  padding: 24px;
+}
+
+.main-container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.menu-bar {
+  margin-bottom: 16px;
+}
+
+.upload-container {
+  padding: 24px;
+}
+
+.upload-info {
+  margin-bottom: 24px;
+}
+
+.protocol-hint {
+  padding: 12px;
+  margin: 16px 0;
+  background-color: #f5f7fa;
+  border-radius: 4px;
+}
+
+.upload-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.form-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.analysis-btn {
+  align-self: flex-start;
+  margin-top: 16px;
+}
+
+.analyzing-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 0;
+  margin-top: 32px;
+}
+
+.spin-content {
+  height: 100px;
+}
+
+.result-header {
+  margin-bottom: 24px;
+}
+
+.rule-detail {
+  padding: 8px 0;
+}
 </style>

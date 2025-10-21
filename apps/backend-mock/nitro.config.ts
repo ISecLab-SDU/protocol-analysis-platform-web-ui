@@ -4,6 +4,9 @@ process.env.COMPATIBILITY_DATE = new Date().toISOString();
 export default defineNitroConfig({
   devErrorHandler: errorHandler,
   errorHandler: '~/error',
+  devServer: {
+    port: 5320,
+  },
   routeRules: {
     '/api/**': {
       cors: true,

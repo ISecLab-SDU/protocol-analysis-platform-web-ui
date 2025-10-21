@@ -1,8 +1,22 @@
 <script lang="ts" setup>
-import { ref, reactive, computed } from 'vue';
-import { Page } from '@vben/common-ui';
-import { Button, Card, Empty, Form, FormItem, message, Space, Tabs, Tag, Upload, } from 'ant-design-vue';
 import type { FormInstance, UploadFile, UploadProps } from 'ant-design-vue';
+
+import { computed, reactive, ref } from 'vue';
+
+import { Page } from '@vben/common-ui';
+
+import {
+  Button,
+  Card,
+  Empty,
+  Form,
+  FormItem,
+  message,
+  Space,
+  Tabs,
+  Tag,
+  Upload,
+} from 'ant-design-vue';
 
 const activeTab = ref('upload'); // upload | result
 const isSubmitting = ref(false);
@@ -19,15 +33,13 @@ const rfcFileList = ref<UploadFile[]>([]);
 const codeFileList = ref<UploadFile[]>([]);
 
 // 上传提示
-const uploadTip = ref(
-  '温馨提示：上传文件后，系统会模拟分析并显示规则与代码。'
-);
+const uploadTip = ref('温馨提示：上传文件后，系统会模拟分析并显示规则与代码。');
 
 // 结果数据类型定义
 type RuleItem = {
   analysis: string;
-  rule: string;
   code?: string;
+  rule: string;
 };
 
 // 分析状态与结果数据
@@ -59,7 +71,8 @@ const formRules = {
 // RFC文档上传控制
 const beforeUploadRFC: UploadProps['beforeUpload'] = (file) => {
   rfcFileList.value = [file];
-  formData.rfc = (file as UploadFile<File>).originFileObj ?? (file as any as File);
+  formData.rfc =
+    (file as UploadFile<File>).originFileObj ?? (file as any as File);
   formRef.value?.clearValidate?.(['rfc']);
   return false;
 };
@@ -74,7 +87,8 @@ const removeRFC: UploadProps['onRemove'] = () => {
 // 源代码上传控制
 const beforeUploadCode: UploadProps['beforeUpload'] = (file) => {
   codeFileList.value = [file];
-  formData.code = (file as UploadFile<File>).originFileObj ?? (file as any as File);
+  formData.code =
+    (file as UploadFile<File>).originFileObj ?? (file as any as File);
   formRef.value?.clearValidate?.(['code']);
   return false;
 };
@@ -96,13 +110,13 @@ async function handleAnalyze() {
 
   isSubmitting.value = true;
   try {
-    await new Promise(r => setTimeout(r, 1500));
+    await new Promise((r) => setTimeout(r, 1500));
     analysisCompleted = true;
     message.success('分析完成，切换到结果展示');
     activeTab.value = 'result';
     await loadRules();
-  } catch (e: any) {
-    message.error(`分析失败：${e?.message || e}`);
+  } catch (error: any) {
+    message.error(`分析失败：${error?.message || error}`);
   } finally {
     isSubmitting.value = false;
   }
@@ -126,7 +140,7 @@ async function loadRules() {
 
     // 数据分组
     const groups: Record<string, RuleItem[]> = {};
-    data.forEach(item => {
+    data.forEach((item) => {
       if (!groups[item.analysis]) {
         groups[item.analysis] = [];
         groupExpanded.value[item.analysis] = false; // 初始化所有分组为收起状态
@@ -135,8 +149,8 @@ async function loadRules() {
     });
 
     analysisGroups.value = groups;
-  } catch (err: any) {
-    lastFetchError.value = String(err);
+  } catch (error: any) {
+    lastFetchError.value = String(error);
     message.error(`加载结果失败：${lastFetchError.value}`);
   }
 }
@@ -145,17 +159,19 @@ async function loadRules() {
 function toggleAnalysisGroup(key: string) {
   // 切换当前分组的展开状态
   groupExpanded.value[key] = !groupExpanded.value[key];
-  
+
   // 如果是展开状态，初始化分页数据
   if (groupExpanded.value[key]) {
     currentPage.value = 1;
     currentRules.value = analysisGroups.value[key] || [];
-    totalPages.value = Math.ceil((currentRules.value.length || 0) / itemsPerPage);
+    totalPages.value = Math.ceil(
+      (currentRules.value.length || 0) / itemsPerPage,
+    );
   } else {
     // 收起时清空当前规则列表
     currentRules.value = [];
   }
-  
+
   // 无论展开还是收起，都重置代码显示区域
   currentCodeLines.value = [];
   currentCodePage.value = 1;
@@ -196,10 +212,12 @@ function openCode(e: MouseEvent, item: RuleItem) {
 // 右侧代码分页（响应式）
 const renderCodeLines = computed(() => {
   const start = (currentCodePage.value - 1) * codeLinesPerPage;
-  return currentCodeLines.value.slice(start, start + codeLinesPerPage).map((line, idx) => ({
-    num: start + idx + 1,
-    line
-  }));
+  return currentCodeLines.value
+    .slice(start, start + codeLinesPerPage)
+    .map((line, idx) => ({
+      num: start + idx + 1,
+      line,
+    }));
 });
 
 // 右侧代码分页控制
@@ -216,23 +234,39 @@ function nextCodePage(e: MouseEvent) {
 </script>
 
 <template>
-  <Page title="RFC 规则查看系统" description="上传 RFC 与源代码，分析并查看规则及代码。">
+  <Page
+    title="RFC 规则查看系统"
+    description="上传 RFC 与源代码，分析并查看规则及代码。"
+  >
     <div class="flex flex-col gap-4">
       <Card>
         <Space class="w-full justify-between">
           <div class="flex flex-col gap-2">
             <p>将 RFC 与源码交给系统解析后，会提取规则与对应代码。</p>
-            <p v-if="lastFetchError" class="text-danger">{{ lastFetchError }}</p>
+            <p v-if="lastFetchError" class="text-danger">
+              {{ lastFetchError }}
+            </p>
           </div>
-          <Button @click="analysisCompleted ? loadRules() : message.info('请先完成分析')">刷新结果</Button>
+          <Button
+            @click="
+              analysisCompleted ? loadRules() : message.info('请先完成分析')
+            "
+          >
+            刷新结果
+          </Button>
         </Space>
       </Card>
 
       <Card>
-        <Tabs v-model:activeKey="activeTab" destroyInactiveTabPane>
+        <Tabs v-model:active-key="activeTab" destroy-inactive-tab-pane>
           <Tabs.TabPane key="upload" tab="上传 RFC 与源代码">
-            <Form ref="formRef" :model="formData" :rules="formRules" layout="vertical">
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Form
+              ref="formRef"
+              :model="formData"
+              :rules="formRules"
+              layout="vertical"
+            >
+              <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <FormItem name="rfc" label="RFC 文档" required>
                   <Upload
                     :file-list="rfcFileList"
@@ -255,22 +289,38 @@ function nextCodePage(e: MouseEvent) {
                 </FormItem>
               </div>
               <p class="upload-hint">{{ uploadTip }}</p>
-              <Space class="w-full justify-center mt-4">
-                <Button type="primary" :loading="isSubmitting" @click="handleAnalyze">开始分析</Button>
+              <Space class="mt-4 w-full justify-center">
+                <Button
+                  type="primary"
+                  :loading="isSubmitting"
+                  @click="handleAnalyze"
+                >
+                  开始分析
+                </Button>
               </Space>
             </Form>
           </Tabs.TabPane>
 
           <Tabs.TabPane key="result" tab="结果展示">
-            <div class="flex flex-col lg:flex-row gap-4">
+            <div class="flex flex-col gap-4 lg:flex-row">
               <!-- 左侧规则列表 -->
               <Card class="flex-1" title="分析结果列表">
-                <template #extra><span>组数 {{ Object.keys(analysisGroups).length }}</span></template>
-                
-                <div v-if="!analysisCompleted"><Empty description="请先上传文件" /></div>
-                <div v-else-if="Object.keys(analysisGroups).length === 0"><Empty description="分析完成，但未找到规则" /></div>
+                <template #extra>
+                  <span>组数 {{ Object.keys(analysisGroups).length }}</span>
+                </template>
+
+                <div v-if="!analysisCompleted">
+                  <Empty description="请先上传文件" />
+                </div>
+                <div v-else-if="Object.keys(analysisGroups).length === 0">
+                  <Empty description="分析完成，但未找到规则" />
+                </div>
                 <div v-else>
-                  <div v-for="(rules, groupName, idx) in analysisGroups" :key="groupName" class="item-wrapper">
+                  <div
+                    v-for="(rules, groupName, idx) in analysisGroups"
+                    :key="groupName"
+                    class="item-wrapper"
+                  >
                     <Card
                       size="small"
                       class="cursor-pointer transition-all duration-200"
@@ -280,36 +330,48 @@ function nextCodePage(e: MouseEvent) {
                       <template #title>
                         <Space>
                           <span>{{ idx + 1 }}. {{ groupName }}</span>
-                          <Tag color="processing">{{ rules.length }} 条规则</Tag>
+                          <Tag color="processing">
+                            {{ rules.length }} 条规则
+                          </Tag>
                           <!-- 展开/收起状态图标 -->
-                          <span class="expand-icon">{{ groupExpanded[groupName] ? '▼' : '►' }}</span>
+                          <span class="expand-icon">{{
+                            groupExpanded[groupName] ? '▼' : '►'
+                          }}</span>
                         </Space>
                       </template>
 
                       <!-- 仅在展开状态显示规则列表 -->
-                      <div v-if="groupExpanded[groupName]" class="group-content">
-                        <div 
-                          v-for="(item, i) in currentPageSlice" 
-                          :key="i" 
-                          class="rule-item cursor-pointer" 
+                      <div
+                        v-if="groupExpanded[groupName]"
+                        class="group-content"
+                      >
+                        <div
+                          v-for="(item, i) in currentPageSlice"
+                          :key="i"
+                          class="rule-item cursor-pointer"
                           @click="openCode($event, item)"
                         >
-                          <span class="rule-number">{{ (currentPage-1)*itemsPerPage + i + 1 }}. </span>
+                          <span class="rule-number"
+                            >{{ (currentPage - 1) * itemsPerPage + i + 1 }}.
+                          </span>
                           <span class="rule-text">{{ item.rule }}</span>
                         </div>
 
                         <Space class="pagination-controls" @click.stop>
-                          <Button 
-                            size="small" 
-                            :disabled="currentPage === 1" 
+                          <Button
+                            size="small"
+                            :disabled="currentPage === 1"
                             @click="prevPage($event)"
                           >
                             上一页
                           </Button>
-                          <span>第 {{ currentPage }} 页 / 共 {{ totalPages }} 页</span>
-                          <Button 
-                            size="small" 
-                            :disabled="currentPage >= totalPages" 
+                          <span
+                            >第 {{ currentPage }} 页 / 共
+                            {{ totalPages }} 页</span
+                          >
+                          <Button
+                            size="small"
+                            :disabled="currentPage >= totalPages"
                             @click="nextPage($event)"
                           >
                             下一页
@@ -323,7 +385,9 @@ function nextCodePage(e: MouseEvent) {
 
               <!-- 右侧代码内容 -->
               <Card class="flex-1" title="代码内容">
-                <div v-if="currentCodeLines.length === 0"><Empty description="尚未选择规则" /></div>
+                <div v-if="currentCodeLines.length === 0">
+                  <Empty description="尚未选择规则" />
+                </div>
                 <div v-else class="code-display">
                   <pre>
                     <span v-for="(row, i) in renderCodeLines" :key="i" class="code-line">
@@ -331,21 +395,32 @@ function nextCodePage(e: MouseEvent) {
                       <span class="line-content">{{ row.line }}</span>
                     </span>
                   </pre>
-                  
+
                   <Space class="code-pagination" @click.stop>
-                    <Button 
-                      size="small" 
-                      :disabled="currentCodePage === 1" 
+                    <Button
+                      size="small"
+                      :disabled="currentCodePage === 1"
                       @click="prevCodePage($event)"
                     >
                       上一页
                     </Button>
                     <span>
-                      第 {{ currentCodePage }} 页 / 共 {{ Math.ceil((currentCodeLines.length || 0) / codeLinesPerPage) }} 页
+                      第 {{ currentCodePage }} 页 / 共
+                      {{
+                        Math.ceil(
+                          (currentCodeLines.length || 0) / codeLinesPerPage,
+                        )
+                      }}
+                      页
                     </span>
-                    <Button 
-                      size="small" 
-                      :disabled="currentCodePage >= Math.ceil((currentCodeLines.length || 0) / codeLinesPerPage)" 
+                    <Button
+                      size="small"
+                      :disabled="
+                        currentCodePage >=
+                        Math.ceil(
+                          (currentCodeLines.length || 0) / codeLinesPerPage,
+                        )
+                      "
                       @click="nextCodePage($event)"
                     >
                       下一页
@@ -363,9 +438,9 @@ function nextCodePage(e: MouseEvent) {
 
 <style scoped>
 .upload-hint {
+  margin-top: 8px;
   font-size: 13px;
   color: #faad14;
-  margin-top: 8px;
 }
 
 .item-wrapper {
@@ -374,40 +449,40 @@ function nextCodePage(e: MouseEvent) {
 
 /* 分组卡片样式 */
 .group-content {
-  margin-top: 10px;
   padding-top: 10px;
+  margin-top: 10px;
   border-top: 1px dashed #e8e8e8;
 }
 
 .active {
   border-color: #1890ff;
-  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.15);
+  box-shadow: 0 2px 8px rgb(24 144 255 / 15%);
 }
 
 .expand-icon {
-  color: #1890ff;
   font-size: 14px;
+  color: #1890ff;
   transition: transform 0.2s;
 }
 
 /* 规则项样式 */
 .rule-item {
   padding: 8px 12px;
+  margin-bottom: 6px;
   border: 1px solid #e8e8e8;
   border-radius: 4px;
-  margin-bottom: 6px;
   transition: all 0.2s;
 }
 
 .rule-item:hover {
-  border-color: #1890ff;
   background-color: #f0f7ff;
+  border-color: #1890ff;
 }
 
 .rule-number {
-  color: #8c8c8c;
   display: inline-block;
   width: 30px;
+  color: #8c8c8c;
 }
 
 .rule-text {
@@ -418,18 +493,18 @@ function nextCodePage(e: MouseEvent) {
 .pagination-controls {
   display: flex;
   justify-content: center;
-  margin-top: 16px;
   padding: 8px;
+  margin-top: 16px;
 }
 
 /* 代码显示样式 */
 .code-display {
-  line-height: 1.6;
-  font-family: "Fira Code", monospace;
-  font-size: 13px;
-  white-space: pre-wrap;
   max-height: 600px;
   overflow: auto;
+  font-family: 'Fira Code', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
 }
 
 .code-line {
@@ -437,13 +512,13 @@ function nextCodePage(e: MouseEvent) {
 }
 
 .line-num {
-  color: #999;
   display: inline-block;
   width: 45px;
-  text-align: right;
   padding-right: 10px;
-  border-right: 1px solid #d9d9d9;
+  color: #999;
+  text-align: right;
   user-select: none;
+  border-right: 1px solid #d9d9d9;
 }
 
 .line-content {
@@ -453,7 +528,7 @@ function nextCodePage(e: MouseEvent) {
 .code-pagination {
   display: flex;
   justify-content: center;
-  margin-top: 12px;
   padding: 8px;
+  margin-top: 12px;
 }
 </style>
