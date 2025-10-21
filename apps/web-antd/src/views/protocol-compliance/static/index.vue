@@ -6,9 +6,10 @@ import type {
   ProtocolStaticAnalysisJob,
   ProtocolStaticAnalysisProgressEvent,
   ProtocolStaticAnalysisResult,
+  ProtocolStaticAnalysisHistoryEntry,
 } from '#/api/protocol-compliance';
 
-import { computed, onBeforeUnmount, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 
@@ -21,6 +22,7 @@ import {
   Input,
   message,
   Space,
+  Table,
   Tag,
   Typography,
   Upload,
@@ -29,6 +31,7 @@ import {
 import {
   fetchProtocolStaticAnalysisProgress,
   fetchProtocolStaticAnalysisResult,
+  fetchProtocolStaticAnalysisHistory,
   runProtocolStaticAnalysis,
 } from '#/api/protocol-compliance';
 
@@ -117,6 +120,86 @@ const STATUS_LABELS: Record<string, string> = {
   non_compliant: '发现问题',
 };
 
+interface HistoryColumn {
+  dataIndex: string;
+  key: string;
+  title: string;
+  width?: number;
+}
+
+const HISTORY_DEFAULT_LIMIT = 50;
+
+const historyColumns: HistoryColumn[] = [
+  { dataIndex: 'jobId', key: 'jobId', title: '任务 ID', width: 220 },
+  { dataIndex: 'status', key: 'status', title: '任务状态', width: 120 },
+  {
+    dataIndex: 'overallStatus',
+    key: 'overallStatus',
+    title: '整体判定',
+    width: 140,
+  },
+  { dataIndex: 'protocolName', key: 'protocol', title: '协议', width: 160 },
+  { dataIndex: 'workspacePath', key: 'workspacePath', title: '工作区路径' },
+  { dataIndex: 'updatedAt', key: 'updatedAt', title: '更新时间', width: 180 },
+];
+
+const historyItems = ref<ProtocolStaticAnalysisHistoryEntry[]>([]);
+const historyLoading = ref(false);
+const historyError = ref<null | string>(null);
+
+const hasHistory = computed(() => historyItems.value.length > 0);
+
+async function loadHistory(options: { silent?: boolean } = {}) {
+  if (historyLoading.value) {
+    return;
+  }
+  const { silent = false } = options;
+  historyLoading.value = true;
+  historyError.value = null;
+  try {
+    const response = await fetchProtocolStaticAnalysisHistory({
+      limit: HISTORY_DEFAULT_LIMIT,
+    });
+    historyItems.value = response.items ?? [];
+  } catch (error) {
+    const messageText =
+      error instanceof Error ? error.message : String(error ?? '');
+    historyError.value = messageText || '加载历史记录失败';
+    if (!silent) {
+      message.error(`加载历史记录失败：${messageText}`);
+    }
+  } finally {
+    historyLoading.value = false;
+  }
+}
+
+async function handleRefreshHistory() {
+  await loadHistory();
+}
+
+function resolveHistoryValue(
+  record: ProtocolStaticAnalysisHistoryEntry | Record<string, unknown>,
+  key: unknown,
+) {
+  if (typeof key !== 'string') {
+    return '-';
+  }
+  const source = record as Record<string, unknown>;
+  const candidate = source[key];
+  if (candidate === undefined || candidate === null || candidate === '') {
+    return '-';
+  }
+  return candidate;
+}
+
+function resolveJobStatusMeta(status: unknown) {
+  if (typeof status !== 'string') {
+    return null;
+  }
+  const key = status as ProtocolStaticAnalysisJob['status'];
+  return PROGRESS_STATUS_META[key] ?? null;
+}
+
 const ANSI_STANDARD_COLORS = [
   '#000000', // black
   '#AA0000', // red
@@ -189,10 +272,10 @@ function rgbToHex(r: number, g: number, b: number) {
 
 function ansi256ToHex(index: number): null | string {
   if (index >= 0 && index <= 7) {
-    return ANSI_STANDARD_COLORS[index];
+    return ANSI_STANDARD_COLORS[index] ?? null;
   }
   if (index >= 8 && index <= 15) {
-    return ANSI_BRIGHT_COLORS[index - 8];
+    return ANSI_BRIGHT_COLORS[index - 8] ?? null;
   }
   if (index >= 16 && index <= 231) {
     const base = index - 16;
@@ -265,10 +348,11 @@ function applyAnsiCodes(state: AnsiStyleState, codes: number[]) {
     return;
   }
   for (let i = 0; i < codes.length; i += 1) {
-    const code = codes[i];
-    if (!Number.isFinite(code)) {
+    const codeRaw = codes[i];
+    if (!Number.isFinite(codeRaw)) {
       continue;
     }
+    const code = Number(codeRaw);
     switch (code) {
       case 0: {
         resetAnsiState(state);
@@ -346,30 +430,30 @@ function applyAnsiCodes(state: AnsiStyleState, codes: number[]) {
       }
       default: {
         if (code >= 30 && code <= 37) {
-          state.color = ANSI_STANDARD_COLORS[code - 30];
+          state.color = ANSI_STANDARD_COLORS[code - 30] ?? null;
           state.conceal = false;
           break;
         }
         if (code >= 40 && code <= 47) {
-          state.backgroundColor = ANSI_STANDARD_COLORS[code - 40];
+          state.backgroundColor = ANSI_STANDARD_COLORS[code - 40] ?? null;
           break;
         }
         if (code >= 90 && code <= 97) {
-          state.color = ANSI_BRIGHT_COLORS[code - 90];
+          state.color = ANSI_BRIGHT_COLORS[code - 90] ?? null;
           state.conceal = false;
           break;
         }
         if (code >= 100 && code <= 107) {
-          state.backgroundColor = ANSI_BRIGHT_COLORS[code - 100];
+          state.backgroundColor = ANSI_BRIGHT_COLORS[code - 100] ?? null;
           break;
         }
         if (code === 38 || code === 48) {
           const isForeground = code === 38;
           const mode = codes[i + 1];
           if (mode === 2 && codes.length >= i + 5) {
-            const r = clampRgbComponent(codes[i + 2]);
-            const g = clampRgbComponent(codes[i + 3]);
-            const b = clampRgbComponent(codes[i + 4]);
+            const r = clampRgbComponent(Number(codes[i + 2]));
+            const g = clampRgbComponent(Number(codes[i + 3]));
+            const b = clampRgbComponent(Number(codes[i + 4]));
             const color = rgbToHex(r, g, b);
             if (isForeground) {
               state.color = color;
@@ -381,8 +465,10 @@ function applyAnsiCodes(state: AnsiStyleState, codes: number[]) {
             break;
           }
           if (mode === 5 && codes.length >= i + 3) {
-            const paletteIndex = codes[i + 2];
-            const color = ansi256ToHex(paletteIndex);
+            const paletteIndex = Number(codes[i + 2]);
+            const color = Number.isFinite(paletteIndex)
+              ? ansi256ToHex(paletteIndex)
+              : null;
             if (color) {
               if (isForeground) {
                 state.color = color;
@@ -431,7 +517,7 @@ function ansiToHtml(raw: string) {
     appendSegment(normalized.slice(lastIndex, match.index));
     lastIndex = match.index + match[0].length;
 
-    const codeText = match[1];
+    const codeText = match[1] ?? '';
     const codeParts = codeText
       .split(';')
       .map((value) => (value === '' ? 0 : Number(value)));
@@ -650,6 +736,7 @@ async function handleStatusTransition(
         message.error(`获取静态分析结果失败：${messageText}`);
       }
     }
+    await loadHistory({ silent: true });
     return;
   }
 
@@ -662,6 +749,7 @@ async function handleStatusTransition(
     if (previousStatus !== 'failed') {
       message.error(failure);
     }
+    await loadHistory({ silent: true });
   }
 }
 
@@ -684,6 +772,10 @@ function schedulePolling(jobId: string) {
 
 onBeforeUnmount(() => {
   stopPolling();
+});
+
+onMounted(() => {
+  void loadHistory({ silent: true });
 });
 
 async function copyToClipboard(content: string) {
@@ -837,6 +929,7 @@ async function handleSubmit() {
       rules,
     });
     applyProgressSnapshot(snapshot);
+    await loadHistory({ silent: true });
     await handleStatusTransition(null, snapshot);
     if (snapshot.status === 'queued' || snapshot.status === 'running') {
       schedulePolling(snapshot.jobId);
@@ -1005,7 +1098,7 @@ async function handleSubmit() {
       </Card>
 
       <Card v-if="hasSelection" title="已选文件概览">
-        <Descriptions bordered column="1" size="small">
+        <Descriptions bordered :column="1" size="small">
           <Descriptions.Item v-if="archiveMeta" label="源码压缩包">
             <div class="file-meta">
               <TypographyText strong>{{ archiveMeta.name }}</TypographyText>
@@ -1043,8 +1136,112 @@ async function handleSubmit() {
         </TypographyParagraph>
       </Card>
 
+      <Card title="历史记录">
+        <template #extra>
+          <Button
+            :loading="historyLoading"
+            size="small"
+            type="link"
+            @click="handleRefreshHistory"
+          >
+            刷新
+          </Button>
+        </template>
+        <TypographyParagraph
+          v-if="historyError && !historyLoading"
+          class="history-error"
+          type="danger"
+        >
+          {{ historyError }}
+        </TypographyParagraph>
+        <TypographyParagraph
+          v-else-if="!historyLoading && !hasHistory"
+          class="history-tip"
+          type="secondary"
+        >
+          暂无历史记录，提交任务后会显示最近的运行记录。
+        </TypographyParagraph>
+        <TypographyParagraph v-else class="history-tip" type="secondary">
+          历史数据存储于后端 SQLite，工作区路径显示容器挂载的主机目录。
+        </TypographyParagraph>
+        <Table
+          :columns="historyColumns"
+          :data-source="historyItems"
+          :loading="historyLoading"
+          :pagination="false"
+          :scroll="{ x: 'max-content' }"
+          class="history-table"
+          row-key="jobId"
+          size="small"
+        >
+          <template #emptyText>
+            <span v-if="historyLoading">正在加载历史记录...</span>
+            <span v-else-if="historyError">{{ historyError }}</span>
+            <span v-else>暂无历史记录</span>
+          </template>
+          <template #bodyCell="{ column, record }">
+            <template v-if="column.key === 'jobId'">
+              <TypographyParagraph
+                :copyable="{ text: record.jobId }"
+                :ellipsis="{ rows: 1, tooltip: record.jobId }"
+                class="history-job"
+              >
+                {{ record.jobId }}
+              </TypographyParagraph>
+            </template>
+            <template v-else-if="column.key === 'status'">
+              <Tag
+                :color="resolveJobStatusMeta(record.status)?.color ?? 'default'"
+              >
+                {{
+                  resolveJobStatusMeta(record.status)?.label ?? record.status
+                }}
+              </Tag>
+            </template>
+            <template v-else-if="column.key === 'overallStatus'">
+              <span
+                v-if="record.overallStatus"
+                class="status-tag"
+                :class="[`status-${record.overallStatus}`]"
+              >
+                {{
+                  STATUS_LABELS[record.overallStatus] ?? record.overallStatus
+                }}
+              </span>
+              <span v-else>-</span>
+            </template>
+            <template v-else-if="column.key === 'protocol'">
+              <span v-if="record.protocolName">
+                {{ record.protocolName }}
+                <template v-if="record.protocolVersion">
+                  ({{ record.protocolVersion }})
+                </template>
+              </span>
+              <span v-else>-</span>
+            </template>
+            <template v-else-if="column.key === 'workspacePath'">
+              <TypographyParagraph
+                v-if="record.workspacePath"
+                :copyable="{ text: record.workspacePath }"
+                :ellipsis="{ rows: 1, tooltip: record.workspacePath }"
+                class="history-path"
+              >
+                {{ record.workspacePath }}
+              </TypographyParagraph>
+              <span v-else>-</span>
+            </template>
+            <template v-else-if="column.key === 'updatedAt'">
+              {{ formatIsoDate(record.completedAt ?? record.updatedAt) }}
+            </template>
+            <template v-else>
+              {{ resolveHistoryValue(record, column.dataIndex) }}
+            </template>
+          </template>
+        </Table>
+      </Card>
+
       <Card v-if="analysisResult" title="最新分析结果">
-        <Descriptions bordered column="1" size="small">
+        <Descriptions bordered :column="1" size="small">
           <Descriptions.Item label="整体评估">
             <div class="analysis-overview">
               <span
@@ -1232,6 +1429,31 @@ async function handleSubmit() {
 .analysis-detail {
   font-size: 13px;
   color: var(--ant-text-color-secondary);
+}
+
+.history-tip {
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--ant-text-color-secondary);
+}
+
+.history-error {
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--ant-color-error);
+}
+
+.history-table {
+  margin-top: 8px;
+}
+
+.history-path,
+.history-job {
+  margin-bottom: 0;
+  font-family:
+    ui-monospace, SFMono-Regular, SFMono, Menlo, Monaco, Consolas,
+    'Liberation Mono', 'Courier New', monospace;
+  font-size: 12px;
 }
 
 @media (max-width: 768px) {

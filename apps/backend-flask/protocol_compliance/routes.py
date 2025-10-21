@@ -22,6 +22,7 @@ from .analysis import (
     extract_protocol_version,
     get_static_analysis_job,
     get_static_analysis_result,
+    list_static_analysis_history,
     normalize_protocol_name,
     submit_static_analysis_job,
     try_extract_rules_summary,
@@ -343,6 +344,19 @@ def static_analysis():
         rules_summary=rules_summary,
     )
     return make_response(success_response(snapshot), 202)
+
+
+@bp.route("/static-analysis/history", methods=["GET"])
+def static_analysis_history():
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+
+    limit = _to_int(request.args.get("limit"), 50)
+    limit = max(1, min(limit, 200))
+    history = list_static_analysis_history(limit=limit)
+    payload = success_response({"items": history, "limit": limit, "count": len(history)})
+    return make_response(payload, 200)
 
 
 @bp.route("/static-analysis/<job_id>/progress", methods=["GET"])

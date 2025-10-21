@@ -19,6 +19,7 @@ from .docker_runner import (
     ProtocolGuardExecutionError,
     ProtocolGuardNotAvailableError,
 )
+from .state_repository import analysis_state_repository
 
 LOGGER = logging.getLogger(__name__)
 
@@ -59,6 +60,7 @@ class AnalysisProgressRegistry:
     def __init__(self) -> None:
         self._states: Dict[str, AnalysisProgressState] = {}
         self._lock = threading.Lock()
+        self._repository = analysis_state_repository
 
     def create_job(self) -> AnalysisProgressState:
         job_id = str(uuid.uuid4())
@@ -74,6 +76,15 @@ class AnalysisProgressRegistry:
         state.events.append(AnalysisProgressEvent(timestamp=now, stage="queued", message="Job queued"))
         with self._lock:
             self._states[job_id] = state
+        self._repository.record_progress(
+            job_id=job_id,
+            status=state.status,
+            stage=state.stage,
+            message=state.message,
+            created_at=now,
+            updated_at=now,
+        )
+        self._repository.add_event(job_id=job_id, timestamp=now, stage="queued", message="Job queued")
         return state
 
     def mark_running(self, job_id: str, stage: str, message: str) -> None:
@@ -99,6 +110,14 @@ class AnalysisProgressRegistry:
             state.status = "completed"
             state.result = result
             self._append_event(state, "completed", "Static analysis completed successfully")
+            self._repository.record_completion(
+                job_id=state.job_id,
+                status=state.status,
+                stage=state.stage,
+                message=state.message,
+                updated_at=state.updated_at,
+                result=result,
+            )
 
     def fail(
         self,
@@ -117,6 +136,15 @@ class AnalysisProgressRegistry:
             state.error = error or message
             state.details = details
             self._append_event(state, stage, message)
+            self._repository.record_failure(
+                job_id=state.job_id,
+                status=state.status,
+                stage=state.stage,
+                message=state.message,
+                updated_at=state.updated_at,
+                error=state.error,
+                details=state.details,
+            )
 
     def snapshot(self, job_id: str) -> Optional[Dict[str, object]]:
         with self._lock:
@@ -157,6 +185,14 @@ class AnalysisProgressRegistry:
         state.message = message
         state.updated_at = timestamp
         state.events.append(AnalysisProgressEvent(timestamp=timestamp, stage=stage, message=message))
+        self._repository.record_progress(
+            job_id=state.job_id,
+            status=state.status,
+            stage=state.stage,
+            message=state.message,
+            updated_at=timestamp,
+        )
+        self._repository.add_event(job_id=state.job_id, timestamp=timestamp, stage=stage, message=message)
 
     def make_callback(self, job_id: str) -> Callable[[str, str, str], None]:
         def callback(_job_id: str, stage: str, message: str) -> None:
@@ -528,3 +564,82 @@ def get_static_analysis_result(job_id: str) -> Optional[Dict[str, object]]:
     if isinstance(result, dict):
         return result
     return None
+
+
+def list_static_analysis_history(limit: int = 50) -> List[Dict[str, object]]:
+    """Return persisted static analysis job history entries."""
+    entries = analysis_state_repository.fetch_jobs(limit=limit)
+    history: List[Dict[str, object]] = []
+    for entry in entries:
+        result = entry.get("result")
+        result_dict = result if isinstance(result, dict) else None
+        model_response = result_dict.get("modelResponse") if isinstance(result_dict, dict) else None
+        metadata = model_response.get("metadata") if isinstance(model_response, dict) else None
+        summary = model_response.get("summary") if isinstance(model_response, dict) else None
+        inputs = result_dict.get("inputs") if isinstance(result_dict, dict) else None
+
+        protocol = None
+        protocol_version = None
+        rule_set = None
+        model_version = None
+        summary_payload = summary if isinstance(summary, dict) else None
+        overall_status = None
+
+        if isinstance(metadata, dict):
+            protocol = metadata.get("protocol")
+            protocol_version = metadata.get("protocolVersion")
+            rule_set = metadata.get("ruleSet")
+            model_version = metadata.get("modelVersion")
+        if summary_payload:
+            overall_status = summary_payload.get("overallStatus")
+
+        duration_ms = result_dict.get("durationMs") if result_dict else None
+        submitted_at = result_dict.get("submittedAt") if result_dict else None
+        analysis_id = result_dict.get("analysisId") if result_dict else None
+        model_name = result_dict.get("model") if result_dict else None
+
+        rules_file_name = None
+        protocol_input_name = None
+        if isinstance(inputs, dict):
+            rules_file_name = inputs.get("rulesFileName")
+            protocol_input_name = inputs.get("protocolName")
+            if protocol is None:
+                protocol = protocol_input_name
+
+        snapshots = entry.get("workspace_snapshots")
+        if isinstance(snapshots, list):
+            workspace_snapshots = [item for item in snapshots if isinstance(item, dict)]
+        else:
+            workspace_snapshots = []
+
+        history.append(
+            {
+                "jobId": entry.get("job_id"),
+                "status": entry.get("status"),
+                "stage": entry.get("stage"),
+                "message": entry.get("message"),
+                "workspacePath": entry.get("workspace_path"),
+                "outputPath": entry.get("output_path"),
+                "configPath": entry.get("config_path"),
+                "logsPath": entry.get("logs_path"),
+                "databasePath": entry.get("database_path"),
+                "createdAt": entry.get("created_at"),
+                "updatedAt": entry.get("updated_at"),
+                "completedAt": entry.get("completed_at"),
+                "error": entry.get("error"),
+                "details": entry.get("details"),
+                "analysisId": analysis_id,
+                "model": model_name,
+                "modelVersion": model_version,
+                "durationMs": duration_ms,
+                "submittedAt": submitted_at,
+                "protocolName": protocol,
+                "protocolVersion": protocol_version,
+                "ruleSet": rule_set,
+                "overallStatus": overall_status,
+                "summary": summary_payload,
+                "rulesFileName": rules_file_name,
+                "workspaceSnapshots": workspace_snapshots,
+            }
+        )
+    return history

@@ -78,6 +78,7 @@ export interface ProtocolStaticAnalysisModelMetadata {
   generatedAt: string;
   modelVersion: string;
   protocol: string;
+  protocolVersion?: string;
   ruleSet: string;
 }
 
@@ -135,6 +136,45 @@ export interface ProtocolStaticAnalysisJob {
   updatedAt: string;
 }
 
+export interface ProtocolStaticAnalysisHistoryEntry {
+  analysisId?: string | null;
+  completedAt?: string | null;
+  configPath?: string | null;
+  createdAt: string;
+  databasePath?: string | null;
+  details?: Record<string, unknown> | null;
+  durationMs?: number | null;
+  error?: string | null;
+  jobId: string;
+  logsPath?: string | null;
+  message: string;
+  model?: string | null;
+  modelVersion?: string | null;
+  overallStatus?: ProtocolStaticAnalysisComplianceStatus | null;
+  outputPath?: string | null;
+  protocolName?: string | null;
+  protocolVersion?: string | null;
+  ruleSet?: string | null;
+  rulesFileName?: string | null;
+  stage: string;
+  status: ProtocolStaticAnalysisJobStatus;
+  submittedAt?: string | null;
+  summary?: ProtocolStaticAnalysisSummary | null;
+  updatedAt: string;
+  workspacePath?: string | null;
+  workspaceSnapshots?: { path?: string; stage?: string }[] | null;
+}
+
+export interface FetchProtocolStaticAnalysisHistoryParams {
+  limit?: number;
+}
+
+export interface FetchProtocolStaticAnalysisHistoryResponse {
+  count: number;
+  items: ProtocolStaticAnalysisHistoryEntry[];
+  limit: number;
+}
+
 const BASE_PATH = '/protocol-compliance/tasks';
 
 export function fetchProtocolComplianceTasks(
@@ -188,13 +228,7 @@ export async function downloadProtocolComplianceTaskResult(taskId: string) {
 export function runProtocolStaticAnalysis(
   payload: RunProtocolStaticAnalysisPayload,
 ) {
-  const {
-    builderDockerfile,
-    codeArchive,
-    config,
-    notes,
-    rules,
-  } = payload;
+  const { builderDockerfile, codeArchive, config, notes, rules } = payload;
   const formData = new FormData();
   formData.append('codeArchive', codeArchive);
   formData.append('builderDockerfile', builderDockerfile);
@@ -224,5 +258,14 @@ export function fetchProtocolStaticAnalysisProgress(jobId: string) {
 export function fetchProtocolStaticAnalysisResult(jobId: string) {
   return requestClient.get<ProtocolStaticAnalysisResult>(
     `/protocol-compliance/static-analysis/${jobId}/result`,
+  );
+}
+
+export function fetchProtocolStaticAnalysisHistory(
+  params?: FetchProtocolStaticAnalysisHistoryParams,
+) {
+  return requestClient.get<FetchProtocolStaticAnalysisHistoryResponse>(
+    '/protocol-compliance/static-analysis/history',
+    { params },
   );
 }
