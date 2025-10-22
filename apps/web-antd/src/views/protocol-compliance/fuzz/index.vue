@@ -2,6 +2,7 @@
 import { onMounted, ref, nextTick, computed, watch } from 'vue';
 import { getFuzzText } from '#/api/custom';
 import { requestClient } from '#/api/request';
+import { useAccessStore } from '@vben/stores';
 import Chart from 'chart.js/auto';
 
 // 导入协议专用的composables
@@ -561,12 +562,28 @@ async function startMQTTTest() {
 // 解析MQTT统计数据从文件
 async function parseMQTTStatsFromFile() {
   try {
-    const result = await requestClient.post('/api/protocol-compliance/read-log', {
-      protocol: 'MQTT',
-      lastPosition: 0  // 从文件开头读取全部内容
+    const response = await fetch('/api/protocol-compliance/read-log', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${useAccessStore().accessToken}`,
+      },
+      body: JSON.stringify({
+        protocol: 'MQTT',
+        lastPosition: 0  // 从文件开头读取全部内容
+      }),
     });
     
-    const content = result.content;
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const result = await response.json();
+    if (!result.success) {
+      throw new Error(result.message || result.error || '读取文件失败');
+    }
+    
+    const content = result.data.content;
     const lines = content.split('\n');
     
     // 解析统计数据
@@ -685,13 +702,42 @@ async function startMQTTDifferentialReading() {
     addUnifiedLog('INFO', '开始分析协议差异报告', 'MQTT');
     addUnifiedLog('INFO', '正在通过API读取MQTT日志文件...', 'MQTT');
     
+    // 先测试后端连接
+    try {
+      const healthResponse = await fetch('/api/healthz');
+      if (healthResponse.ok) {
+        addUnifiedLog('INFO', '后端连接正常', 'MQTT');
+      } else {
+        addUnifiedLog('WARNING', `后端健康检查失败: ${healthResponse.status}`, 'MQTT');
+      }
+    } catch (healthError) {
+      addUnifiedLog('ERROR', `无法连接到后端: ${healthError}`, 'MQTT');
+    }
+    
     // 通过后端API读取fuzzing_report.txt文件内容
-    const result = await requestClient.post('/api/protocol-compliance/read-log', {
-      protocol: 'MQTT',
-      lastPosition: 0  // 从文件开头读取全部内容
+    // 直接使用fetch调用，避免requestClient的baseURL问题
+    const response = await fetch('/api/protocol-compliance/read-log', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${useAccessStore().accessToken}`,
+      },
+      body: JSON.stringify({
+        protocol: 'MQTT',
+        lastPosition: 0  // 从文件开头读取全部内容
+      }),
     });
     
-    const content = result.content;
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const result = await response.json();
+    if (!result.success) {
+      throw new Error(result.message || result.error || '读取文件失败');
+    }
+    
+    const content = result.data.content;
     addUnifiedLog('INFO', `成功读取日志文件，内容长度: ${content.length} 字符`, 'MQTT');
     
     const lines = content.split('\n');
