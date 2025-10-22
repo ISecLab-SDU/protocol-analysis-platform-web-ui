@@ -82,6 +82,12 @@ const targetHost = ref('192.168.102.2');
 const targetPort = ref(161);
 const rtspCommandConfig = ref('afl-fuzz -d -i $AFLNET/tutorials/live555/in-rtsp -o out-live555 -N tcp://127.0.0.1/8554 -x $AFLNET/tutorials/live555/rtsp.dict -P RTSP -D 10000 -q 3 -s 3 -E -K -R ./testOnDemandRTSPServer 8554');
 
+// MQTT测试进度状态
+const mqttProcessingProgress = ref(0);
+const mqttTotalRecords = ref(0);
+const mqttProcessedRecords = ref(0);
+const mqttIsProcessingLogs = ref(false);
+
 // Real-time log reading (现在通过useLogReader管理)
 const rtspProcessId = ref<number | null>(null);
 
@@ -692,15 +698,44 @@ async function startMQTTDifferentialReading() {
     let localErrorCount = 0;
     let localWarningCount = 0;
     let localSuccessCount = 0;
-    const maxDisplayCount = 50; // 限制显示数量，避免界面过载
+    let totalDifferentialLines = 0;
     
+    // 首先统计总的差异报告行数
     for (const line of lines) {
       if (line.trim() === 'Differential Report:') {
         inDifferentialSection = true;
         continue;
       }
+      if (inDifferentialSection && line.trim()) {
+        totalDifferentialLines++;
+      }
+    }
+    
+    // 设置进度状态
+    mqttTotalRecords.value = totalDifferentialLines;
+    mqttProcessedRecords.value = 0;
+    mqttProcessingProgress.value = 0;
+    mqttIsProcessingLogs.value = true;
+    
+    addUnifiedLog('INFO', `发现 ${totalDifferentialLines} 条差异记录，开始逐条分析...`, 'MQTT');
+    
+    // 重置标志位，重新处理
+    inDifferentialSection = false;
+    
+    for (const line of lines) {
+      // 检查用户是否中途停止测试
+      if (!isRunning.value) {
+        addUnifiedLog('WARNING', '用户中止了测试操作', 'MQTT');
+        mqttIsProcessingLogs.value = false;
+        return;
+      }
       
-      if (inDifferentialSection && line.trim() && processedCount < maxDisplayCount) {
+      if (line.trim() === 'Differential Report:') {
+        inDifferentialSection = true;
+        continue;
+      }
+      
+      if (inDifferentialSection && line.trim()) {
         // 解析差异报告行
         const diffData = parseMQTTDifferentialLine(line);
         if (diffData) {
@@ -718,17 +753,22 @@ async function startMQTTDifferentialReading() {
           // 添加到统一日志系统
           addUnifiedLog(diffData.type, diffData.content, 'MQTT');
           
-          // 每10条更新统计
+          // 更新统计数据和进度
+          packetCount.value = processedCount;
+          failedCount.value = localErrorCount;
+          timeoutCount.value = localWarningCount;
+          successCount.value = localSuccessCount;
+          
+          // 更新MQTT进度状态
+          mqttProcessedRecords.value = processedCount;
+          mqttProcessingProgress.value = Math.round((processedCount / totalDifferentialLines) * 100);
+          
+          // 每处理10条记录显示进度
           if (processedCount % 10 === 0) {
+            addUnifiedLog('INFO', `处理进度: ${processedCount}/${totalDifferentialLines} (${mqttProcessingProgress.value}%)`, 'MQTT');
             
-            // 更新统计数据
-            packetCount.value = processedCount;
-            failedCount.value = localErrorCount;
-            timeoutCount.value = localWarningCount;
-            successCount.value = localSuccessCount;
-            
-            // 短暂延迟
-            await new Promise(resolve => setTimeout(resolve, 50));
+            // 短暂延迟，让界面有时间更新
+            await new Promise(resolve => setTimeout(resolve, 100));
           }
         }
       }
@@ -740,34 +780,79 @@ async function startMQTTDifferentialReading() {
     timeoutCount.value = localWarningCount;
     successCount.value = localSuccessCount;
     
+    // 完成进度状态更新
+    mqttProcessedRecords.value = processedCount;
+    mqttProcessingProgress.value = 100;
+    mqttIsProcessingLogs.value = false;
+    
     // 处理完成
     addUnifiedLog('SUCCESS', `差异报告分析完成，共处理 ${processedCount} 条差异记录`, 'MQTT');
+    addUnifiedLog('INFO', `统计结果 - 错误: ${localErrorCount}, 警告: ${localWarningCount}, 信息: ${localSuccessCount}`, 'MQTT');
     
-    // MQTT测试完成，设置状态
-    isRunning.value = false;
-    isPaused.value = false;
-    isTestCompleted.value = true;
-    testEndTime.value = new Date();
+    // 等待一小段时间让用户看到完成信息
+    await new Promise(resolve => setTimeout(resolve, 2000));
     
-    // 停止计时器
-    if (testTimer) { 
-      clearInterval(testTimer as any); 
-      testTimer = null; 
+    // 检查用户是否在等待期间停止了测试
+    if (!isRunning.value) {
+      addUnifiedLog('WARNING', '用户中止了测试操作', 'MQTT');
+      mqttIsProcessingLogs.value = false;
+      return;
     }
     
-    // 延迟保存历史记录
+    // 日志处理完成，自动结束测试
+    addUnifiedLog('SUCCESS', 'MQTT协议差异分析已完成，测试结束', 'MQTT');
+    
+    // 结束测试
     setTimeout(() => {
-      try {
-        updateTestSummary();
-        saveTestToHistory();
-      } catch (error) {
-        console.error('Error saving MQTT test results:', error);
+      if (isRunning.value) {
+        // 测试完成，正常结束
+        isRunning.value = false;
+        isPaused.value = false;
+        isTestCompleted.value = true;
+        testEndTime.value = new Date();
+        
+        // 停止计时器
+        if (testTimer) { 
+          clearInterval(testTimer as any); 
+          testTimer = null; 
+        }
+        
+        addUnifiedLog('SUCCESS', 'MQTT测试完成', 'MQTT');
+        
+        // 保存历史记录
+        setTimeout(() => {
+          try {
+            updateTestSummary();
+            saveTestToHistory();
+          } catch (error) {
+            console.error('Error saving MQTT test results:', error);
+          }
+        }, 500);
       }
-    }, 500);
+    }, 1000);
     
   } catch (error: any) {
     console.error('读取MQTT差异报告失败:', error);
     addUnifiedLog('ERROR', `读取差异报告失败: ${error.message}`, 'MQTT');
+    
+    // 出错时重置进度状态
+    mqttIsProcessingLogs.value = false;
+    mqttProcessingProgress.value = 0;
+    
+    // 出错时也要结束测试
+    setTimeout(() => {
+      if (isRunning.value) {
+        isRunning.value = false;
+        isPaused.value = false;
+        isTestCompleted.value = true;
+        testEndTime.value = new Date();
+        
+        if (testTimer) { 
+          clearInterval(testTimer as any); 
+          testTimer = null; 
+        }
+      }
+    }, 1000);
   }
 }
 
@@ -1055,6 +1140,13 @@ function stopMQTTTest() {
   try {
     console.log('Stopping MQTT test safely...');
     
+    // 添加用户中止日志
+    addUnifiedLog('WARNING', '用户手动停止了MQTT测试', 'MQTT');
+    
+    // 重置MQTT进度状态
+    mqttIsProcessingLogs.value = false;
+    mqttProcessingProgress.value = 0;
+    
     // 直接设置状态，避免DOM操作
     isRunning.value = false;
     isPaused.value = false;
@@ -1073,6 +1165,9 @@ function stopMQTTTest() {
       clearInterval(logReadingInterval.value);
       logReadingInterval.value = null;
     }
+    
+    // 添加停止完成日志
+    addUnifiedLog('INFO', 'MQTT测试已被用户停止', 'MQTT');
     
     // 延迟保存历史记录
     setTimeout(() => {
@@ -1981,6 +2076,18 @@ onMounted(async () => {
                 </button>
               </div>
             </div>
+            <!-- MQTT进度条 -->
+            <div v-if="protocolType === 'MQTT' && mqttIsProcessingLogs" class="mb-4 bg-blue-50 rounded-lg p-3 border border-blue-200">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-sm font-medium text-blue-700">正在处理MQTT差异报告</span>
+                <span class="text-xs text-blue-600">{{ mqttProcessedRecords }}/{{ mqttTotalRecords }} ({{ mqttProcessingProgress }}%)</span>
+              </div>
+              <div class="w-full bg-blue-200 rounded-full h-2">
+                <div class="bg-blue-600 h-2 rounded-full transition-all duration-300" :style="{ width: mqttProcessingProgress + '%' }"></div>
+              </div>
+              <div class="text-xs text-blue-600 mt-1">用户可随时点击"停止测试"按钮中止处理</div>
+            </div>
+            
             <!-- 统一的日志容器 -->
             <div class="bg-light-gray rounded-lg border border-dark/10 h-80 overflow-y-auto p-3 font-mono text-xs space-y-1 scrollbar-thin">
               <!-- 统一日志显示 -->
