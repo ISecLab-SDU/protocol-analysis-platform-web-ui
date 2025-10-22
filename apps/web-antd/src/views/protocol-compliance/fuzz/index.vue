@@ -637,20 +637,45 @@ async function parseMQTTStatsFromFile() {
   }
 }
 
-// MQTT差异报告数据存储 - 简化版本
-const mqttDifferentialLogs = ref<string[]>([]);
-const mqttLogCount = ref(0);
+// 统一的日志系统 - 替换分离的MQTT日志
+const unifiedLogs = ref<Array<{
+  id: string;
+  timestamp: string;
+  type: 'INFO' | 'ERROR' | 'WARNING' | 'SUCCESS';
+  content: string;
+  protocol: 'SNMP' | 'RTSP' | 'MQTT';
+}>>([]);
 
-// 开始MQTT差异报告读取 - 简化版本，避免DOM冲突
+// 统一的日志添加函数
+function addUnifiedLog(type: 'INFO' | 'ERROR' | 'WARNING' | 'SUCCESS', content: string, protocol: 'SNMP' | 'RTSP' | 'MQTT' = 'MQTT') {
+  unifiedLogs.value.push({
+    id: `${protocol.toLowerCase()}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    timestamp: new Date().toLocaleTimeString(),
+    type,
+    content,
+    protocol
+  });
+}
+
+// 清空统一日志
+function clearUnifiedLogs() {
+  unifiedLogs.value.length = 0;
+}
+
+// 开始MQTT差异报告读取 - 使用统一日志系统
 async function startMQTTDifferentialReading() {
   try {
-    // 重置状态
-    mqttDifferentialLogs.value = [];
-    mqttLogCount.value = 0;
+    // 确保组件已挂载再进行操作
+    if (!isRunning.value) {
+      console.warn('测试未运行，跳过差异报告读取');
+      return;
+    }
+    
+    // 清空之前的日志
+    clearUnifiedLogs();
     
     // 添加开始日志
-    const startTime = new Date().toLocaleTimeString();
-    mqttDifferentialLogs.value.push(`[${startTime}] INFO: 开始分析协议差异报告`);
+    addUnifiedLog('INFO', '开始分析协议差异报告', 'MQTT');
     
     // 直接读取fuzzing_report.txt文件内容
     const response = await fetch('/apps/backend-flask/protocol_compliance/mbfuzzer_logs/fuzzing_report.txt');
@@ -668,7 +693,6 @@ async function startMQTTDifferentialReading() {
     let localWarningCount = 0;
     let localSuccessCount = 0;
     const maxDisplayCount = 50; // 限制显示数量，避免界面过载
-    const logBuffer: string[] = []; // 使用缓冲区批量添加
     
     for (const line of lines) {
       if (line.trim() === 'Differential Report:') {
@@ -691,15 +715,11 @@ async function startMQTTDifferentialReading() {
             localSuccessCount++;
           }
           
-          // 创建简单的日志字符串
-          const timestamp = new Date().toLocaleTimeString();
-          const logLine = `[${timestamp}] ${diffData.type}: ${diffData.content}`;
-          logBuffer.push(logLine);
+          // 添加到统一日志系统
+          addUnifiedLog(diffData.type, diffData.content, 'MQTT');
           
-          // 每10条批量添加
-          if (logBuffer.length >= 10) {
-            mqttDifferentialLogs.value.push(...logBuffer);
-            logBuffer.length = 0; // 清空缓冲区
+          // 每10条更新统计
+          if (processedCount % 10 === 0) {
             
             // 更新统计数据
             packetCount.value = processedCount;
@@ -714,21 +734,14 @@ async function startMQTTDifferentialReading() {
       }
     }
     
-    // 添加剩余的日志
-    if (logBuffer.length > 0) {
-      mqttDifferentialLogs.value.push(...logBuffer);
-    }
-    
     // 最终更新统计数据
     packetCount.value = processedCount;
     failedCount.value = localErrorCount;
     timeoutCount.value = localWarningCount;
     successCount.value = localSuccessCount;
-    mqttLogCount.value = processedCount;
     
     // 处理完成
-    const completeTime = new Date().toLocaleTimeString();
-    mqttDifferentialLogs.value.push(`[${completeTime}] SUCCESS: 差异报告分析完成，共处理 ${processedCount} 条差异记录`);
+    addUnifiedLog('SUCCESS', `差异报告分析完成，共处理 ${processedCount} 条差异记录`, 'MQTT');
     
     // MQTT测试完成，设置状态
     isRunning.value = false;
@@ -754,8 +767,7 @@ async function startMQTTDifferentialReading() {
     
   } catch (error: any) {
     console.error('读取MQTT差异报告失败:', error);
-    const errorTime = new Date().toLocaleTimeString();
-    mqttDifferentialLogs.value.push(`[${errorTime}] ERROR: 读取差异报告失败: ${error.message}`);
+    addUnifiedLog('ERROR', `读取差异报告失败: ${error.message}`, 'MQTT');
   }
 }
 
@@ -1166,10 +1178,10 @@ function togglePauseTest() {
   }
 }
 
-// 本地clearLog函数，同时清空MQTT差异报告
-function clearMQTTLogs() {
-  mqttDifferentialLogs.value = [];
-  mqttLogCount.value = 0;
+// 统一的清空日志函数
+function clearAllLogs() {
+  clearLog(); // 清空原有的日志系统
+  clearUnifiedLogs(); // 清空统一日志系统
 }
 
 // clearLog 现在通过 useLogReader composable 提供
@@ -1958,7 +1970,7 @@ onMounted(async () => {
             <div class="flex justify-between items-center mb-4">
               <h3 class="font-semibold text-lg">Fuzz过程</h3>
               <div class="flex space-x-2">
-                <button @click="() => { clearLog(); clearMQTTLogs(); }" class="text-xs bg-light-gray hover:bg-medium-gray px-2 py-1 rounded border border-dark/10 text-dark/70">
+                <button @click="clearAllLogs" class="text-xs bg-light-gray hover:bg-medium-gray px-2 py-1 rounded border border-dark/10 text-dark/70">
                   清空日志
                 </button>
                 <button v-if="isRunning" @click="togglePauseTest" class="text-xs bg-light-gray hover:bg-medium-gray px-2 py-1 rounded border border-dark/10 text-dark/70">
@@ -1969,26 +1981,29 @@ onMounted(async () => {
                 </button>
               </div>
             </div>
-            <div ref="logContainer" class="bg-light-gray rounded-lg border border-dark/10 h-80 overflow-y-auto p-3 font-mono text-xs space-y-1 scrollbar-thin">
-              <!-- MQTT差异报告显示 - 简化版本 -->
-              <div v-if="protocolType === 'MQTT' && mqttDifferentialLogs.length > 0">
+            <!-- 统一的日志容器 -->
+            <div class="bg-light-gray rounded-lg border border-dark/10 h-80 overflow-y-auto p-3 font-mono text-xs space-y-1 scrollbar-thin">
+              <!-- 统一日志显示 -->
+              <div v-if="unifiedLogs.length > 0">
                 <div 
-                  v-for="(logLine, index) in mqttDifferentialLogs" 
-                  :key="`mqtt-log-${index}`"
+                  v-for="log in unifiedLogs" 
+                  :key="log.id"
                   :class="{
-                    'text-red-600': logLine.includes('ERROR'),
-                    'text-yellow-600': logLine.includes('WARNING'), 
-                    'text-green-600': logLine.includes('SUCCESS'),
-                    'text-blue-600': logLine.includes('INFO')
+                    'text-red-600': log.type === 'ERROR',
+                    'text-yellow-600': log.type === 'WARNING', 
+                    'text-green-600': log.type === 'SUCCESS',
+                    'text-blue-600': log.type === 'INFO'
                   }"
                   class="mb-1 break-words"
-                  v-html="logLine"
                 >
+                  <span class="text-dark/50">[{{ log.timestamp }}]</span>
+                  <span class="font-medium">{{ log.type }}:</span>
+                  <span>{{ log.content }}</span>
                 </div>
               </div>
               
               <!-- 默认显示 -->
-              <div class="text-dark/50 italic" v-if="!isRunning && logEntries.length === 0 && mqttDifferentialLogs.length === 0">
+              <div v-else class="text-dark/50 italic">
                 测试未开始，请配置参数并点击"开始测试"
               </div>
             </div>
