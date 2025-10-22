@@ -567,11 +567,10 @@ async function parseMQTTStatsFromFile() {
       lastPosition: 0  // 从文件开头读取全部内容
     });
     
-    if (result.code !== 0) {
-      throw new Error(result.message || result.error || '读取文件失败');
-    }
+    console.log('MQTT统计数据API响应:', result);
     
-    const content = result.data.content;
+    // requestClient已经处理了错误检查，直接使用返回的data
+    const content = result.content;
     const lines = content.split('\n');
     
     // 解析统计数据
@@ -707,11 +706,10 @@ async function startMQTTDifferentialReading() {
       lastPosition: 0  // 从文件开头读取全部内容
     });
     
-    if (result.code !== 0) {
-      throw new Error(result.message || result.error || '读取文件失败');
-    }
+    console.log('MQTT差异报告API响应:', result);
     
-    const content = result.data.content;
+    // requestClient已经处理了错误检查，直接使用返回的data
+    const content = result.content;
     addUnifiedLog('INFO', `成功读取日志文件，内容长度: ${content.length} 字符`, 'MQTT');
     
     const lines = content.split('\n');
@@ -1100,12 +1098,12 @@ async function readRTSPLogPeriodically() {
         lastPosition: logReadPosition.value // 使用实际的读取位置，实现增量读取
       });
       
-      if (result.code === 0 && result.data && result.data.content && result.data.content.trim()) {
+      if (result && result.content && result.content.trim()) {
         // 更新读取位置
-        logReadPosition.value = result.data.position || logReadPosition.value;
+        logReadPosition.value = result.position || logReadPosition.value;
         
         // 处理AFL-NET的plot_data格式
-        const logLines = result.data.content.split('\n').filter((line: string) => line.trim());
+        const logLines = result.content.split('\n').filter((line: string) => line.trim());
         logLines.forEach((line: string) => {
           processRTSPLogLine(line);
         });
