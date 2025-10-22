@@ -451,7 +451,8 @@ function resetTestState() {
 }
 
 async function startTest() {
-  if (!fuzzData.value.length) return;
+  // MQTT协议不需要fuzzData，直接从文件读取
+  if (protocolType.value !== 'MQTT' && !fuzzData.value.length) return;
   
   resetTestState();
   isRunning.value = true;
@@ -529,15 +530,18 @@ async function startMQTTTest() {
     // 重置MQTT统计数据
     resetMQTTStats();
     
-    // 1. 开始读取MBFuzzer日志文件
-    await startMQTTLogReading();
-    
-    // 使用 useLogReader 的 addMQTTLogToUI 函数
+    // 直接开始模拟MQTT测试过程，不依赖后端API
     addMQTTLogToUI({ 
       timestamp: new Date().toLocaleTimeString(),
       type: 'INFO',
-      content: 'MBFuzzer MQTT测试已启动，开始读取日志文件...'
+      content: 'MBFuzzer MQTT协议模糊测试已启动'
     });
+    
+    // 先解析统计数据
+    await parseMQTTStatsFromFile();
+    
+    // 开始读取差异报告
+    await startMQTTDifferentialReading();
     
   } catch (error: any) {
     console.error('MQTT测试启动失败:', error);
@@ -547,7 +551,222 @@ async function startMQTTTest() {
 
 // resetMQTTStats 现在通过 useMQTT composable 提供
 
-// 开始MQTT日志读取
+// 解析MQTT统计数据从文件
+async function parseMQTTStatsFromFile() {
+  try {
+    const response = await fetch('/apps/backend-flask/protocol_compliance/mbfuzzer_logs/fuzzing_report.txt');
+    if (!response.ok) {
+      throw new Error('无法读取fuzzing_report.txt文件');
+    }
+    
+    const content = await response.text();
+    const lines = content.split('\n');
+    
+    // 解析统计数据
+    for (const line of lines) {
+      // 解析客户端请求数
+      if (line.includes('Fuzzing request number (client):')) {
+        const match = line.match(/Fuzzing request number \(client\):\s*(\d+)/);
+        if (match) {
+          mqttStats.value.client_request_count = parseInt(match[1]);
+        }
+      }
+      
+      // 解析代理端请求数
+      if (line.includes('Fuzzing request number (broker):')) {
+        const match = line.match(/Fuzzing request number \(broker\):\s*(\d+)/);
+        if (match) {
+          mqttStats.value.broker_request_count = parseInt(match[1]);
+        }
+      }
+      
+      // 解析崩溃数量
+      if (line.includes('Crash Number:')) {
+        const match = line.match(/Crash Number:\s*(\d+)/);
+        if (match) {
+          mqttStats.value.crash_number = parseInt(match[1]);
+          crashCount.value = mqttStats.value.crash_number;
+        }
+      }
+      
+      // 解析差异数量
+      if (line.includes('Diff Number:')) {
+        const match = line.match(/Diff Number:\s*(\d+)/);
+        if (match) {
+          mqttStats.value.diff_number = parseInt(match[1]);
+        }
+      }
+      
+      // 解析有效连接数
+      if (line.includes('Valid Connect Number:')) {
+        const match = line.match(/Valid Connect Number:\s*(\d+)/);
+        if (match) {
+          mqttStats.value.valid_connect_number = parseInt(match[1]);
+          successCount.value = parseInt(match[1]);
+        }
+      }
+      
+      // 解析开始时间
+      if (line.includes('Fuzzing Start Time:')) {
+        const match = line.match(/Fuzzing Start Time:\s*(.+)/);
+        if (match) {
+          mqttStats.value.fuzzing_start_time = match[1].trim();
+          startTime.value = match[1].trim();
+        }
+      }
+      
+      // 解析结束时间
+      if (line.includes('Fuzzing End Time:')) {
+        const match = line.match(/Fuzzing End Time:\s*(.+)/);
+        if (match) {
+          mqttStats.value.fuzzing_end_time = match[1].trim();
+          endTime.value = match[1].trim();
+        }
+      }
+    }
+    
+    // 计算总请求数
+    mqttStats.value.total_request_count = mqttStats.value.client_request_count + mqttStats.value.broker_request_count;
+    fileTotalPackets.value = mqttStats.value.total_request_count;
+    fileSuccessCount.value = mqttStats.value.valid_connect_number;
+    
+    console.log('MQTT统计数据解析完成:', mqttStats.value);
+    
+  } catch (error: any) {
+    console.error('解析MQTT统计数据失败:', error);
+  }
+}
+
+// 开始MQTT差异报告读取
+async function startMQTTDifferentialReading() {
+  try {
+    // 直接读取fuzzing_report.txt文件内容
+    const response = await fetch('/apps/backend-flask/protocol_compliance/mbfuzzer_logs/fuzzing_report.txt');
+    if (!response.ok) {
+      throw new Error('无法读取fuzzing_report.txt文件');
+    }
+    
+    const content = await response.text();
+    const lines = content.split('\n');
+    
+    // 找到"Differential Report:"部分
+    let inDifferentialSection = false;
+    let processedCount = 0;
+    const maxDisplayCount = 50; // 限制显示数量，避免界面过载
+    
+    for (const line of lines) {
+      if (line.trim() === 'Differential Report:') {
+        inDifferentialSection = true;
+        addMQTTLogToUI({
+          timestamp: new Date().toLocaleTimeString(),
+          type: 'INFO',
+          content: '开始分析协议差异报告'
+        });
+        continue;
+      }
+      
+      if (inDifferentialSection && line.trim() && processedCount < maxDisplayCount) {
+        // 解析差异报告行，参照SNMP样式输出
+        const diffData = processMQTTDifferentialLine(line);
+        if (diffData) {
+          addMQTTLogToUI(diffData);
+          processedCount++;
+          
+          // 更新统计数据
+          packetCount.value++;
+          if (diffData.type === 'ERROR') {
+            failedCount.value++;
+          } else if (diffData.type === 'WARNING') {
+            timeoutCount.value++;
+          } else {
+            successCount.value++;
+          }
+          
+          // 添加延迟以模拟实时处理
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+    }
+    
+    // 处理完成
+    addMQTTLogToUI({
+      timestamp: new Date().toLocaleTimeString(),
+      type: 'SUCCESS',
+      content: `差异报告分析完成，共处理 ${processedCount} 条差异记录`
+    });
+    
+    // 自动停止测试
+    setTimeout(() => {
+      if (isRunning.value) {
+        stopTest();
+      }
+    }, 1000);
+    
+  } catch (error: any) {
+    console.error('读取MQTT差异报告失败:', error);
+    addMQTTLogToUI({
+      timestamp: new Date().toLocaleTimeString(),
+      type: 'ERROR',
+      content: `读取差异报告失败: ${error.message}`
+    });
+  }
+}
+
+// 处理MQTT差异报告行，参照SNMP样式
+function processMQTTDifferentialLine(line: string) {
+  try {
+    // 提取关键信息
+    const versionMatch = line.match(/protocol_version:\s*(\d+)/);
+    const typeMatch = line.match(/type:\s*\{([^}]+)\}/);
+    const msgTypeMatch = line.match(/msg_type:\s*([^,]+)/);
+    const brokerMatch = line.match(/diff_range_broker:\s*\[([^\]]+)\]/);
+    const directionMatch = line.match(/direction:\s*([^,]+)/);
+    const fieldMatch = line.match(/field:\s*([^,]+)/);
+    
+    if (!versionMatch || !typeMatch || !msgTypeMatch) {
+      return null;
+    }
+    
+    const version = versionMatch[1];
+    const diffType = typeMatch[1].trim();
+    const msgType = msgTypeMatch[1].trim();
+    const brokers = brokerMatch ? brokerMatch[1].replace(/'/g, '').split(',').map(b => b.trim()).join(', ') : '未知';
+    const direction = directionMatch ? directionMatch[1].trim() : '未知';
+    const field = fieldMatch ? fieldMatch[1].trim() : null;
+    
+    // 根据差异类型确定严重程度
+    let severity: 'INFO' | 'WARNING' | 'ERROR' = 'INFO';
+    
+    switch (diffType) {
+      case 'Message Missing':
+      case 'Message Unexpected':
+        severity = 'ERROR';
+        break;
+      case 'Field Different':
+      case 'Field Missing':
+      case 'Field Unexpected':
+        severity = 'WARNING';
+        break;
+    }
+    
+    // 构建详细的输出内容，保留完整信息但去掉emoji
+    const directionText = direction === 'client' ? '客户端' : '代理端';
+    const fieldText = field ? ` 字段: ${field}` : '';
+    const content = `[协议差异] MQTT v${version} ${msgType} (${directionText}) | ${diffType}${fieldText} | 受影响代理: ${brokers}`;
+    
+    return {
+      timestamp: new Date().toLocaleTimeString(),
+      type: severity,
+      content
+    };
+    
+  } catch (error) {
+    console.warn('解析差异报告行失败:', line, error);
+    return null;
+  }
+}
+
+// 开始MQTT日志读取（保留原函数以备后用）
 async function startMQTTLogReading() {
   // 使用 useLogReader 的 startLogReading 方法
   await startLogReading('MQTT', (line: string) => {
