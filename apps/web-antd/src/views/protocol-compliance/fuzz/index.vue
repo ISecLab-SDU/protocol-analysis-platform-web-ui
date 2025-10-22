@@ -730,15 +730,19 @@ async function startMQTTDifferentialReading() {
     let totalDifferentialLines = 0;
     
     // 首先统计总的差异报告行数
+    let lineNumber = 0;
     for (const line of lines) {
+      lineNumber++;
       if (line.trim() === 'Differential Report:') {
         inDifferentialSection = true;
+        console.log(`找到差异报告开始位置: 第${lineNumber}行`);
         continue;
       }
       if (inDifferentialSection && line.trim()) {
         totalDifferentialLines++;
       }
     }
+    console.log(`统计完成: 总行数${lines.length}, 差异报告行数${totalDifferentialLines}`);
     
     // 设置进度状态
     mqttTotalRecords.value = totalDifferentialLines;
@@ -759,8 +763,12 @@ async function startMQTTDifferentialReading() {
     
     // 重置标志位，重新处理
     inDifferentialSection = false;
+    let currentLineNumber = 0;
+    let skippedLines = 0;
     
     for (const line of lines) {
+      currentLineNumber++;
+      
       // 检查用户是否中途停止测试
       if (!isRunning.value) {
         addUnifiedLog('WARNING', '用户中止了测试操作', 'MQTT');
@@ -770,6 +778,7 @@ async function startMQTTDifferentialReading() {
       
       if (line.trim() === 'Differential Report:') {
         inDifferentialSection = true;
+        console.log(`开始处理差异报告: 第${currentLineNumber}行`);
         continue;
       }
       
@@ -808,9 +817,17 @@ async function startMQTTDifferentialReading() {
             // 短暂延迟，让界面有时间更新
             await new Promise(resolve => setTimeout(resolve, 100));
           }
+        } else if (inDifferentialSection) {
+          // 记录跳过的行
+          skippedLines++;
+          if (skippedLines <= 5) {
+            console.log(`跳过第${currentLineNumber}行 (无法解析): ${line.substring(0, 100)}`);
+          }
         }
       }
     }
+    
+    console.log(`处理完成统计: 总行数${lines.length}, 处理成功${processedCount}, 跳过${skippedLines}`);
     
     // 最终更新统计数据
     packetCount.value = processedCount;
@@ -951,21 +968,27 @@ function processMQTTDifferentialLine(line: string) {
 // 解析MQTT差异报告行 - 新版本，返回结构化数据
 function parseMQTTDifferentialLine(line: string) {
   try {
-    // 提取关键信息
+    // 提取关键信息 - 修复正则表达式以匹配实际格式
     const versionMatch = line.match(/protocol_version:\s*(\d+)/);
     const typeMatch = line.match(/type:\s*\{([^}]+)\}/);
-    const msgTypeMatch = line.match(/msg_type:\s*([^,]+)/);
+    const msgTypeMatch = line.match(/msg_type:\s*([^,\s]+)/);
     const brokerMatch = line.match(/diff_range_broker:\s*\[([^\]]+)\]/);
-    const directionMatch = line.match(/direction:\s*([^,]+)/);
-    const fieldMatch = line.match(/field:\s*([^,]+)/);
+    const directionMatch = line.match(/direction:\s*([^,\s]+)/);
+    const fieldMatch = line.match(/field:\s*([^,]+?)(?:,|$)/);
     
-    if (!versionMatch || !typeMatch || !msgTypeMatch) {
+    if (!versionMatch || !typeMatch) {
+      console.log('解析失败 - 缺少必要字段:', {
+        version: !!versionMatch,
+        type: !!typeMatch, 
+        msgType: !!msgTypeMatch,
+        line: line.substring(0, 100)
+      });
       return null;
     }
     
     const protocolVersion = parseInt(versionMatch[1]);
     const diffType = typeMatch[1];
-    const msgType = msgTypeMatch[1].trim();
+    const msgType = msgTypeMatch ? msgTypeMatch[1].trim() : 'UNKNOWN';
     const brokers = brokerMatch ? brokerMatch[1].replace(/'/g, '').split(',').map(b => b.trim()) : [];
     const direction = directionMatch ? directionMatch[1].trim() : 'unknown';
     const field = fieldMatch ? fieldMatch[1].trim() : '';
