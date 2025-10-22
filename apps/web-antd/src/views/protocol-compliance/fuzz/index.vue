@@ -652,9 +652,9 @@ async function startMQTTDifferentialReading() {
     // 找到"Differential Report:"部分
     let inDifferentialSection = false;
     let processedCount = 0;
-    let errorCount = 0;
-    let warningCount = 0;
-    let successCount = 0;
+    let localErrorCount = 0;
+    let localWarningCount = 0;
+    let localSuccessCount = 0;
     const maxDisplayCount = 50; // 限制显示数量，避免界面过载
     const batchSize = 5; // 批量处理大小
     const logBatch: any[] = []; // 日志批处理队列
@@ -682,11 +682,11 @@ async function startMQTTDifferentialReading() {
           
           // 统计数据
           if (diffData.type === 'ERROR') {
-            errorCount++;
+            localErrorCount++;
           } else if (diffData.type === 'WARNING') {
-            warningCount++;
+            localWarningCount++;
           } else {
-            successCount++;
+            localSuccessCount++;
           }
           
           // 批量处理日志显示，减少DOM操作频率
@@ -699,9 +699,9 @@ async function startMQTTDifferentialReading() {
             
             // 批量更新统计数据
             packetCount.value = processedCount;
-            failedCount.value = errorCount;
-            timeoutCount.value = warningCount;
-            successCount.value = successCount;
+            failedCount.value = localErrorCount;
+            timeoutCount.value = localWarningCount;
+            successCount.value = localSuccessCount;
             
             // 添加延迟以模拟实时处理，但减少频率
             await new Promise(resolve => setTimeout(resolve, 100));
@@ -719,9 +719,9 @@ async function startMQTTDifferentialReading() {
     
     // 最终更新统计数据
     packetCount.value = processedCount;
-    failedCount.value = errorCount;
-    timeoutCount.value = warningCount;
-    successCount.value = successCount;
+    failedCount.value = localErrorCount;
+    timeoutCount.value = localWarningCount;
+    successCount.value = localSuccessCount;
     
     // 等待所有DOM操作完成
     await nextTick();
