@@ -562,23 +562,11 @@ async function startMQTTTest() {
 // 解析MQTT统计数据从文件
 async function parseMQTTStatsFromFile() {
   try {
-    const response = await fetch('/api/protocol-compliance/read-log', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${useAccessStore().accessToken}`,
-      },
-      body: JSON.stringify({
-        protocol: 'MQTT',
-        lastPosition: 0  // 从文件开头读取全部内容
-      }),
+    const result = await requestClient.post('/api/protocol-compliance/read-log', {
+      protocol: 'MQTT',
+      lastPosition: 0  // 从文件开头读取全部内容
     });
     
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-    
-    const result = await response.json();
     if (!result.success) {
       throw new Error(result.message || result.error || '读取文件失败');
     }
@@ -704,35 +692,21 @@ async function startMQTTDifferentialReading() {
     
     // 先测试后端连接
     try {
-      const healthResponse = await fetch('/api/healthz');
-      if (healthResponse.ok) {
+      const healthResponse = await requestClient.get('/api/healthz');
+      if (healthResponse) {
         addUnifiedLog('INFO', '后端连接正常', 'MQTT');
-      } else {
-        addUnifiedLog('WARNING', `后端健康检查失败: ${healthResponse.status}`, 'MQTT');
       }
-    } catch (healthError) {
-      addUnifiedLog('ERROR', `无法连接到后端: ${healthError}`, 'MQTT');
+    } catch (healthError: any) {
+      addUnifiedLog('WARNING', `后端健康检查失败: ${healthError.message || healthError}`, 'MQTT');
+      // 继续执行，不阻止测试流程
     }
     
     // 通过后端API读取fuzzing_report.txt文件内容
-    // 直接使用fetch调用，避免requestClient的baseURL问题
-    const response = await fetch('/api/protocol-compliance/read-log', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${useAccessStore().accessToken}`,
-      },
-      body: JSON.stringify({
-        protocol: 'MQTT',
-        lastPosition: 0  // 从文件开头读取全部内容
-      }),
+    const result = await requestClient.post('/api/protocol-compliance/read-log', {
+      protocol: 'MQTT',
+      lastPosition: 0  // 从文件开头读取全部内容
     });
     
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-    
-    const result = await response.json();
     if (!result.success) {
       throw new Error(result.message || result.error || '读取文件失败');
     }
@@ -1121,29 +1095,20 @@ async function readRTSPLogPeriodically() {
     
     try {
       // 调用后端API读取日志文件
-      const response = await fetch('/api/protocol-compliance/read-log', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          protocol: 'RTSP',
-          lastPosition: logReadPosition.value // 使用实际的读取位置，实现增量读取
-        }),
+      const result = await requestClient.post('/api/protocol-compliance/read-log', {
+        protocol: 'RTSP',
+        lastPosition: logReadPosition.value // 使用实际的读取位置，实现增量读取
       });
       
-      if (response.ok) {
-        const result = await response.json();
-        if (result.data && result.data.content && result.data.content.trim()) {
-          // 更新读取位置
-          logReadPosition.value = result.data.position || logReadPosition.value;
-          
-          // 处理AFL-NET的plot_data格式
-          const logLines = result.data.content.split('\n').filter((line: string) => line.trim());
-          logLines.forEach((line: string) => {
-            processRTSPLogLine(line);
-          });
-        }
+      if (result.success && result.data && result.data.content && result.data.content.trim()) {
+        // 更新读取位置
+        logReadPosition.value = result.data.position || logReadPosition.value;
+        
+        // 处理AFL-NET的plot_data格式
+        const logLines = result.data.content.split('\n').filter((line: string) => line.trim());
+        logLines.forEach((line: string) => {
+          processRTSPLogLine(line);
+        });
       }
     } catch (error) {
       console.error('读取RTSP日志失败:', error);
