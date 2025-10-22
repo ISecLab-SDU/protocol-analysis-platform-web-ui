@@ -562,7 +562,7 @@ async function startMQTTTest() {
 // 解析MQTT统计数据从文件
 async function parseMQTTStatsFromFile() {
   try {
-    const result = await requestClient.post('/api/protocol-compliance/read-log', {
+    const result = await requestClient.post('/protocol-compliance/read-log', {
       protocol: 'MQTT',
       lastPosition: 0  // 从文件开头读取全部内容
     });
@@ -692,7 +692,7 @@ async function startMQTTDifferentialReading() {
     
     // 先测试后端连接
     try {
-      const healthResponse = await requestClient.get('/api/healthz');
+      const healthResponse = await requestClient.get('/healthz');
       if (healthResponse) {
         addUnifiedLog('INFO', '后端连接正常', 'MQTT');
       }
@@ -702,7 +702,7 @@ async function startMQTTDifferentialReading() {
     }
     
     // 通过后端API读取fuzzing_report.txt文件内容
-    const result = await requestClient.post('/api/protocol-compliance/read-log', {
+    const result = await requestClient.post('/protocol-compliance/read-log', {
       protocol: 'MQTT',
       lastPosition: 0  // 从文件开头读取全部内容
     });
@@ -1095,7 +1095,7 @@ async function readRTSPLogPeriodically() {
     
     try {
       // 调用后端API读取日志文件
-      const result = await requestClient.post('/api/protocol-compliance/read-log', {
+      const result = await requestClient.post('/protocol-compliance/read-log', {
         protocol: 'RTSP',
         lastPosition: logReadPosition.value // 使用实际的读取位置，实现增量读取
       });
