@@ -652,16 +652,23 @@ async function startMQTTDifferentialReading() {
     // 找到"Differential Report:"部分
     let inDifferentialSection = false;
     let processedCount = 0;
+    let errorCount = 0;
+    let warningCount = 0;
+    let successCount = 0;
     const maxDisplayCount = 50; // 限制显示数量，避免界面过载
+    const batchSize = 5; // 批量处理大小
+    const logBatch: any[] = []; // 日志批处理队列
+    
+    // 添加开始日志
+    addMQTTLogToUI({
+      timestamp: new Date().toLocaleTimeString(),
+      type: 'INFO',
+      content: '开始分析协议差异报告'
+    });
     
     for (const line of lines) {
       if (line.trim() === 'Differential Report:') {
         inDifferentialSection = true;
-        addMQTTLogToUI({
-          timestamp: new Date().toLocaleTimeString(),
-          type: 'INFO',
-          content: '开始分析协议差异报告'
-        });
         continue;
       }
       
@@ -669,29 +676,56 @@ async function startMQTTDifferentialReading() {
         // 解析差异报告行，参照SNMP样式输出
         const diffData = processMQTTDifferentialLine(line);
         if (diffData) {
-          addMQTTLogToUI(diffData);
+          // 添加到批处理队列而不是立即显示
+          logBatch.push(diffData);
           processedCount++;
           
-          // 更新统计数据 - 批量更新以避免频繁的响应式更新
-          if (processedCount % 10 === 0) {
-            packetCount.value = processedCount;
-            if (diffData.type === 'ERROR') {
-              failedCount.value++;
-            } else if (diffData.type === 'WARNING') {
-              timeoutCount.value++;
-            } else {
-              successCount.value++;
-            }
+          // 统计数据
+          if (diffData.type === 'ERROR') {
+            errorCount++;
+          } else if (diffData.type === 'WARNING') {
+            warningCount++;
+          } else {
+            successCount++;
           }
           
-          // 添加延迟以模拟实时处理
-          await new Promise(resolve => setTimeout(resolve, 50));
+          // 批量处理日志显示，减少DOM操作频率
+          if (logBatch.length >= batchSize || processedCount >= maxDisplayCount) {
+            // 批量添加日志到UI
+            for (const logData of logBatch) {
+              addMQTTLogToUI(logData);
+            }
+            logBatch.length = 0; // 清空批处理队列
+            
+            // 批量更新统计数据
+            packetCount.value = processedCount;
+            failedCount.value = errorCount;
+            timeoutCount.value = warningCount;
+            successCount.value = successCount;
+            
+            // 添加延迟以模拟实时处理，但减少频率
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
         }
+      }
+    }
+    
+    // 处理剩余的日志
+    if (logBatch.length > 0) {
+      for (const logData of logBatch) {
+        addMQTTLogToUI(logData);
       }
     }
     
     // 最终更新统计数据
     packetCount.value = processedCount;
+    failedCount.value = errorCount;
+    timeoutCount.value = warningCount;
+    successCount.value = successCount;
+    
+    // 等待所有DOM操作完成
+    await nextTick();
+    await new Promise(resolve => setTimeout(resolve, 200));
     
     // 处理完成
     addMQTTLogToUI({
