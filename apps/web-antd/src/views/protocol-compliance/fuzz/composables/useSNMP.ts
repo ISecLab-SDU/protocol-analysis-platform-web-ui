@@ -185,7 +185,7 @@ export function useSNMP() {
             if (crashEvent.crashPacket && crashEvent.crashLogPath) break;
           }
           
-          fuzzData.push({ 
+          parsedData.push({ 
             id: 'crash_event', 
             version: 'crash', 
             type: 'crash', 
