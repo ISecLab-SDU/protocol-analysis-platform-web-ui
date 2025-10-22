@@ -672,21 +672,26 @@ async function startMQTTDifferentialReading() {
           addMQTTLogToUI(diffData);
           processedCount++;
           
-          // 更新统计数据
-          packetCount.value++;
-          if (diffData.type === 'ERROR') {
-            failedCount.value++;
-          } else if (diffData.type === 'WARNING') {
-            timeoutCount.value++;
-          } else {
-            successCount.value++;
+          // 更新统计数据 - 批量更新以避免频繁的响应式更新
+          if (processedCount % 10 === 0) {
+            packetCount.value = processedCount;
+            if (diffData.type === 'ERROR') {
+              failedCount.value++;
+            } else if (diffData.type === 'WARNING') {
+              timeoutCount.value++;
+            } else {
+              successCount.value++;
+            }
           }
           
           // 添加延迟以模拟实时处理
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await new Promise(resolve => setTimeout(resolve, 50));
         }
       }
     }
+    
+    // 最终更新统计数据
+    packetCount.value = processedCount;
     
     // 处理完成
     addMQTTLogToUI({
@@ -695,10 +700,16 @@ async function startMQTTDifferentialReading() {
       content: `差异报告分析完成，共处理 ${processedCount} 条差异记录`
     });
     
-    // 自动停止测试
+    // 自动停止测试，使用nextTick确保DOM更新完成
+    await nextTick();
+    // 延迟更长时间，确保所有UI更新完成
     setTimeout(() => {
-      if (isRunning.value) {
-        stopTest();
+      try {
+        if (isRunning.value) {
+          stopTest();
+        }
+      } catch (error) {
+        console.error('Error stopping MQTT test:', error);
       }
     }, 1000);
     
@@ -963,19 +974,22 @@ function stopTest() {
     // Use nextTick to ensure all reactive updates are complete before updating charts
     nextTick(() => {
       try {
-        // Double-check charts are initialized before updating
-        if (messageTypeChart && versionChart) {
-          updateCharts();
-          showCharts.value = true;
-        } else {
-          // Try to reinitialize charts if they're not available
-          console.log('Charts not initialized, attempting to reinitialize...');
-          const success = initCharts();
-          if (success) {
+        // 只有在测试真正完成且不是MQTT协议时才更新图表
+        if (isTestCompleted.value && protocolType.value !== 'MQTT') {
+          // Double-check charts are initialized before updating
+          if (messageTypeChart && versionChart) {
             updateCharts();
             showCharts.value = true;
           } else {
-            console.warn('Failed to reinitialize charts');
+            // Try to reinitialize charts if they're not available
+            console.log('Charts not initialized, attempting to reinitialize...');
+            const success = initCharts();
+            if (success) {
+              updateCharts();
+              showCharts.value = true;
+            } else {
+              console.warn('Failed to reinitialize charts');
+            }
           }
         }
       } catch (error) {
@@ -1506,13 +1520,24 @@ function exportAllHistory() {
 
 // 显示保存成功通知
 function showSaveNotification() {
-  notificationMessage.value = '测试结果已保存到历史记录';
-  showNotification.value = true;
-  
-  // 3秒后自动隐藏通知
-  setTimeout(() => {
-    showNotification.value = false;
-  }, 3000);
+  try {
+    // 使用nextTick确保DOM更新完成
+    nextTick(() => {
+      notificationMessage.value = '测试结果已保存到历史记录';
+      showNotification.value = true;
+      
+      // 3秒后自动隐藏通知
+      setTimeout(() => {
+        try {
+          showNotification.value = false;
+        } catch (error) {
+          console.warn('Failed to hide notification:', error);
+        }
+      }, 3000);
+    });
+  } catch (error) {
+    console.warn('Failed to show notification:', error);
+  }
 }
 
 // 手动关闭通知
