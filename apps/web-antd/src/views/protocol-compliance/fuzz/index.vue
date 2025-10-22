@@ -529,9 +529,10 @@ async function startMQTTTest() {
     // 重置MQTT统计数据
     resetMQTTStats();
     
-    // 1. 模拟读取MBFuzzer日志文件（实际应该调用后端API）
+    // 1. 开始读取MBFuzzer日志文件
     await startMQTTLogReading();
     
+    // 使用 useLogReader 的 addMQTTLogToUI 函数
     addMQTTLogToUI({ 
       timestamp: new Date().toLocaleTimeString(),
       type: 'INFO',
@@ -544,44 +545,7 @@ async function startMQTTTest() {
   }
 }
 
-// 重置MQTT统计数据
-function resetMQTTStats() {
-  mqttStats.value = {
-    fuzzing_start_time: '',
-    fuzzing_end_time: '',
-    client_request_count: 0,
-    broker_request_count: 0,
-    total_request_count: 0,
-    crash_number: 0,
-    diff_number: 0,
-    duplicate_diff_number: 0,
-    valid_connect_number: 0,
-    
-    client_messages: {
-      CONNECT: 0, CONNACK: 0, PUBLISH: 0, PUBACK: 0, PUBREC: 0, PUBREL: 0, PUBCOMP: 0,
-      SUBSCRIBE: 0, SUBACK: 0, UNSUBSCRIBE: 0, UNSUBACK: 0, PINGREQ: 0, PINGRESP: 0,
-      DISCONNECT: 0, AUTH: 0
-    },
-    
-    broker_messages: {
-      CONNECT: 0, CONNACK: 0, PUBLISH: 0, PUBACK: 0, PUBREC: 0, PUBREL: 0, PUBCOMP: 0,
-      SUBSCRIBE: 0, SUBACK: 0, UNSUBSCRIBE: 0, UNSUBACK: 0, PINGREQ: 0, PINGRESP: 0,
-      DISCONNECT: 0, AUTH: 0
-    },
-    
-    duplicate_diffs: {
-      CONNECT: 0, PINGREQ: 0, PUBLISH: 0, UNSUBSCRIBE: 0, PUBREL: 0, SUBSCRIBE: 0,
-      PUBREC: 0, PUBCOMP: 0, CONNACK: 0, SUBACK: 0, PINGRESP: 0, UNSUBACK: 0, AUTH: 0, PUBACK: 0
-    },
-    
-    differential_reports: [],
-    q_table_states: [],
-    
-    broker_issues: {
-      hivemq: 0, vernemq: 0, emqx: 0, flashmq: 0, nanomq: 0, mosquitto: 0
-    }
-  };
-}
+// resetMQTTStats 现在通过 useMQTT composable 提供
 
 // 开始MQTT日志读取
 async function startMQTTLogReading() {
@@ -590,6 +554,7 @@ async function startMQTTLogReading() {
     return processMQTTLogLine(line, packetCount, successCount, crashCount);
   });
   
+  // 使用 useLogReader 的 addMQTTLogToUI 函数
   addMQTTLogToUI({
     timestamp: new Date().toLocaleTimeString(),
     type: 'INFO',

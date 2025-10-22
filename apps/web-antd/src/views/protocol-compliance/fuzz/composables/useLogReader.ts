@@ -54,7 +54,14 @@ export function useLogReader() {
             logLines.forEach((line: string) => {
               const logData = processLogLine(line);
               if (logData) {
-                addLogToUI(logData);
+                // 根据协议类型使用不同的UI显示函数
+                if (protocol === 'MQTT') {
+                  addMQTTLogToUI(logData);
+                } else if (protocol === 'RTSP') {
+                  addRTSPLogToUI(logData);
+                } else {
+                  addLogToUI(logData);
+                }
               }
             });
           }

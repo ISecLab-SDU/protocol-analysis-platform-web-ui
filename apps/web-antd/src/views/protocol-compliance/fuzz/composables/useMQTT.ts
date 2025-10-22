@@ -217,22 +217,22 @@ export function useMQTT() {
           let content = '';
           switch (diffInfo.type) {
             case 'Message Unexpected':
-              content = `${typeIcon} 意外消息: ${diffInfo.msg_type} ${directionIcon} | 代理: ${brokerList} | MQTT v${diffInfo.protocol_version}`;
+              content = `${typeIcon} 【协议差异】意外消息: ${diffInfo.msg_type} ${directionIcon} | 代理: ${brokerList} | MQTT v${diffInfo.protocol_version}`;
               break;
             case 'Message Missing':
-              content = `${typeIcon} 缺失消息: ${diffInfo.msg_type} ${directionIcon} | 代理: ${brokerList} | MQTT v${diffInfo.protocol_version}`;
+              content = `${typeIcon} 【协议差异】缺失消息: ${diffInfo.msg_type} ${directionIcon} | 代理: ${brokerList} | MQTT v${diffInfo.protocol_version}`;
               break;
             case 'Field Different':
-              content = `${typeIcon} 字段差异: ${diffInfo.msg_type}${fieldInfo} ${directionIcon} | 代理: ${brokerList} | MQTT v${diffInfo.protocol_version}`;
+              content = `${typeIcon} 【协议差异】字段差异: ${diffInfo.msg_type}${fieldInfo} ${directionIcon} | 代理: ${brokerList} | MQTT v${diffInfo.protocol_version}`;
               break;
             case 'Field Missing':
-              content = `${typeIcon} 缺失字段: ${diffInfo.msg_type}${fieldInfo} ${directionIcon} | 代理: ${brokerList} | MQTT v${diffInfo.protocol_version}`;
+              content = `${typeIcon} 【协议差异】缺失字段: ${diffInfo.msg_type}${fieldInfo} ${directionIcon} | 代理: ${brokerList} | MQTT v${diffInfo.protocol_version}`;
               break;
             case 'Field Unexpected':
-              content = `${typeIcon} 意外字段: ${diffInfo.msg_type}${fieldInfo} ${directionIcon} | 代理: ${brokerList} | MQTT v${diffInfo.protocol_version}`;
+              content = `${typeIcon} 【协议差异】意外字段: ${diffInfo.msg_type}${fieldInfo} ${directionIcon} | 代理: ${brokerList} | MQTT v${diffInfo.protocol_version}`;
               break;
             default:
-              content = `${typeIcon} 协议差异: ${diffInfo.type}${fieldInfo} | ${diffInfo.msg_type} ${directionIcon} | 代理: ${brokerList} | MQTT v${diffInfo.protocol_version}`;
+              content = `${typeIcon} 【协议差异】${diffInfo.type}${fieldInfo} | ${diffInfo.msg_type} ${directionIcon} | 代理: ${brokerList} | MQTT v${diffInfo.protocol_version}`;
           }
           
           return {
