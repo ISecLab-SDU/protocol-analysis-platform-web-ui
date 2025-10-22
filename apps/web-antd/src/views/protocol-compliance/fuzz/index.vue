@@ -700,18 +700,30 @@ async function startMQTTDifferentialReading() {
       content: `差异报告分析完成，共处理 ${processedCount} 条差异记录`
     });
     
-    // 自动停止测试，使用nextTick确保DOM更新完成
+    // MQTT测试完成，直接设置状态而不调用stopTest
     await nextTick();
-    // 延迟更长时间，确保所有UI更新完成
+    
+    // 直接设置完成状态，避免DOM操作冲突
+    isRunning.value = false;
+    isPaused.value = false;
+    isTestCompleted.value = true;
+    testEndTime.value = new Date();
+    
+    // 停止计时器
+    if (testTimer) { 
+      clearInterval(testTimer as any); 
+      testTimer = null; 
+    }
+    
+    // 延迟保存历史记录，确保所有状态更新完成
     setTimeout(() => {
       try {
-        if (isRunning.value) {
-          stopTest();
-        }
+        updateTestSummary();
+        saveTestToHistory();
       } catch (error) {
-        console.error('Error stopping MQTT test:', error);
+        console.error('Error saving MQTT test results:', error);
       }
-    }, 1000);
+    }, 500);
     
   } catch (error: any) {
     console.error('读取MQTT差异报告失败:', error);
@@ -933,6 +945,12 @@ async function stopRTSPProcessWrapper() {
 
 function stopTest() {
   try {
+    // 如果是MQTT协议且已经完成，直接返回避免重复操作
+    if (protocolType.value === 'MQTT' && isTestCompleted.value) {
+      console.log('MQTT test already completed, skipping stopTest');
+      return;
+    }
+    
     // Set completion state first
     isRunning.value = false;
     isPaused.value = false;
@@ -972,30 +990,35 @@ function stopTest() {
     });
     
     // Use nextTick to ensure all reactive updates are complete before updating charts
-    nextTick(() => {
-      try {
-        // 只有在测试真正完成且不是MQTT协议时才更新图表
-        if (isTestCompleted.value && protocolType.value !== 'MQTT') {
-          // Double-check charts are initialized before updating
-          if (messageTypeChart && versionChart) {
-            updateCharts();
-            showCharts.value = true;
-          } else {
-            // Try to reinitialize charts if they're not available
-            console.log('Charts not initialized, attempting to reinitialize...');
-            const success = initCharts();
-            if (success) {
+    // 跳过MQTT协议的图表更新，避免DOM冲突
+    if (protocolType.value !== 'MQTT') {
+      nextTick(() => {
+        try {
+          // 只有在测试真正完成且不是MQTT协议时才更新图表
+          if (isTestCompleted.value) {
+            // Double-check charts are initialized before updating
+            if (messageTypeChart && versionChart) {
               updateCharts();
               showCharts.value = true;
             } else {
-              console.warn('Failed to reinitialize charts');
+              // Try to reinitialize charts if they're not available
+              console.log('Charts not initialized, attempting to reinitialize...');
+              const success = initCharts();
+              if (success) {
+                updateCharts();
+                showCharts.value = true;
+              } else {
+                console.warn('Failed to reinitialize charts');
+              }
             }
           }
+        } catch (error) {
+          console.error('Error updating charts on test completion:', error);
         }
-      } catch (error) {
-        console.error('Error updating charts on test completion:', error);
-      }
-    });
+      });
+    } else {
+      console.log('MQTT protocol: skipping chart updates to avoid DOM conflicts');
+    }
   } catch (error) {
     console.error('Error in stopTest function:', error);
   }
@@ -1387,8 +1410,13 @@ function saveTestToHistory() {
       localStorage.setItem('fuzz_test_history', JSON.stringify(historyResults.value));
       console.log('Test results saved to history:', historyItem);
       
-      // 显示保存成功的通知
-      showSaveNotification();
+      // 显示保存成功的通知 - 对MQTT协议使用更安全的方式
+      if (protocolType.value === 'MQTT') {
+        // MQTT协议使用简单的控制台日志，避免DOM操作
+        console.log('MQTT test results saved to history successfully');
+      } else {
+        showSaveNotification();
+      }
     } catch (storageError) {
       console.warn('Failed to save history to localStorage:', storageError);
     }
@@ -1547,6 +1575,10 @@ function closeNotification() {
 
 // Computed properties for button states
 const canStartTest = computed(() => {
+  // MQTT协议不需要fuzzData
+  if (protocolType.value === 'MQTT') {
+    return !loading.value && !isRunning.value;
+  }
   return !loading.value && 
          fuzzData.value.length > 0 && 
          !isRunning.value;
