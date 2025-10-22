@@ -775,23 +775,7 @@ function togglePauseTest() {
   }
 }
 
-function clearLog() {
-  try {
-    logEntries.value = [];
-    
-    nextTick(() => {
-      try {
-        if (logContainer.value && !showHistoryView.value && logContainer.value.innerHTML !== undefined) {
-          logContainer.value.innerHTML = '<div class="text-dark/50 italic">测试未开始，请配置参数并点击"开始测试"</div>';
-        }
-      } catch (error) {
-        console.warn('Failed to clear log container:', error);
-      }
-    });
-  } catch (error) {
-    console.warn('Failed to clear log:', error);
-  }
-}
+// clearLog 现在通过 useLogReader composable 提供
 
 function saveLog() {
   if (logEntries.value.length === 0) {
