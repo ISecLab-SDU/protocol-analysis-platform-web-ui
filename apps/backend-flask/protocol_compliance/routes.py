@@ -289,13 +289,20 @@ def _strip_extension(filename: str) -> str:
     return filename.rsplit(".", 1)[0]
 
 
-# RTSP Protocol Specific Routes ---------------------------------------------
+# Protocol Specific Routes -------------------------------------------------
 
 # RTSP协议配置 - 在这里修改路径和命令
 RTSP_CONFIG = {
     "script_path": "/home/hhh/下载/AFLNET/commands/run-aflnet.sh",  # 修改为你的脚本文件路径
     "shell_command": "cd /home/hhh/下载/AFLNET/ && docker run -d --privileged -v $(pwd)/output:/home/live555/testProgs/out-live555 -v $(pwd)/commands:/host-commands -p 8554:8554 aflnet-live555",  # 修改为你的启动命令
     "log_file_path": "/home/hhh/下载/AFLNET/output/plot_data"  # 修改为你的日志文件路径
+}
+
+# MQTT协议配置 - MBFuzzer相关路径
+MQTT_CONFIG = {
+    "log_file_path": os.path.join(os.path.dirname(__file__), "mbfuzzer_logs", "fuzzing_report.txt"),  # MBFuzzer日志文件路径
+    "shell_command": "python3 /path/to/mbfuzzer/fuzz.py",  # MBFuzzer启动命令（需要根据实际路径修改）
+    "output_dir": os.path.join(os.path.dirname(__file__), "mbfuzzer_logs")  # MBFuzzer输出目录
 }
 
 @bp.route("/write-script", methods=["POST"])
@@ -318,6 +325,13 @@ def write_script():
     # 根据协议获取配置
     if protocol == "RTSP":
         file_path = RTSP_CONFIG["script_path"]
+    elif protocol == "MQTT":
+        # MQTT协议暂时不需要脚本文件，直接返回成功
+        return success_response({
+            "message": f"{protocol}协议不需要脚本文件",
+            "filePath": "N/A",
+            "size": 0
+        })
     else:
         return make_response(error_response(f"不支持的协议类型: {protocol}"), 400)
     
@@ -359,6 +373,8 @@ def execute_command():
     # 根据协议获取配置
     if protocol == "RTSP":
         command = RTSP_CONFIG["shell_command"]
+    elif protocol == "MQTT":
+        command = MQTT_CONFIG["shell_command"]
     else:
         return make_response(error_response(f"不支持的协议类型: {protocol}"), 400)
     
@@ -422,6 +438,8 @@ def read_log():
     # 根据协议获取配置
     if protocol == "RTSP":
         file_path = RTSP_CONFIG["log_file_path"]
+    elif protocol == "MQTT":
+        file_path = MQTT_CONFIG["log_file_path"]
     else:
         return make_response(error_response(f"不支持的协议类型: {protocol}"), 400)
     
