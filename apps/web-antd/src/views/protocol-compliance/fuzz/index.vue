@@ -637,9 +637,34 @@ async function parseMQTTStatsFromFile() {
   }
 }
 
-// 开始MQTT差异报告读取
+// MQTT差异报告数据存储
+const mqttDifferentialLogs = ref<Array<{
+  id: string;
+  timestamp: string;
+  type: 'INFO' | 'ERROR' | 'WARNING' | 'SUCCESS';
+  content: string;
+  protocolVersion?: number;
+  msgType?: string;
+  direction?: string;
+  diffType?: string;
+  field?: string;
+  brokers?: string[];
+}>>([]);
+
+// 开始MQTT差异报告读取 - 重写版本，使用响应式数据
 async function startMQTTDifferentialReading() {
   try {
+    // 清空之前的日志
+    mqttDifferentialLogs.value = [];
+    
+    // 添加开始日志
+    mqttDifferentialLogs.value.push({
+      id: `log_${Date.now()}_start`,
+      timestamp: new Date().toLocaleTimeString(),
+      type: 'INFO',
+      content: '开始分析协议差异报告'
+    });
+    
     // 直接读取fuzzing_report.txt文件内容
     const response = await fetch('/apps/backend-flask/protocol_compliance/mbfuzzer_logs/fuzzing_report.txt');
     if (!response.ok) {
@@ -656,15 +681,6 @@ async function startMQTTDifferentialReading() {
     let localWarningCount = 0;
     let localSuccessCount = 0;
     const maxDisplayCount = 50; // 限制显示数量，避免界面过载
-    const batchSize = 5; // 批量处理大小
-    const logBatch: any[] = []; // 日志批处理队列
-    
-    // 添加开始日志
-    addMQTTLogToUI({
-      timestamp: new Date().toLocaleTimeString(),
-      type: 'INFO',
-      content: '开始分析协议差异报告'
-    });
     
     for (const line of lines) {
       if (line.trim() === 'Differential Report:') {
@@ -673,11 +689,23 @@ async function startMQTTDifferentialReading() {
       }
       
       if (inDifferentialSection && line.trim() && processedCount < maxDisplayCount) {
-        // 解析差异报告行，参照SNMP样式输出
-        const diffData = processMQTTDifferentialLine(line);
+        // 解析差异报告行
+        const diffData = parseMQTTDifferentialLine(line);
         if (diffData) {
-          // 添加到批处理队列而不是立即显示
-          logBatch.push(diffData);
+          // 添加到响应式数组
+          mqttDifferentialLogs.value.push({
+            id: `diff_${Date.now()}_${processedCount}`,
+            timestamp: new Date().toLocaleTimeString(),
+            type: diffData.type,
+            content: diffData.content,
+            protocolVersion: diffData.protocolVersion,
+            msgType: diffData.msgType,
+            direction: diffData.direction,
+            diffType: diffData.diffType,
+            field: diffData.field,
+            brokers: diffData.brokers
+          });
+          
           processedCount++;
           
           // 统计数据
@@ -689,31 +717,17 @@ async function startMQTTDifferentialReading() {
             localSuccessCount++;
           }
           
-          // 批量处理日志显示，减少DOM操作频率
-          if (logBatch.length >= batchSize || processedCount >= maxDisplayCount) {
-            // 批量添加日志到UI
-            for (const logData of logBatch) {
-              addMQTTLogToUI(logData);
-            }
-            logBatch.length = 0; // 清空批处理队列
-            
-            // 批量更新统计数据
+          // 每处理10条记录更新一次统计
+          if (processedCount % 10 === 0) {
             packetCount.value = processedCount;
             failedCount.value = localErrorCount;
             timeoutCount.value = localWarningCount;
             successCount.value = localSuccessCount;
             
-            // 添加延迟以模拟实时处理，但减少频率
-            await new Promise(resolve => setTimeout(resolve, 100));
+            // 添加延迟以模拟实时处理
+            await new Promise(resolve => setTimeout(resolve, 50));
           }
         }
-      }
-    }
-    
-    // 处理剩余的日志
-    if (logBatch.length > 0) {
-      for (const logData of logBatch) {
-        addMQTTLogToUI(logData);
       }
     }
     
@@ -723,21 +737,17 @@ async function startMQTTDifferentialReading() {
     timeoutCount.value = localWarningCount;
     successCount.value = localSuccessCount;
     
-    // 等待所有DOM操作完成
-    await nextTick();
-    await new Promise(resolve => setTimeout(resolve, 200));
-    
     // 处理完成
-    addMQTTLogToUI({
+    mqttDifferentialLogs.value.push({
+      id: `log_${Date.now()}_complete`,
       timestamp: new Date().toLocaleTimeString(),
       type: 'SUCCESS',
       content: `差异报告分析完成，共处理 ${processedCount} 条差异记录`
     });
     
-    // MQTT测试完成，直接设置状态而不调用stopTest
+    // MQTT测试完成，设置状态
     await nextTick();
     
-    // 直接设置完成状态，避免DOM操作冲突
     isRunning.value = false;
     isPaused.value = false;
     isTestCompleted.value = true;
@@ -749,7 +759,7 @@ async function startMQTTDifferentialReading() {
       testTimer = null; 
     }
     
-    // 延迟保存历史记录，确保所有状态更新完成
+    // 延迟保存历史记录
     setTimeout(() => {
       try {
         updateTestSummary();
@@ -761,7 +771,8 @@ async function startMQTTDifferentialReading() {
     
   } catch (error: any) {
     console.error('读取MQTT差异报告失败:', error);
-    addMQTTLogToUI({
+    mqttDifferentialLogs.value.push({
+      id: `log_${Date.now()}_error`,
       timestamp: new Date().toLocaleTimeString(),
       type: 'ERROR',
       content: `读取差异报告失败: ${error.message}`
@@ -819,6 +830,62 @@ function processMQTTDifferentialLine(line: string) {
     
   } catch (error) {
     console.warn('解析差异报告行失败:', line, error);
+    return null;
+  }
+}
+
+// 解析MQTT差异报告行 - 新版本，返回结构化数据
+function parseMQTTDifferentialLine(line: string) {
+  try {
+    // 提取关键信息
+    const versionMatch = line.match(/protocol_version:\s*(\d+)/);
+    const typeMatch = line.match(/type:\s*\{([^}]+)\}/);
+    const msgTypeMatch = line.match(/msg_type:\s*([^,]+)/);
+    const brokerMatch = line.match(/diff_range_broker:\s*\[([^\]]+)\]/);
+    const directionMatch = line.match(/direction:\s*([^,]+)/);
+    const fieldMatch = line.match(/field:\s*([^,]+)/);
+    
+    if (!versionMatch || !typeMatch || !msgTypeMatch) {
+      return null;
+    }
+    
+    const protocolVersion = parseInt(versionMatch[1]);
+    const diffType = typeMatch[1];
+    const msgType = msgTypeMatch[1].trim();
+    const brokers = brokerMatch ? brokerMatch[1].replace(/'/g, '').split(',').map(b => b.trim()) : [];
+    const direction = directionMatch ? directionMatch[1].trim() : 'unknown';
+    const field = fieldMatch ? fieldMatch[1].trim() : '';
+    
+    // 根据差异类型确定日志级别
+    let logType: 'ERROR' | 'WARNING' | 'INFO' = 'INFO';
+    if (diffType.includes('Missing') || diffType.includes('Unexpected')) {
+      logType = 'ERROR';
+    } else if (diffType.includes('Different')) {
+      logType = 'WARNING';
+    }
+    
+    // 构建显示内容
+    let content = `MQTT v${protocolVersion} ${msgType} (${direction})`;
+    if (field) {
+      content += ` - 字段: ${field}`;
+    }
+    content += ` - 差异类型: ${diffType}`;
+    if (brokers.length > 0) {
+      content += ` - 影响代理: ${brokers.join(', ')}`;
+    }
+    
+    return {
+      type: logType,
+      content: content,
+      protocolVersion,
+      msgType,
+      direction,
+      diffType,
+      field,
+      brokers
+    };
+  } catch (error) {
+    console.warn('解析MQTT差异行失败:', error, line);
     return null;
   }
 }
@@ -1118,6 +1185,11 @@ function togglePauseTest() {
   if (!isPaused.value && isRunning.value) {
     loop();
   }
+}
+
+// 本地clearLog函数，同时清空MQTT差异报告
+function clearMQTTLogs() {
+  mqttDifferentialLogs.value = [];
 }
 
 // clearLog 现在通过 useLogReader composable 提供
@@ -1906,7 +1978,7 @@ onMounted(async () => {
             <div class="flex justify-between items-center mb-4">
               <h3 class="font-semibold text-lg">Fuzz过程</h3>
               <div class="flex space-x-2">
-                <button @click="clearLog" class="text-xs bg-light-gray hover:bg-medium-gray px-2 py-1 rounded border border-dark/10 text-dark/70">
+                <button @click="() => { clearLog(); clearMQTTLogs(); }" class="text-xs bg-light-gray hover:bg-medium-gray px-2 py-1 rounded border border-dark/10 text-dark/70">
                   清空日志
                 </button>
                 <button v-if="isRunning" @click="togglePauseTest" class="text-xs bg-light-gray hover:bg-medium-gray px-2 py-1 rounded border border-dark/10 text-dark/70">
@@ -1918,7 +1990,29 @@ onMounted(async () => {
               </div>
             </div>
             <div ref="logContainer" class="bg-light-gray rounded-lg border border-dark/10 h-80 overflow-y-auto p-3 font-mono text-xs space-y-1 scrollbar-thin">
-              <div class="text-dark/50 italic" v-if="!isRunning && logEntries.length === 0">测试未开始，请配置参数并点击"开始测试"</div>
+              <!-- MQTT差异报告显示 -->
+              <template v-if="protocolType === 'MQTT' && mqttDifferentialLogs.length > 0">
+                <div 
+                  v-for="log in mqttDifferentialLogs" 
+                  :key="log.id"
+                  :class="{
+                    'text-red-600': log.type === 'ERROR',
+                    'text-yellow-600': log.type === 'WARNING', 
+                    'text-green-600': log.type === 'SUCCESS',
+                    'text-blue-600': log.type === 'INFO'
+                  }"
+                  class="mb-1"
+                >
+                  <span class="text-dark/50">[{{ log.timestamp }}]</span>
+                  <span class="font-medium">{{ log.type }}:</span>
+                  <span>{{ log.content }}</span>
+                </div>
+              </template>
+              
+              <!-- 默认显示 -->
+              <div class="text-dark/50 italic" v-if="!isRunning && logEntries.length === 0 && mqttDifferentialLogs.length === 0">
+                测试未开始，请配置参数并点击"开始测试"
+              </div>
             </div>
           </div>
           
