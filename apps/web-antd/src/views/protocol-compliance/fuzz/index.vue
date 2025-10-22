@@ -229,17 +229,21 @@ const failedRate = computed(() => {
 async function fetchText() {
   loading.value = true;
   try {
-    const resp = await getFuzzText();
-    const text = (resp as any)?.text ?? (resp as any)?.data?.text ?? '';
-    console.log('API响应数据长度:', text?.length || 0);
-    console.log('API响应前100字符:', text?.substring(0, 100) || '无数据');
+    // 暂时禁用getFuzzText调用以避免错误弹窗，直接使用默认数据
+    // const resp = await getFuzzText();
+    // const text = (resp as any)?.text ?? (resp as any)?.data?.text ?? '';
+    // console.log('API响应数据长度:', text?.length || 0);
+    // console.log('API响应前100字符:', text?.substring(0, 100) || '无数据');
     
-    if (!text || text.trim().length === 0) {
-      console.warn('API返回空数据，使用默认数据');
-      rawText.value = generateDefaultFuzzData();
-    } else {
-      rawText.value = text;
-    }
+    // if (!text || text.trim().length === 0) {
+    //   console.warn('API返回空数据，使用默认数据');
+    //   rawText.value = generateDefaultFuzzData();
+    // } else {
+    //   rawText.value = text;
+    // }
+    
+    console.log('使用默认SNMP测试数据');
+    rawText.value = generateDefaultFuzzData();
   } catch (e: any) {
     console.error('API调用失败:', e);
     error.value = `API调用失败: ${e?.message || '未知错误'}`;
@@ -689,16 +693,17 @@ async function startMQTTDifferentialReading() {
     addUnifiedLog('INFO', '开始分析协议差异报告', 'MQTT');
     addUnifiedLog('INFO', '正在通过API读取MQTT日志文件...', 'MQTT');
     
-    // 先测试后端连接
-    try {
-      const healthResponse = await requestClient.get('/healthz');
-      if (healthResponse) {
-        addUnifiedLog('INFO', '后端连接正常', 'MQTT');
-      }
-    } catch (healthError: any) {
-      addUnifiedLog('WARNING', `后端健康检查失败: ${healthError.message || healthError}`, 'MQTT');
-      // 继续执行，不阻止测试流程
-    }
+    // 先测试后端连接（暂时禁用以避免错误弹窗）
+    // try {
+    //   const healthResponse = await requestClient.get('/healthz');
+    //   if (healthResponse) {
+    //     addUnifiedLog('INFO', '后端连接正常', 'MQTT');
+    //   }
+    // } catch (healthError: any) {
+    //   addUnifiedLog('WARNING', `后端健康检查失败: ${healthError.message || healthError}`, 'MQTT');
+    //   // 继续执行，不阻止测试流程
+    // }
+    addUnifiedLog('INFO', '开始MQTT协议测试', 'MQTT');
     
     // 通过后端API读取fuzzing_report.txt文件内容
     const result = await requestClient.post('/protocol-compliance/read-log', {
@@ -707,6 +712,7 @@ async function startMQTTDifferentialReading() {
     });
     
     console.log('MQTT差异报告API响应:', result);
+    console.log('API调用成功，数据类型:', typeof result, '数据内容:', result);
     
     // requestClient已经处理了错误检查，直接使用返回的data
     const content = result.content;
