@@ -943,11 +943,66 @@ async function stopRTSPProcessWrapper() {
   }
 }
 
+// 处理停止测试的安全包装函数
+function handleStopTest() {
+  try {
+    if (protocolType.value === 'MQTT') {
+      // MQTT协议使用安全的停止方式
+      stopMQTTTest();
+    } else {
+      // 其他协议使用原来的stopTest
+      stopTest();
+    }
+  } catch (error) {
+    console.error('Error in handleStopTest:', error);
+  }
+}
+
+// MQTT专用的安全停止函数
+function stopMQTTTest() {
+  try {
+    console.log('Stopping MQTT test safely...');
+    
+    // 直接设置状态，避免DOM操作
+    isRunning.value = false;
+    isPaused.value = false;
+    isTestCompleted.value = true;
+    testEndTime.value = new Date();
+    
+    // 停止计时器
+    if (testTimer) { 
+      clearInterval(testTimer as any); 
+      testTimer = null; 
+    }
+    
+    // 停止日志读取
+    isReadingLog.value = false;
+    if (logReadingInterval.value) {
+      clearInterval(logReadingInterval.value);
+      logReadingInterval.value = null;
+    }
+    
+    // 延迟保存历史记录
+    setTimeout(() => {
+      try {
+        updateTestSummary();
+        saveTestToHistory();
+      } catch (error) {
+        console.error('Error saving MQTT test results:', error);
+      }
+    }, 300);
+    
+  } catch (error) {
+    console.error('Error in stopMQTTTest:', error);
+  }
+}
+
 function stopTest() {
   try {
-    // 如果是MQTT协议且已经完成，直接返回避免重复操作
-    if (protocolType.value === 'MQTT' && isTestCompleted.value) {
-      console.log('MQTT test already completed, skipping stopTest');
+    // 如果是MQTT协议，重定向到安全的停止函数
+    if (protocolType.value === 'MQTT') {
+      console.log('Redirecting MQTT test to safe stop function');
+      stopMQTTTest();
       return;
     }
     
@@ -1803,7 +1858,7 @@ onMounted(async () => {
                     class="bg-primary hover:bg-primary/90 text-white px-6 py-2 rounded-lg transition-all duration-300 flex items-center disabled:opacity-50 disabled:cursor-not-allowed">
               <i class="fa fa-play mr-2"></i> 开始测试
             </button>
-            <button v-if="isRunning" @click="stopTest" 
+            <button v-if="isRunning" @click="handleStopTest" 
                     class="bg-danger/10 hover:bg-danger/20 text-danger px-6 py-2 rounded-lg transition-all duration-300 flex items-center ml-3">
               <i class="fa fa-stop mr-2"></i> 停止测试
             </button>
