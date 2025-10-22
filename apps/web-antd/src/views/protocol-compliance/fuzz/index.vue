@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, nextTick, computed, watch } from 'vue';
 import { getFuzzText } from '#/api/custom';
+import { requestClient } from '#/api/request';
 import Chart from 'chart.js/auto';
 
 // 导入协议专用的composables
@@ -560,12 +561,12 @@ async function startMQTTTest() {
 // 解析MQTT统计数据从文件
 async function parseMQTTStatsFromFile() {
   try {
-    const response = await fetch('/apps/backend-flask/protocol_compliance/mbfuzzer_logs/fuzzing_report.txt');
-    if (!response.ok) {
-      throw new Error('无法读取fuzzing_report.txt文件');
-    }
+    const result = await requestClient.post('/api/protocol-compliance/read-log', {
+      protocol: 'MQTT',
+      lastPosition: 0  // 从文件开头读取全部内容
+    });
     
-    const content = await response.text();
+    const content = result.content;
     const lines = content.split('\n');
     
     // 解析统计数据
@@ -682,15 +683,19 @@ async function startMQTTDifferentialReading() {
     
     // 添加开始日志
     addUnifiedLog('INFO', '开始分析协议差异报告', 'MQTT');
+    addUnifiedLog('INFO', '正在通过API读取MQTT日志文件...', 'MQTT');
     
-    // 直接读取fuzzing_report.txt文件内容
-    const response = await fetch('/apps/backend-flask/protocol_compliance/mbfuzzer_logs/fuzzing_report.txt');
-    if (!response.ok) {
-      throw new Error('无法读取fuzzing_report.txt文件');
-    }
+    // 通过后端API读取fuzzing_report.txt文件内容
+    const result = await requestClient.post('/api/protocol-compliance/read-log', {
+      protocol: 'MQTT',
+      lastPosition: 0  // 从文件开头读取全部内容
+    });
     
-    const content = await response.text();
+    const content = result.content;
+    addUnifiedLog('INFO', `成功读取日志文件，内容长度: ${content.length} 字符`, 'MQTT');
+    
     const lines = content.split('\n');
+    addUnifiedLog('INFO', `日志文件共 ${lines.length} 行`, 'MQTT');
     
     // 找到"Differential Report:"部分
     let inDifferentialSection = false;
@@ -718,6 +723,15 @@ async function startMQTTDifferentialReading() {
     mqttIsProcessingLogs.value = true;
     
     addUnifiedLog('INFO', `发现 ${totalDifferentialLines} 条差异记录，开始逐条分析...`, 'MQTT');
+    
+    if (totalDifferentialLines === 0) {
+      addUnifiedLog('WARNING', '未找到差异报告内容，请检查日志文件格式', 'MQTT');
+      // 显示前几行内容用于调试
+      const firstFewLines = lines.slice(0, 10).filter(line => line.trim());
+      firstFewLines.forEach((line, index) => {
+        addUnifiedLog('INFO', `第${index + 1}行: ${line.substring(0, 100)}${line.length > 100 ? '...' : ''}`, 'MQTT');
+      });
+    }
     
     // 重置标志位，重新处理
     inDifferentialSection = false;
