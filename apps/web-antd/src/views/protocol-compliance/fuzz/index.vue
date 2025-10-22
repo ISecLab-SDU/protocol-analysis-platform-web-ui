@@ -3,31 +3,54 @@ import { onMounted, ref, nextTick, computed, watch } from 'vue';
 import { getFuzzText } from '#/api/custom';
 import Chart from 'chart.js/auto';
 
+// 导入协议专用的composables
+import { 
+  useSNMP, 
+  useRTSP, 
+  useMQTT, 
+  useLogReader,
+  type FuzzPacket,
+  type HistoryResult,
+  type ProtocolType,
+  type FuzzEngineType
+} from './composables';
+
 // Data state
 const rawText = ref('');
 const loading = ref(true);
 const error = ref<string | null>(null);
 
-// Parsed data
-interface FuzzPacket {
-  id: number | 'crash_event';
-  version: string;
-  type: string;
-  oids: string[];
-  hex: string;
-  result: 'success' | 'timeout' | 'failed' | 'crash' | 'unknown';
-  responseSize?: number;
-  timestamp?: string;
-  failed?: boolean;
-  failedReason?: string;
-  crashEvent?: {
-    type: string;
-    message: string;
-    timestamp: string;
-    crashPacket: string;
-    crashLogPath: string;
-  };
-}
+// 使用composables中的协议专用逻辑
+const { 
+  protocolStats, 
+  messageTypeStats, 
+  fuzzData: snmpFuzzData,
+  totalPacketsInFile: snmpTotalPacketsInFile,
+  fileTotalPackets: snmpFileTotalPackets,
+  fileSuccessCount: snmpFileSuccessCount,
+  fileTimeoutCount: snmpFileTimeoutCount,
+  fileFailedCount: snmpFileFailedCount,
+  resetSNMPStats, 
+  generateDefaultFuzzData, 
+  parseSNMPText,
+  startSNMPTest: startSNMPTestComposable,
+  processSNMPPacket,
+  addSNMPLogToUI
+} = useSNMP();
+const { rtspStats, resetRTSPStats, processRTSPLogLine, writeRTSPScript, executeRTSPCommand, stopRTSPProcess } = useRTSP();
+const { mqttStats, resetMQTTStats, processMQTTLogLine } = useMQTT();
+const { 
+  logContainer, 
+  isReadingLog, 
+  logReadingInterval, 
+  logReadPosition,
+  startLogReading, 
+  stopLogReading, 
+  resetLogReader, 
+  addMQTTLogToUI, 
+  addRTSPLogToUI, 
+  clearLog 
+} = useLogReader();
 
 const fuzzData = ref<FuzzPacket[]>([]);
 const totalPacketsInFile = ref(0);
@@ -37,111 +60,7 @@ const fileSuccessCount = ref(0);
 const fileTimeoutCount = ref(0);
 const fileFailedCount = ref(0);
 
-// Aggregates
-const protocolStats = ref({ v1: 0, v2c: 0, v3: 0 });
-const messageTypeStats = ref({ get: 0, set: 0, getnext: 0, getbulk: 0 });
-
-// RTSP/AFLNET specific stats
-const rtspStats = ref({
-  cycles_done: 0,
-  paths_total: 0,
-  cur_path: 0,
-  pending_total: 0,
-  pending_favs: 0,
-  map_size: '0%',
-  unique_crashes: 0,
-  unique_hangs: 0,
-  max_depth: 0,
-  execs_per_sec: 0,
-  n_nodes: 0,
-  n_edges: 0
-});
-
-// MQTT/MBFuzzer specific stats
-const mqttStats = ref({
-  // 基本统计信息（来自日志文件头部）
-  fuzzing_start_time: '',
-  fuzzing_end_time: '',
-  client_request_count: 0,
-  broker_request_count: 0,
-  total_request_count: 0,
-  crash_number: 0,
-  diff_number: 0,
-  duplicate_diff_number: 0,
-  valid_connect_number: 0,
-  
-  // 客户端消息类型统计
-  client_messages: {
-    CONNECT: 0,
-    CONNACK: 0,
-    PUBLISH: 0,
-    PUBACK: 0,
-    PUBREC: 0,
-    PUBREL: 0,
-    PUBCOMP: 0,
-    SUBSCRIBE: 0,
-    SUBACK: 0,
-    UNSUBSCRIBE: 0,
-    UNSUBACK: 0,
-    PINGREQ: 0,
-    PINGRESP: 0,
-    DISCONNECT: 0,
-    AUTH: 0
-  },
-  
-  // 代理端消息类型统计
-  broker_messages: {
-    CONNECT: 0,
-    CONNACK: 0,
-    PUBLISH: 0,
-    PUBACK: 0,
-    PUBREC: 0,
-    PUBREL: 0,
-    PUBCOMP: 0,
-    SUBSCRIBE: 0,
-    SUBACK: 0,
-    UNSUBSCRIBE: 0,
-    UNSUBACK: 0,
-    PINGREQ: 0,
-    PINGRESP: 0,
-    DISCONNECT: 0,
-    AUTH: 0
-  },
-  
-  // 重复差异统计（按消息类型）
-  duplicate_diffs: {
-    CONNECT: 0,
-    PINGREQ: 0,
-    PUBLISH: 0,
-    UNSUBSCRIBE: 0,
-    PUBREL: 0,
-    SUBSCRIBE: 0,
-    PUBREC: 0,
-    PUBCOMP: 0,
-    CONNACK: 0,
-    SUBACK: 0,
-    PINGRESP: 0,
-    UNSUBACK: 0,
-    AUTH: 0,
-    PUBACK: 0
-  },
-  
-  // 差异报告列表
-  differential_reports: [],
-  
-  // Q-Learning表格数据
-  q_table_states: [],
-  
-  // 代理差异统计
-  broker_issues: {
-    hivemq: 0,
-    vernemq: 0,
-    emqx: 0,
-    flashmq: 0,
-    nanomq: 0,
-    mosquitto: 0
-  }
-});
+// 协议统计数据现在通过composables管理
 
 // Runtime stats
 const packetCount = ref(0);
@@ -157,17 +76,14 @@ const isTestCompleted = ref(false);
 let testTimer: number | null = null;
 
 // UI configuration
-const protocolType = ref('SNMP');
-const fuzzEngine = ref('SNMP_Fuzz');
+const protocolType = ref<ProtocolType>('SNMP');
+const fuzzEngine = ref<FuzzEngineType>('SNMP_Fuzz');
 const targetHost = ref('192.168.102.2');
 const targetPort = ref(161);
 const rtspCommandConfig = ref('afl-fuzz -d -i $AFLNET/tutorials/live555/in-rtsp -o out-live555 -N tcp://127.0.0.1/8554 -x $AFLNET/tutorials/live555/rtsp.dict -P RTSP -D 10000 -q 3 -s 3 -E -K -R ./testOnDemandRTSPServer 8554');
 
-// Real-time log reading
-const isReadingLog = ref(false);
-const logReadingInterval = ref<number | null>(null);
+// Real-time log reading (现在通过useLogReader管理)
 const rtspProcessId = ref<number | null>(null);
-const logReadPosition = ref(0);
 
 // Watch for protocol changes to update port and fuzz engine
 watch(protocolType, (newProtocol) => {
@@ -204,50 +120,7 @@ const selectedHistoryItem = ref<any>(null);
 const showNotification = ref(false);
 const notificationMessage = ref('');
 
-// 历史结果数据接口
-interface HistoryResult {
-  id: string;
-  timestamp: string;
-  protocol: string;
-  fuzzEngine: string;
-  targetHost: string;
-  targetPort: number;
-  duration: number;
-  totalPackets: number;
-  successCount: number;
-  timeoutCount: number;
-  failedCount: number;
-  crashCount: number;
-  successRate: number;
-  protocolStats: {
-    v1: number;
-    v2c: number;
-    v3: number;
-  };
-  messageTypeStats: {
-    get: number;
-    set: number;
-    getnext: number;
-    getbulk: number;
-  };
-  // RTSP协议专用统计
-  rtspStats?: {
-    cycles_done: number;
-    paths_total: number;
-    cur_path: number;
-    pending_total: number;
-    pending_favs: number;
-    map_size: string;
-    unique_crashes: number;
-    unique_hangs: number;
-    max_depth: number;
-    execs_per_sec: number;
-    n_nodes: number;
-    n_edges: number;
-  };
-  hasCrash: boolean;
-  crashDetails?: any;
-}
+// HistoryResult 接口现在从 composables 导入
 
 // 模拟历史结果数据
 const historyResults = ref<HistoryResult[]>([
@@ -316,8 +189,7 @@ const historyResults = ref<HistoryResult[]>([
   }
 ]);
 
-// UI refs
-const logContainer = ref<HTMLDivElement | null>(null);
+// UI refs (logContainer现在通过useLogReader管理)
 const messageCanvas = ref<HTMLCanvasElement>();
 const versionCanvas = ref<HTMLCanvasElement>();
 let messageTypeChart: any = null;
@@ -344,39 +216,7 @@ const failedRate = computed(() => {
   return total > 0 ? Math.round((failedCount.value / total) * 100) : 0;
 });
 
-// 生成默认测试数据
-function generateDefaultFuzzData() {
-  return `[1] 版本=v1, 类型=get
-选择OIDs=['1.3.6.1.2.1.1.1.0']
-报文HEX: 302902010004067075626C6963A01C02040E8F83C502010002010030
-[发送尝试] 长度=43 字节
-[接收成功] 42 字节
-[2] 版本=v2c, 类型=set
-选择OIDs=['1.3.6.1.2.1.1.2.0']
-报文HEX: 304502010104067075626C6963A03802040E8F83C502010002010030
-[发送尝试] 长度=71 字节
-[接收超时]
-[3] 版本=v3, 类型=getnext
-选择OIDs=['1.3.6.1.2.1.1.3.0']
-报文HEX: 305502010304067075626C6963A04802040E8F83C502010002010030
-[发送尝试] 长度=87 字节
-[接收成功] 156 字节
-[4] 生成失败: 无效的OID格式
-[5] 版本=v1, 类型=getbulk
-选择OIDs=['1.3.6.1.2.1.1.4.0']
-报文HEX: 306502010004067075626C6963A05802040E8F83C502010002010030
-[发送尝试] 长度=103 字节
-[运行监控] 收到崩溃通知: 健康服务报告 VM 不可达
-[崩溃信息] 疑似崩溃数据包: 306502010004067075626C6963A05802040E8F83C502010002010030
-[崩溃信息] 崩溃队列信息导出: /home/hhh/下载/snmp_fuzz/snmp_github/snmp_fuzz/scan_result/crash_logs/20251014-110318
-[运行监控] 检测到崩溃，停止 fuzz 循环
-统计: {'v1': 3, 'v2c': 1, 'v3': 1}, {'get': 2, 'set': 1, 'getnext': 1, 'getbulk': 1}
-开始时间: 2025-01-14 11:03:18
-结束时间: 2025-01-14 11:03:25
-总耗时: 7.2 秒
-发送总数据包: 5
-平均发送速率: 0.69 包/秒`;
-}
+// generateDefaultFuzzData 现在通过 useSNMP composable 提供
 
 async function fetchText() {
   loading.value = true;
@@ -547,141 +387,11 @@ function updateCharts() {
 }
 
 function parseText(text: string) {
-  if (!text || typeof text !== 'string') {
-    console.error('Invalid fuzz data format');
-    return;
-  }
-
-  const lines = text.split('\n');
-  console.log('解析文本总行数:', lines.length);
+  // 使用SNMP composable的解析功能
+  const parsedData = parseSNMPText(text);
+  fuzzData.value = parsedData;
+  totalPacketsInFile.value = parsedData.filter((p) => typeof p.id === 'number').length;
   
-  if (lines.length < 5) {
-    console.error('Insufficient fuzz data');
-    return;
-  }
-
-  fuzzData.value = [];
-  let currentPacket: FuzzPacket | null = null;
-  let localFailedCount = 0;
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-
-    const packetMatch = line.match(/^\[(\d+)\]\s+版本=([^,]+),\s+类型=([^,]+)/);
-    if (packetMatch) {
-      if (currentPacket) fuzzData.value.push(currentPacket);
-      const packetNumber = parseInt(packetMatch[1]);
-      
-      // 调试信息：每100个包输出一次
-      if (packetNumber % 100 === 0 || packetNumber <= 5) {
-        console.log(`解析数据包 #${packetNumber}: 版本=${packetMatch[2]}, 类型=${packetMatch[3]}`);
-      }
-      currentPacket = {
-        id: packetNumber,
-        version: packetMatch[2],
-        type: packetMatch[3],
-        oids: [],
-        hex: '',
-        result: 'unknown',
-        responseSize: 0,
-        timestamp: new Date().toLocaleTimeString(),
-        failed: false,
-      };
-      continue;
-    }
-
-    const failedMatch = line.match(/^\[(\d+)\]\s+生成失败:/);
-    if (failedMatch) {
-      const failedId = parseInt(failedMatch[1]);
-      localFailedCount++;
-      if (currentPacket && currentPacket.id === failedId) {
-        currentPacket.result = 'failed';
-        currentPacket.failed = true;
-        currentPacket.failedReason = line;
-        currentPacket.timestamp = new Date().toLocaleTimeString();
-        fuzzData.value.push(currentPacket);
-        currentPacket = null;
-      } else {
-        fuzzData.value.push({ id: failedId, version: 'unknown', type: 'unknown', oids: [], hex: '', result: 'failed', responseSize: 0, timestamp: new Date().toLocaleTimeString(), failed: true, failedReason: line });
-      }
-      continue;
-    }
-
-    if (line.includes('选择OIDs=') && currentPacket) {
-      const oidMatch = line.match(/选择OIDs=\[(.*?)\]/);
-      if (oidMatch) currentPacket.oids = oidMatch[1].split(',').map((oid) => oid.trim().replace(/'/g, ''));
-      continue;
-    }
-
-    if (line.includes('报文HEX:') && currentPacket) {
-      const hexMatch = line.match(/报文HEX:\s*([A-F0-9]+)/);
-      if (hexMatch) currentPacket.hex = hexMatch[1];
-      continue;
-    }
-
-    if (line.includes('[发送尝试]') && currentPacket) {
-      const sizeMatch = line.match(/长度=(\d+)\s*字节/);
-      if (sizeMatch) (currentPacket as any).sendSize = parseInt(sizeMatch[1]);
-      continue;
-    }
-
-    if (line.includes('[接收成功]') && currentPacket) {
-      const sizeMatch = line.match(/(\d+)\s*字节/);
-      if (sizeMatch) {
-        currentPacket.responseSize = parseInt(sizeMatch[1]);
-        currentPacket.result = 'success';
-      }
-      continue;
-    }
-    
-    if (line.includes('[接收超时]') && currentPacket) {
-      currentPacket.result = 'timeout';
-      continue;
-    }
-
-    if (line.includes('[运行监控]')) {
-      const isExactCrashNotice = line.includes('[运行监控] 收到崩溃通知: 健康服务报告 VM 不可达');
-      if (isExactCrashNotice || line.includes('崩溃通知')) {
-        const crashEvent = { type: 'crash_notification', message: line, timestamp: new Date().toLocaleTimeString(), crashPacket: '', crashLogPath: '' };
-        for (let j = i + 1; j < lines.length && j < i + 30; j++) {
-          const nextLine = lines[j].trim();
-          if (nextLine.includes('[崩溃信息] 疑似崩溃数据包:')) crashEvent.crashPacket = nextLine.replace('[崩溃信息] 疑似崩溃数据包: ', '');
-          else if (nextLine.includes('[崩溃信息] 崩溃队列信息导出:')) crashEvent.crashLogPath = nextLine.replace('[崩溃信息] 崩溃队列信息导出: ', '');
-          if (crashEvent.crashPacket && crashEvent.crashLogPath) break;
-        }
-        fuzzData.value.push({ id: 'crash_event', version: 'crash', type: 'crash', oids: [], hex: crashEvent.crashPacket, result: 'crash', responseSize: 0, timestamp: crashEvent.timestamp, crashEvent, });
-        if (currentPacket) { currentPacket.result = 'crash'; (currentPacket as any).crashInfo = line; }
-      } else if (line.includes('检测到崩溃')) {
-        if (currentPacket) (currentPacket as any).monitorInfo = line;
-      }
-      continue;
-    }
-  }
-
-  if (currentPacket) fuzzData.value.push(currentPacket);
-  totalPacketsInFile.value = fuzzData.value.filter((p) => typeof p.id === 'number').length;
-  
-  console.log('解析完成统计:');
-  console.log('- 总数据包数:', fuzzData.value.length);
-  console.log('- 有效数据包数:', totalPacketsInFile.value);
-  console.log('- 失败数据包数:', localFailedCount);
-
-  // Stats line
-  const statsLine = (text.match(/^统计:.*$/m) || [])[0];
-  if (statsLine) {
-    const objMatch = statsLine.match(/统计:\s*(\{[^}]+\})\s*,\s*(\{[^}]+\})/);
-    if (objMatch) {
-      try {
-        const versionJson = objMatch[1].replace(/'/g, '"');
-        const typeJson = objMatch[2].replace(/'/g, '"');
-        const parsedVersion = JSON.parse(versionJson);
-        const parsedType = JSON.parse(typeJson);
-        protocolStats.value = { v1: parsedVersion.v1 || 0, v2c: parsedVersion.v2c || 0, v3: parsedVersion.v3 || 0 };
-        messageTypeStats.value = { get: parsedType.get || 0, set: parsedType.set || 0, getnext: parsedType.getnext || 0, getbulk: parsedType.getbulk || 0 };
-      } catch {}
-    }
-  }
-
   // Extract timing information
   const startTimeMatch = text.match(/开始时间:\s*([^\n]+)/);
   const endTimeMatch = text.match(/结束时间:\s*([^\n]+)/);
@@ -719,12 +429,18 @@ function resetTestState() {
     showCrashDetails.value = false;
     logEntries.value = [];
     
+    // 重置协议专用的统计数据
+    resetSNMPStats();
+    resetRTSPStats();
+    resetMQTTStats();
+    
+    // 重置日志读取器
+    resetLogReader();
+    
     // Reset log container with proper checks
     nextTick(() => {
       try {
-        if (logContainer.value && !showHistoryView.value && logContainer.value.innerHTML !== undefined) {
-          logContainer.value.innerHTML = '<div class="text-dark/50 italic">测试未开始，请配置参数并点击"开始测试"</div>';
-        }
+        clearLog();
       } catch (error) {
         console.warn('Failed to reset log container:', error);
       }
@@ -748,7 +464,7 @@ async function startTest() {
     if (protocolType.value === 'RTSP') {
       await startRTSPTest();
     } else if (protocolType.value === 'SNMP') {
-      await startSNMPTest();
+      await startSNMPTestComposable(loop);
     } else if (protocolType.value === 'MQTT') {
       await startMQTTTest();
     } else {
@@ -783,10 +499,10 @@ async function startTest() {
 async function startRTSPTest() {
   try {
     // 1. 写入脚本文件
-    await writeRTSPScript();
+    await writeRTSPScriptWrapper();
     
     // 2. 执行shell命令启动程序
-    await executeRTSPCommand();
+    await executeRTSPCommandWrapper();
     
     // 3. 开始实时读取日志
     startRTSPLogReading();
@@ -806,11 +522,7 @@ async function startRTSPTest() {
   }
 }
 
-async function startSNMPTest() {
-  // SNMP协议的原有逻辑
-  packetDelay.value = 1000 / packetsPerSecond.value;
-  loop();
-}
+// startSNMPTest 现在通过 useSNMP composable 提供
 
 async function startMQTTTest() {
   try {
@@ -873,10 +585,10 @@ function resetMQTTStats() {
 
 // 开始MQTT日志读取
 async function startMQTTLogReading() {
-  isReadingLog.value = true;
-  
-  // 开始实时日志读取
-  readMQTTLogPeriodically();
+  // 使用 useLogReader 的 startLogReading 方法
+  await startLogReading('MQTT', (line: string) => {
+    return processMQTTLogLine(line, packetCount, successCount, crashCount);
+  });
   
   addMQTTLogToUI({
     timestamp: new Date().toLocaleTimeString(),
@@ -885,111 +597,14 @@ async function startMQTTLogReading() {
   });
 }
 
-// 实时读取MQTT日志文件
-async function readMQTTLogPeriodically() {
-  if (logReadingInterval.value) {
-    clearInterval(logReadingInterval.value);
-  }
-  
-  logReadingInterval.value = window.setInterval(async () => {
-    if (!isRunning.value || !isReadingLog.value) {
-      if (logReadingInterval.value) {
-        clearInterval(logReadingInterval.value);
-        logReadingInterval.value = null;
-      }
-      return;
-    }
-    
-    try {
-      // 调用后端API读取MQTT日志文件
-      const response = await fetch('/api/protocol-compliance/read-log', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          protocol: 'MQTT',
-          lastPosition: logReadPosition.value // 使用实际的读取位置，实现增量读取
-        }),
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        if (result.data && result.data.content && result.data.content.trim()) {
-          // 更新读取位置
-          logReadPosition.value = result.data.position || logReadPosition.value;
-          
-          // 处理MBFuzzer的日志格式
-          const logLines = result.data.content.split('\n').filter((line: string) => line.trim());
-          logLines.forEach((line: string) => {
-            processMQTTLogLine(line);
-          });
-        }
-      }
-    } catch (error) {
-      console.error('读取MQTT日志失败:', error);
-      // 如果API调用失败，回退到模拟数据
-      await simulateMQTTLogReading();
-    }
-  }, 2000); // 每2秒读取一次日志
-}
+// MQTT日志读取函数现在通过 useLogReader 和 useMQTT composables 管理
 
-// 模拟MQTT日志读取（用于演示和回退）
-async function simulateMQTTLogReading() {
-  // 这里可以读取实际的MBFuzzer日志文件
-  // 为了演示，我们使用一些示例数据
-  const sampleLogLines = [
-    'Fuzzing Start Time: 2024-07-06 00:39:14',
-    'Fuzzing End Time: 2024-07-07 10:15:23',
-    'Fuzzing request number (client): 851051',
-    'Fuzzing requests (client):',
-    '\tCONNECT: 176742',
-    '\tCONNACK: 2018',
-    '\tPUBLISH: 648530',
-    '\tPUBACK: 1577',
-    '\tSUBSCRIBE: 3801',
-    'Fuzzing request number (broker): 523790',
-    'Fuzzing requests (broker):',
-    '\tCONNECT: 7174',
-    '\tCONNACK: 6029',
-    '\tPUBLISH: 418336',
-    'Crash Number: 0',
-    'Diff Number: 5841',
-    'Duplicate Diff Number: 118563',
-    'Valid Connect Number: 1362'
-  ];
-  
-  // 模拟逐行处理日志
-  for (let i = 0; i < sampleLogLines.length; i++) {
-    await new Promise(resolve => setTimeout(resolve, 500)); // 模拟读取延迟
-    if (isRunning.value && isReadingLog.value) {
-      processMQTTLogLine(sampleLogLines[i]);
-    }
-  }
-}
-
-// RTSP specific functions
-async function writeRTSPScript() {
+// RTSP specific functions (现在通过 useRTSP composable 管理)
+async function writeRTSPScriptWrapper() {
   const scriptContent = rtspCommandConfig.value;
   
   try {
-    // 调用后端API写入脚本文件
-    const response = await fetch('/api/protocol-compliance/write-script', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        content: scriptContent,
-        protocol: 'RTSP'
-      }),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`写入脚本文件失败: ${response.statusText}`);
-    }
-    
-    const result = await response.json();
+    const result = await writeRTSPScript(scriptContent);
     
     addLogToUI({ 
       timestamp: new Date().toLocaleTimeString(),
@@ -1006,24 +621,9 @@ async function writeRTSPScript() {
   }
 }
 
-async function executeRTSPCommand() {
+async function executeRTSPCommandWrapper() {
   try {
-    // 调用后端API执行shell命令
-    const response = await fetch('/api/protocol-compliance/execute-command', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        protocol: 'RTSP'
-      }),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`执行命令失败: ${response.statusText}`);
-    }
-    
-    const result = await response.json();
+    const result = await executeRTSPCommand();
     
     // 保存容器ID用于后续停止
     if (result.data && (result.data.container_id || result.data.pid)) {
@@ -1107,354 +707,30 @@ async function readRTSPLogPeriodically() {
   }, 2000); // 每2秒读取一次日志
 }
 
-// 处理MQTT协议的MBFuzzer日志行
-function processMQTTLogLine(line: string) {
-  const timestamp = new Date().toLocaleTimeString();
-  
-  try {
-    // 解析基本统计信息
-    if (line.includes('Fuzzing Start Time:')) {
-      const match = line.match(/Fuzzing Start Time:\s*(.+)/);
-      if (match) {
-        mqttStats.value.fuzzing_start_time = match[1].trim();
-        addMQTTLogToUI({
-          timestamp,
-          type: 'INFO',
-          content: `测试开始时间: ${match[1].trim()}`
-        });
-      }
-      return;
-    }
-    
-    if (line.includes('Fuzzing End Time:')) {
-      const match = line.match(/Fuzzing End Time:\s*(.+)/);
-      if (match) {
-        mqttStats.value.fuzzing_end_time = match[1].trim();
-        addMQTTLogToUI({
-          timestamp,
-          type: 'INFO',
-          content: `测试结束时间: ${match[1].trim()}`
-        });
-      }
-      return;
-    }
-    
-    // 解析请求数量统计
-    if (line.includes('Fuzzing request number (client):')) {
-      const match = line.match(/Fuzzing request number \(client\):\s*(\d+)/);
-      if (match) {
-        mqttStats.value.client_request_count = parseInt(match[1]);
-        packetCount.value = mqttStats.value.client_request_count + mqttStats.value.broker_request_count;
-        addMQTTLogToUI({
-          timestamp,
-          type: 'STATS',
-          content: `客户端请求总数: ${match[1]}`
-        });
-      }
-      return;
-    }
-    
-    if (line.includes('Fuzzing request number (broker):')) {
-      const match = line.match(/Fuzzing request number \(broker\):\s*(\d+)/);
-      if (match) {
-        mqttStats.value.broker_request_count = parseInt(match[1]);
-        packetCount.value = mqttStats.value.client_request_count + mqttStats.value.broker_request_count;
-        addMQTTLogToUI({
-          timestamp,
-          type: 'STATS',
-          content: `代理端请求总数: ${match[1]}`
-        });
-      }
-      return;
-    }
-    
-    // 解析客户端消息类型统计
-    if (line.includes('Fuzzing requests (client):')) {
-      addMQTTLogToUI({
-        timestamp,
-        type: 'HEADER',
-        content: '客户端消息类型统计:',
-        isHeader: true
-      });
-      return;
-    }
-    
-    // 解析代理端消息类型统计
-    if (line.includes('Fuzzing requests (broker):')) {
-      addMQTTLogToUI({
-        timestamp,
-        type: 'HEADER',
-        content: '代理端消息类型统计:',
-        isHeader: true
-      });
-      return;
-    }
-    
-    // 解析具体的消息类型数量
-    const messageMatch = line.match(/^\s*([A-Z]+):\s*(\d+)/);
-    if (messageMatch) {
-      const [, messageType, count] = messageMatch;
-      const countNum = parseInt(count);
-      
-      // 根据上下文判断是客户端还是代理端的统计
-      if (mqttStats.value.client_messages.hasOwnProperty(messageType)) {
-        // 简单的启发式判断：如果客户端统计还是0，则认为是客户端数据
-        if (mqttStats.value.client_messages[messageType] === 0 && mqttStats.value.broker_messages[messageType] === 0) {
-          mqttStats.value.client_messages[messageType] = countNum;
-        } else if (mqttStats.value.broker_messages[messageType] === 0) {
-          mqttStats.value.broker_messages[messageType] = countNum;
-        }
-        
-        addMQTTLogToUI({
-          timestamp,
-          type: 'STATS',
-          content: `${messageType}: ${count}`
-        });
-      }
-      return;
-    }
-    
-    // 解析崩溃和差异统计
-    if (line.includes('Crash Number:')) {
-      const match = line.match(/Crash Number:\s*(\d+)/);
-      if (match) {
-        mqttStats.value.crash_number = parseInt(match[1]);
-        crashCount.value = mqttStats.value.crash_number;
-        addMQTTLogToUI({
-          timestamp,
-          type: match[1] === '0' ? 'SUCCESS' : 'ERROR',
-          content: `崩溃数量: ${match[1]}`
-        });
-      }
-      return;
-    }
-    
-    if (line.includes('Diff Number:')) {
-      const match = line.match(/Diff Number:\s*(\d+)/);
-      if (match) {
-        mqttStats.value.diff_number = parseInt(match[1]);
-        addMQTTLogToUI({
-          timestamp,
-          type: 'WARNING',
-          content: `协议差异数量: ${match[1]}`
-        });
-      }
-      return;
-    }
-    
-    if (line.includes('Duplicate Diff Number:')) {
-      const match = line.match(/Duplicate Diff Number:\s*(\d+)/);
-      if (match) {
-        mqttStats.value.duplicate_diff_number = parseInt(match[1]);
-        addMQTTLogToUI({
-          timestamp,
-          type: 'INFO',
-          content: `重复差异数量: ${match[1]}`
-        });
-      }
-      return;
-    }
-    
-    if (line.includes('Valid Connect Number:')) {
-      const match = line.match(/Valid Connect Number:\s*(\d+)/);
-      if (match) {
-        mqttStats.value.valid_connect_number = parseInt(match[1]);
-        successCount.value = parseInt(match[1]);
-        addMQTTLogToUI({
-          timestamp,
-          type: 'SUCCESS',
-          content: `有效连接数: ${match[1]}`
-        });
-      }
-      return;
-    }
-    
-    // 解析重复差异的消息类型统计
-    const dupDiffMatch = line.match(/^\s*([A-Z]+):\s*(\d+)$/);
-    if (dupDiffMatch && mqttStats.value.duplicate_diffs.hasOwnProperty(dupDiffMatch[1])) {
-      mqttStats.value.duplicate_diffs[dupDiffMatch[1]] = parseInt(dupDiffMatch[2]);
-      return;
-    }
-    
-  } catch (error) {
-    console.warn('解析MQTT日志行失败:', line, error);
-  }
-}
+// processMQTTLogLine 现在通过 useMQTT composable 提供
 
-// 处理RTSP协议的AFL-NET日志行
-function processRTSPLogLine(line: string) {
-  const timestamp = new Date().toLocaleTimeString();
-  
-  // 处理注释行（参数说明）
-  if (line.startsWith('#')) {
-    addRTSPLogToUI({
-      timestamp,
-      type: 'HEADER',
-      content: line.replace('#', '').trim(),
-      isHeader: true
-    });
-    return;
-  }
-  
-  // 处理数据行
-  if (line.includes(',')) {
-    const parts = line.split(',').map(part => part.trim());
-    if (parts.length >= 13) {
-      const [
-        unix_time, cycles_done, cur_path, paths_total, pending_total, 
-        pending_favs, map_size, unique_crashes, unique_hangs, max_depth, 
-        execs_per_sec, n_nodes, n_edges
-      ] = parts;
-      
-      // 格式化显示AFL-NET统计信息
-      const formattedContent = `Cycles: ${cycles_done} | Paths: ${cur_path}/${paths_total} | Pending: ${pending_total}(${pending_favs} favs) | Coverage: ${map_size} | Crashes: ${unique_crashes} | Hangs: ${unique_hangs} | Speed: ${execs_per_sec}/sec | Nodes: ${n_nodes} | Edges: ${n_edges}`;
-      
-      addRTSPLogToUI({
-        timestamp,
-        type: 'STATS',
-        content: formattedContent,
-        rawData: {
-          cycles_done: parseInt(cycles_done),
-          paths_total: parseInt(paths_total),
-          cur_path: parseInt(cur_path),
-          pending_total: parseInt(pending_total),
-          unique_crashes: parseInt(unique_crashes),
-          execs_per_sec: parseFloat(execs_per_sec)
-        }
-      });
-      
-      // 更新RTSP统计信息
-      rtspStats.value = {
-        cycles_done: parseInt(cycles_done),
-        paths_total: parseInt(paths_total),
-        cur_path: parseInt(cur_path),
-        pending_total: parseInt(pending_total),
-        pending_favs: parseInt(pending_favs),
-        map_size: map_size,
-        unique_crashes: parseInt(unique_crashes),
-        unique_hangs: parseInt(unique_hangs),
-        max_depth: parseInt(max_depth),
-        execs_per_sec: parseFloat(execs_per_sec),
-        n_nodes: parseInt(n_nodes),
-        n_edges: parseInt(n_edges)
-      };
-      
-      // 更新通用统计信息
-      packetCount.value = parseInt(cur_path);
-      successCount.value = parseInt(paths_total) - parseInt(pending_total);
-      failedCount.value = parseInt(unique_crashes);
-      crashCount.value = parseInt(unique_crashes);
-      currentSpeed.value = Math.round(parseFloat(execs_per_sec));
-    }
-  } else {
-    // 处理其他类型的日志行
-    addRTSPLogToUI({
-      timestamp,
-      type: 'INFO',
-      content: line
-    });
-  }
-}
+// processRTSPLogLine 现在通过 useRTSP composable 提供
 
-// MQTT专用的日志显示函数
-function addMQTTLogToUI(logData: any) {
-  if (!logContainer.value) return;
-  
-  const div = document.createElement('div');
-  
-  if (logData.isHeader) {
-    // 标题行
-    div.className = 'mqtt-header-line';
-    div.innerHTML = `<span class="text-dark/50">[${logData.timestamp}]</span> <span class="text-info font-medium">MBFuzzer:</span> <span class="text-dark/70 text-sm">${logData.content}</span>`;
-  } else if (logData.type === 'STATS') {
-    // 统计数据行
-    div.className = 'mqtt-stats-line';
-    div.innerHTML = `<span class="text-dark/50">[${logData.timestamp}]</span> <span class="text-success font-mono text-sm">${logData.content}</span>`;
-  } else if (logData.type === 'ERROR') {
-    // 错误信息行
-    div.className = 'mqtt-error-line';
-    div.innerHTML = `<span class="text-dark/50">[${logData.timestamp}]</span> <span class="text-danger font-medium">ERROR:</span> <span class="text-danger">${logData.content}</span>`;
-  } else if (logData.type === 'WARNING') {
-    // 警告信息行
-    div.className = 'mqtt-warning-line';
-    div.innerHTML = `<span class="text-dark/50">[${logData.timestamp}]</span> <span class="text-warning font-medium">WARNING:</span> <span class="text-warning">${logData.content}</span>`;
-  } else if (logData.type === 'SUCCESS') {
-    // 成功信息行
-    div.className = 'mqtt-success-line';
-    div.innerHTML = `<span class="text-dark/50">[${logData.timestamp}]</span> <span class="text-success font-medium">SUCCESS:</span> <span class="text-success">${logData.content}</span>`;
-  } else {
-    // 普通信息行
-    div.className = 'mqtt-info-line';
-    div.innerHTML = `<span class="text-dark/50">[${logData.timestamp}]</span> <span class="text-primary">MQTT:</span> <span class="text-dark/70">${logData.content}</span>`;
-  }
-  
-  logContainer.value.appendChild(div);
-  logContainer.value.scrollTop = logContainer.value.scrollHeight;
-  
-  // 限制日志条目数量
-  if (logContainer.value.children.length > 200) {
-    logContainer.value.removeChild(logContainer.value.firstChild as any);
-  }
-}
+// addMQTTLogToUI 和 addRTSPLogToUI 现在通过 useLogReader composable 提供
 
-// RTSP专用的日志显示函数
-function addRTSPLogToUI(logData: any) {
-  if (!logContainer.value) return;
-  
-  const div = document.createElement('div');
-  
-  if (logData.isHeader) {
-    // 参数说明行
-    div.className = 'rtsp-header-line';
-    div.innerHTML = `<span class="text-dark/50">[${logData.timestamp}]</span> <span class="text-info font-medium">AFL-NET参数说明:</span> <span class="text-dark/70 text-xs">${logData.content}</span>`;
-  } else if (logData.type === 'STATS') {
-    // 统计数据行
-    div.className = 'rtsp-stats-line';
-    div.innerHTML = `<span class="text-dark/50">[${logData.timestamp}]</span> <span class="text-dark font-mono text-xs">${logData.content}</span>`;
-  } else {
-    // 普通信息行
-    div.className = 'rtsp-info-line';
-    div.innerHTML = `<span class="text-dark/50">[${logData.timestamp}]</span> <span class="text-primary">RTSP-AFL:</span> <span class="text-dark/70">${logData.content}</span>`;
-  }
-  
-  logContainer.value.appendChild(div);
-  logContainer.value.scrollTop = logContainer.value.scrollHeight;
-  
-  // 限制日志条目数量
-  if (logContainer.value.children.length > 200) {
-    logContainer.value.removeChild(logContainer.value.firstChild as any);
-  }
-}
-
-async function stopRTSPProcess() {
+async function stopRTSPProcessWrapper() {
   if (!rtspProcessId.value) {
     return;
   }
   
   try {
-    const response = await fetch('/api/protocol-compliance/stop-process', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        pid: rtspProcessId.value,
-        protocol: 'RTSP'
-      }),
-    });
+    await stopRTSPProcess(rtspProcessId.value);
     
-    if (response.ok) {
-      addLogToUI({ 
-        timestamp: new Date().toLocaleTimeString(),
-        version: 'RTSP',
-        type: 'STOP',
-        oids: [`RTSP进程已停止 (PID: ${rtspProcessId.value})`],
-        hex: '',
-        result: 'success'
-      } as any, false);
-      
-      rtspProcessId.value = null;
-    }
+    addLogToUI({ 
+      timestamp: new Date().toLocaleTimeString(),
+      version: 'RTSP',
+      type: 'STOP',
+      oids: [`RTSP进程已停止 (PID: ${rtspProcessId.value})`],
+      hex: '',
+      result: 'success'
+    } as any, false);
+    
+    rtspProcessId.value = null;
   } catch (error) {
     console.error('停止RTSP进程失败:', error);
   }
@@ -1477,10 +753,10 @@ function stopTest() {
     
     // 停止协议特定的进程
     if (protocolType.value === 'RTSP') {
-      stopRTSPProcess();
+      stopRTSPProcessWrapper();
     } else if (protocolType.value === 'MQTT') {
-      // MQTT协议的清理工作
-      isReadingLog.value = false;
+      // MQTT协议的清理工作通过 useLogReader 管理
+      stopLogReading();
     }
     
     if (testTimer) { 
@@ -1622,7 +898,7 @@ function loop() {
     
     const packet = fuzzData.value[currentPacketIndex.value];
     if (packet) {
-      processPacket(packet);
+      processSNMPPacket(packet, addLogToUI);
     }
     
     // Batch update counters to prevent multiple reactive updates
@@ -1659,104 +935,11 @@ function loop() {
   }
 }
 
-function processPacket(packet: FuzzPacket) {
-  try {
-    // Update statistics in a batch to prevent multiple reactive updates
-    const updates = {
-      success: packet.result === 'success' ? 1 : 0,
-      timeout: packet.result === 'timeout' ? 1 : 0,
-      failed: packet.result === 'failed' ? 1 : 0,
-      crash: packet.result === 'crash' ? 1 : 0
-    };
-    
-    // Batch update all counters at once
-    successCount.value += updates.success;
-    timeoutCount.value += updates.timeout;
-    failedCount.value += updates.failed;
-    crashCount.value += updates.crash;
-    
-    // Add to log entries
-    const logEntry = {
-      time: packet.timestamp || new Date().toLocaleTimeString(),
-      protocol: packet.version,
-      operation: packet.type,
-      target: `${targetHost.value}:${targetPort.value}`,
-      content: packet.oids?.[0] || '',
-      result: packet.result,
-      hex: packet.hex,
-      packetId: packet.id
-    };
-    logEntries.value.push(logEntry);
-    
-    // Update UI log with proper null checks (sparse updates for performance)
-    if (isRunning.value && !showHistoryView.value && logContainer.value && logContainer.value.appendChild) {
-      if (packet.result !== 'crash' && packetCount.value % 5 === 0) {
-        addLogToUI(packet, false);
-      } else if (packet.result === 'crash') {
-        addLogToUI(packet, true);
-      }
-    }
-  } catch (error) {
-    console.warn('Error processing packet:', error);
-  }
-}
+// processPacket 现在通过 useSNMP composable 的 processSNMPPacket 提供
 
 function addLogToUI(packet: FuzzPacket, isCrash: boolean) {
-  // 检查DOM元素是否存在且在实时测试视图中
-  if (!logContainer.value || showHistoryView.value || !isRunning.value) {
-    return;
-  }
-  
-  // Use nextTick to ensure DOM is stable before manipulation
-  nextTick(() => {
-    try {
-      // Double-check DOM element still exists after nextTick
-      if (!logContainer.value || !logContainer.value.appendChild || showHistoryView.value || !isRunning.value) {
-        return;
-      }
-      
-      const div = document.createElement('div');
-      div.className = isCrash ? 'crash-highlight' : 'packet-highlight';
-      
-      if (isCrash) {
-        div.innerHTML = `<span class="text-dark/50">[${packet.timestamp || ''}]</span> <span class="text-danger font-bold">CRASH DETECTED</span> <span class="text-danger">${packet.version?.toUpperCase() || 'UNKNOWN'}</span> <span class="text-danger">${packet.type?.toUpperCase() || 'UNKNOWN'}</span>`;
-      } else {
-        const protocol = packet.version?.toUpperCase() || 'UNKNOWN';
-        const op = packet.type?.toUpperCase() || 'UNKNOWN';
-        const time = packet.timestamp || '';
-        const content = packet.oids?.[0] || '';
-        const hex = (packet.hex || '').slice(0, 40);
-        const resultText = packet.result === 'success' ? `正常响应 (${packet.responseSize || 0}字节)` : 
-                          packet.result === 'timeout' ? '接收超时' : 
-                          packet.result === 'failed' ? '构造失败' : '未知状态';
-        const resultClass = packet.result === 'success' ? 'text-success' : 
-                           packet.result === 'timeout' ? 'text-warning' : 
-                           packet.result === 'failed' ? 'text-danger' : 'text-warning';
-        
-        div.innerHTML = `<span class="text-dark/50">[${time}]</span> <span class="text-primary">SNMP${protocol}</span> <span class="text-info">${op}</span> <span class="text-dark/70 truncate inline-block w-32" title="${content}">${content}</span> <span class="${resultClass} font-medium">${resultText}</span> <span class="text-dark/40">${hex}...</span>`;
-      }
-      
-      // Final check before DOM manipulation
-      if (logContainer.value && logContainer.value.appendChild) {
-        logContainer.value.appendChild(div);
-        
-        // Safely update scroll position
-        if (logContainer.value.scrollTop !== undefined) {
-          logContainer.value.scrollTop = logContainer.value.scrollHeight;
-        }
-        
-        // Limit log entries for performance with safe checks
-        if (logContainer.value.children && logContainer.value.children.length > 200) {
-          const firstChild = logContainer.value.firstChild;
-          if (firstChild && logContainer.value.removeChild) {
-            logContainer.value.removeChild(firstChild);
-          }
-        }
-      }
-    } catch (error) {
-      console.warn('Failed to add log to UI:', error);
-    }
-  });
+  // 使用 SNMP composable 的 addSNMPLogToUI 函数
+  addSNMPLogToUI(packet, isCrash, logContainer.value, showHistoryView.value, isRunning.value);
 }
 
 // Crash handling functions
@@ -3674,6 +2857,16 @@ onMounted(async () => {
 }
 .mqtt-info-line {
   @apply mb-1 p-1;
+}
+.mqtt-diff-line {
+  @apply mb-2;
+}
+.mqtt-diff-line .p-3 {
+  transition: all 0.2s ease-in-out;
+}
+.mqtt-diff-line:hover .p-3 {
+  transform: translateX(2px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 /* RTSP协议专用样式 */
