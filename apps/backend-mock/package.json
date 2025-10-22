@@ -16,6 +16,6 @@
   },
   "devDependencies": {
     "@types/jsonwebtoken": "^9.0.6",
-    "h3": "^1.11.1"
+    "h3": "^1.15.4"
   }
 }
