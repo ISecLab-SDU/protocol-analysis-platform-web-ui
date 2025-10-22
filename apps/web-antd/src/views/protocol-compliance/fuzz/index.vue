@@ -33,7 +33,7 @@ const {
   resetSNMPStats, 
   generateDefaultFuzzData, 
   parseSNMPText,
-  startSNMPTest: startSNMPTestComposable,
+  startSNMPTest,
   processSNMPPacket,
   addSNMPLogToUI
 } = useSNMP();
@@ -464,7 +464,7 @@ async function startTest() {
     if (protocolType.value === 'RTSP') {
       await startRTSPTest();
     } else if (protocolType.value === 'SNMP') {
-      await startSNMPTestComposable(loop);
+      await startSNMPTest(loop);
     } else if (protocolType.value === 'MQTT') {
       await startMQTTTest();
     } else {

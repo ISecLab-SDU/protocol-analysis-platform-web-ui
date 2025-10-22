@@ -3,13 +3,21 @@
  * 包含SNMP_Fuzz相关的数据处理和UI逻辑
  */
 
-import { ref, type Ref } from 'vue';
+import { ref, nextTick, type Ref } from 'vue';
 import type { FuzzPacket, SNMPStats, SNMPMessageStats } from './types';
 
 export function useSNMP() {
   // SNMP统计数据
   const protocolStats: Ref<SNMPStats> = ref({ v1: 0, v2c: 0, v3: 0 });
   const messageTypeStats: Ref<SNMPMessageStats> = ref({ get: 0, set: 0, getnext: 0, getbulk: 0 });
+  
+  // 数据状态
+  const fuzzData = ref<FuzzPacket[]>([]);
+  const totalPacketsInFile = ref(0);
+  const fileTotalPackets = ref(0);
+  const fileSuccessCount = ref(0);
+  const fileTimeoutCount = ref(0);
+  const fileFailedCount = ref(0);
 
   // 重置SNMP统计数据
   function resetSNMPStats() {
@@ -66,7 +74,7 @@ export function useSNMP() {
       return [];
     }
 
-    const fuzzData: FuzzPacket[] = [];
+    const parsedData: FuzzPacket[] = [];
     let currentPacket: FuzzPacket | null = null;
     let localFailedCount = 0;
 
@@ -75,7 +83,7 @@ export function useSNMP() {
 
       const packetMatch = line.match(/^\[(\d+)\]\s+版本=([^,]+),\s+类型=([^,]+)/);
       if (packetMatch) {
-        if (currentPacket) fuzzData.push(currentPacket);
+        if (currentPacket) parsedData.push(currentPacket);
         const packetNumber = parseInt(packetMatch[1]);
         
         // 调试信息：每100个包输出一次
@@ -105,10 +113,10 @@ export function useSNMP() {
           currentPacket.failed = true;
           currentPacket.failedReason = line;
           currentPacket.timestamp = new Date().toLocaleTimeString();
-          fuzzData.push(currentPacket);
+          parsedData.push(currentPacket);
           currentPacket = null;
         } else {
-          fuzzData.push({ 
+          parsedData.push({ 
             id: failedId, 
             version: 'unknown', 
             type: 'unknown', 
@@ -200,10 +208,10 @@ export function useSNMP() {
       }
     }
 
-    if (currentPacket) fuzzData.push(currentPacket);
+    if (currentPacket) parsedData.push(currentPacket);
     
     console.log('解析完成统计:');
-    console.log('- 总数据包数:', fuzzData.length);
+    console.log('- 总数据包数:', parsedData.length);
     console.log('- 失败数据包数:', localFailedCount);
 
     // 解析统计信息
@@ -233,14 +241,130 @@ export function useSNMP() {
       }
     }
 
-    return fuzzData;
+    // 更新状态变量
+    fuzzData.value = parsedData;
+    totalPacketsInFile.value = parsedData.filter((p) => typeof p.id === 'number').length;
+    fileTotalPackets.value = parsedData.length;
+    fileSuccessCount.value = parsedData.filter(p => p.result === 'success').length;
+    fileTimeoutCount.value = parsedData.filter(p => p.result === 'timeout').length;
+    fileFailedCount.value = localFailedCount;
+    
+    return parsedData;
+  }
+
+  // 处理SNMP数据包
+  function processSNMPPacket(packet: FuzzPacket, addLogToUI: (packet: FuzzPacket, isCrash: boolean) => void) {
+    try {
+      // Update statistics in a batch to prevent multiple reactive updates
+      const updates = {
+        success: packet.result === 'success' ? 1 : 0,
+        timeout: packet.result === 'timeout' ? 1 : 0,
+        failed: packet.result === 'failed' ? 1 : 0,
+        crash: packet.result === 'crash' ? 1 : 0
+      };
+      
+      // Update protocol stats
+      if (packet.version === 'v1') protocolStats.value.v1++;
+      else if (packet.version === 'v2c') protocolStats.value.v2c++;
+      else if (packet.version === 'v3') protocolStats.value.v3++;
+      
+      // Update message type stats
+      if (packet.type === 'get') messageTypeStats.value.get++;
+      else if (packet.type === 'set') messageTypeStats.value.set++;
+      else if (packet.type === 'getnext') messageTypeStats.value.getnext++;
+      else if (packet.type === 'getbulk') messageTypeStats.value.getbulk++;
+      
+      // Add to UI log (sparse updates for performance)
+      if (packet.result !== 'crash' && Math.random() < 0.1) { // 10% chance to show
+        addLogToUI(packet, false);
+      } else if (packet.result === 'crash') {
+        addLogToUI(packet, true);
+      }
+    } catch (error) {
+      console.warn('Error processing SNMP packet:', error);
+    }
+  }
+
+  // SNMP专用的日志显示函数
+  function addSNMPLogToUI(packet: FuzzPacket, isCrash: boolean, logContainer: HTMLElement | null, showHistoryView: boolean, isRunning: boolean) {
+    // 检查DOM元素是否存在且在实时测试视图中
+    if (!logContainer || showHistoryView || !isRunning) {
+      return;
+    }
+    
+    // Use nextTick to ensure DOM is stable before manipulation
+    nextTick(() => {
+      try {
+        // Double-check DOM element still exists after nextTick
+        if (!logContainer || !logContainer.appendChild || showHistoryView || !isRunning) {
+          return;
+        }
+        
+        const div = document.createElement('div');
+        div.className = isCrash ? 'crash-highlight' : 'packet-highlight';
+        
+        if (isCrash) {
+          div.innerHTML = `<span class="text-dark/50">[${packet.timestamp || ''}]</span> <span class="text-danger font-bold">CRASH DETECTED</span> <span class="text-danger">${packet.version?.toUpperCase() || 'UNKNOWN'}</span> <span class="text-danger">${packet.type?.toUpperCase() || 'UNKNOWN'}</span>`;
+        } else {
+          const protocol = packet.version?.toUpperCase() || 'UNKNOWN';
+          const op = packet.type?.toUpperCase() || 'UNKNOWN';
+          const time = packet.timestamp || '';
+          const content = packet.oids?.[0] || '';
+          const hex = (packet.hex || '').slice(0, 40);
+          const resultText = packet.result === 'success' ? `正常响应 (${packet.responseSize || 0}字节)` : 
+                            packet.result === 'timeout' ? '接收超时' : 
+                            packet.result === 'failed' ? '构造失败' : '未知状态';
+          const resultClass = packet.result === 'success' ? 'text-success' : 
+                             packet.result === 'timeout' ? 'text-warning' : 
+                             packet.result === 'failed' ? 'text-danger' : 'text-warning';
+          
+          div.innerHTML = `<span class="text-dark/50">[${time}]</span> <span class="text-primary">SNMP${protocol}</span> <span class="text-info">${op}</span> <span class="text-dark/70 truncate inline-block w-32" title="${content}">${content}</span> <span class="${resultClass} font-medium">${resultText}</span> <span class="text-dark/40">${hex}...</span>`;
+        }
+        
+        // Final check before DOM manipulation
+        if (logContainer && logContainer.appendChild) {
+          logContainer.appendChild(div);
+          
+          // Safely update scroll position
+          if (logContainer.scrollTop !== undefined) {
+            logContainer.scrollTop = logContainer.scrollHeight;
+          }
+          
+          // Limit log entries for performance with safe checks
+          if (logContainer.children && logContainer.children.length > 200) {
+            const firstChild = logContainer.firstChild;
+            if (firstChild && logContainer.removeChild) {
+              logContainer.removeChild(firstChild);
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to add SNMP log to UI:', error);
+      }
+    });
+  }
+
+  // SNMP测试启动函数
+  async function startSNMPTest(loop: () => void) {
+    // SNMP协议的原有逻辑
+    console.log('启动SNMP测试...');
+    loop();
   }
 
   return {
     protocolStats,
     messageTypeStats,
+    fuzzData,
+    totalPacketsInFile,
+    fileTotalPackets,
+    fileSuccessCount,
+    fileTimeoutCount,
+    fileFailedCount,
     resetSNMPStats,
     generateDefaultFuzzData,
-    parseSNMPText
+    parseSNMPText,
+    processSNMPPacket,
+    addSNMPLogToUI,
+    startSNMPTest
   };
 }
