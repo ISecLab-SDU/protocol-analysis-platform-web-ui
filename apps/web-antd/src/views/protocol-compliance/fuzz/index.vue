@@ -637,33 +637,20 @@ async function parseMQTTStatsFromFile() {
   }
 }
 
-// MQTT差异报告数据存储
-const mqttDifferentialLogs = ref<Array<{
-  id: string;
-  timestamp: string;
-  type: 'INFO' | 'ERROR' | 'WARNING' | 'SUCCESS';
-  content: string;
-  protocolVersion?: number;
-  msgType?: string;
-  direction?: string;
-  diffType?: string;
-  field?: string;
-  brokers?: string[];
-}>>([]);
+// MQTT差异报告数据存储 - 简化版本
+const mqttDifferentialLogs = ref<string[]>([]);
+const mqttLogCount = ref(0);
 
-// 开始MQTT差异报告读取 - 重写版本，使用响应式数据
+// 开始MQTT差异报告读取 - 简化版本，避免DOM冲突
 async function startMQTTDifferentialReading() {
   try {
-    // 清空之前的日志
+    // 重置状态
     mqttDifferentialLogs.value = [];
+    mqttLogCount.value = 0;
     
     // 添加开始日志
-    mqttDifferentialLogs.value.push({
-      id: `log_${Date.now()}_start`,
-      timestamp: new Date().toLocaleTimeString(),
-      type: 'INFO',
-      content: '开始分析协议差异报告'
-    });
+    const startTime = new Date().toLocaleTimeString();
+    mqttDifferentialLogs.value.push(`[${startTime}] INFO: 开始分析协议差异报告`);
     
     // 直接读取fuzzing_report.txt文件内容
     const response = await fetch('/apps/backend-flask/protocol_compliance/mbfuzzer_logs/fuzzing_report.txt');
@@ -681,6 +668,7 @@ async function startMQTTDifferentialReading() {
     let localWarningCount = 0;
     let localSuccessCount = 0;
     const maxDisplayCount = 50; // 限制显示数量，避免界面过载
+    const logBuffer: string[] = []; // 使用缓冲区批量添加
     
     for (const line of lines) {
       if (line.trim() === 'Differential Report:') {
@@ -692,20 +680,6 @@ async function startMQTTDifferentialReading() {
         // 解析差异报告行
         const diffData = parseMQTTDifferentialLine(line);
         if (diffData) {
-          // 添加到响应式数组
-          mqttDifferentialLogs.value.push({
-            id: `diff_${Date.now()}_${processedCount}`,
-            timestamp: new Date().toLocaleTimeString(),
-            type: diffData.type,
-            content: diffData.content,
-            protocolVersion: diffData.protocolVersion,
-            msgType: diffData.msgType,
-            direction: diffData.direction,
-            diffType: diffData.diffType,
-            field: diffData.field,
-            brokers: diffData.brokers
-          });
-          
           processedCount++;
           
           // 统计数据
@@ -717,18 +691,32 @@ async function startMQTTDifferentialReading() {
             localSuccessCount++;
           }
           
-          // 每处理10条记录更新一次统计
-          if (processedCount % 10 === 0) {
+          // 创建简单的日志字符串
+          const timestamp = new Date().toLocaleTimeString();
+          const logLine = `[${timestamp}] ${diffData.type}: ${diffData.content}`;
+          logBuffer.push(logLine);
+          
+          // 每10条批量添加
+          if (logBuffer.length >= 10) {
+            mqttDifferentialLogs.value.push(...logBuffer);
+            logBuffer.length = 0; // 清空缓冲区
+            
+            // 更新统计数据
             packetCount.value = processedCount;
             failedCount.value = localErrorCount;
             timeoutCount.value = localWarningCount;
             successCount.value = localSuccessCount;
             
-            // 添加延迟以模拟实时处理
+            // 短暂延迟
             await new Promise(resolve => setTimeout(resolve, 50));
           }
         }
       }
+    }
+    
+    // 添加剩余的日志
+    if (logBuffer.length > 0) {
+      mqttDifferentialLogs.value.push(...logBuffer);
     }
     
     // 最终更新统计数据
@@ -736,18 +724,13 @@ async function startMQTTDifferentialReading() {
     failedCount.value = localErrorCount;
     timeoutCount.value = localWarningCount;
     successCount.value = localSuccessCount;
+    mqttLogCount.value = processedCount;
     
     // 处理完成
-    mqttDifferentialLogs.value.push({
-      id: `log_${Date.now()}_complete`,
-      timestamp: new Date().toLocaleTimeString(),
-      type: 'SUCCESS',
-      content: `差异报告分析完成，共处理 ${processedCount} 条差异记录`
-    });
+    const completeTime = new Date().toLocaleTimeString();
+    mqttDifferentialLogs.value.push(`[${completeTime}] SUCCESS: 差异报告分析完成，共处理 ${processedCount} 条差异记录`);
     
     // MQTT测试完成，设置状态
-    await nextTick();
-    
     isRunning.value = false;
     isPaused.value = false;
     isTestCompleted.value = true;
@@ -771,12 +754,8 @@ async function startMQTTDifferentialReading() {
     
   } catch (error: any) {
     console.error('读取MQTT差异报告失败:', error);
-    mqttDifferentialLogs.value.push({
-      id: `log_${Date.now()}_error`,
-      timestamp: new Date().toLocaleTimeString(),
-      type: 'ERROR',
-      content: `读取差异报告失败: ${error.message}`
-    });
+    const errorTime = new Date().toLocaleTimeString();
+    mqttDifferentialLogs.value.push(`[${errorTime}] ERROR: 读取差异报告失败: ${error.message}`);
   }
 }
 
@@ -1190,6 +1169,7 @@ function togglePauseTest() {
 // 本地clearLog函数，同时清空MQTT差异报告
 function clearMQTTLogs() {
   mqttDifferentialLogs.value = [];
+  mqttLogCount.value = 0;
 }
 
 // clearLog 现在通过 useLogReader composable 提供
@@ -1990,24 +1970,22 @@ onMounted(async () => {
               </div>
             </div>
             <div ref="logContainer" class="bg-light-gray rounded-lg border border-dark/10 h-80 overflow-y-auto p-3 font-mono text-xs space-y-1 scrollbar-thin">
-              <!-- MQTT差异报告显示 -->
-              <template v-if="protocolType === 'MQTT' && mqttDifferentialLogs.length > 0">
+              <!-- MQTT差异报告显示 - 简化版本 -->
+              <div v-if="protocolType === 'MQTT' && mqttDifferentialLogs.length > 0">
                 <div 
-                  v-for="log in mqttDifferentialLogs" 
-                  :key="log.id"
+                  v-for="(logLine, index) in mqttDifferentialLogs" 
+                  :key="`mqtt-log-${index}`"
                   :class="{
-                    'text-red-600': log.type === 'ERROR',
-                    'text-yellow-600': log.type === 'WARNING', 
-                    'text-green-600': log.type === 'SUCCESS',
-                    'text-blue-600': log.type === 'INFO'
+                    'text-red-600': logLine.includes('ERROR'),
+                    'text-yellow-600': logLine.includes('WARNING'), 
+                    'text-green-600': logLine.includes('SUCCESS'),
+                    'text-blue-600': logLine.includes('INFO')
                   }"
-                  class="mb-1"
+                  class="mb-1 break-words"
+                  v-html="logLine"
                 >
-                  <span class="text-dark/50">[{{ log.timestamp }}]</span>
-                  <span class="font-medium">{{ log.type }}:</span>
-                  <span>{{ log.content }}</span>
                 </div>
-              </template>
+              </div>
               
               <!-- 默认显示 -->
               <div class="text-dark/50 italic" v-if="!isRunning && logEntries.length === 0 && mqttDifferentialLogs.length === 0">
