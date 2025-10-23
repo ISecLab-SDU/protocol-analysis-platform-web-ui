@@ -3332,72 +3332,63 @@ onMounted(async () => {
             </div>
             
             <!-- MQTT协议统计 -->
-            <div v-else-if="protocolType === 'MQTT'" class="space-y-3">
-              <!-- MBFuzzer核心指标 -->
-              <div class="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg p-3 border border-purple-200">
-                <div class="flex justify-between items-center mb-2">
-                  <span class="text-sm text-purple-700 font-medium">
-                    <i class="fa fa-tachometer mr-1"></i>MBFuzzer核心指标
-                  </span>
-                  <span class="text-lg font-bold text-purple-600">
-                    {{ Math.round(packetCount / Math.max(1, elapsedTime)) }}/s
-                  </span>
+            <div v-else-if="protocolType === 'MQTT'" class="space-y-6">
+              <div>
+                <div class="flex justify-between items-center mb-1">
+                  <span class="text-sm text-dark/70">总差异发现</span>
+                  <span class="text-xl font-bold">{{ mqttDifferentialStats.total_differences }}</span>
                 </div>
-                <div class="grid grid-cols-2 gap-2 text-xs">
-                  <div class="text-purple-700">
-                    处理数量: {{ packetCount }}
-                  </div>
-                  <div class="text-purple-700">
-                    运行时长: {{ elapsedTime }}s
-                  </div>
+                <div class="w-full bg-light-gray rounded-full h-1.5 overflow-hidden">
+                  <div class="h-full bg-yellow-500" :style="{ width: mqttDifferentialStats.total_differences > 0 ? '100%' : '0%' }"></div>
                 </div>
               </div>
               
-              <!-- Q-Learning智能决策统计 -->
-              <div class="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-3 border border-green-200">
-                <div class="flex justify-between items-center mb-2">
-                  <span class="text-sm text-green-700 font-medium">
-                    <i class="fa fa-brain mr-1"></i>Q-Learning智能决策
-                  </span>
-                  <span class="text-sm text-green-600">α=0.1, γ=0.9</span>
-                </div>
-                <div class="grid grid-cols-2 gap-2 text-xs">
-                  <div class="text-green-700">
-                    状态空间: {{ mqttQLearningStats.total_states }}
+              <div class="grid grid-cols-1 gap-4">
+                <!-- 第一行：Q-Learning状态空间 -->
+                <div class="grid grid-cols-2 gap-4">
+                  <div class="bg-light-gray rounded-lg p-4 border border-green-200">
+                    <p class="text-sm text-green-700 mb-2">状态空间</p>
+                    <h4 class="text-3xl font-bold text-green-600">{{ mqttQLearningStats.total_states }}</h4>
+                    <p class="text-sm text-dark/60 mt-2">个协议状态</p>
                   </div>
-                  <div class="text-green-700">
-                    活跃状态: {{ mqttQLearningStats.active_states }}
-                  </div>
-                  <div class="text-green-700">
-                    CONNECT动作: {{ mqttQLearningStats.top_actions.CONNECT }}
-                  </div>
-                  <div class="text-green-700">
-                    PUBLISH动作: {{ mqttQLearningStats.top_actions.PUBLISH }}
+                  
+                  <div class="bg-light-gray rounded-lg p-4 border border-blue-200">
+                    <p class="text-sm text-blue-700 mb-2">活跃状态</p>
+                    <h4 class="text-3xl font-bold text-blue-600">{{ mqttQLearningStats.active_states }}</h4>
+                    <p class="text-sm text-dark/60 mt-2">个活跃状态</p>
                   </div>
                 </div>
-              </div>
-              
-              <!-- 差异分析结果 -->
-              <div class="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg p-3 border border-yellow-200">
-                <div class="flex justify-between items-center mb-2">
-                  <span class="text-sm text-yellow-700 font-medium">
-                    <i class="fa fa-exclamation-triangle mr-1"></i>差异分析结果
-                  </span>
-                  <span class="text-lg font-bold text-yellow-600">{{ mqttDifferentialStats.total_differences }}</span>
+                
+                <!-- 第二行：Q-Learning动作统计 -->
+                <div class="grid grid-cols-2 gap-4">
+                  <div class="bg-light-gray rounded-lg p-4 border border-purple-200">
+                    <p class="text-sm text-purple-700 mb-2">CONNECT动作</p>
+                    <h4 class="text-3xl font-bold text-purple-600">{{ mqttQLearningStats.top_actions.CONNECT }}</h4>
+                    <p class="text-sm text-dark/60 mt-2">次选择</p>
+                  </div>
+                  
+                  <div class="bg-light-gray rounded-lg p-4 border border-orange-200">
+                    <p class="text-sm text-orange-700 mb-2">PUBLISH动作</p>
+                    <h4 class="text-3xl font-bold text-orange-600">{{ mqttQLearningStats.top_actions.PUBLISH }}</h4>
+                    <p class="text-sm text-dark/60 mt-2">次选择</p>
+                  </div>
                 </div>
-                <div class="grid grid-cols-2 gap-2 text-xs">
-                  <div class="text-yellow-700">
-                    发现差异: {{ mqttDifferentialStats.total_differences }}
+                
+                <!-- 第三行：学习参数 -->
+                <div class="bg-light-gray rounded-lg p-4 border border-indigo-200">
+                  <div class="flex justify-between items-center mb-2">
+                    <span class="text-sm text-indigo-700">Q-Learning参数</span>
+                    <span class="text-lg font-bold text-indigo-600">智能学习</span>
                   </div>
-                  <div class="text-yellow-700">
-                    崩溃检测: {{ mqttStats.crash_number }}
-                  </div>
-                  <div class="text-yellow-700">
-                    差异发现率: {{ mqttDifferentialStats.total_differences > 0 ? 
-                      Math.round((mqttDifferentialStats.total_differences / Math.max(packetCount, 1)) * 100) : 0 }}%
-                  </div>
-                  <div class="text-yellow-700">
-                    安全状态: {{ mqttStats.crash_number > 0 ? '异常' : '正常' }}
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-4">
+                      <span class="text-xs text-indigo-700">α={{ mqttQLearningStats.learning_rate }}</span>
+                      <span class="text-xs text-indigo-700">γ={{ mqttQLearningStats.discount_factor }}</span>
+                      <span class="text-xs text-indigo-700">τ={{ mqttQLearningStats.temperature }}</span>
+                    </div>
+                    <div class="text-xs text-gray-600">
+                      学习效率: {{ Math.round(mqttQLearningStats.active_states / Math.max(mqttQLearningStats.total_states, 1) * 100) }}%
+                    </div>
                   </div>
                 </div>
               </div>
