@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, nextTick, computed, watch, shallowRef } from 'vue';
+import { onMounted, ref, nextTick, computed, watch, shallowRef, onErrorCaptured } from 'vue';
 import { getFuzzText } from '#/api/custom';
 import { requestClient } from '#/api/request';
 import { useAccessStore } from '@vben/stores';
@@ -119,6 +119,7 @@ watch(protocolType, (newProtocol, oldProtocol) => {
     // 使用nextTick确保在下一个tick中清理，避免当前更新周期的冲突
     nextTick(() => {
       mqttDifferentialLogs.value = [];
+      mqttLogsUpdateKey.value++;
       resetMQTTStats();
       resetMQTTDifferentialStats();
     });
@@ -713,6 +714,7 @@ async function startMQTTTest() {
     
     // 清空差异日志
     mqttDifferentialLogs.value = [];
+    mqttLogsUpdateKey.value++;
     
     // 开始实时模拟MQTT测试
     await startMQTTRealTimeSimulation();
@@ -844,8 +846,9 @@ const unifiedLogs = ref<Array<{
   protocol: 'SNMP' | 'RTSP' | 'MQTT';
 }>>([]);
 
-// MQTT协议差异报告日志 - 使用shallowRef减少响应式开销
-const mqttDifferentialLogs = shallowRef<string[]>([]);
+// MQTT协议差异报告日志 - 使用ref但优化更新策略
+const mqttDifferentialLogs = ref<string[]>([]);
+const mqttLogsUpdateKey = ref(0); // 强制更新key
 
 // MQTT处理状态
 const mqttIsProcessingLogs = ref(false);
@@ -1164,7 +1167,8 @@ async function simulateRealTimeFuzzing(differentialLines: string[]) {
   
   try {
   if (differentialLines.length === 0) {
-    mqttDifferentialLogs.value.push('暂无差异报告数据');
+    mqttDifferentialLogs.value = [...mqttDifferentialLogs.value, '暂无差异报告数据'];
+    mqttLogsUpdateKey.value++;
     
     // 即使没有差异数据，也要显示测试开始信息
     setTimeout(() => {
@@ -1192,7 +1196,8 @@ async function simulateRealTimeFuzzing(differentialLines: string[]) {
     '正在分析协议差异...',
     ''
   ];
-  mqttDifferentialLogs.value.push(...startMessages);
+  mqttDifferentialLogs.value = [...mqttDifferentialLogs.value, ...startMessages];
+  mqttLogsUpdateKey.value++;
   
   // 等待一下让用户看到开始信息
   await new Promise(resolve => setTimeout(resolve, 500));
@@ -1227,8 +1232,21 @@ async function simulateRealTimeFuzzing(differentialLines: string[]) {
         
         if (canUpdate) {
           try {
-            mqttDifferentialLogs.value.push(...logBatch);
-            console.log(`[DEBUG] 成功添加${logBatch.length}条日志，总数：${mqttDifferentialLogs.value.length}`);
+            // 使用nextTick确保DOM更新的安全性
+            await nextTick();
+            
+            // 检查组件是否仍然存在
+            if (mqttDifferentialLogs.value && Array.isArray(mqttDifferentialLogs.value)) {
+              // 创建新数组而不是直接push，减少响应式更新频率
+              const newLogs = [...mqttDifferentialLogs.value, ...logBatch];
+              mqttDifferentialLogs.value = newLogs;
+              mqttLogsUpdateKey.value++; // 触发强制更新
+              console.log(`[DEBUG] 成功添加${logBatch.length}条日志，总数：${newLogs.length}`);
+            } else {
+              console.warn('[DEBUG] mqttDifferentialLogs已被销毁，停止更新');
+              isRunning.value = false;
+              break;
+            }
           } catch (updateError) {
             console.error('[DEBUG] 批量更新失败:', updateError);
             // 如果批量更新失败，停止测试
@@ -1244,15 +1262,21 @@ async function simulateRealTimeFuzzing(differentialLines: string[]) {
         // 更新计数器
         packetCount.value = processedCount;
         
-        // 安全的滚动到底部
+        // 安全的滚动到底部，增加防护
         try {
           await nextTick();
-          if (isRunning.value && protocolType.value === 'MQTT' && logContainer.value && logContainer.value.scrollTop !== undefined) {
+          // 双重检查确保元素存在且测试仍在运行
+          if (logContainer.value && 
+              isRunning.value && 
+              protocolType.value === 'MQTT' && 
+              !mqttSimulationCancelled &&
+              logContainer.value.scrollHeight > 0 &&
+              logContainer.value.scrollTop !== undefined) {
             logContainer.value.scrollTop = logContainer.value.scrollHeight;
           }
         } catch (scrollError) {
-          // 忽略滚动错误，不影响主要功能
-          console.warn('滚动操作失败:', scrollError);
+          console.warn('[DEBUG] 滚动失败:', scrollError);
+          // 滚动失败不应该影响测试继续
         }
       }
       
@@ -1281,7 +1305,8 @@ async function simulateRealTimeFuzzing(differentialLines: string[]) {
       `发现差异: ${mqttRealTimeStats.value.diff_number} 个`,
       `结束时间: ${mqttStats.value.fuzzing_end_time || new Date().toLocaleString()}`
     ];
-    mqttDifferentialLogs.value.push(...endMessages);
+    mqttDifferentialLogs.value = [...mqttDifferentialLogs.value, ...endMessages];
+    mqttLogsUpdateKey.value++;
   }
   
   // 测试完成
@@ -1351,38 +1376,48 @@ const mqttDifferentialStats = ref({
 
 // 更新实时统计数据
 function updateRealTimeStats(line: string) {
-  // 解析差异报告行中的统计信息
-  const msgTypeMatch = line.match(/msg_type:\s*([^,\s]+)/);
-  const versionMatch = line.match(/protocol_version:\s*(\d+)/);
-  const diffTypeMatch = line.match(/type:\s*\{([^}]+)\}/);
-  
-  if (msgTypeMatch || versionMatch || diffTypeMatch) {
-    // 每个差异报告行代表一个差异
-    mqttDifferentialStats.value.total_differences++;
-    
-    // 统计消息类型（只有当存在 msg_type 字段时）
-    if (msgTypeMatch) {
-      const msgType = msgTypeMatch[1].trim();
-      if (mqttDifferentialStats.value.msg_type_stats.hasOwnProperty(msgType)) {
-        mqttDifferentialStats.value.msg_type_stats[msgType as keyof typeof mqttDifferentialStats.value.msg_type_stats]++;
-      }
+  try {
+    // 检查测试状态，避免在测试停止后继续更新
+    if (!isRunning.value || protocolType.value !== 'MQTT') {
+      return;
     }
     
-    // 统计协议版本
-    if (versionMatch) {
-      const version = versionMatch[1];
-      if (mqttDifferentialStats.value.version_stats.hasOwnProperty(version)) {
-        mqttDifferentialStats.value.version_stats[version as keyof typeof mqttDifferentialStats.value.version_stats]++;
-      }
-    }
+    // 解析差异报告行中的统计信息
+    const msgTypeMatch = line.match(/msg_type:\s*([^,\s]+)/);
+    const versionMatch = line.match(/protocol_version:\s*(\d+)/);
+    const diffTypeMatch = line.match(/type:\s*\{([^}]+)\}/);
     
-    // 统计差异类型
-    if (diffTypeMatch) {
-      const diffType = diffTypeMatch[1].trim();
-      if (mqttDifferentialStats.value.type_stats.hasOwnProperty(diffType)) {
-        mqttDifferentialStats.value.type_stats[diffType as keyof typeof mqttDifferentialStats.value.type_stats]++;
+    if (msgTypeMatch || versionMatch || diffTypeMatch) {
+      // 每个差异报告行代表一个差异
+      mqttDifferentialStats.value.total_differences++;
+      
+      // 统计消息类型（只有当存在 msg_type 字段时）
+      if (msgTypeMatch) {
+        const msgType = msgTypeMatch[1].trim();
+        if (mqttDifferentialStats.value.msg_type_stats.hasOwnProperty(msgType)) {
+          mqttDifferentialStats.value.msg_type_stats[msgType as keyof typeof mqttDifferentialStats.value.msg_type_stats]++;
+        }
+      }
+      
+      // 统计协议版本
+      if (versionMatch) {
+        const version = versionMatch[1];
+        if (mqttDifferentialStats.value.version_stats.hasOwnProperty(version)) {
+          mqttDifferentialStats.value.version_stats[version as keyof typeof mqttDifferentialStats.value.version_stats]++;
+        }
+      }
+      
+      // 统计差异类型
+      if (diffTypeMatch) {
+        const diffType = diffTypeMatch[1].trim();
+        if (mqttDifferentialStats.value.type_stats.hasOwnProperty(diffType)) {
+          mqttDifferentialStats.value.type_stats[diffType as keyof typeof mqttDifferentialStats.value.type_stats]++;
+        }
       }
     }
+  } catch (error) {
+    console.warn('[DEBUG] 更新实时统计数据失败:', error);
+    // 统计更新失败不应该影响主流程
   }
 }
 
@@ -2883,6 +2918,30 @@ function loadHistoryFromStorage() {
   }
 }
 
+// 错误捕获处理
+onErrorCaptured((err, instance, info) => {
+  console.error('[Vue Error Captured]:', err);
+  console.error('[Component Instance]:', instance);
+  console.error('[Error Info]:', info);
+  
+  // 如果是MQTT相关的DOM错误，尝试恢复
+  if (err.message && err.message.includes('nextSibling') && protocolType.value === 'MQTT') {
+    console.warn('[MQTT DOM Error] 检测到DOM更新错误，尝试重置MQTT日志状态');
+    try {
+      nextTick(() => {
+        mqttDifferentialLogs.value = [];
+        mqttLogsUpdateKey.value++;
+        console.log('[MQTT DOM Error] MQTT日志状态已重置');
+      });
+    } catch (resetError) {
+      console.error('[MQTT DOM Error] 重置失败:', resetError);
+    }
+  }
+  
+  // 返回false让错误继续传播，但不会导致应用崩溃
+  return false;
+});
+
 onMounted(async () => {
   // 加载历史记录
   loadHistoryFromStorage();
@@ -3086,10 +3145,10 @@ onMounted(async () => {
             <!-- 统一的日志容器 -->
             <div ref="logContainer" class="bg-light-gray rounded-lg border border-dark/10 h-80 overflow-y-auto p-3 font-mono text-xs scrollbar-thin">
               <!-- MQTT协议差异报告显示 -->
-              <div v-if="protocolType === 'MQTT' && mqttDifferentialLogs.length > 0">
+              <div v-if="protocolType === 'MQTT' && mqttDifferentialLogs.length > 0" :key="mqttLogsUpdateKey">
                 <div 
                   v-for="(log, index) in mqttDifferentialLogs" 
-                  :key="index"
+                  :key="`mqtt-log-${index}-${mqttLogsUpdateKey}`"
                   class="mb-1 leading-relaxed text-dark/80"
                   v-html="formatMQTTLogLine(log)"
                 >
