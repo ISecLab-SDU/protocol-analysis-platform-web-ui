@@ -1556,21 +1556,9 @@ function getLogFormatter(protocol: ProtocolType) {
   }
 }
 
-// MQTT日志格式化
-function formatMQTTLogLine(log: any): string {
-  if (typeof log === 'string') {
-    return log;
-  }
-  
-  const typeIcon = {
-    'ERROR': '❌',
-    'WARNING': '⚠️',
-    'SUCCESS': '✅',
-    'INFO': 'ℹ️'
-  }[log.type] || 'ℹ️';
-  
-  return `${typeIcon} [${log.timestamp}] ${log.content}`;
-}
+// MQTT日志格式化（已移动到下方，避免重复定义）
+// 测试函数是否正常工作
+console.log('[DEBUG] formatMQTTLogLine函数已加载');
 
 // RTSP日志格式化
 function formatRTSPLogLine(log: any): string {
@@ -1947,14 +1935,29 @@ function calculateTestDuration(startTime: string, endTime: string): string {
 }
 
 // 格式化MQTT日志行，高亮关键字段，去除file_path字段
-function formatMQTTLogLine(log: string): string {
+function formatMQTTLogLine(log: any): string {
+  // 如果是对象类型（新的协议数据管理器格式）
+  if (typeof log === 'object' && log.content) {
+    const typeIcon = {
+      'ERROR': '❌',
+      'WARNING': '⚠️',
+      'SUCCESS': '✅',
+      'INFO': 'ℹ️'
+    }[log.type] || 'ℹ️';
+    
+    return `${typeIcon} [${log.timestamp}] ${log.content}`;
+  }
+  
+  // 如果是字符串类型（原有格式）
+  const logString = typeof log === 'string' ? log : String(log);
+  
   // 如果是系统信息行，直接返回
-  if (log.includes('===') || log.includes('开始时间') || log.includes('结束时间') || log.includes('目标') || log.includes('正在分析')) {
-    return `<span class="text-blue-600">${log}</span>`;
+  if (logString.includes('===') || logString.includes('开始时间') || logString.includes('结束时间') || logString.includes('目标') || logString.includes('正在分析')) {
+    return `<span class="text-blue-600">${logString}</span>`;
   }
   
   // 去除 file_path 字段
-  let formattedLog = log.replace(/,\s*file_path:\s*[^,]+/g, '');
+  let formattedLog = logString.replace(/,\s*file_path:\s*[^,]+/g, '');
   
   // 高亮 protocol_version
   formattedLog = formattedLog.replace(/protocol_version:\s*(\d+)/g, 
