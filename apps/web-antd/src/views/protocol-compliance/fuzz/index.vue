@@ -2188,17 +2188,17 @@ function generateTestReport() {
                    `总耗时: ${elapsedTime.value}秒\n\n` +
                    `MBFuzzer核心统计:\n` +
                    `================\n` +
-                   `客户端请求数: ${mqttStats.value.client_request_count.toLocaleString()}\n` +
-                   `代理端请求数: ${mqttStats.value.broker_request_count.toLocaleString()}\n` +
-                   `总请求数: ${(mqttStats.value.client_request_count + mqttStats.value.broker_request_count).toLocaleString()}\n` +
+                   `客户端请求数: ${(mqttStats.value.client_request_count || 0).toLocaleString()}\n` +
+                   `代理端请求数: ${(mqttStats.value.broker_request_count || 0).toLocaleString()}\n` +
+                   `总请求数: ${((mqttStats.value.client_request_count || 0) + (mqttStats.value.broker_request_count || 0)).toLocaleString()}\n` +
                    `有效连接数: ${mqttStats.value.valid_connect_number}\n` +
                    `连接成功率: ${mqttStats.value.client_request_count > 0 ? Math.round((mqttStats.value.valid_connect_number / mqttStats.value.client_request_count) * 100) : 0}%\n` +
                    `平均请求速率: ${Math.round((mqttStats.value.client_request_count + mqttStats.value.broker_request_count) / Math.max(1, elapsedTime.value))} req/s\n\n` +
                    `差异测试结果:\n` +
                    `============\n` +
                    `新发现差异: ${mqttStats.value.diff_number} 个\n` +
-                   `重复差异过滤: ${mqttStats.value.duplicate_diff_number.toLocaleString()} 个\n` +
-                   `差异发现率: ${(mqttStats.value.client_request_count + mqttStats.value.broker_request_count) > 0 ? Math.round((mqttStats.value.diff_number / (mqttStats.value.client_request_count + mqttStats.value.broker_request_count)) * 10000) / 100 : 0}%\n\n` +
+                   `重复差异过滤: ${(mqttStats.value.duplicate_diff_number || 0).toLocaleString()} 个\n` +
+                   `差异发现率: ${((mqttStats.value.client_request_count || 0) + (mqttStats.value.broker_request_count || 0)) > 0 ? Math.round(((mqttStats.value.diff_number || 0) / ((mqttStats.value.client_request_count || 0) + (mqttStats.value.broker_request_count || 0))) * 10000) / 100 : 0}%\n\n` +
                    `安全监控:\n` +
                    `========\n` +
                    `崩溃检测: ${mqttStats.value.crash_number > 0 ? `检测到 ${mqttStats.value.crash_number} 个崩溃` : '系统稳定运行'}\n` +
@@ -3654,16 +3654,16 @@ onMounted(async () => {
                   <p><span class="text-dark/60">测试引擎:</span> <span>MBFuzzer (智能差异测试)</span></p>
                   <p><span class="text-dark/60">测试开始时间:</span> <span>{{ mqttStats.fuzzing_start_time || '2024-07-06 00:39:14' }}</span></p>
                   <p><span class="text-dark/60">测试结束时间:</span> <span>{{ mqttStats.fuzzing_end_time || '2024-07-07 10:15:23' }}</span></p>
-                  <p><span class="text-dark/60">客户端请求数:</span> <span>{{ mqttStats.client_request_count.toLocaleString() || '851,051' }}</span></p>
-                  <p><span class="text-dark/60">代理端请求数:</span> <span>{{ mqttStats.broker_request_count.toLocaleString() || '523,790' }}</span></p>
-                  <p><span class="text-dark/60">总请求数:</span> <span>{{ (mqttStats.client_request_count + mqttStats.broker_request_count).toLocaleString() || '1,374,841' }}</span></p>
+                  <p><span class="text-dark/60">客户端请求数:</span> <span>{{ (mqttStats.client_request_count || 0).toLocaleString() || '851,051' }}</span></p>
+                  <p><span class="text-dark/60">代理端请求数:</span> <span>{{ (mqttStats.broker_request_count || 0).toLocaleString() || '523,790' }}</span></p>
+                  <p><span class="text-dark/60">总请求数:</span> <span>{{ ((mqttStats.client_request_count || 0) + (mqttStats.broker_request_count || 0)).toLocaleString() || '1,374,841' }}</span></p>
                   <p><span class="text-dark/60">崩溃数量:</span> <span>{{ mqttStats.crash_number || '0' }}</span></p>
-                  <p><span class="text-dark/60">新发现差异:</span> <span>{{ mqttStats.diff_number.toLocaleString() || '5,841' }}</span></p>
-                  <p><span class="text-dark/60">重复差异过滤:</span> <span>{{ mqttStats.duplicate_diff_number.toLocaleString() || '118,563' }}</span></p>
-                  <p><span class="text-dark/60">有效连接数:</span> <span>{{ mqttStats.valid_connect_number.toLocaleString() || '1,362' }}</span></p>
-                  <p><span class="text-dark/60">重复CONNECT差异:</span> <span>{{ mqttStats.duplicate_connect_diff.toLocaleString() || '1,507' }}</span></p>
-                  <p><span class="text-dark/60">差异发现率:</span> <span>{{ (mqttStats.client_request_count + mqttStats.broker_request_count) > 0 ? 
-                    Math.round((mqttStats.diff_number / (mqttStats.client_request_count + mqttStats.broker_request_count)) * 10000) / 100 : 0.42 }}%</span></p>
+                  <p><span class="text-dark/60">新发现差异:</span> <span>{{ (mqttStats.diff_number || 0).toLocaleString() || '5,841' }}</span></p>
+                  <p><span class="text-dark/60">重复差异过滤:</span> <span>{{ (mqttStats.duplicate_diff_number || 0).toLocaleString() || '118,563' }}</span></p>
+                  <p><span class="text-dark/60">有效连接数:</span> <span>{{ (mqttStats.valid_connect_number || 0).toLocaleString() || '1,362' }}</span></p>
+                  <p><span class="text-dark/60">重复CONNECT差异:</span> <span>{{ (mqttStats.duplicate_connect_diff || 0).toLocaleString() || '1,507' }}</span></p>
+                  <p><span class="text-dark/60">差异发现率:</span> <span>{{ ((mqttStats.client_request_count || 0) + (mqttStats.broker_request_count || 0)) > 0 ? 
+                    Math.round(((mqttStats.diff_number || 0) / ((mqttStats.client_request_count || 0) + (mqttStats.broker_request_count || 0))) * 10000) / 100 : 0.42 }}%</span></p>
                 </template>
                 <!-- SNMP协议统计 -->
                 <template v-else-if="protocolType !== 'RTSP'">
