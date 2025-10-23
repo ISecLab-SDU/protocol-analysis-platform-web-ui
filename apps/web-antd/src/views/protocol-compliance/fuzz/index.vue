@@ -1117,6 +1117,7 @@ async function parseQLearningData(lines: string[]) {
 
 // 模拟实时Fuzz运行
 async function simulateRealTimeFuzzing(differentialLines: string[]) {
+  try {
   if (differentialLines.length === 0) {
     mqttDifferentialLogs.value.push('暂无差异报告数据');
     
@@ -1149,36 +1150,46 @@ async function simulateRealTimeFuzzing(differentialLines: string[]) {
   await new Promise(resolve => setTimeout(resolve, 500));
   
   for (const line of differentialLines) {
-    // 检查用户是否停止了测试
-    if (!isRunning.value) {
-      break;
+    try {
+      // 检查用户是否停止了测试
+      if (!isRunning.value) {
+        break;
+      }
+      
+      // 添加到差异日志显示
+      mqttDifferentialLogs.value.push(line);
+      
+      // 更新实时统计数据
+      updateRealTimeStats(line);
+      
+      processedCount++;
+      
+      // 更新计数器 - 对于MQTT协议，packetCount表示处理的差异数量
+      packetCount.value = processedCount;
+      
+      // 安全的滚动到底部
+      try {
+        await nextTick();
+        if (logContainer.value && logContainer.value.scrollTop !== undefined) {
+          logContainer.value.scrollTop = logContainer.value.scrollHeight;
+        }
+      } catch (scrollError) {
+        // 忽略滚动错误，不影响主要功能
+        console.warn('滚动操作失败:', scrollError);
+      }
+      
+      // 更新运行时长（每处理10条记录更新一次，模拟时间流逝）
+      if (processedCount % 10 === 0) {
+        elapsedTime.value = Math.floor(processedCount / 10);
+      }
+      
+      // 等待0.1秒模拟实时处理
+      await new Promise(resolve => setTimeout(resolve, 100));
+    } catch (lineError) {
+      console.warn('处理差异行时出错:', lineError);
+      // 继续处理下一行
+      continue;
     }
-    
-    // 添加到差异日志显示
-    mqttDifferentialLogs.value.push(line);
-    
-    // 更新实时统计数据
-    updateRealTimeStats(line);
-    
-    processedCount++;
-    
-    // 更新计数器 - 对于MQTT协议，packetCount表示处理的差异数量
-    packetCount.value = processedCount;
-    
-    // 滚动到底部
-    await nextTick();
-    const logContainer = document.querySelector('.h-80.overflow-y-auto');
-    if (logContainer) {
-      logContainer.scrollTop = logContainer.scrollHeight;
-    }
-    
-    // 更新运行时长（每处理10条记录更新一次，模拟时间流逝）
-    if (processedCount % 10 === 0) {
-      elapsedTime.value = Math.floor(processedCount / 10);
-    }
-    
-    // 等待0.1秒模拟实时处理
-    await new Promise(resolve => setTimeout(resolve, 100));
   }
   
   // 添加测试完成信息
@@ -1203,6 +1214,19 @@ async function simulateRealTimeFuzzing(differentialLines: string[]) {
       }
     }
   }, 1000);
+  } catch (error) {
+    console.error('simulateRealTimeFuzzing出错:', error);
+    // 确保测试状态正确结束
+    if (isRunning.value) {
+      isRunning.value = false;
+      isTestCompleted.value = true;
+      testEndTime.value = new Date();
+      if (testTimer) {
+        clearInterval(testTimer as any);
+        testTimer = null;
+      }
+    }
+  }
 }
 
 // 差异统计数据结构
