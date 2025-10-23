@@ -17,6 +17,10 @@ import {
   type FuzzEngineType
 } from './composables';
 
+// 导入新的协议数据管理器和日志查看器
+import { useProtocolDataManager } from './composables/useProtocolDataManager';
+import ProtocolLogViewer from './components/ProtocolLogViewer.vue';
+
 // Data state
 const rawText = ref('');
 const loading = ref(true);
@@ -53,6 +57,23 @@ const {
   addRTSPLogToUI, 
   clearLog 
 } = useLogReader();
+
+// 使用新的协议数据管理器
+const {
+  protocolStates,
+  currentProtocol,
+  currentState,
+  addLog,
+  addBatchLogs,
+  clearProtocolLogs,
+  updateProtocolState,
+  switchProtocol,
+  getProtocolStats,
+  startRealtimeStream,
+  addToRealtimeStream,
+  stopRealtimeStream,
+  stopAllRealtimeStreams
+} = useProtocolDataManager();
 
 // fuzzData现在通过useSNMP composable管理，使用snmpFuzzData
 const totalPacketsInFile = ref(0);
@@ -713,13 +734,29 @@ async function startRTSPTest() {
 
 async function startMQTTTest() {
   try {
+    console.log('开始MQTT协议测试');
+    
     // 重置MQTT统计数据
     resetMQTTStats();
     
     // 重置差异统计数据
     resetMQTTDifferentialStats();
     
-    // 清空差异日志
+    // 清空协议日志
+    clearProtocolLogs('MQTT');
+    
+    // 更新协议状态
+    updateProtocolState('MQTT', {
+      isRunning: true,
+      isProcessing: true,
+      totalRecords: 0,
+      processedRecords: 0
+    });
+    
+    // 启动MQTT实时流
+    startRealtimeStream('MQTT', { batchSize: 50, interval: 100 });
+    
+    // 清空旧的差异日志数据（向后兼容）
     if (mqttUpdateTimer) {
       clearTimeout(mqttUpdateTimer);
       mqttUpdateTimer = null;
@@ -733,6 +770,11 @@ async function startMQTTTest() {
     
   } catch (error: any) {
     console.error('MQTT测试启动失败:', error);
+    // 更新协议状态
+    updateProtocolState('MQTT', {
+      isRunning: false,
+      isProcessing: false
+    });
     throw error;
   }
 }
@@ -1469,20 +1511,81 @@ function debouncedUpdateMQTTLogs() {
   }, 100); // 100ms防抖延迟
 }
 
-// 添加日志到非响应式数据
+// 添加日志到协议数据管理器
 function addToMQTTLogs(logs: string | string[]) {
   if (!isRunning.value || protocolType.value !== 'MQTT') {
     return;
   }
   
-  if (Array.isArray(logs)) {
-    mqttDifferentialLogsData.push(...logs);
-  } else {
-    mqttDifferentialLogsData.push(logs);
+  const logsArray = Array.isArray(logs) ? logs : [logs];
+  const logEntries = logsArray.map(logContent => ({
+    timestamp: new Date().toLocaleTimeString(),
+    type: getLogTypeFromContent(logContent) as 'INFO' | 'ERROR' | 'WARNING' | 'SUCCESS',
+    content: logContent
+  }));
+  
+  // 使用实时流添加日志
+  logEntries.forEach(logEntry => {
+    addToRealtimeStream('MQTT', logEntry);
+  });
+}
+
+// 根据日志内容判断类型
+function getLogTypeFromContent(content: string): string {
+  if (content.includes('ERROR') || content.includes('❌') || content.includes('失败')) {
+    return 'ERROR';
+  } else if (content.includes('WARNING') || content.includes('⚠️') || content.includes('警告')) {
+    return 'WARNING';
+  } else if (content.includes('SUCCESS') || content.includes('✅') || content.includes('成功')) {
+    return 'SUCCESS';
+  }
+  return 'INFO';
+}
+
+// 获取协议特定的日志格式化函数
+function getLogFormatter(protocol: ProtocolType) {
+  switch (protocol) {
+    case 'MQTT':
+      return formatMQTTLogLine;
+    case 'RTSP':
+      return formatRTSPLogLine;
+    case 'SNMP':
+      return formatSNMPLogLine;
+    default:
+      return (log: any) => `[${log.timestamp}] ${log.content}`;
+  }
+}
+
+// MQTT日志格式化
+function formatMQTTLogLine(log: any): string {
+  if (typeof log === 'string') {
+    return log;
   }
   
-  // 触发防抖更新
-  debouncedUpdateMQTTLogs();
+  const typeIcon = {
+    'ERROR': '❌',
+    'WARNING': '⚠️',
+    'SUCCESS': '✅',
+    'INFO': 'ℹ️'
+  }[log.type] || 'ℹ️';
+  
+  return `${typeIcon} [${log.timestamp}] ${log.content}`;
+}
+
+// RTSP日志格式化
+function formatRTSPLogLine(log: any): string {
+  if (typeof log === 'string') {
+    return log;
+  }
+  return `[${log.timestamp}] [RTSP] ${log.content}`;
+}
+
+// SNMP日志格式化
+function formatSNMPLogLine(log: any): string {
+  if (typeof log === 'string') {
+    return log;
+  }
+  return `[${log.timestamp}] [SNMP] ${log.content}`;
 }
 
 // 更新实时统计数据
@@ -2135,6 +2238,15 @@ async function stopRTSPProcessWrapper() {
 // 处理停止测试的安全包装函数
 function handleStopTest() {
   try {
+    // 停止所有协议的实时流
+    stopAllRealtimeStreams();
+    
+    // 更新当前协议状态
+    updateProtocolState(protocolType.value as any, {
+      isRunning: false,
+      isProcessing: false
+    });
+    
     if (protocolType.value === 'MQTT') {
       // MQTT协议使用安全的停止方式
       stopMQTTTest();
@@ -3282,47 +3394,14 @@ onMounted(async () => {
             </div>
             
             <!-- 统一的日志容器 -->
-            <div ref="logContainer" class="bg-light-gray rounded-lg border border-dark/10 h-80 overflow-y-auto p-3 font-mono text-xs scrollbar-thin">
-              <!-- MQTT协议差异报告显示 - 使用直接DOM操作避免Vue响应式冲突 -->
-              <div v-if="protocolType === 'MQTT'" 
-                   ref="mqttLogsContainer" 
-                   :key="mqttLogsUpdateKey"
-                   class="mqtt-logs-container">
-                <!-- 日志内容通过直接DOM操作添加 -->
-              </div>
-              
-              <!-- 其他协议的统一日志显示 -->
-              <div v-else-if="protocolType !== 'MQTT' && unifiedLogs.length > 0">
-                <div 
-                  v-for="log in unifiedLogs" 
-                  :key="log.id"
-                  :class="{
-                    'text-red-600': log.type === 'ERROR',
-                    'text-yellow-600': log.type === 'WARNING', 
-                    'text-green-600': log.type === 'SUCCESS',
-                    'text-blue-600': log.type === 'INFO'
-                  }"
-                  class="mb-1 break-words"
-                >
-                  <span class="text-dark/50">[{{ log.timestamp }}]</span>
-                  <span class="font-medium">{{ log.type }}:</span>
-                  <span>{{ log.content }}</span>
-                </div>
-              </div>
-              
-              <!-- 默认显示 -->
-              <div v-else class="text-dark/50 italic text-center py-8">
-                <div class="mb-2">
-                  <i class="fa fa-play-circle text-2xl text-primary/30"></i>
-                </div>
-                <div>测试未开始，请配置参数并点击"开始测试"</div>
-                <div class="text-xs mt-2 text-dark/30">
-                  {{ protocolType === 'MQTT' ? 'MBFuzzer将分析MQTT协议的差异测试结果' : 
-                     protocolType === 'RTSP' ? 'AFLNET将执行RTSP协议的模糊测试' : 
-                     'SNMP_Fuzz将执行SNMP协议的模糊测试' }}
-                </div>
-              </div>
-            </div>
+            <!-- 协议隔离的日志容器 -->
+            <ProtocolLogViewer
+              :protocol="protocolType"
+              :logs="protocolStates[protocolType].logs"
+              :is-active="true"
+              :format-log-content="getLogFormatter(protocolType)"
+              @clear-logs="() => clearProtocolLogs(protocolType)"
+            />
           </div>
           
           <!-- 运行监控 -->
