@@ -672,6 +672,18 @@ async function startTest() {
     if (protocolType.value === 'RTSP') {
       await startRTSPTest();
     } else if (protocolType.value === 'SNMP') {
+      // 初始化SNMP协议数据管理器
+      clearProtocolLogs('SNMP');
+      updateProtocolState('SNMP', {
+        isRunning: true,
+        isProcessing: true,
+        totalRecords: snmpFuzzData.value.length,
+        processedRecords: 0
+      });
+      
+      // 启动SNMP实时流
+      startRealtimeStream('SNMP', { batchSize: 20, interval: 100 });
+      
       await startSNMPTest(loop);
     } else if (protocolType.value === 'MQTT') {
       await startMQTTTest();
@@ -1573,6 +1585,38 @@ function formatSNMPLogLine(log: any): string {
   if (typeof log === 'string') {
     return log;
   }
+  
+  // 如果是新的协议数据管理器格式
+  if (typeof log === 'object' && log.content) {
+    // 恢复之前的样式，不使用图标，使用HTML格式化
+    const content = log.content;
+    const timestamp = log.timestamp;
+    
+    // 检查是否是崩溃日志
+    if (content.includes('CRASH DETECTED')) {
+      return `<span class="text-dark/50">[${timestamp}]</span> <span class="text-danger font-bold">${content}</span>`;
+    } else {
+      // 解析正常日志内容
+      const parts = content.split(' ');
+      if (parts.length >= 4) {
+        const protocol = parts[0]; // SNMPV2C
+        const op = parts[1]; // GET
+        const oid = parts[2] || ''; // OID
+        const result = parts.slice(3).join(' '); // 结果和其他信息
+        
+        // 判断结果类型的CSS类
+        const resultClass = result.includes('正常响应') ? 'text-success' : 
+                           result.includes('接收超时') ? 'text-warning' : 
+                           result.includes('构造失败') ? 'text-danger' : 'text-warning';
+        
+        return `<span class="text-dark/50">[${timestamp}]</span> <span class="text-primary">${protocol}</span> <span class="text-info">${op}</span> <span class="text-dark/70 truncate inline-block w-32" title="${oid}">${oid}</span> <span class="${resultClass} font-medium">${result}</span>`;
+      } else {
+        // 如果格式不匹配，使用简单格式
+        return `<span class="text-dark/50">[${timestamp}]</span> <span class="text-dark/80">${content}</span>`;
+      }
+    }
+  }
+  
   return `[${log.timestamp}] [SNMP] ${log.content}`;
 }
 
@@ -2653,8 +2697,37 @@ function loop() {
 // processPacket 现在通过 useSNMP composable 的 processSNMPPacket 提供
 
 function addLogToUI(packet: FuzzPacket, isCrash: boolean) {
-  // 使用 SNMP composable 的 addSNMPLogToUI 函数
-  addSNMPLogToUI(packet, isCrash, logContainer.value, showHistoryView.value, isRunning.value);
+  // 使用新的协议数据管理器添加SNMP日志
+  const logType = isCrash ? 'ERROR' : 
+                 packet.result === 'success' ? 'SUCCESS' :
+                 packet.result === 'timeout' ? 'WARNING' : 'INFO';
+  
+  const logContent = formatSNMPPacketLog(packet, isCrash);
+  
+  console.log('[DEBUG] 添加SNMP日志:', { logType, logContent, packet });
+  
+  addToRealtimeStream('SNMP', {
+    timestamp: new Date().toLocaleTimeString(),
+    type: logType,
+    content: logContent
+  });
+}
+
+// 格式化SNMP数据包日志
+function formatSNMPPacketLog(packet: FuzzPacket, isCrash: boolean): string {
+  if (isCrash) {
+    return `CRASH DETECTED ${packet.version?.toUpperCase() || 'UNKNOWN'} ${packet.type?.toUpperCase() || 'UNKNOWN'}`;
+  } else {
+    const protocol = packet.version?.toUpperCase() || 'UNKNOWN';
+    const op = packet.type?.toUpperCase() || 'UNKNOWN';
+    const content = packet.oids?.[0] || '';
+    const hex = (packet.hex || '').slice(0, 40);
+    const resultText = packet.result === 'success' ? `正常响应 (${packet.responseSize || 0}字节)` : 
+                      packet.result === 'timeout' ? '接收超时' : 
+                      packet.result === 'failed' ? '构造失败' : '未知状态';
+    
+    return `SNMP${protocol} ${op} ${content} ${resultText} ${hex}...`;
+  }
 }
 
 // Crash handling functions
