@@ -264,6 +264,68 @@ const historyResults = ref<HistoryResult[]>([
     protocolStats: { v1: 1789, v2c: 1456, v3: 1276 },
     messageTypeStats: { get: 1823, set: 1124, getnext: 892, getbulk: 682 },
     hasCrash: false
+  },
+  {
+    id: 'hist_004',
+    timestamp: '2025-01-23 20:36:44',
+    protocol: 'MQTT',
+    fuzzEngine: 'MBFuzzer',
+    targetHost: '192.168.102.1',
+    targetPort: 1883,
+    duration: 13,
+    totalPackets: 953,
+    successCount: 650,
+    timeoutCount: 303,
+    failedCount: 0,
+    crashCount: 0,
+    successRate: 68,
+    mqttStats: {
+      fuzzing_start_time: '2024-07-06 00:39:14',
+      fuzzing_end_time: '2024-07-07 10:15:23',
+      client_request_count: 851051,
+      broker_request_count: 523790,
+      total_request_count: 1374841,
+      crash_number: 0,
+      diff_number: 5841,
+      duplicate_diff_number: 118563,
+      valid_connect_number: 1362,
+      duplicate_connect_diff: 1507,
+      total_differences: 6557,
+      client_messages: {
+        CONNECT: 125000, CONNACK: 0, PUBLISH: 320000, PUBACK: 180000,
+        PUBREC: 45000, PUBREL: 45000, PUBCOMP: 45000, SUBSCRIBE: 85000,
+        SUBACK: 0, UNSUBSCRIBE: 25000, UNSUBACK: 0, PINGREQ: 21051,
+        PINGRESP: 0, DISCONNECT: 0, AUTH: 0
+      },
+      broker_messages: {
+        CONNECT: 0, CONNACK: 125000, PUBLISH: 180000, PUBACK: 85000,
+        PUBREC: 25000, PUBREL: 25000, PUBCOMP: 25000, SUBSCRIBE: 0,
+        SUBACK: 45000, UNSUBSCRIBE: 0, UNSUBACK: 12790, PINGREQ: 0,
+        PINGRESP: 21000, DISCONNECT: 0, AUTH: 0
+      },
+      duplicate_diffs: {
+        CONNECT: 1507, CONNACK: 0, PUBLISH: 0, PUBACK: 0,
+        PUBREC: 0, PUBREL: 0, PUBCOMP: 0, SUBSCRIBE: 0,
+        SUBACK: 0, UNSUBSCRIBE: 0, UNSUBACK: 0, PINGREQ: 0,
+        PINGRESP: 0, DISCONNECT: 0, AUTH: 0
+      },
+      differential_reports: [],
+      q_table_states: [],
+      broker_issues: {
+        hivemq: 0, vernemq: 0, emqx: 0, flashmq: 0, nanomq: 0, mosquitto: 0
+      }
+    },
+    protocolSpecificData: {
+      clientRequestCount: 851051,
+      brokerRequestCount: 523790,
+      diffNumber: 5841,
+      duplicateDiffNumber: 118563,
+      validConnectNumber: 1362,
+      duplicateConnectDiff: 1507,
+      fuzzingStartTime: '2024-07-06 00:39:14',
+      fuzzingEndTime: '2024-07-07 10:15:23'
+    },
+    hasCrash: false
   }
 ]);
 
@@ -904,6 +966,14 @@ async function parseMQTTStatsFromFile() {
     fileSuccessCount.value = mqttStats.value.valid_connect_number;
     
     console.log('MQTT统计数据解析完成:', mqttStats.value);
+    console.log('MQTT关键数据检查:', {
+      client_request_count: mqttStats.value.client_request_count,
+      broker_request_count: mqttStats.value.broker_request_count,
+      diff_number: mqttStats.value.diff_number,
+      valid_connect_number: mqttStats.value.valid_connect_number,
+      duplicate_connect_diff: mqttStats.value.duplicate_connect_diff,
+      total_differences: mqttStats.value.total_differences
+    });
     
   } catch (error: any) {
     console.error('解析MQTT统计数据失败:', error);
@@ -1163,6 +1233,14 @@ async function parseMQTTHeaderStats(headerLines: string[]) {
       const match = line.match(/已经发送重复CONNECT差异的消息数目:\s*(\d+)/);
       if (match) {
         mqttStats.value.duplicate_connect_diff = parseInt(match[1]);
+      }
+    }
+    
+    // 解析总差异数（如果有的话）
+    if (line.includes('Total Differences:') || line.includes('总差异数:')) {
+      const match = line.match(/(?:Total Differences|总差异数):\s*(\d+)/);
+      if (match) {
+        mqttStats.value.total_differences = parseInt(match[1]);
       }
     }
     
@@ -3130,6 +3208,39 @@ function saveTestToHistory() {
         n_nodes: rtspStats.value.n_nodes,
         n_edges: rtspStats.value.n_edges
       } : undefined,
+      // 保存MQTT协议统计数据
+      mqttStats: protocolType.value === 'MQTT' ? {
+        fuzzing_start_time: mqttStats.value.fuzzing_start_time,
+        fuzzing_end_time: mqttStats.value.fuzzing_end_time,
+        client_request_count: mqttStats.value.client_request_count,
+        broker_request_count: mqttStats.value.broker_request_count,
+        crash_number: mqttStats.value.crash_number,
+        diff_number: mqttStats.value.diff_number,
+        duplicate_diff_number: mqttStats.value.duplicate_diff_number,
+        valid_connect_number: mqttStats.value.valid_connect_number,
+        duplicate_connect_diff: mqttStats.value.duplicate_connect_diff,
+        total_differences: mqttStats.value.total_differences
+      } : undefined,
+      // 保存协议特定的扩展数据
+      protocolSpecificData: protocolType.value === 'MQTT' ? {
+        clientRequestCount: mqttStats.value.client_request_count,
+        brokerRequestCount: mqttStats.value.broker_request_count,
+        diffNumber: mqttStats.value.diff_number,
+        duplicateDiffNumber: mqttStats.value.duplicate_diff_number,
+        validConnectNumber: mqttStats.value.valid_connect_number,
+        duplicateConnectDiff: mqttStats.value.duplicate_connect_diff,
+        fuzzingStartTime: mqttStats.value.fuzzing_start_time,
+        fuzzingEndTime: mqttStats.value.fuzzing_end_time
+      } : protocolType.value === 'RTSP' ? {
+        pathCoverage: rtspStats.value.cur_path / Math.max(rtspStats.value.paths_total, 1) * 100,
+        stateTransitions: rtspStats.value.n_edges,
+        maxDepth: rtspStats.value.max_depth,
+        uniqueHangs: rtspStats.value.unique_hangs
+      } : protocolType.value === 'SNMP' ? {
+        oidCoverage: Math.round((protocolStats.value.v1 + protocolStats.value.v2c + protocolStats.value.v3) / Math.max(total, 1) * 100),
+        communityStrings: ['public', 'private'], // 示例数据
+        targetDeviceInfo: `${targetHost.value}:${targetPort.value}`
+      } : undefined,
       hasCrash: actualCrashCount > 0,
       crashDetails: crashDetails.value ? {
         id: crashDetails.value.id,
@@ -3155,10 +3266,13 @@ function saveTestToHistory() {
       localStorage.setItem('fuzz_test_history', JSON.stringify(historyResults.value));
       console.log('Test results saved to history:', historyItem);
       
-      // 显示保存成功的通知 - 对MQTT协议使用更安全的方式
+      // 为MQTT协议添加详细的保存日志
       if (protocolType.value === 'MQTT') {
-        // MQTT协议使用简单的控制台日志，避免DOM操作
         console.log('MQTT test results saved to history successfully');
+        console.log('MQTT Stats saved:', {
+          mqttStats: historyItem.mqttStats,
+          protocolSpecificData: historyItem.protocolSpecificData
+        });
       } else {
         showSaveNotification();
       }

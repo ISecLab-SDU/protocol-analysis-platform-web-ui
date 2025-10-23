@@ -127,6 +127,8 @@ export interface MQTTStats {
   diff_number: number;
   duplicate_diff_number: number;
   valid_connect_number: number;
+  duplicate_connect_diff?: number;
+  total_differences?: number;
   
   client_messages: MQTTMessageStats;
   broker_messages: MQTTMessageStats;

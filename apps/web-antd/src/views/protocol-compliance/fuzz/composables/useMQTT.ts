@@ -24,6 +24,8 @@ export function useMQTT() {
     diff_number: 0,
     duplicate_diff_number: 0,
     valid_connect_number: 0,
+    duplicate_connect_diff: 0,
+    total_differences: 0,
     
     client_messages: createEmptyMQTTMessageStats(),
     broker_messages: createEmptyMQTTMessageStats(),
@@ -73,6 +75,8 @@ export function useMQTT() {
       diff_number: 0,
       duplicate_diff_number: 0,
       valid_connect_number: 0,
+      duplicate_connect_diff: 0,
+      total_differences: 0,
       
       client_messages: createEmptyMQTTMessageStats(),
       broker_messages: createEmptyMQTTMessageStats(),
