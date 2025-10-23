@@ -799,6 +799,12 @@ const unifiedLogs = ref<Array<{
 // MQTT协议差异报告日志 - 原始格式显示
 const mqttDifferentialLogs = ref<string[]>([]);
 
+// MQTT处理状态
+const mqttIsProcessingLogs = ref(false);
+const mqttTotalRecords = ref(0);
+const mqttProcessedRecords = ref(0);
+const mqttProcessingProgress = ref(0);
+
 // MQTT实时统计数据
 const mqttRealTimeStats = ref({
   client_requests: {
@@ -1006,8 +1012,8 @@ async function parseMQTTHeaderStats(headerLines: string[]) {
     }
   }
   
-  // 更新MQTT图表
-  updateMQTTChart();
+  // MQTT协议使用统计卡片，不需要更新图表
+  console.log('MQTT stats updated, using statistical cards instead of charts');
 }
 
 // 提取Differential Report部分
@@ -2768,13 +2774,9 @@ onMounted(async () => {
     console.error('Failed to initialize charts');
   }
   
-  // Initialize MQTT chart
-  await nextTick();
-  const mqttSuccess = initMQTTChart();
-  if (mqttSuccess) {
-    console.log('MQTT Chart initialized successfully on mount');
-  } else {
-    console.error('Failed to initialize MQTT chart');
+  // MQTT协议不需要图表初始化，使用统计卡片显示
+  if (protocolType.value === 'MQTT') {
+    console.log('MQTT protocol uses statistical cards instead of charts');
   }
   
   // Set initial last update time
