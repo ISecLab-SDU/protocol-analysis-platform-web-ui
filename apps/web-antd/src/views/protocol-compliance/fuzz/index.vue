@@ -123,9 +123,9 @@ watch(protocolType, (newProtocol, oldProtocol) => {
         clearTimeout(mqttUpdateTimer);
         mqttUpdateTimer = null;
       }
-      // 清理缓冲区和日志
-      mqttLogsBuffer.value = [];
-      mqttDifferentialLogs.value = [];
+      // 清理非响应式日志数据
+      mqttDifferentialLogsData = [];
+      mqttLogsPendingUpdate = false;
       mqttLogsUpdateKey.value++;
       resetMQTTStats();
       resetMQTTDifferentialStats();
@@ -719,13 +719,13 @@ async function startMQTTTest() {
     // 重置差异统计数据
     resetMQTTDifferentialStats();
     
-    // 清空差异日志和缓冲区
+    // 清空差异日志
     if (mqttUpdateTimer) {
       clearTimeout(mqttUpdateTimer);
       mqttUpdateTimer = null;
     }
-    mqttLogsBuffer.value = [];
-    mqttDifferentialLogs.value = [];
+    mqttDifferentialLogsData = [];
+    mqttLogsPendingUpdate = false;
     mqttLogsUpdateKey.value++;
     
     // 开始实时模拟MQTT测试
@@ -860,11 +860,12 @@ const unifiedLogs = ref<Array<{
   protocol: 'SNMP' | 'RTSP' | 'MQTT';
 }>>([]);
 
-// MQTT协议差异报告日志 - 使用shallowRef并添加防抖机制
-const mqttDifferentialLogs = shallowRef<string[]>([]);
+// MQTT协议差异报告日志 - 使用非响应式数据避免DOM冲突
+let mqttDifferentialLogsData: string[] = []; // 非响应式数据存储
+const mqttLogsContainer = ref<HTMLElement | null>(null); // 日志容器引用
 const mqttLogsUpdateKey = ref(0); // 强制更新key
-const mqttLogsBuffer = ref<string[]>([]); // 缓冲区，用于批量更新
 let mqttUpdateTimer: number | null = null; // 防抖定时器
+let mqttLogsPendingUpdate = false; // 更新锁
 
 // MQTT处理状态
 const mqttIsProcessingLogs = ref(false);
@@ -1239,7 +1240,7 @@ async function simulateRealTimeFuzzing(differentialLines: string[]) {
   
   try {
   if (differentialLines.length === 0) {
-    addToMQTTBuffer('暂无差异报告数据');
+    addToMQTTLogs('暂无差异报告数据');
     
     // 即使没有差异数据，也要显示测试开始信息
     setTimeout(() => {
@@ -1267,7 +1268,7 @@ async function simulateRealTimeFuzzing(differentialLines: string[]) {
     '正在分析协议差异...',
     ''
   ];
-  addToMQTTBuffer(startMessages);
+  addToMQTTLogs(startMessages);
   
   // 等待一下让用户看到开始信息
   await new Promise(resolve => setTimeout(resolve, 500));
@@ -1302,9 +1303,9 @@ async function simulateRealTimeFuzzing(differentialLines: string[]) {
         
         if (canUpdate) {
           try {
-            // 使用缓冲区机制，避免直接操作响应式数据
-            addToMQTTBuffer(logBatch);
-            console.log(`[DEBUG] 成功添加${logBatch.length}条日志到缓冲区`);
+            // 使用非响应式数据机制，避免Vue DOM冲突
+            addToMQTTLogs(logBatch);
+            console.log(`[DEBUG] 成功添加${logBatch.length}条日志`);
           } catch (updateError) {
             console.error('[DEBUG] 批量更新失败:', updateError);
             // 如果批量更新失败，停止测试
@@ -1348,7 +1349,7 @@ async function simulateRealTimeFuzzing(differentialLines: string[]) {
       `发现差异: ${mqttRealTimeStats.value.diff_number} 个`,
       `结束时间: ${mqttStats.value.fuzzing_end_time || new Date().toLocaleString()}`
     ];
-    addToMQTTBuffer(endMessages);
+    addToMQTTLogs(endMessages);
   }
   
   // 测试完成
@@ -1416,6 +1417,44 @@ const mqttDifferentialStats = ref({
   total_differences: 6557
 });
 
+// 直接DOM操作更新MQTT日志，避免Vue响应式冲突
+function updateMQTTLogsDOM() {
+  if (mqttLogsPendingUpdate || !mqttLogsContainer.value) {
+    return;
+  }
+  
+  mqttLogsPendingUpdate = true;
+  
+  try {
+    // 清空容器
+    mqttLogsContainer.value.innerHTML = '';
+    
+    // 创建文档片段提高性能
+    const fragment = document.createDocumentFragment();
+    
+    // 只显示最后1000条日志，避免DOM过大
+    const logsToShow = mqttDifferentialLogsData.slice(-1000);
+    
+    logsToShow.forEach((log, index) => {
+      const logElement = document.createElement('div');
+      logElement.className = 'mb-1 leading-relaxed text-dark/80';
+      logElement.innerHTML = formatMQTTLogLine(log);
+      fragment.appendChild(logElement);
+    });
+    
+    // 一次性添加到DOM
+    mqttLogsContainer.value.appendChild(fragment);
+    
+    // 滚动到底部
+    mqttLogsContainer.value.scrollTop = mqttLogsContainer.value.scrollHeight;
+    
+  } catch (error) {
+    console.warn('[DEBUG] DOM更新失败:', error);
+  } finally {
+    mqttLogsPendingUpdate = false;
+  }
+}
+
 // 防抖更新MQTT日志
 function debouncedUpdateMQTTLogs() {
   if (mqttUpdateTimer) {
@@ -1423,40 +1462,23 @@ function debouncedUpdateMQTTLogs() {
   }
   
   mqttUpdateTimer = window.setTimeout(() => {
-    try {
-      if (mqttLogsBuffer.value.length > 0 && isRunning.value && protocolType.value === 'MQTT') {
-        // 使用shallowRef的特性，直接替换整个数组
-        mqttDifferentialLogs.value = [...mqttDifferentialLogs.value, ...mqttLogsBuffer.value];
-        mqttLogsBuffer.value = []; // 清空缓冲区
-        mqttLogsUpdateKey.value++;
-        
-        // 安全滚动
-        nextTick(() => {
-          if (logContainer.value && 
-              isRunning.value && 
-              protocolType.value === 'MQTT' &&
-              logContainer.value.scrollHeight > 0) {
-            logContainer.value.scrollTop = logContainer.value.scrollHeight;
-          }
-        });
-      }
-    } catch (error) {
-      console.warn('[DEBUG] 防抖更新失败:', error);
+    if (isRunning.value && protocolType.value === 'MQTT') {
+      updateMQTTLogsDOM();
     }
     mqttUpdateTimer = null;
   }, 100); // 100ms防抖延迟
 }
 
-// 添加日志到缓冲区
-function addToMQTTBuffer(logs: string | string[]) {
+// 添加日志到非响应式数据
+function addToMQTTLogs(logs: string | string[]) {
   if (!isRunning.value || protocolType.value !== 'MQTT') {
     return;
   }
   
   if (Array.isArray(logs)) {
-    mqttLogsBuffer.value.push(...logs);
+    mqttDifferentialLogsData.push(...logs);
   } else {
-    mqttLogsBuffer.value.push(logs);
+    mqttDifferentialLogsData.push(logs);
   }
   
   // 触发防抖更新
@@ -3035,11 +3057,13 @@ onErrorCaptured((err, instance, info) => {
 onUnmounted(() => {
   console.log('[DEBUG] 组件卸载，清理MQTT相关资源');
   
-  // 清理MQTT定时器
+  // 清理MQTT定时器和数据
   if (mqttUpdateTimer) {
     clearTimeout(mqttUpdateTimer);
     mqttUpdateTimer = null;
   }
+  mqttDifferentialLogsData = [];
+  mqttLogsPendingUpdate = false;
   
   // 清理其他定时器
   if (testTimer) {
@@ -3259,15 +3283,12 @@ onMounted(async () => {
             
             <!-- 统一的日志容器 -->
             <div ref="logContainer" class="bg-light-gray rounded-lg border border-dark/10 h-80 overflow-y-auto p-3 font-mono text-xs scrollbar-thin">
-              <!-- MQTT协议差异报告显示 -->
-              <div v-if="protocolType === 'MQTT' && mqttDifferentialLogs.length > 0" :key="mqttLogsUpdateKey">
-                <div 
-                  v-for="(log, index) in mqttDifferentialLogs" 
-                  :key="`mqtt-log-${index}-${mqttLogsUpdateKey}`"
-                  class="mb-1 leading-relaxed text-dark/80"
-                  v-html="formatMQTTLogLine(log)"
-                >
-                </div>
+              <!-- MQTT协议差异报告显示 - 使用直接DOM操作避免Vue响应式冲突 -->
+              <div v-if="protocolType === 'MQTT'" 
+                   ref="mqttLogsContainer" 
+                   :key="mqttLogsUpdateKey"
+                   class="mqtt-logs-container">
+                <!-- 日志内容通过直接DOM操作添加 -->
               </div>
               
               <!-- 其他协议的统一日志显示 -->
