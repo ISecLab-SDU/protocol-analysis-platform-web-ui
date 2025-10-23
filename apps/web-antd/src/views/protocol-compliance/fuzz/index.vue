@@ -1577,6 +1577,47 @@ function calculateTestDuration(startTime: string, endTime: string): string {
   }
 }
 
+// 格式化MQTT日志行，高亮关键字段，去除file_path字段
+function formatMQTTLogLine(log: string): string {
+  // 如果是系统信息行，直接返回
+  if (log.includes('===') || log.includes('开始时间') || log.includes('结束时间') || log.includes('目标') || log.includes('正在分析')) {
+    return `<span class="text-blue-600">${log}</span>`;
+  }
+  
+  // 去除 file_path 字段
+  let formattedLog = log.replace(/,\s*file_path:\s*[^,]+/g, '');
+  
+  // 高亮 protocol_version
+  formattedLog = formattedLog.replace(/protocol_version:\s*(\d+)/g, 
+    'protocol_version: <span class="text-blue-600 font-semibold">$1</span>');
+  
+  // 高亮 type 字段
+  formattedLog = formattedLog.replace(/type:\s*\{([^}]+)\}/g, 
+    'type: {<span class="text-red-600 font-semibold">$1</span>}');
+  
+  // 高亮 msg_type 字段
+  formattedLog = formattedLog.replace(/msg_type:\s*([^,\s]+)/g, 
+    'msg_type: <span class="text-green-600 font-semibold">$1</span>');
+  
+  // 高亮 direction 字段
+  formattedLog = formattedLog.replace(/direction:\s*([^,\s]+)/g, 
+    'direction: <span class="text-purple-600 font-semibold">$1</span>');
+  
+  // 高亮 field 字段
+  formattedLog = formattedLog.replace(/field:\s*([^,]+?)(?=,|$)/g, 
+    'field: <span class="text-orange-600 font-semibold">$1</span>');
+  
+  // 高亮 diff_range_broker 字段
+  formattedLog = formattedLog.replace(/diff_range_broker:\s*(\[[^\]]+\])/g, 
+    'diff_range_broker: <span class="text-cyan-600 font-semibold">$1</span>');
+  
+  // 高亮 capture_time 字段
+  formattedLog = formattedLog.replace(/capture_time:\s*([^,\s]+(?:\s+[^,\s]+)*)/g, 
+    'capture_time: <span class="text-gray-600 font-semibold">$1</span>');
+  
+  return formattedLog;
+}
+
 // 解析MQTT差异报告行 - 新版本，返回结构化数据
 function parseMQTTDifferentialLine(line: string) {
   try {
@@ -1642,15 +1683,15 @@ function parseMQTTDifferentialLine(line: string) {
         break;
     }
     
-    // 构建简洁的显示内容，去除file_path相关信息
-    let content = `MQTT v${protocolVersion} ${msgType} | ${diffTypeDesc}`;
+    // 构建完整的显示内容，包含所有字段（除file_path外）
+    let content = `protocol_version: ${protocolVersion}, type: {${diffType}}, diff_range_broker: [${brokers.map(b => `'${b}'`).join(', ')}], msg_type: ${msgType}, direction: ${direction}`;
     
     if (field) {
-      content += ` | 字段: ${field}`;
+      content += `, field: ${field}`;
     }
     
-    if (brokers.length > 0) {
-      content += ` | Broker: ${brokers.join(', ')}`;
+    if (captureTime) {
+      content += `, capture_time: ${captureTime}`;
     }
     
     return {
@@ -2905,24 +2946,9 @@ onMounted(async () => {
                 <div 
                   v-for="(log, index) in mqttDifferentialLogs" 
                   :key="index"
-                  :class="{
-                    'mb-1 leading-relaxed p-2 rounded': true,
-                    'text-red-700 bg-red-50 border-l-4 border-red-400': log.includes('Message Missing') || log.includes('Message Unexpected'),
-                    'text-yellow-700 bg-yellow-50 border-l-4 border-yellow-400': log.includes('Field Different') || log.includes('Field Missing') || log.includes('Field Unexpected'),
-                    'text-blue-700 bg-blue-50 border-l-4 border-blue-400': log.includes('===') || log.includes('开始时间') || log.includes('结束时间'),
-                    'text-gray-700 bg-gray-50': !log.includes('Message') && !log.includes('Field') && !log.includes('===') && !log.includes('时间')
-                  }"
+                  class="mb-1 leading-relaxed text-dark/80"
+                  v-html="formatMQTTLogLine(log)"
                 >
-                  <span v-if="log.includes('Message Missing') || log.includes('Message Unexpected')" class="mr-2">
-                    <i class="fa fa-exclamation-triangle text-red-500"></i>
-                  </span>
-                  <span v-else-if="log.includes('Field Different') || log.includes('Field Missing') || log.includes('Field Unexpected')" class="mr-2">
-                    <i class="fa fa-warning text-yellow-500"></i>
-                  </span>
-                  <span v-else-if="log.includes('===') || log.includes('开始时间') || log.includes('结束时间')" class="mr-2">
-                    <i class="fa fa-info-circle text-blue-500"></i>
-                  </span>
-                  {{ log }}
                 </div>
               </div>
               
@@ -3132,24 +3158,16 @@ onMounted(async () => {
                   协议版本分布
                 </h4>
                 <div class="h-60 bg-white rounded-lg border border-gray-200 p-3">
-                  <div class="space-y-3">
+                  <div class="space-y-2">
                     <div v-for="(count, version) in mqttDifferentialStats.version_stats" :key="version" 
-                         class="bg-blue-50 rounded-lg p-3 border border-blue-200">
-                      <div class="flex justify-between items-center mb-2">
-                        <span class="text-sm font-medium text-blue-700">MQTT v{{ version }}</span>
-                        <span class="text-lg font-bold text-blue-600">{{ count }}</span>
-                      </div>
-                      <div class="w-full bg-gray-200 rounded-full h-2">
-                        <div class="bg-blue-500 h-2 rounded-full" 
-                             :style="{ width: mqttDifferentialStats.total_differences > 0 ? 
-                               (count / mqttDifferentialStats.total_differences * 100) + '%' : '0%' }"></div>
-                      </div>
-                      <div class="text-xs text-gray-500 mt-1">
-                        {{ mqttDifferentialStats.total_differences > 0 ? 
-                          Math.round((count / mqttDifferentialStats.total_differences) * 100) : 0 }}%
-                      </div>
+                         class="flex justify-between items-center p-2 bg-gray-50 rounded">
+                      <span class="text-xs text-gray-700 truncate">MQTT v{{ version }}</span>
+                      <span class="text-sm font-bold text-blue-600">{{ count }}</span>
                     </div>
-                    <div v-if="mqttDifferentialStats.total_differences === 0" class="text-center py-4">
+                    <div v-if="mqttDifferentialStats.total_differences === 0" class="text-center py-8">
+                      <div class="bg-gray-100 p-3 rounded-full w-12 h-12 mx-auto mb-2 flex items-center justify-center">
+                        <i class="fa fa-code-fork text-gray-400"></i>
+                      </div>
                       <span class="text-xs text-gray-500">等待版本数据...</span>
                     </div>
                   </div>
