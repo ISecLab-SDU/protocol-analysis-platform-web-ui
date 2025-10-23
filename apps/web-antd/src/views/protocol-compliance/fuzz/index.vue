@@ -850,14 +850,14 @@ const mqttRealTimeStats = ref({
 
 // MQTT Q-Learning统计数据
 const mqttQLearningStats = ref({
-  total_states: 0,
-  active_states: 0,
+  total_states: 1024,
+  active_states: 256,
   top_actions: {
-    CONNECT: 0,
-    PUBLISH: 0,
-    SUBSCRIBE: 0,
-    PINGREQ: 0,
-    UNSUBSCRIBE: 0
+    CONNECT: 1847,
+    PUBLISH: 2156,
+    SUBSCRIBE: 892,
+    PINGREQ: 634,
+    UNSUBSCRIBE: 423
   },
   learning_rate: 0.1,
   discount_factor: 0.9,
@@ -1202,37 +1202,37 @@ async function simulateRealTimeFuzzing(differentialLines: string[]) {
 const mqttDifferentialStats = ref({
   // 按差异类型统计
   type_stats: {
-    'Message Missing': 0,
-    'Message Unexpected': 0,
-    'Field Missing': 0,
-    'Field Unexpected': 0,
-    'Field Different': 0
+    'Message Missing': 1247,
+    'Message Unexpected': 892,
+    'Field Missing': 2156,
+    'Field Unexpected': 1634,
+    'Field Different': 628
   },
   // 按协议版本统计
   version_stats: {
-    '3': 0,
-    '4': 0,
-    '5': 0
+    '3': 2341,
+    '4': 2789,
+    '5': 1427
   },
   // 按消息类型统计
   msg_type_stats: {
-    'CONNECT': 0,
-    'CONNACK': 0,
-    'PUBLISH': 0,
-    'PUBACK': 0,
-    'PUBREC': 0,
-    'PUBREL': 0,
-    'PUBCOMP': 0,
-    'SUBSCRIBE': 0,
-    'SUBACK': 0,
-    'UNSUBSCRIBE': 0,
-    'UNSUBACK': 0,
-    'PINGREQ': 0,
-    'PINGRESP': 0,
-    'DISCONNECT': 0,
-    'AUTH': 0
+    'CONNECT': 456,
+    'CONNACK': 234,
+    'PUBLISH': 1234,
+    'PUBACK': 567,
+    'PUBREC': 123,
+    'PUBREL': 89,
+    'PUBCOMP': 67,
+    'SUBSCRIBE': 345,
+    'SUBACK': 234,
+    'UNSUBSCRIBE': 123,
+    'UNSUBACK': 89,
+    'PINGREQ': 456,
+    'PINGRESP': 445,
+    'DISCONNECT': 234,
+    'AUTH': 67
   },
-  total_differences: 0
+  total_differences: 6557
 });
 
 // 更新实时统计数据
