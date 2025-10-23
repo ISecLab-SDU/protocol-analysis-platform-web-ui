@@ -1950,8 +1950,11 @@ async function startMQTTDifferentialReading() {
         // 保存历史记录
         setTimeout(() => {
           try {
+            console.log('[DEBUG] MQTT test completed, saving to history...');
+            console.log('[DEBUG] Current MQTT stats before saving:', mqttStats.value);
             updateTestSummary();
             saveTestToHistory();
+            console.log('[DEBUG] MQTT history save completed');
           } catch (error) {
             console.error('Error saving MQTT test results:', error);
           }
@@ -2518,8 +2521,11 @@ function stopMQTTTest() {
     // 延迟保存历史记录
     setTimeout(() => {
       try {
+        console.log('[DEBUG] MQTT test manually stopped, saving to history...');
+        console.log('[DEBUG] Current MQTT stats before saving:', mqttStats.value);
         updateTestSummary();
         saveTestToHistory();
+        console.log('[DEBUG] MQTT manual stop history save completed');
       } catch (error) {
         console.error('Error saving MQTT test results:', error);
       }
@@ -3148,12 +3154,28 @@ function updateTestSummary() {
 // 保存测试结果到历史记录
 function saveTestToHistory() {
   try {
+    console.log('[DEBUG] saveTestToHistory called for protocol:', protocolType.value);
+    console.log('[DEBUG] Current test state:', {
+      isRunning: isRunning.value,
+      isTestCompleted: isTestCompleted.value,
+      testStartTime: testStartTime.value,
+      testEndTime: testEndTime.value
+    });
+    
     // 计算实际的测试统计数据
     const actualTotalPackets = fileTotalPackets.value || packetCount.value;
     const actualSuccessCount = fileSuccessCount.value || successCount.value;
     const actualTimeoutCount = fileTimeoutCount.value || timeoutCount.value;
     const actualFailedCount = fileFailedCount.value || failedCount.value;
     const actualCrashCount = crashCount.value;
+    
+    console.log('[DEBUG] Test statistics:', {
+      actualTotalPackets,
+      actualSuccessCount,
+      actualTimeoutCount,
+      actualFailedCount,
+      actualCrashCount
+    });
     
     // 计算测试持续时间
     const duration = testStartTime.value && testEndTime.value 
@@ -3209,18 +3231,21 @@ function saveTestToHistory() {
         n_edges: rtspStats.value.n_edges
       } : undefined,
       // 保存MQTT协议统计数据
-      mqttStats: protocolType.value === 'MQTT' ? {
-        fuzzing_start_time: mqttStats.value.fuzzing_start_time,
-        fuzzing_end_time: mqttStats.value.fuzzing_end_time,
-        client_request_count: mqttStats.value.client_request_count,
-        broker_request_count: mqttStats.value.broker_request_count,
-        crash_number: mqttStats.value.crash_number,
-        diff_number: mqttStats.value.diff_number,
-        duplicate_diff_number: mqttStats.value.duplicate_diff_number,
-        valid_connect_number: mqttStats.value.valid_connect_number,
-        duplicate_connect_diff: mqttStats.value.duplicate_connect_diff,
-        total_differences: mqttStats.value.total_differences
-      } : undefined,
+      mqttStats: protocolType.value === 'MQTT' ? (() => {
+        console.log('[DEBUG] Saving MQTT stats:', mqttStats.value);
+        return {
+          fuzzing_start_time: mqttStats.value.fuzzing_start_time,
+          fuzzing_end_time: mqttStats.value.fuzzing_end_time,
+          client_request_count: mqttStats.value.client_request_count,
+          broker_request_count: mqttStats.value.broker_request_count,
+          crash_number: mqttStats.value.crash_number,
+          diff_number: mqttStats.value.diff_number,
+          duplicate_diff_number: mqttStats.value.duplicate_diff_number,
+          valid_connect_number: mqttStats.value.valid_connect_number,
+          duplicate_connect_diff: mqttStats.value.duplicate_connect_diff,
+          total_differences: mqttStats.value.total_differences
+        };
+      })() : undefined,
       // 保存协议特定的扩展数据
       protocolSpecificData: protocolType.value === 'MQTT' ? {
         clientRequestCount: mqttStats.value.client_request_count,
@@ -3265,6 +3290,8 @@ function saveTestToHistory() {
     try {
       localStorage.setItem('fuzz_test_history', JSON.stringify(historyResults.value));
       console.log('Test results saved to history:', historyItem);
+      console.log('[DEBUG] History results length after save:', historyResults.value.length);
+      console.log('[DEBUG] Latest history item:', historyResults.value[0]);
       
       // 为MQTT协议添加详细的保存日志
       if (protocolType.value === 'MQTT') {
@@ -3272,6 +3299,13 @@ function saveTestToHistory() {
         console.log('MQTT Stats saved:', {
           mqttStats: historyItem.mqttStats,
           protocolSpecificData: historyItem.protocolSpecificData
+        });
+        
+        // 强制触发响应式更新
+        nextTick(() => {
+          console.log('[DEBUG] Forcing reactive update for history');
+          // 触发一个小的变化来确保Vue检测到数组更新
+          historyResults.value = [...historyResults.value];
         });
       } else {
         showSaveNotification();
@@ -3485,12 +3519,41 @@ function loadHistoryFromStorage() {
       if (Array.isArray(parsedHistory)) {
         historyResults.value = parsedHistory;
         console.log(`Loaded ${parsedHistory.length} history items from localStorage`);
+        console.log('[DEBUG] Loaded history items:', parsedHistory.map(item => ({
+          id: item.id,
+          protocol: item.protocol,
+          timestamp: item.timestamp
+        })));
       }
     }
   } catch (error) {
     console.warn('Failed to load history from localStorage:', error);
     // 如果加载失败，保持默认的模拟数据
   }
+}
+
+// 测试历史记录保存功能（调试用）
+function testHistorySave() {
+  console.log('[DEBUG] Testing history save functionality...');
+  console.log('[DEBUG] Current protocol:', protocolType.value);
+  console.log('[DEBUG] Current MQTT stats:', mqttStats.value);
+  
+  // 手动触发保存
+  try {
+    saveTestToHistory();
+    console.log('[DEBUG] Manual history save completed');
+  } catch (error) {
+    console.error('[DEBUG] Manual history save failed:', error);
+  }
+}
+
+// 将测试函数暴露到全局作用域（仅用于调试）
+if (typeof window !== 'undefined') {
+  (window as any).testHistorySave = testHistorySave;
+  (window as any).checkHistoryResults = () => {
+    console.log('[DEBUG] Current history results:', historyResults.value);
+    console.log('[DEBUG] History results length:', historyResults.value.length);
+  };
 }
 
 // 错误捕获处理
