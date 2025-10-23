@@ -54,7 +54,7 @@ const {
   clearLog 
 } = useLogReader();
 
-const fuzzData = ref<FuzzPacket[]>([]);
+// fuzzData现在通过useSNMP composable管理，使用snmpFuzzData
 const totalPacketsInFile = ref(0);
 // File-level summary stats parsed from txt
 const fileTotalPackets = ref(0);
@@ -517,7 +517,7 @@ function updateMQTTChart() {
 function parseText(text: string) {
   // 使用SNMP composable的解析功能
   const parsedData = parseSNMPText(text);
-  fuzzData.value = parsedData;
+  snmpFuzzData.value = parsedData;
   totalPacketsInFile.value = parsedData.filter((p) => typeof p.id === 'number').length;
   
   // Extract timing information
@@ -580,7 +580,7 @@ function resetTestState() {
 
 async function startTest() {
   // MQTT协议不需要fuzzData，直接从文件读取
-  if (protocolType.value !== 'MQTT' && !fuzzData.value.length) return;
+  if (protocolType.value !== 'MQTT' && !snmpFuzzData.value.length) return;
   
   resetTestState();
   isRunning.value = true;
@@ -2209,11 +2209,11 @@ function loop() {
       return;
     }
     
-    if (currentPacketIndex.value >= fuzzData.value.length) {
+    if (currentPacketIndex.value >= snmpFuzzData.value.length) {
       return stopTest();
     }
     
-    const packet = fuzzData.value[currentPacketIndex.value];
+    const packet = snmpFuzzData.value[currentPacketIndex.value];
     if (packet) {
       processSNMPPacket(packet, addLogToUI);
     }
@@ -2692,7 +2692,7 @@ const canStartTest = computed(() => {
     return !loading.value && !isRunning.value;
   }
   return !loading.value && 
-         fuzzData.value.length > 0 && 
+         snmpFuzzData.value.length > 0 && 
          !isRunning.value;
 });
 
@@ -2914,7 +2914,7 @@ onMounted(async () => {
                     :title="!canStartTest ? (
                       loading ? '数据加载中...' : 
                       error ? '数据加载失败' : 
-                      fuzzData.length === 0 ? '无测试数据' : 
+                      snmpFuzzData.length === 0 ? '无测试数据' : 
                       isRunning ? '测试进行中' : '未知错误'
                     ) : '开始测试'" 
                     class="bg-primary hover:bg-primary/90 text-white px-6 py-2 rounded-lg transition-all duration-300 flex items-center disabled:opacity-50 disabled:cursor-not-allowed">
@@ -2947,7 +2947,7 @@ onMounted(async () => {
             </div>
             
             <!-- 统一的日志容器 -->
-            <div class="bg-light-gray rounded-lg border border-dark/10 h-80 overflow-y-auto p-3 font-mono text-xs scrollbar-thin">
+            <div ref="logContainer" class="bg-light-gray rounded-lg border border-dark/10 h-80 overflow-y-auto p-3 font-mono text-xs scrollbar-thin">
               <!-- MQTT协议差异报告显示 -->
               <div v-if="protocolType === 'MQTT' && mqttDifferentialLogs.length > 0">
                 <div 
