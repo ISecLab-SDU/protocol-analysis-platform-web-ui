@@ -3490,17 +3490,8 @@ onMounted(async () => {
             <div class="bg-light-gray rounded-lg p-3 border border-dark/10">
               <h4 class="font-medium mb-2 text-dark/80">性能统计</h4>
               <div class="space-y-1">
-                <!-- SNMP协议统计 -->
-                <template v-if="protocolType !== 'RTSP'">
-                  <p><span class="text-dark/60">SNMP_v1发包数:</span> <span>{{ (isTestCompleted || (!isRunning && packetCount > 0)) ? protocolStats.v1 : 0 }}</span></p>
-                  <p><span class="text-dark/60">SNMP_v2发包数:</span> <span>{{ (isTestCompleted || (!isRunning && packetCount > 0)) ? protocolStats.v2c : 0 }}</span></p>
-                  <p><span class="text-dark/60">SNMP_v3发包数:</span> <span>{{ (isTestCompleted || (!isRunning && packetCount > 0)) ? protocolStats.v3 : 0 }}</span></p>
-                  <p><span class="text-dark/60">总发包数:</span> <span>{{ (isTestCompleted || (!isRunning && packetCount > 0)) ? fileTotalPackets : 0 }}</span></p>
-                  <p><span class="text-dark/60">正常响应率:</span> <span>{{ (isTestCompleted || (!isRunning && packetCount > 0)) ? Math.round((fileSuccessCount / Math.max(fileTotalPackets, 1)) * 100) : 0 }}%</span></p>
-                  <p><span class="text-dark/60">超时率:</span> <span>{{ (isTestCompleted || (!isRunning && packetCount > 0)) ? Math.round((fileTimeoutCount / Math.max(fileTotalPackets, 1)) * 100) : 0 }}%</span></p>
-                </template>
                 <!-- MQTT协议统计 -->
-                <template v-else-if="protocolType === 'MQTT'">
+                <template v-if="protocolType === 'MQTT'">
                   <div class="bg-purple-50 rounded-lg p-3 mb-3 border border-purple-200">
                     <h5 class="font-medium text-purple-700 mb-2 text-sm">MBFuzzer测试统计</h5>
                     <div class="space-y-1 text-xs">
@@ -3516,10 +3507,10 @@ onMounted(async () => {
                   <div class="bg-yellow-50 rounded-lg p-3 mb-3 border border-yellow-200">
                     <h5 class="font-medium text-yellow-700 mb-2 text-sm">差异测试结果</h5>
                     <div class="space-y-1 text-xs">
-                      <p><span class="text-dark/60">协议差异发现:</span> <span class="font-medium text-yellow-600">{{ mqttStats.diff_number }} 个不一致性</span></p>
-                      <p><span class="text-dark/60">重复差异过滤:</span> <span class="font-medium text-purple-600">{{ mqttStats.duplicate_diff_number.toLocaleString() }} 个已知模式</span></p>
-                      <p><span class="text-dark/60">有效连接数:</span> <span class="font-medium text-green-600">{{ mqttStats.valid_connect_number }}</span></p>
-                      <p><span class="text-dark/60">重复CONNECT差异:</span> <span class="font-medium text-orange-600">{{ mqttStats.duplicate_connect_diff }}</span></p>
+                      <p><span class="text-dark/60">新发现差异:</span> <span class="font-medium text-yellow-600">{{ mqttStats.diff_number.toLocaleString() }} 个</span></p>
+                      <p><span class="text-dark/60">重复差异过滤:</span> <span class="font-medium text-purple-600">{{ mqttStats.duplicate_diff_number.toLocaleString() }} 个</span></p>
+                      <p><span class="text-dark/60">有效连接数:</span> <span class="font-medium text-green-600">{{ mqttStats.valid_connect_number.toLocaleString() }}</span></p>
+                      <p><span class="text-dark/60">重复CONNECT差异:</span> <span class="font-medium text-orange-600">{{ mqttStats.duplicate_connect_diff.toLocaleString() }}</span></p>
                       <p><span class="text-dark/60">差异发现率:</span> <span class="font-medium text-blue-600">
                         {{ (mqttStats.client_request_count + mqttStats.broker_request_count) > 0 ? 
                           Math.round((mqttStats.diff_number / (mqttStats.client_request_count + mqttStats.broker_request_count)) * 10000) / 100 : 0 }}%
@@ -3547,6 +3538,15 @@ onMounted(async () => {
                       </span></p>
                     </div>
                   </div>
+                </template>
+                <!-- SNMP协议统计 -->
+                <template v-else-if="protocolType !== 'RTSP'">
+                  <p><span class="text-dark/60">SNMP_v1发包数:</span> <span>{{ (isTestCompleted || (!isRunning && packetCount > 0)) ? protocolStats.v1 : 0 }}</span></p>
+                  <p><span class="text-dark/60">SNMP_v2发包数:</span> <span>{{ (isTestCompleted || (!isRunning && packetCount > 0)) ? protocolStats.v2c : 0 }}</span></p>
+                  <p><span class="text-dark/60">SNMP_v3发包数:</span> <span>{{ (isTestCompleted || (!isRunning && packetCount > 0)) ? protocolStats.v3 : 0 }}</span></p>
+                  <p><span class="text-dark/60">总发包数:</span> <span>{{ (isTestCompleted || (!isRunning && packetCount > 0)) ? fileTotalPackets : 0 }}</span></p>
+                  <p><span class="text-dark/60">正常响应率:</span> <span>{{ (isTestCompleted || (!isRunning && packetCount > 0)) ? Math.round((fileSuccessCount / Math.max(fileTotalPackets, 1)) * 100) : 0 }}%</span></p>
+                  <p><span class="text-dark/60">超时率:</span> <span>{{ (isTestCompleted || (!isRunning && packetCount > 0)) ? Math.round((fileTimeoutCount / Math.max(fileTotalPackets, 1)) * 100) : 0 }}%</span></p>
                 </template>
                 <!-- RTSP协议统计 -->
                 <template v-else>
