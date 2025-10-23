@@ -9,6 +9,7 @@ import os
 import re
 import subprocess
 import threading
+from datetime import datetime
 from typing import Iterable, Optional
 
 from flask import Blueprint, make_response, request
@@ -453,12 +454,38 @@ def read_log():
         return make_response(error_response(f"不支持的协议类型: {protocol}"), 400)
     
     try:
-        if not os.path.exists(file_path):
+        print(f"[DEBUG] 尝试读取{protocol}日志文件: {file_path}")
+        print(f"[DEBUG] 上次读取位置: {last_position}")
+        
+        # 检查目录是否存在
+        log_dir = os.path.dirname(file_path)
+        if not os.path.exists(log_dir):
+            print(f"[DEBUG] 日志目录不存在: {log_dir}")
             return success_response({
                 "content": "",
                 "position": last_position,
-                "message": "日志文件尚未创建"
+                "message": f"日志目录不存在: {log_dir}"
             })
+        
+        # 列出目录中的文件
+        try:
+            files_in_dir = os.listdir(log_dir)
+            print(f"[DEBUG] 日志目录中的文件: {files_in_dir}")
+        except Exception as e:
+            print(f"[DEBUG] 无法列出目录文件: {e}")
+        
+        if not os.path.exists(file_path):
+            print(f"[DEBUG] 日志文件不存在: {file_path}")
+            return success_response({
+                "content": "",
+                "position": last_position,
+                "message": f"日志文件尚未创建: {file_path}"
+            })
+        
+        # 获取文件信息
+        file_stat = os.stat(file_path)
+        file_size = file_stat.st_size
+        print(f"[DEBUG] 日志文件大小: {file_size} 字节")
         
         with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
             # 移动到上次读取的位置
@@ -470,15 +497,99 @@ def read_log():
             # 获取当前位置
             current_position = f.tell()
         
+        print(f"[DEBUG] 读取到新内容长度: {len(new_content)} 字符")
+        print(f"[DEBUG] 新的读取位置: {current_position}")
+        
+        if new_content:
+            print(f"[DEBUG] 新内容预览: {new_content[:200]}...")
+        
         return success_response({
             "content": new_content,
             "position": current_position,
             "protocol": protocol,
-            "message": f"成功读取{len(new_content)}字符"
+            "file_size": file_size,
+            "message": f"成功读取{len(new_content)}字符，文件大小{file_size}字节"
         })
         
     except Exception as e:
+        print(f"[DEBUG] 读取日志文件异常: {e}")
         return make_response(error_response(f"读取日志文件失败: {str(e)}"), 500)
+
+
+@bp.route("/check-status", methods=["POST"])
+def check_status():
+    """检查协议测试状态和文件系统"""
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+    
+    data = request.get_json()
+    if not data:
+        return make_response(error_response("请求数据不能为空"), 400)
+    
+    protocol = data.get("protocol", "UNKNOWN")
+    
+    try:
+        status_info = {
+            "protocol": protocol,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        if protocol == "RTSP":
+            # 检查RTSP相关状态
+            log_file_path = RTSP_CONFIG["log_file_path"]
+            log_dir = os.path.dirname(log_file_path)
+            
+            # 检查目录和文件状态
+            status_info.update({
+                "log_file_path": log_file_path,
+                "log_dir": log_dir,
+                "log_dir_exists": os.path.exists(log_dir),
+                "log_file_exists": os.path.exists(log_file_path)
+            })
+            
+            # 如果目录存在，列出文件
+            if os.path.exists(log_dir):
+                try:
+                    files = os.listdir(log_dir)
+                    status_info["files_in_log_dir"] = files
+                except Exception as e:
+                    status_info["files_in_log_dir"] = f"无法列出文件: {e}"
+            
+            # 如果日志文件存在，获取文件信息
+            if os.path.exists(log_file_path):
+                file_stat = os.stat(log_file_path)
+                status_info.update({
+                    "log_file_size": file_stat.st_size,
+                    "log_file_mtime": datetime.fromtimestamp(file_stat.st_mtime).isoformat()
+                })
+            
+            # 检查Docker容器状态
+            try:
+                result = subprocess.run(
+                    "docker ps --format 'table {{.ID}}\\t{{.Image}}\\t{{.Status}}\\t{{.Ports}}'",
+                    shell=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    timeout=10
+                )
+                
+                if result.returncode == 0:
+                    status_info["docker_containers"] = result.stdout
+                else:
+                    status_info["docker_error"] = result.stderr
+                    
+            except Exception as e:
+                status_info["docker_error"] = str(e)
+        
+        print(f"[DEBUG] 状态检查结果: {status_info}")
+        
+        return success_response(status_info)
+        
+    except Exception as e:
+        print(f"[DEBUG] 状态检查异常: {e}")
+        return make_response(error_response(f"状态检查失败: {str(e)}"), 500)
 
 
 @bp.route("/stop-process", methods=["POST"])

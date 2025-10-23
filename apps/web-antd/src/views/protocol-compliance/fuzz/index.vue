@@ -2208,6 +2208,9 @@ async function executeRTSPCommandWrapper() {
 function startRTSPLogReading() {
   isReadingLog.value = true;
   
+  // 先检查状态
+  checkRTSPStatus();
+  
   // 开始实时日志读取
   readRTSPLogPeriodically();
   
@@ -2219,6 +2222,66 @@ function startRTSPLogReading() {
     hex: '',
     result: 'success'
   } as any, false);
+}
+
+// 检查RTSP状态
+async function checkRTSPStatus() {
+  try {
+    const result = await requestClient.post('/protocol-compliance/check-status', {
+      protocol: 'RTSP'
+    });
+    
+    console.log('[DEBUG] RTSP状态检查结果:', result);
+    
+    if (result) {
+      // 显示状态信息到UI
+      const statusMessage = `状态检查: 日志目录${result.log_dir_exists ? '存在' : '不存在'}, 日志文件${result.log_file_exists ? '存在' : '不存在'}`;
+      
+      addLogToUI({ 
+        timestamp: new Date().toLocaleTimeString(),
+        version: 'RTSP',
+        type: 'STATUS',
+        oids: [statusMessage],
+        hex: '',
+        result: 'info'
+      } as any, false);
+      
+      // 如果有Docker容器信息，显示
+      if (result.docker_containers) {
+        addLogToUI({ 
+          timestamp: new Date().toLocaleTimeString(),
+          version: 'RTSP',
+          type: 'DOCKER',
+          oids: [`Docker容器状态: ${result.docker_containers.split('\n').length - 1}个容器运行中`],
+          hex: '',
+          result: 'info'
+        } as any, false);
+      }
+      
+      // 如果有文件列表，显示
+      if (result.files_in_log_dir && Array.isArray(result.files_in_log_dir)) {
+        addLogToUI({ 
+          timestamp: new Date().toLocaleTimeString(),
+          version: 'RTSP',
+          type: 'FILES',
+          oids: [`输出目录文件: ${result.files_in_log_dir.join(', ')}`],
+          hex: '',
+          result: 'info'
+        } as any, false);
+      }
+    }
+  } catch (error) {
+    console.error('检查RTSP状态失败:', error);
+    
+    addLogToUI({ 
+      timestamp: new Date().toLocaleTimeString(),
+      version: 'RTSP',
+      type: 'ERROR',
+      oids: [`状态检查失败: ${error.message || error}`],
+      hex: '',
+      result: 'failed'
+    } as any, false);
+  }
 }
 
 async function readRTSPLogPeriodically() {
@@ -2242,21 +2305,59 @@ async function readRTSPLogPeriodically() {
         lastPosition: logReadPosition.value // 使用实际的读取位置，实现增量读取
       });
       
+      console.log('[DEBUG] RTSP日志读取结果:', result);
+      
+      if (result && result.message) {
+        // 显示后端返回的状态信息
+        console.log('[DEBUG] 后端状态信息:', result.message);
+        
+        // 如果是文件不存在的情况，显示等待信息
+        if (result.message.includes('日志文件尚未创建') || result.message.includes('日志目录不存在')) {
+          addLogToUI({ 
+            timestamp: new Date().toLocaleTimeString(),
+            version: 'RTSP',
+            type: 'INFO',
+            oids: [result.message],
+            hex: '',
+            result: 'info'
+          } as any, false);
+        }
+      }
+      
       if (result && result.content && result.content.trim()) {
         // 更新读取位置
         logReadPosition.value = result.position || logReadPosition.value;
         
+        console.log('[DEBUG] 读取到RTSP日志内容，长度:', result.content.length);
+        console.log('[DEBUG] 日志内容预览:', result.content.substring(0, 200));
+        
         // 处理AFL-NET的plot_data格式
         const logLines = result.content.split('\n').filter((line: string) => line.trim());
+        console.log('[DEBUG] 处理日志行数:', logLines.length);
+        
         logLines.forEach((line: string) => {
           const logData = processRTSPLogLine(line, packetCount, successCount, failedCount, crashCount, currentSpeed);
           if (logData) {
+            console.log('[DEBUG] 处理的日志数据:', logData);
             addRTSPLogToUI(logData);
           }
         });
+      } else if (result && result.file_size !== undefined) {
+        // 文件存在但没有新内容
+        console.log('[DEBUG] 日志文件存在但没有新内容，文件大小:', result.file_size);
       }
     } catch (error) {
       console.error('读取RTSP日志失败:', error);
+      
+      // 显示错误信息到UI
+      addLogToUI({ 
+        timestamp: new Date().toLocaleTimeString(),
+        version: 'RTSP',
+        type: 'ERROR',
+        oids: [`读取日志失败: ${error.message || error}`],
+        hex: '',
+        result: 'failed'
+      } as any, false);
     }
   }, 2000); // 每2秒读取一次日志
 }
