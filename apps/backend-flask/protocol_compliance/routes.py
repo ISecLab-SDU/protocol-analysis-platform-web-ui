@@ -305,6 +305,13 @@ MQTT_CONFIG = {
     "output_dir": os.path.join(os.path.dirname(__file__), "mbfuzzer_logs")  # MBFuzzer输出目录
 }
 
+# SNMP协议配置 - SNMP Fuzzer相关路径
+SNMP_CONFIG = {
+    "log_file_path": os.path.join(os.path.dirname(__file__), "snmpfuzzer_logs", "fuzz_output.txt"),  # SNMP Fuzzer日志文件路径
+    "shell_command": "python3 /path/to/snmpfuzzer/fuzz.py",  # SNMP Fuzzer启动命令（需要根据实际路径修改）
+    "output_dir": os.path.join(os.path.dirname(__file__), "snmpfuzzer_logs")  # SNMP Fuzzer输出目录
+}
+
 @bp.route("/write-script", methods=["POST"])
 def write_script():
     """写入脚本文件到指定路径"""
@@ -440,6 +447,8 @@ def read_log():
         file_path = RTSP_CONFIG["log_file_path"]
     elif protocol == "MQTT":
         file_path = MQTT_CONFIG["log_file_path"]
+    elif protocol == "SNMP":
+        file_path = SNMP_CONFIG["log_file_path"]
     else:
         return make_response(error_response(f"不支持的协议类型: {protocol}"), 400)
     

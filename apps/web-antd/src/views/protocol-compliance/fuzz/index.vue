@@ -226,21 +226,19 @@ const failedRate = computed(() => {
 async function fetchText() {
   loading.value = true;
   try {
-    // 暂时禁用getFuzzText调用以避免错误弹窗，直接使用默认数据
-    // const resp = await getFuzzText();
-    // const text = (resp as any)?.text ?? (resp as any)?.data?.text ?? '';
-    // console.log('API响应数据长度:', text?.length || 0);
-    // console.log('API响应前100字符:', text?.substring(0, 100) || '无数据');
+    // 尝试从Flask后端获取SNMP日志数据
+    const resp = await getFuzzText();
+    const text = (resp as any)?.text ?? (resp as any)?.data?.text ?? '';
+    console.log('API响应数据长度:', text?.length || 0);
+    console.log('API响应前100字符:', text?.substring(0, 100) || '无数据');
     
-    // if (!text || text.trim().length === 0) {
-    //   console.warn('API返回空数据，使用默认数据');
-    //   rawText.value = generateDefaultFuzzData();
-    // } else {
-    //   rawText.value = text;
-    // }
-    
-    console.log('使用默认SNMP测试数据');
-    rawText.value = generateDefaultFuzzData();
+    if (!text || text.trim().length === 0) {
+      console.warn('API返回空数据，使用默认数据');
+      rawText.value = generateDefaultFuzzData();
+    } else {
+      console.log('成功从SNMP日志文件加载数据');
+      rawText.value = text;
+    }
   } catch (e: any) {
     console.error('API调用失败:', e);
     error.value = `API调用失败: ${e?.message || '未知错误'}`;
