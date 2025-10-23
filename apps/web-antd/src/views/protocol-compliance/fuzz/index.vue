@@ -3289,7 +3289,7 @@ onMounted(async () => {
             <h3 class="font-semibold text-lg mb-4">实时统计</h3>
             
             <!-- SNMP协议统计 -->
-            <div v-if="protocolType !== 'RTSP'" class="space-y-6">
+            <div v-if="protocolType === 'SNMP'" class="space-y-6">
               <div>
                 <div class="flex justify-between items-center mb-1">
                   <span class="text-sm text-dark/70">总发送包数</span>
