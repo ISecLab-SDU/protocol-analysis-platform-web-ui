@@ -753,8 +753,8 @@ async function startMQTTTest() {
       processedRecords: 0
     });
     
-    // 启动MQTT实时流
-    startRealtimeStream('MQTT', { batchSize: 50, interval: 100 });
+    // 启动MQTT实时流（更快的刷新频率）
+    startRealtimeStream('MQTT', { batchSize: 20, interval: 50 });
     
     // 清空旧的差异日志数据（向后兼容）
     if (mqttUpdateTimer) {

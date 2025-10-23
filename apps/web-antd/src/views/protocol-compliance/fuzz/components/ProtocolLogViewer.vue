@@ -3,87 +3,83 @@
     <!-- 协议特定的日志展示容器 -->
     <div 
       :id="`log-viewer-${protocol}`"
-      class="log-container bg-light-gray rounded-lg border border-dark/10 h-80 overflow-hidden font-mono text-xs"
+      class="log-container bg-light-gray rounded-lg border border-dark/10 h-80 overflow-hidden font-mono text-xs relative"
     >
-      <!-- 虚拟滚动容器 -->
+      <!-- 实时滚动日志容器 -->
       <div 
         ref="scrollContainer"
-        class="virtual-scroll-container h-full overflow-y-auto scrollbar-thin"
+        class="h-full overflow-y-auto scrollbar-thin p-3"
         @scroll="handleScroll"
       >
-        <!-- 上方占位符 -->
-        <div :style="{ height: `${topPlaceholderHeight}px` }"></div>
-        
-        <!-- 可见区域的日志项 -->
+        <!-- 日志项 -->
         <div 
-          v-for="(log, index) in visibleLogs" 
-          :key="`${protocol}-log-${log.id || startIndex + index}`"
-          class="log-item mb-1 leading-relaxed text-dark/80 px-3 py-1"
+          v-for="(log, index) in displayLogs" 
+          :key="`${protocol}-log-${log.id || index}`"
+          class="log-item mb-1 leading-relaxed text-dark/80"
           :class="getLogItemClass(log)"
           v-html="formatLogContent(log)"
         >
         </div>
         
-        <!-- 下方占位符 -->
-        <div :style="{ height: `${bottomPlaceholderHeight}px` }"></div>
+        <!-- 空状态提示 -->
+        <div v-if="logs.length === 0" class="text-center text-dark/50 py-8">
+          <div class="mb-2">
+            <i class="fa fa-play-circle text-2xl text-primary/30"></i>
+          </div>
+          <div>测试未开始，等待日志输出...</div>
+        </div>
       </div>
       
       <!-- 实时状态指示器 -->
       <div 
         v-if="isRealTime && logs.length > 0"
-        class="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full flex items-center"
+        class="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full flex items-center z-10"
       >
         <div class="w-2 h-2 bg-white rounded-full mr-1 animate-pulse"></div>
         实时更新
       </div>
+      
+      <!-- 日志统计信息 -->
+      <div 
+        v-if="logs.length > 0"
+        class="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded z-10"
+      >
+        共 {{ logs.length }} 条日志
+      </div>
     </div>
     
-    <!-- 分页控制器 -->
-    <div class="pagination-controls mt-4 flex items-center justify-between">
-      <div class="flex items-center space-x-4">
-        <span class="text-sm text-dark/70">
-          显示 {{ startIndex + 1 }}-{{ Math.min(startIndex + pageSize, totalLogs) }} 
-          / 共 {{ totalLogs }} 条
-        </span>
-        
-        <!-- 页面大小选择 -->
-        <select 
-          v-model="pageSize" 
-          @change="updateVisibleLogs"
-          class="text-sm border border-dark/20 rounded px-2 py-1"
-        >
-          <option :value="50">50条/页</option>
-          <option :value="100">100条/页</option>
-          <option :value="200">200条/页</option>
-          <option :value="500">500条/页</option>
-        </select>
-      </div>
-      
+    <!-- 简化的控制器 -->
+    <div class="controls mt-3 flex items-center justify-between">
       <div class="flex items-center space-x-2">
         <!-- 跳转到最新 -->
         <button 
-          v-if="!isAtBottom"
+          v-if="!isAtBottom && logs.length > 0"
           @click="scrollToBottom"
-          class="text-sm bg-primary text-white px-3 py-1 rounded hover:bg-primary/90"
+          class="text-sm bg-primary text-white px-3 py-1 rounded hover:bg-primary/90 transition-colors"
         >
+          <i class="fa fa-arrow-down mr-1"></i>
           跳转到最新
         </button>
-        
+      </div>
+      
+      <div class="flex items-center space-x-2">
         <!-- 暂停/恢复实时更新 -->
         <button 
           @click="toggleRealTime"
-          class="text-sm px-3 py-1 rounded border"
-          :class="isRealTime ? 'bg-orange-500 text-white' : 'bg-gray-500 text-white'"
+          class="text-sm px-3 py-1 rounded border transition-colors"
+          :class="isRealTime ? 'bg-orange-500 text-white border-orange-500' : 'bg-gray-500 text-white border-gray-500'"
         >
-          {{ isRealTime ? '暂停实时' : '恢复实时' }}
+          <i :class="isRealTime ? 'fa fa-pause' : 'fa fa-play'" class="mr-1"></i>
+          {{ isRealTime ? '暂停' : '恢复' }}
         </button>
         
         <!-- 清空日志 -->
         <button 
           @click="clearLogs"
-          class="text-sm bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
+          class="text-sm bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 transition-colors"
         >
-          清空日志
+          <i class="fa fa-trash mr-1"></i>
+          清空
         </button>
       </div>
     </div>
@@ -111,50 +107,33 @@ const props = withDefaults(defineProps<Props>(), {
   formatLogContent: (log) => `[${log.timestamp}] ${log.content}`
 });
 
-// 虚拟滚动配置
-const itemHeight = 24; // 每个日志项的高度（px）
-const pageSize = ref(100); // 每页显示的日志数量
+// 组件引用
 const scrollContainer = ref<HTMLElement>();
 
-// 滚动状态
-const scrollTop = ref(0);
-const containerHeight = ref(320); // 容器高度
+// 状态管理
 const isRealTime = ref(true);
 const isAtBottom = ref(true);
+const maxDisplayLogs = 1000; // 最多显示1000条日志，避免性能问题
 
-// 计算可见区域
-const visibleCount = computed(() => Math.ceil(containerHeight.value / itemHeight) + 5); // 多渲染5个缓冲
-const startIndex = computed(() => Math.max(0, Math.floor(scrollTop.value / itemHeight) - 2));
-const endIndex = computed(() => Math.min(props.logs.length, startIndex.value + visibleCount.value));
-
-// 可见的日志项
-const visibleLogs = computed(() => {
+// 显示的日志（限制数量以保证性能）
+const displayLogs = computed(() => {
   if (!props.isActive) return [];
-  return props.logs.slice(startIndex.value, endIndex.value);
+  
+  // 如果日志数量超过限制，只显示最新的日志
+  if (props.logs.length > maxDisplayLogs) {
+    return props.logs.slice(-maxDisplayLogs);
+  }
+  
+  return props.logs;
 });
-
-// 占位符高度
-const topPlaceholderHeight = computed(() => startIndex.value * itemHeight);
-const bottomPlaceholderHeight = computed(() => 
-  Math.max(0, (props.logs.length - endIndex.value) * itemHeight)
-);
-
-// 总日志数
-const totalLogs = computed(() => props.logs.length);
 
 // 滚动处理
 function handleScroll(event: Event) {
   const target = event.target as HTMLElement;
-  scrollTop.value = target.scrollTop;
   
   // 检查是否在底部
   const isNearBottom = target.scrollTop + target.clientHeight >= target.scrollHeight - 50;
   isAtBottom.value = isNearBottom;
-  
-  // 如果不在底部，暂停实时更新
-  if (!isNearBottom && isRealTime.value) {
-    // 可以选择暂停实时更新，或者继续更新但不自动滚动
-  }
 }
 
 // 滚动到底部
@@ -165,13 +144,13 @@ function scrollToBottom() {
   }
 }
 
-// 更新可见日志
-function updateVisibleLogs() {
-  nextTick(() => {
-    if (isAtBottom.value) {
+// 自动滚动到底部（如果启用实时更新且在底部）
+function autoScrollToBottom() {
+  if (isRealTime.value && isAtBottom.value) {
+    nextTick(() => {
       scrollToBottom();
-    }
-  });
+    });
+  }
 }
 
 // 切换实时更新
@@ -205,28 +184,22 @@ function getLogItemClass(log: any) {
 
 // 监听日志变化，自动滚动到底部
 watch(() => props.logs.length, (newLength, oldLength) => {
-  if (newLength > oldLength && isRealTime.value && isAtBottom.value) {
+  if (newLength > oldLength) {
+    autoScrollToBottom();
+  }
+});
+
+// 监听协议激活状态
+watch(() => props.isActive, (isActive) => {
+  if (isActive && props.logs.length > 0) {
     nextTick(() => {
       scrollToBottom();
     });
   }
 });
 
-// 监听协议激活状态
-watch(() => props.isActive, (isActive) => {
-  if (isActive) {
-    nextTick(() => {
-      updateVisibleLogs();
-    });
-  }
-});
-
 // 组件挂载时初始化
 onMounted(() => {
-  if (scrollContainer.value) {
-    containerHeight.value = scrollContainer.value.clientHeight;
-  }
-  
   // 如果有日志且是激活状态，滚动到底部
   if (props.logs.length > 0 && props.isActive) {
     nextTick(() => {
@@ -242,13 +215,9 @@ const emit = defineEmits<{
 </script>
 
 <style scoped>
-.virtual-scroll-container {
-  position: relative;
-}
-
 .log-item {
-  min-height: 24px;
   word-break: break-all;
+  line-height: 1.4;
 }
 
 .protocol-log-viewer {
@@ -272,5 +241,10 @@ const emit = defineEmits<{
 
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
+}
+
+/* 过渡动画 */
+.transition-colors {
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s;
 }
 </style>

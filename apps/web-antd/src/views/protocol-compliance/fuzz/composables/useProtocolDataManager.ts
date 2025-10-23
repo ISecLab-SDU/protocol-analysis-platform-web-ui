@@ -178,7 +178,7 @@ export function useProtocolDataManager() {
   }>();
 
   // 开始实时日志流
-  function startRealtimeStream(protocol: ProtocolType, options = { batchSize: 50, interval: 100 }) {
+  function startRealtimeStream(protocol: ProtocolType, options = { batchSize: 20, interval: 50 }) {
     if (realtimeStreams.has(protocol)) {
       stopRealtimeStream(protocol);
     }
