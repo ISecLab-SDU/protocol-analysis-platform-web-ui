@@ -660,8 +660,8 @@ async function startMQTTTest() {
     // 重置MQTT统计数据
     resetMQTTStats();
     
-    // 重置实时统计数据
-    resetMQTTRealTimeStats();
+    // 重置差异统计数据
+    resetMQTTDifferentialStats();
     
     // 清空差异日志
     mqttDifferentialLogs.value = [];
@@ -675,19 +675,25 @@ async function startMQTTTest() {
   }
 }
 
-// 重置MQTT实时统计数据
-function resetMQTTRealTimeStats() {
-  Object.keys(mqttRealTimeStats.value.client_requests).forEach(key => {
-    mqttRealTimeStats.value.client_requests[key as keyof typeof mqttRealTimeStats.value.client_requests] = 0;
+// 重置MQTT差异统计数据
+function resetMQTTDifferentialStats() {
+  // 重置差异类型统计
+  Object.keys(mqttDifferentialStats.value.type_stats).forEach(key => {
+    mqttDifferentialStats.value.type_stats[key as keyof typeof mqttDifferentialStats.value.type_stats] = 0;
   });
-  Object.keys(mqttRealTimeStats.value.broker_requests).forEach(key => {
-    mqttRealTimeStats.value.broker_requests[key as keyof typeof mqttRealTimeStats.value.broker_requests] = 0;
+  
+  // 重置协议版本统计
+  Object.keys(mqttDifferentialStats.value.version_stats).forEach(key => {
+    mqttDifferentialStats.value.version_stats[key as keyof typeof mqttDifferentialStats.value.version_stats] = 0;
   });
-  mqttRealTimeStats.value.crash_number = 0;
-  mqttRealTimeStats.value.diff_number = 0;
-  mqttRealTimeStats.value.duplicate_diff_number = 0;
-  mqttRealTimeStats.value.valid_connect_number = 0;
-  mqttRealTimeStats.value.duplicate_connect_diff = 0;
+  
+  // 重置消息类型统计
+  Object.keys(mqttDifferentialStats.value.msg_type_stats).forEach(key => {
+    mqttDifferentialStats.value.msg_type_stats[key as keyof typeof mqttDifferentialStats.value.msg_type_stats] = 0;
+  });
+  
+  // 重置总差异数
+  mqttDifferentialStats.value.total_differences = 0;
 }
 
 // resetMQTTStats 现在通过 useMQTT composable 提供
@@ -1143,7 +1149,7 @@ async function simulateRealTimeFuzzing(differentialLines: string[]) {
     
     processedCount++;
     
-    // 更新计数器
+    // 更新计数器 - 对于MQTT协议，packetCount表示处理的差异数量
     packetCount.value = processedCount;
     
     // 滚动到底部
@@ -1186,47 +1192,77 @@ async function simulateRealTimeFuzzing(differentialLines: string[]) {
   }, 1000);
 }
 
+// 差异统计数据结构
+const mqttDifferentialStats = ref({
+  // 按差异类型统计
+  type_stats: {
+    'Message Missing': 0,
+    'Message Unexpected': 0,
+    'Field Missing': 0,
+    'Field Unexpected': 0,
+    'Field Different': 0
+  },
+  // 按协议版本统计
+  version_stats: {
+    '3': 0,
+    '4': 0,
+    '5': 0
+  },
+  // 按消息类型统计
+  msg_type_stats: {
+    'CONNECT': 0,
+    'CONNACK': 0,
+    'PUBLISH': 0,
+    'PUBACK': 0,
+    'PUBREC': 0,
+    'PUBREL': 0,
+    'PUBCOMP': 0,
+    'SUBSCRIBE': 0,
+    'SUBACK': 0,
+    'UNSUBSCRIBE': 0,
+    'UNSUBACK': 0,
+    'PINGREQ': 0,
+    'PINGRESP': 0,
+    'DISCONNECT': 0,
+    'AUTH': 0
+  },
+  total_differences: 0
+});
+
 // 更新实时统计数据
 function updateRealTimeStats(line: string) {
   // 解析差异报告行中的统计信息
   const msgTypeMatch = line.match(/msg_type:\s*([^,\s]+)/);
-  const directionMatch = line.match(/direction:\s*([^,\s]+)/);
+  const versionMatch = line.match(/protocol_version:\s*(\d+)/);
   const diffTypeMatch = line.match(/type:\s*\{([^}]+)\}/);
   
-  if (msgTypeMatch) {
-    const msgType = msgTypeMatch[1].trim();
-    const direction = directionMatch ? directionMatch[1].trim() : 'unknown';
-    const diffType = diffTypeMatch ? diffTypeMatch[1].trim() : 'unknown';
+  if (msgTypeMatch || versionMatch || diffTypeMatch) {
+    // 每个差异报告行代表一个差异
+    mqttDifferentialStats.value.total_differences++;
     
-    // 更新差异计数
-    mqttRealTimeStats.value.diff_number++;
-    
-    // 根据差异类型更新重复差异计数
-    if (diffType.includes('Different') || diffType.includes('Missing') || diffType.includes('Unexpected')) {
-      mqttRealTimeStats.value.duplicate_diff_number++;
-    }
-    
-    // 根据消息类型和方向更新请求统计
-    if (direction === 'client' && mqttRealTimeStats.value.client_requests.hasOwnProperty(msgType)) {
-      // 模拟增加客户端请求计数
-      mqttRealTimeStats.value.client_requests[msgType as keyof typeof mqttRealTimeStats.value.client_requests]++;
-    } else if (direction === 'broker' && mqttRealTimeStats.value.broker_requests.hasOwnProperty(msgType)) {
-      // 模拟增加代理端请求计数
-      mqttRealTimeStats.value.broker_requests[msgType as keyof typeof mqttRealTimeStats.value.broker_requests]++;
-    }
-    
-    // 特殊处理CONNECT消息的有效连接数
-    if (msgType === 'CONNECT' && direction === 'client') {
-      // 模拟有效连接数的增长（每10个CONNECT差异增加1个有效连接）
-      if (mqttRealTimeStats.value.diff_number % 10 === 0) {
-        mqttRealTimeStats.value.valid_connect_number++;
+    // 统计消息类型
+    if (msgTypeMatch) {
+      const msgType = msgTypeMatch[1].trim();
+      if (mqttDifferentialStats.value.msg_type_stats.hasOwnProperty(msgType)) {
+        mqttDifferentialStats.value.msg_type_stats[msgType as keyof typeof mqttDifferentialStats.value.msg_type_stats]++;
       }
     }
     
-    // 更新全局统计数据以保持同步
-    mqttStats.value.diff_number = mqttRealTimeStats.value.diff_number;
-    mqttStats.value.duplicate_diff_number = mqttRealTimeStats.value.duplicate_diff_number;
-    mqttStats.value.valid_connect_number = mqttRealTimeStats.value.valid_connect_number;
+    // 统计协议版本
+    if (versionMatch) {
+      const version = versionMatch[1];
+      if (mqttDifferentialStats.value.version_stats.hasOwnProperty(version)) {
+        mqttDifferentialStats.value.version_stats[version as keyof typeof mqttDifferentialStats.value.version_stats]++;
+      }
+    }
+    
+    // 统计差异类型
+    if (diffTypeMatch) {
+      const diffType = diffTypeMatch[1].trim();
+      if (mqttDifferentialStats.value.type_stats.hasOwnProperty(diffType)) {
+        mqttDifferentialStats.value.type_stats[diffType as keyof typeof mqttDifferentialStats.value.type_stats]++;
+      }
+    }
   }
 }
 
@@ -1586,12 +1622,6 @@ function parseMQTTDifferentialLine(line: string) {
       severity = '警告';
     }
     
-    // 构建更详细的显示内容
-    let content = `[${severity}] MQTT v${protocolVersion} - ${msgType}消息`;
-    if (field) {
-      content += ` [字段: ${field}]`;
-    }
-    
     // 添加差异类型的中文描述
     let diffTypeDesc = diffType;
     switch (diffType) {
@@ -1612,14 +1642,15 @@ function parseMQTTDifferentialLine(line: string) {
         break;
     }
     
-    content += ` | ${diffTypeDesc}`;
+    // 构建简洁的显示内容，去除file_path相关信息
+    let content = `MQTT v${protocolVersion} ${msgType} | ${diffTypeDesc}`;
     
-    if (brokers.length > 0) {
-      content += ` | 影响Broker: ${brokers.join(', ')}`;
+    if (field) {
+      content += ` | 字段: ${field}`;
     }
     
-    if (captureTime) {
-      content += ` | ${captureTime}`;
+    if (brokers.length > 0) {
+      content += ` | Broker: ${brokers.join(', ')}`;
     }
     
     return {
@@ -2874,8 +2905,23 @@ onMounted(async () => {
                 <div 
                   v-for="(log, index) in mqttDifferentialLogs" 
                   :key="index"
-                  class="mb-1 text-dark/80 leading-relaxed"
+                  :class="{
+                    'mb-1 leading-relaxed p-2 rounded': true,
+                    'text-red-700 bg-red-50 border-l-4 border-red-400': log.includes('Message Missing') || log.includes('Message Unexpected'),
+                    'text-yellow-700 bg-yellow-50 border-l-4 border-yellow-400': log.includes('Field Different') || log.includes('Field Missing') || log.includes('Field Unexpected'),
+                    'text-blue-700 bg-blue-50 border-l-4 border-blue-400': log.includes('===') || log.includes('开始时间') || log.includes('结束时间'),
+                    'text-gray-700 bg-gray-50': !log.includes('Message') && !log.includes('Field') && !log.includes('===') && !log.includes('时间')
+                  }"
                 >
+                  <span v-if="log.includes('Message Missing') || log.includes('Message Unexpected')" class="mr-2">
+                    <i class="fa fa-exclamation-triangle text-red-500"></i>
+                  </span>
+                  <span v-else-if="log.includes('Field Different') || log.includes('Field Missing') || log.includes('Field Unexpected')" class="mr-2">
+                    <i class="fa fa-warning text-yellow-500"></i>
+                  </span>
+                  <span v-else-if="log.includes('===') || log.includes('开始时间') || log.includes('结束时间')" class="mr-2">
+                    <i class="fa fa-info-circle text-blue-500"></i>
+                  </span>
                   {{ log }}
                 </div>
               </div>
@@ -2938,37 +2984,36 @@ onMounted(async () => {
               
               <!-- MQTT协议运行监控 -->
               <div v-if="protocolType === 'MQTT'" class="space-y-4">
-                <div class="grid grid-cols-2 gap-4">
-                  <div class="bg-red-50 rounded-lg p-3 border border-red-200 text-center">
-                    <div class="text-2xl font-bold text-red-600 mb-1">{{ mqttRealTimeStats.crash_number }}</div>
-                    <div class="text-xs text-red-700">崩溃数</div>
-                    <div class="text-xs text-gray-500 mt-1">Crashes</div>
+                <div class="grid grid-cols-1 gap-4">
+                  <div class="bg-yellow-50 rounded-lg p-4 border border-yellow-200 text-center">
+                    <div class="text-3xl font-bold text-yellow-600 mb-2">{{ mqttDifferentialStats.total_differences }}</div>
+                    <div class="text-sm text-yellow-700 font-medium">协议差异发现</div>
+                    <div class="text-xs text-gray-500 mt-1">Protocol Differences</div>
                   </div>
-                  <div class="bg-yellow-50 rounded-lg p-3 border border-yellow-200 text-center">
-                    <div class="text-2xl font-bold text-yellow-600 mb-1">{{ mqttRealTimeStats.diff_number }}</div>
-                    <div class="text-xs text-yellow-700">协议差异</div>
-                    <div class="text-xs text-gray-500 mt-1">Differences</div>
+                  
+                  <div class="bg-red-50 rounded-lg p-4 border border-red-200 text-center">
+                    <div class="text-3xl font-bold text-red-600 mb-2">{{ mqttStats.crash_number }}</div>
+                    <div class="text-sm text-red-700 font-medium">崩溃检测</div>
+                    <div class="text-xs text-gray-500 mt-1">Crashes Detected</div>
                   </div>
-                </div>
-                
-                <div class="bg-purple-50 rounded-lg p-3 border border-purple-200 text-center">
-                  <div class="text-2xl font-bold text-purple-600 mb-1">{{ mqttRealTimeStats.duplicate_diff_number }}</div>
-                  <div class="text-xs text-purple-700">重复差异</div>
-                  <div class="text-xs text-gray-500 mt-1">Duplicate Diffs</div>
                 </div>
                 
                 <div class="bg-gray-50 rounded-lg p-3 border border-gray-200">
                   <div class="text-xs text-gray-600 mb-2">监控状态</div>
                   <div class="flex items-center space-x-2">
                     <div class="w-2 h-2 rounded-full animate-pulse" 
-                         :class="mqttRealTimeStats.crash_number > 0 ? 'bg-red-500' : 
-                                 mqttRealTimeStats.diff_number > 0 ? 'bg-yellow-500' : 'bg-green-500'"></div>
+                         :class="mqttStats.crash_number > 0 ? 'bg-red-500' : 
+                                 mqttDifferentialStats.total_differences > 0 ? 'bg-yellow-500' : 'bg-green-500'"></div>
                     <span class="text-sm" 
-                          :class="mqttRealTimeStats.crash_number > 0 ? 'text-red-700 font-medium' : 
-                                  mqttRealTimeStats.diff_number > 0 ? 'text-yellow-700 font-medium' : 'text-gray-700'">
-                      {{ mqttRealTimeStats.crash_number > 0 ? '检测到崩溃异常' : 
-                         mqttRealTimeStats.diff_number > 0 ? '发现协议差异' : '系统运行稳定' }}
+                          :class="mqttStats.crash_number > 0 ? 'text-red-700 font-medium' : 
+                                  mqttDifferentialStats.total_differences > 0 ? 'text-yellow-700 font-medium' : 'text-gray-700'">
+                      {{ mqttStats.crash_number > 0 ? '检测到崩溃异常' : 
+                         mqttDifferentialStats.total_differences > 0 ? '发现协议差异' : '差异分析中...' }}
                     </span>
+                  </div>
+                  <div class="text-xs text-gray-500 mt-1">
+                    差异发现率: {{ mqttDifferentialStats.total_differences > 0 ? 
+                      Math.round((mqttDifferentialStats.total_differences / Math.max(packetCount, 1)) * 100) : 0 }}%
                   </div>
                 </div>
               </div>
@@ -3056,82 +3101,81 @@ onMounted(async () => {
             </div>
             
             <!-- MQTT协议统计 -->
-            <div v-else-if="protocolType === 'MQTT'" class="grid grid-cols-1 md:grid-cols-2 gap-8 h-72">
-              <!-- 消息类型分布统计 -->
+            <div v-else-if="protocolType === 'MQTT'" class="grid grid-cols-1 md:grid-cols-3 gap-6 h-72">
+              <!-- 差异类型分布统计 -->
               <div>
                 <h4 class="text-base font-medium mb-3 text-dark/80 text-center">
-                  <i class="fa fa-pie-chart mr-2 text-blue-600"></i>
-                  消息类型分布统计
+                  <i class="fa fa-exclamation-triangle mr-2 text-red-600"></i>
+                  差异类型分布
                 </h4>
-                <div class="h-60 bg-white rounded-lg border border-gray-200 p-4">
-                  <div class="h-full relative">
-                    <canvas ref="mqttMessageCanvas" id="mqttMessageChart" class="absolute inset-0"></canvas>
-                    <div v-if="!isTestCompleted && !isRunning" class="absolute inset-0 flex flex-col items-center justify-center text-dark/50 bg-white rounded-lg">
-                      <div class="bg-blue-100 p-3 rounded-full mb-2">
-                        <i class="fa fa-pie-chart text-2xl text-blue-600"></i>
+                <div class="h-60 bg-white rounded-lg border border-gray-200 p-3">
+                  <div class="space-y-2">
+                    <div v-for="(count, type) in mqttDifferentialStats.type_stats" :key="type" 
+                         class="flex justify-between items-center p-2 bg-gray-50 rounded">
+                      <span class="text-xs text-gray-700 truncate">{{ type }}</span>
+                      <span class="text-sm font-bold text-red-600">{{ count }}</span>
+                    </div>
+                    <div v-if="mqttDifferentialStats.total_differences === 0" class="text-center py-8">
+                      <div class="bg-gray-100 p-3 rounded-full w-12 h-12 mx-auto mb-2 flex items-center justify-center">
+                        <i class="fa fa-chart-bar text-gray-400"></i>
                       </div>
-                      <span class="text-xs">等待测试数据...</span>
+                      <span class="text-xs text-gray-500">等待差异数据...</span>
                     </div>
                   </div>
                 </div>
               </div>
               
-              <!-- Q-Learning智能决策统计 -->
+              <!-- 协议版本分布统计 -->
               <div>
                 <h4 class="text-base font-medium mb-3 text-dark/80 text-center">
-                  <i class="fa fa-brain mr-2 text-purple-600"></i>
-                  Q-Learning智能决策统计
+                  <i class="fa fa-code-fork mr-2 text-blue-600"></i>
+                  协议版本分布
                 </h4>
-                <div class="h-60 bg-white rounded-lg border border-gray-200 p-4">
+                <div class="h-60 bg-white rounded-lg border border-gray-200 p-3">
                   <div class="space-y-3">
-                    <!-- Q-Learning参数 -->
-                    <div class="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg p-3 border border-purple-200">
+                    <div v-for="(count, version) in mqttDifferentialStats.version_stats" :key="version" 
+                         class="bg-blue-50 rounded-lg p-3 border border-blue-200">
                       <div class="flex justify-between items-center mb-2">
-                        <span class="text-sm font-medium text-purple-700">
-                          <i class="fa fa-cogs mr-1"></i>学习参数
-                        </span>
-                        <span class="text-xs text-purple-600">α=0.1, γ=0.9, τ=1.0</span>
+                        <span class="text-sm font-medium text-blue-700">MQTT v{{ version }}</span>
+                        <span class="text-lg font-bold text-blue-600">{{ count }}</span>
                       </div>
-                      <div class="text-xs text-gray-600">
-                        状态空间: {{ mqttQLearningStats.total_states }} 个协议状态
+                      <div class="w-full bg-gray-200 rounded-full h-2">
+                        <div class="bg-blue-500 h-2 rounded-full" 
+                             :style="{ width: mqttDifferentialStats.total_differences > 0 ? 
+                               (count / mqttDifferentialStats.total_differences * 100) + '%' : '0%' }"></div>
+                      </div>
+                      <div class="text-xs text-gray-500 mt-1">
+                        {{ mqttDifferentialStats.total_differences > 0 ? 
+                          Math.round((count / mqttDifferentialStats.total_differences) * 100) : 0 }}%
                       </div>
                     </div>
-                    
-                    <!-- 状态转换统计 -->
-                    <div class="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-3 border border-green-200">
-                      <div class="flex justify-between items-center mb-2">
-                        <span class="text-sm font-medium text-green-700">
-                          <i class="fa fa-random mr-1"></i>状态转换
-                        </span>
-                        <span class="text-lg font-bold text-green-600">{{ mqttQLearningStats.active_states }}</span>
-                      </div>
-                      <div class="text-xs text-gray-600">
-                        活跃状态: {{ mqttQLearningStats.active_states }} / {{ mqttQLearningStats.total_states }}
-                      </div>
+                    <div v-if="mqttDifferentialStats.total_differences === 0" class="text-center py-4">
+                      <span class="text-xs text-gray-500">等待版本数据...</span>
                     </div>
-                    
-                    <!-- 动作选择分布 -->
-                    <div class="bg-gradient-to-r from-orange-50 to-red-50 rounded-lg p-3 border border-orange-200">
-                      <div class="flex justify-between items-center mb-2">
-                        <span class="text-sm font-medium text-orange-700">
-                          <i class="fa fa-target mr-1"></i>动作选择
-                        </span>
-                        <span class="text-sm text-orange-600">智能策略</span>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- 消息类型分布统计 -->
+              <div>
+                <h4 class="text-base font-medium mb-3 text-dark/80 text-center">
+                  <i class="fa fa-envelope mr-2 text-green-600"></i>
+                  消息类型分布
+                </h4>
+                <div class="h-60 bg-white rounded-lg border border-gray-200 p-3 overflow-y-auto scrollbar-thin">
+                  <div class="space-y-1">
+                    <div v-for="(count, msgType) in mqttDifferentialStats.msg_type_stats" :key="msgType" 
+                         v-show="count > 0"
+                         class="flex justify-between items-center p-1.5 bg-green-50 rounded border border-green-200">
+                      <span class="text-xs text-green-700 font-medium">{{ msgType }}</span>
+                      <span class="text-sm font-bold text-green-600">{{ count }}</span>
+                    </div>
+                    <div v-if="Object.values(mqttDifferentialStats.msg_type_stats).every(count => count === 0)" 
+                         class="text-center py-8">
+                      <div class="bg-gray-100 p-3 rounded-full w-12 h-12 mx-auto mb-2 flex items-center justify-center">
+                        <i class="fa fa-envelope text-gray-400"></i>
                       </div>
-                      <div class="grid grid-cols-3 gap-1 text-xs mt-2">
-                        <div class="text-center">
-                          <div class="font-medium text-orange-600">{{ mqttQLearningStats.top_actions.CONNECT || 0 }}</div>
-                          <div class="text-gray-500">CONNECT</div>
-                        </div>
-                        <div class="text-center">
-                          <div class="font-medium text-orange-600">{{ mqttQLearningStats.top_actions.PUBLISH || 0 }}</div>
-                          <div class="text-gray-500">PUBLISH</div>
-                        </div>
-                        <div class="text-center">
-                          <div class="font-medium text-orange-600">{{ mqttQLearningStats.top_actions.SUBSCRIBE || 0 }}</div>
-                          <div class="text-gray-500">SUBSCRIBE</div>
-                        </div>
-                      </div>
+                      <span class="text-xs text-gray-500">等待消息数据...</span>
                     </div>
                   </div>
                 </div>
@@ -3284,73 +3328,51 @@ onMounted(async () => {
                 </div>
               </div>
               
-              <!-- 测试统计总览 -->
-              <div class="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg p-3 border border-blue-200">
+              <!-- Q-Learning智能决策统计 -->
+              <div class="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-3 border border-green-200">
                 <div class="flex justify-between items-center mb-2">
-                  <span class="text-sm text-blue-700 font-medium">
-                    <i class="fa fa-chart-bar mr-1"></i>测试统计总览
+                  <span class="text-sm text-green-700 font-medium">
+                    <i class="fa fa-brain mr-1"></i>Q-Learning智能决策
                   </span>
-                  <span class="text-sm text-blue-600">
-                    {{ mqttStats.fuzzing_start_time ? calculateTestDuration(mqttStats.fuzzing_start_time, mqttStats.fuzzing_end_time || new Date().toLocaleString()) : elapsedTime + 's' }}
-                  </span>
+                  <span class="text-sm text-green-600">α=0.1, γ=0.9</span>
                 </div>
                 <div class="grid grid-cols-2 gap-2 text-xs">
-                  <div class="text-blue-700">
-                    客户端: {{ mqttStats.client_request_count.toLocaleString() }}
+                  <div class="text-green-700">
+                    状态空间: {{ mqttQLearningStats.total_states }}
                   </div>
-                  <div class="text-blue-700">
-                    代理端: {{ mqttStats.broker_request_count.toLocaleString() }}
+                  <div class="text-green-700">
+                    活跃状态: {{ mqttQLearningStats.active_states }}
                   </div>
-                  <div class="text-blue-700">
-                    总请求: {{ (mqttStats.client_request_count + mqttStats.broker_request_count).toLocaleString() }}
+                  <div class="text-green-700">
+                    CONNECT动作: {{ mqttQLearningStats.top_actions.CONNECT }}
                   </div>
-                  <div class="text-blue-700">
-                    有效连接: {{ mqttStats.valid_connect_number }}
+                  <div class="text-green-700">
+                    PUBLISH动作: {{ mqttQLearningStats.top_actions.PUBLISH }}
                   </div>
                 </div>
               </div>
               
-              <div class="grid grid-cols-1 gap-3">
-                <!-- 第一行：协议差异分析 -->
-                <div class="grid grid-cols-2 gap-3">
-                  <div class="bg-yellow-50 rounded-lg p-3 border border-yellow-200">
-                    <p class="text-xs text-yellow-700 mb-1">
-                      <i class="fa fa-exclamation-triangle mr-1"></i>协议差异
-                    </p>
-                    <h4 class="text-2xl font-bold text-yellow-600">{{ mqttRealTimeStats.diff_number }}</h4>
-                    <p class="text-xs text-dark/60 mt-1">实时发现</p>
-                  </div>
-                  
-                  <div class="bg-purple-50 rounded-lg p-3 border border-purple-200">
-                    <p class="text-xs text-purple-700 mb-1">
-                      <i class="fa fa-repeat mr-1"></i>重复差异
-                    </p>
-                    <h4 class="text-2xl font-bold text-purple-600">{{ mqttStats.duplicate_diff_number.toLocaleString() }}</h4>
-                    <p class="text-xs text-dark/60 mt-1">已知模式</p>
-                  </div>
+              <!-- 差异分析结果 -->
+              <div class="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg p-3 border border-yellow-200">
+                <div class="flex justify-between items-center mb-2">
+                  <span class="text-sm text-yellow-700 font-medium">
+                    <i class="fa fa-exclamation-triangle mr-1"></i>差异分析结果
+                  </span>
+                  <span class="text-lg font-bold text-yellow-600">{{ mqttDifferentialStats.total_differences }}</span>
                 </div>
-                
-                <!-- 第二行：安全监控 -->
-                <div class="bg-red-50 rounded-lg p-3 border border-red-200">
-                  <div class="flex justify-between items-center mb-2">
-                    <span class="text-xs text-red-700 font-medium">
-                      <i class="fa fa-shield mr-1"></i>安全监控状态
-                    </span>
-                    <span class="text-lg font-bold text-red-600">{{ mqttRealTimeStats.crash_number }}</span>
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                  <div class="text-yellow-700">
+                    发现差异: {{ mqttDifferentialStats.total_differences }}
                   </div>
-                  <div class="flex items-center justify-between">
-                    <div class="flex items-center space-x-2">
-                      <div class="w-2 h-2 rounded-full animate-pulse" 
-                           :class="mqttRealTimeStats.crash_number > 0 ? 'bg-red-500' : 'bg-green-500'"></div>
-                      <span class="text-xs" 
-                            :class="mqttRealTimeStats.crash_number > 0 ? 'text-red-700 font-medium' : 'text-green-700'">
-                        {{ mqttRealTimeStats.crash_number > 0 ? '检测到异常' : '运行稳定' }}
-                      </span>
-                    </div>
-                    <div class="text-xs text-gray-600">
-                      差异率: {{ (mqttStats.client_request_count + mqttStats.broker_request_count) > 0 ? 
-                        Math.round((mqttRealTimeStats.diff_number / (mqttStats.client_request_count + mqttStats.broker_request_count)) * 10000) / 100 : 0 }}%
-                    </div>
+                  <div class="text-yellow-700">
+                    崩溃检测: {{ mqttStats.crash_number }}
+                  </div>
+                  <div class="text-yellow-700">
+                    差异发现率: {{ mqttDifferentialStats.total_differences > 0 ? 
+                      Math.round((mqttDifferentialStats.total_differences / Math.max(packetCount, 1)) * 100) : 0 }}%
+                  </div>
+                  <div class="text-yellow-700">
+                    安全状态: {{ mqttStats.crash_number > 0 ? '异常' : '正常' }}
                   </div>
                 </div>
               </div>
