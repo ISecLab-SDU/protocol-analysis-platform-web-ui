@@ -89,7 +89,24 @@ const rtspCommandConfig = ref('afl-fuzz -d -i $AFLNET/tutorials/live555/in-rtsp 
 const rtspProcessId = ref<number | null>(null);
 
 // Watch for protocol changes to update port and fuzz engine
-watch(protocolType, (newProtocol) => {
+watch(protocolType, (newProtocol, oldProtocol) => {
+  // 停止当前运行的测试
+  if (isRunning.value) {
+    isRunning.value = false;
+    if (testTimer) {
+      clearInterval(testTimer as any);
+      testTimer = null;
+    }
+  }
+  
+  // 清理之前协议的状态
+  if (oldProtocol === 'MQTT') {
+    mqttDifferentialLogs.value = [];
+    resetMQTTStats();
+    resetMQTTDifferentialStats();
+  }
+  
+  // 设置新协议的配置
   if (newProtocol === 'SNMP') {
     targetPort.value = 161;
     fuzzEngine.value = 'SNMP_Fuzz';
@@ -100,6 +117,9 @@ watch(protocolType, (newProtocol) => {
     targetPort.value = 1883;
     fuzzEngine.value = 'MBFuzzer';
   }
+  
+  // 重置测试状态
+  resetTestState();
 });
 const showCharts = ref(false);
 const crashDetails = ref<any>(null);
@@ -1139,43 +1159,60 @@ async function simulateRealTimeFuzzing(differentialLines: string[]) {
   
   let processedCount = 0;
   
-  // 添加测试开始信息
-  mqttDifferentialLogs.value.push('=== MBFuzzer MQTT协议差异测试开始 ===');
-  mqttDifferentialLogs.value.push(`开始时间: ${mqttStats.value.fuzzing_start_time || new Date().toLocaleString()}`);
-  mqttDifferentialLogs.value.push(`目标代理: ${targetHost.value}:${targetPort.value}`);
-  mqttDifferentialLogs.value.push('正在分析协议差异...');
-  mqttDifferentialLogs.value.push('');
+  // 批量添加测试开始信息，避免频繁触发响应式更新
+  const startMessages = [
+    '=== MBFuzzer MQTT协议差异测试开始 ===',
+    `开始时间: ${mqttStats.value.fuzzing_start_time || new Date().toLocaleString()}`,
+    `目标代理: ${targetHost.value}:${targetPort.value}`,
+    '正在分析协议差异...',
+    ''
+  ];
+  mqttDifferentialLogs.value.push(...startMessages);
   
   // 等待一下让用户看到开始信息
   await new Promise(resolve => setTimeout(resolve, 500));
   
-  for (const line of differentialLines) {
+  // 使用批量处理来减少响应式更新频率
+  const batchSize = 10;
+  const logBatch = [];
+  
+  for (let i = 0; i < differentialLines.length; i++) {
     try {
-      // 检查用户是否停止了测试
-      if (!isRunning.value) {
+      // 检查用户是否停止了测试或切换了协议
+      if (!isRunning.value || protocolType.value !== 'MQTT') {
         break;
       }
       
-      // 添加到差异日志显示
-      mqttDifferentialLogs.value.push(line);
+      const line = differentialLines[i];
+      
+      // 添加到批处理队列
+      logBatch.push(line);
       
       // 更新实时统计数据
       updateRealTimeStats(line);
       
       processedCount++;
       
-      // 更新计数器 - 对于MQTT协议，packetCount表示处理的差异数量
-      packetCount.value = processedCount;
-      
-      // 安全的滚动到底部
-      try {
-        await nextTick();
-        if (logContainer.value && logContainer.value.scrollTop !== undefined) {
-          logContainer.value.scrollTop = logContainer.value.scrollHeight;
+      // 批量更新日志显示
+      if (logBatch.length >= batchSize || i === differentialLines.length - 1) {
+        if (isRunning.value && protocolType.value === 'MQTT') {
+          mqttDifferentialLogs.value.push(...logBatch);
         }
-      } catch (scrollError) {
-        // 忽略滚动错误，不影响主要功能
-        console.warn('滚动操作失败:', scrollError);
+        logBatch.length = 0; // 清空批处理队列
+        
+        // 更新计数器
+        packetCount.value = processedCount;
+        
+        // 安全的滚动到底部
+        try {
+          await nextTick();
+          if (isRunning.value && protocolType.value === 'MQTT' && logContainer.value && logContainer.value.scrollTop !== undefined) {
+            logContainer.value.scrollTop = logContainer.value.scrollHeight;
+          }
+        } catch (scrollError) {
+          // 忽略滚动错误，不影响主要功能
+          console.warn('滚动操作失败:', scrollError);
+        }
       }
       
       // 更新运行时长（每处理10条记录更新一次，模拟时间流逝）
@@ -1183,8 +1220,10 @@ async function simulateRealTimeFuzzing(differentialLines: string[]) {
         elapsedTime.value = Math.floor(processedCount / 10);
       }
       
-      // 等待0.1秒模拟实时处理
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // 等待0.1秒模拟实时处理，但每批处理后等待更长时间
+      if (i % batchSize === 0) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
     } catch (lineError) {
       console.warn('处理差异行时出错:', lineError);
       // 继续处理下一行
@@ -1192,13 +1231,16 @@ async function simulateRealTimeFuzzing(differentialLines: string[]) {
     }
   }
   
-  // 添加测试完成信息
-  if (isRunning.value) {
-    mqttDifferentialLogs.value.push('');
-    mqttDifferentialLogs.value.push('=== 差异分析完成 ===');
-    mqttDifferentialLogs.value.push(`处理完成: 共分析 ${processedCount} 条差异记录`);
-    mqttDifferentialLogs.value.push(`发现差异: ${mqttRealTimeStats.value.diff_number} 个`);
-    mqttDifferentialLogs.value.push(`结束时间: ${mqttStats.value.fuzzing_end_time || new Date().toLocaleString()}`);
+  // 批量添加测试完成信息
+  if (isRunning.value && protocolType.value === 'MQTT') {
+    const endMessages = [
+      '',
+      '=== 差异分析完成 ===',
+      `处理完成: 共分析 ${processedCount} 条差异记录`,
+      `发现差异: ${mqttRealTimeStats.value.diff_number} 个`,
+      `结束时间: ${mqttStats.value.fuzzing_end_time || new Date().toLocaleString()}`
+    ];
+    mqttDifferentialLogs.value.push(...endMessages);
   }
   
   // 测试完成
