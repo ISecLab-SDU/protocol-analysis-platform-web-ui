@@ -134,6 +134,11 @@ watch(protocolType, (newProtocol, oldProtocol) => {
     }
   }
   
+  // 停止所有实时流和日志读取
+  console.log('[DEBUG] 停止所有实时流和日志读取');
+  stopAllRealtimeStreams();
+  stopLogReading();
+  
   // 清理之前协议的状态
   if (oldProtocol === 'MQTT') {
     console.log('[DEBUG] 清理MQTT协议状态');
@@ -2244,7 +2249,10 @@ async function readRTSPLogPeriodically() {
         // 处理AFL-NET的plot_data格式
         const logLines = result.content.split('\n').filter((line: string) => line.trim());
         logLines.forEach((line: string) => {
-          processRTSPLogLine(line);
+          const logData = processRTSPLogLine(line, packetCount, successCount, failedCount, crashCount, currentSpeed);
+          if (logData) {
+            addRTSPLogToUI(logData);
+          }
         });
       }
     } catch (error) {
@@ -2697,16 +2705,30 @@ function loop() {
 // processPacket 现在通过 useSNMP composable 的 processSNMPPacket 提供
 
 function addLogToUI(packet: FuzzPacket, isCrash: boolean) {
-  // 使用新的协议数据管理器添加SNMP日志
+  // 根据当前协议类型添加日志
+  const currentProtocolType = protocolType.value;
   const logType = isCrash ? 'ERROR' : 
                  packet.result === 'success' ? 'SUCCESS' :
                  packet.result === 'timeout' ? 'WARNING' : 'INFO';
   
-  const logContent = formatSNMPPacketLog(packet, isCrash);
+  let logContent: string;
   
-  console.log('[DEBUG] 添加SNMP日志:', { logType, logContent, packet });
+  // 根据协议类型格式化日志内容
+  if (currentProtocolType === 'SNMP') {
+    logContent = formatSNMPPacketLog(packet, isCrash);
+    console.log('[DEBUG] 添加SNMP日志:', { logType, logContent, packet });
+  } else if (currentProtocolType === 'RTSP') {
+    logContent = formatRTSPPacketLog(packet, isCrash);
+    console.log('[DEBUG] 添加RTSP日志:', { logType, logContent, packet });
+  } else if (currentProtocolType === 'MQTT') {
+    logContent = formatMQTTPacketLog(packet, isCrash);
+    console.log('[DEBUG] 添加MQTT日志:', { logType, logContent, packet });
+  } else {
+    logContent = formatGenericPacketLog(packet, isCrash);
+    console.log('[DEBUG] 添加通用日志:', { logType, logContent, packet });
+  }
   
-  addToRealtimeStream('SNMP', {
+  addToRealtimeStream(currentProtocolType, {
     timestamp: new Date().toLocaleTimeString(),
     type: logType,
     content: logContent
@@ -2727,6 +2749,57 @@ function formatSNMPPacketLog(packet: FuzzPacket, isCrash: boolean): string {
                       packet.result === 'failed' ? '构造失败' : '未知状态';
     
     return `SNMP${protocol} ${op} ${content} ${resultText} ${hex}...`;
+  }
+}
+
+// 格式化RTSP数据包日志
+function formatRTSPPacketLog(packet: FuzzPacket, isCrash: boolean): string {
+  if (isCrash) {
+    return `CRASH DETECTED ${packet.version?.toUpperCase() || 'RTSP'} ${packet.type?.toUpperCase() || 'UNKNOWN'}`;
+  } else {
+    const protocol = packet.version?.toUpperCase() || 'RTSP';
+    const op = packet.type?.toUpperCase() || 'UNKNOWN';
+    const content = packet.oids?.[0] || '';
+    const hex = (packet.hex || '').slice(0, 40);
+    const resultText = packet.result === 'success' ? `正常响应 (${packet.responseSize || 0}字节)` : 
+                      packet.result === 'timeout' ? '接收超时' : 
+                      packet.result === 'failed' ? '构造失败' : '未知状态';
+    
+    return `${protocol} ${op} ${content} ${resultText} ${hex}...`;
+  }
+}
+
+// 格式化MQTT数据包日志
+function formatMQTTPacketLog(packet: FuzzPacket, isCrash: boolean): string {
+  if (isCrash) {
+    return `CRASH DETECTED ${packet.version?.toUpperCase() || 'MQTT'} ${packet.type?.toUpperCase() || 'UNKNOWN'}`;
+  } else {
+    const protocol = packet.version?.toUpperCase() || 'MQTT';
+    const op = packet.type?.toUpperCase() || 'UNKNOWN';
+    const content = packet.oids?.[0] || '';
+    const hex = (packet.hex || '').slice(0, 40);
+    const resultText = packet.result === 'success' ? `正常响应 (${packet.responseSize || 0}字节)` : 
+                      packet.result === 'timeout' ? '接收超时' : 
+                      packet.result === 'failed' ? '构造失败' : '未知状态';
+    
+    return `${protocol} ${op} ${content} ${resultText} ${hex}...`;
+  }
+}
+
+// 格式化通用数据包日志
+function formatGenericPacketLog(packet: FuzzPacket, isCrash: boolean): string {
+  if (isCrash) {
+    return `CRASH DETECTED ${packet.version?.toUpperCase() || 'UNKNOWN'} ${packet.type?.toUpperCase() || 'UNKNOWN'}`;
+  } else {
+    const protocol = packet.version?.toUpperCase() || 'UNKNOWN';
+    const op = packet.type?.toUpperCase() || 'UNKNOWN';
+    const content = packet.oids?.[0] || '';
+    const hex = (packet.hex || '').slice(0, 40);
+    const resultText = packet.result === 'success' ? `正常响应 (${packet.responseSize || 0}字节)` : 
+                      packet.result === 'timeout' ? '接收超时' : 
+                      packet.result === 'failed' ? '构造失败' : '未知状态';
+    
+    return `${protocol} ${op} ${content} ${resultText} ${hex}...`;
   }
 }
 
