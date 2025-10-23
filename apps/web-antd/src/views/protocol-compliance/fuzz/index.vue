@@ -1374,6 +1374,7 @@ async function simulateRealTimeFuzzing(differentialLines: string[]) {
   // 重置取消标志
   mqttSimulationCancelled = false;
   console.log('[DEBUG] 开始MQTT模拟，重置取消标志');
+  console.log('[DEBUG] simulateRealTimeFuzzing started with', differentialLines.length, 'lines');
   
   try {
   if (differentialLines.length === 0) {
@@ -1490,8 +1491,10 @@ async function simulateRealTimeFuzzing(differentialLines: string[]) {
   }
   
   // 测试完成
+  console.log('[DEBUG] simulateRealTimeFuzzing completed, scheduling test end...');
   setTimeout(() => {
     if (isRunning.value) {
+      console.log('[DEBUG] Ending MQTT test from simulateRealTimeFuzzing...');
       isRunning.value = false;
       isTestCompleted.value = true;
       testEndTime.value = new Date();
@@ -1500,6 +1503,22 @@ async function simulateRealTimeFuzzing(differentialLines: string[]) {
         clearInterval(testTimer as any);
         testTimer = null;
       }
+      
+      // 添加测试完成日志
+      addUnifiedLog('SUCCESS', 'MQTT模拟测试完成', 'MQTT');
+      
+      // 保存历史记录
+      setTimeout(() => {
+        try {
+          console.log('[DEBUG] MQTT simulation completed, saving to history...');
+          console.log('[DEBUG] Current MQTT stats before saving:', mqttStats.value);
+          updateTestSummary();
+          saveTestToHistory();
+          console.log('[DEBUG] MQTT simulation history save completed');
+        } catch (error) {
+          console.error('Error saving MQTT simulation results:', error);
+        }
+      }, 500);
     }
   }, 1000);
   } catch (error) {
