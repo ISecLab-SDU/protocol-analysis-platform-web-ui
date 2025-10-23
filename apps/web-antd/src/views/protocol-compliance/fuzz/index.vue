@@ -3042,6 +3042,10 @@ onMounted(async () => {
                       class="bg-danger/10 text-danger text-xs px-2 py-0.5 rounded-full animate-pulse">
                   {{ rtspStats.unique_crashes }} 个崩溃
                 </span>
+                <span v-else-if="protocolType === 'SNMP' && crashCount > 0" 
+                      class="bg-danger/10 text-danger text-xs px-2 py-0.5 rounded-full animate-pulse">
+                  {{ crashCount }} 个崩溃
+                </span>
                 <span v-else class="bg-success/10 text-success text-xs px-2 py-0.5 rounded-full">正常</span>
               </div>
               
@@ -3105,6 +3109,42 @@ onMounted(async () => {
                           :class="rtspStats.unique_crashes > 0 ? 'text-red-700 font-medium' : 'text-gray-700'">
                       {{ rtspStats.unique_crashes > 0 ? '检测到异常' : '持续监控中...' }}
                     </span>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- SNMP协议崩溃统计 -->
+              <div v-else-if="protocolType === 'SNMP'" class="space-y-4">
+                <div class="grid grid-cols-1 gap-4">
+                  <div class="bg-red-50 rounded-lg p-4 border border-red-200 text-center">
+                    <div class="text-3xl font-bold text-red-600 mb-2">{{ crashCount }}</div>
+                    <div class="text-sm text-red-700 font-medium">崩溃检测</div>
+                    <div class="text-xs text-gray-500 mt-1">Crashes Detected</div>
+                  </div>
+                  
+                  <div class="bg-yellow-50 rounded-lg p-4 border border-yellow-200 text-center">
+                    <div class="text-3xl font-bold text-yellow-600 mb-2">{{ timeoutCount }}</div>
+                    <div class="text-sm text-yellow-700 font-medium">超时检测</div>
+                    <div class="text-xs text-gray-500 mt-1">Timeouts Detected</div>
+                  </div>
+                </div>
+                
+                <div class="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                  <div class="text-xs text-gray-600 mb-2">监控状态</div>
+                  <div class="flex items-center space-x-2">
+                    <div class="w-2 h-2 rounded-full animate-pulse" 
+                         :class="crashCount > 0 ? 'bg-red-500' : 
+                                 timeoutCount > 10 ? 'bg-yellow-500' : 'bg-green-500'"></div>
+                    <span class="text-sm" 
+                          :class="crashCount > 0 ? 'text-red-700 font-medium' : 
+                                  timeoutCount > 10 ? 'text-yellow-700 font-medium' : 'text-gray-700'">
+                      {{ crashCount > 0 ? '检测到崩溃异常' : 
+                         timeoutCount > 10 ? '发现大量超时' : '运行正常' }}
+                    </span>
+                  </div>
+                  <div class="text-xs text-gray-500 mt-1">
+                    崩溃率: {{ packetCount > 0 ? 
+                      Math.round((crashCount / packetCount) * 100) : 0 }}%
                   </div>
                 </div>
               </div>
