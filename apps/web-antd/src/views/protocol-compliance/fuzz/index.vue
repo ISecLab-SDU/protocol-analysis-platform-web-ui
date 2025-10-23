@@ -2237,50 +2237,38 @@ async function checkRTSPStatus() {
       // 显示状态信息到UI
       const statusMessage = `状态检查: 日志目录${result.log_dir_exists ? '存在' : '不存在'}, 日志文件${result.log_file_exists ? '存在' : '不存在'}`;
       
-      addLogToUI({ 
+      addToRealtimeStream('RTSP', {
         timestamp: new Date().toLocaleTimeString(),
-        version: 'RTSP',
-        type: 'STATUS',
-        oids: [statusMessage],
-        hex: '',
-        result: 'info'
-      } as any, false);
+        type: 'INFO',
+        content: statusMessage
+      });
       
       // 如果有Docker容器信息，显示
       if (result.docker_containers) {
-        addLogToUI({ 
+        addToRealtimeStream('RTSP', {
           timestamp: new Date().toLocaleTimeString(),
-          version: 'RTSP',
-          type: 'DOCKER',
-          oids: [`Docker容器状态: ${result.docker_containers.split('\n').length - 1}个容器运行中`],
-          hex: '',
-          result: 'info'
-        } as any, false);
+          type: 'INFO',
+          content: `Docker容器状态: ${result.docker_containers.split('\n').length - 1}个容器运行中`
+        });
       }
       
       // 如果有文件列表，显示
       if (result.files_in_log_dir && Array.isArray(result.files_in_log_dir)) {
-        addLogToUI({ 
+        addToRealtimeStream('RTSP', {
           timestamp: new Date().toLocaleTimeString(),
-          version: 'RTSP',
-          type: 'FILES',
-          oids: [`输出目录文件: ${result.files_in_log_dir.join(', ')}`],
-          hex: '',
-          result: 'info'
-        } as any, false);
+          type: 'INFO',
+          content: `输出目录文件: ${result.files_in_log_dir.join(', ')}`
+        });
       }
     }
   } catch (error) {
     console.error('检查RTSP状态失败:', error);
     
-    addLogToUI({ 
+    addToRealtimeStream('RTSP', {
       timestamp: new Date().toLocaleTimeString(),
-      version: 'RTSP',
       type: 'ERROR',
-      oids: [`状态检查失败: ${error.message || error}`],
-      hex: '',
-      result: 'failed'
-    } as any, false);
+      content: `状态检查失败: ${error.message || error}`
+    });
   }
 }
 
@@ -2313,14 +2301,11 @@ async function readRTSPLogPeriodically() {
         
         // 如果是文件不存在的情况，显示等待信息
         if (result.message.includes('日志文件尚未创建') || result.message.includes('日志目录不存在')) {
-          addLogToUI({ 
+          addToRealtimeStream('RTSP', {
             timestamp: new Date().toLocaleTimeString(),
-            version: 'RTSP',
-            type: 'INFO',
-            oids: [result.message],
-            hex: '',
-            result: 'info'
-          } as any, false);
+            type: 'WARNING',
+            content: result.message
+          });
         }
       }
       
@@ -2339,7 +2324,13 @@ async function readRTSPLogPeriodically() {
           const logData = processRTSPLogLine(line, packetCount, successCount, failedCount, crashCount, currentSpeed);
           if (logData) {
             console.log('[DEBUG] 处理的日志数据:', logData);
-            addRTSPLogToUI(logData);
+            
+            // 使用协议数据管理器添加日志，而不是直接操作DOM
+            addToRealtimeStream('RTSP', {
+              timestamp: logData.timestamp,
+              type: logData.type === 'STATS' ? 'INFO' : logData.type,
+              content: logData.content
+            });
           }
         });
       } else if (result && result.file_size !== undefined) {
@@ -2350,14 +2341,11 @@ async function readRTSPLogPeriodically() {
       console.error('读取RTSP日志失败:', error);
       
       // 显示错误信息到UI
-      addLogToUI({ 
+      addToRealtimeStream('RTSP', {
         timestamp: new Date().toLocaleTimeString(),
-        version: 'RTSP',
         type: 'ERROR',
-        oids: [`读取日志失败: ${error.message || error}`],
-        hex: '',
-        result: 'failed'
-      } as any, false);
+        content: `读取日志失败: ${error.message || error}`
+      });
     }
   }, 2000); // 每2秒读取一次日志
 }
