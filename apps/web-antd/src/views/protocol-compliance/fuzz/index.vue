@@ -4387,6 +4387,72 @@ onMounted(async () => {
                           </span>
                         </div>
                       </div>
+                      
+                      <!-- 协议特定的详细信息 -->
+                      <div class="mt-3 pt-3 border-t border-gray-100">
+                        <!-- SNMP协议特定信息 -->
+                        <div v-if="item.protocol === 'SNMP'" class="space-y-2">
+                          <div class="flex items-center justify-between text-sm">
+                            <span class="text-gray-600 font-medium">协议版本分布:</span>
+                            <div class="flex space-x-4">
+                              <span class="text-blue-600">v1: {{ item.protocolStats?.v1 || 0 }}</span>
+                              <span class="text-green-600">v2c: {{ item.protocolStats?.v2c || 0 }}</span>
+                              <span class="text-purple-600">v3: {{ item.protocolStats?.v3 || 0 }}</span>
+                            </div>
+                          </div>
+                          <div class="flex items-center justify-between text-sm">
+                            <span class="text-gray-600 font-medium">消息类型分布:</span>
+                            <div class="flex space-x-3 text-xs">
+                              <span class="bg-blue-50 text-blue-600 px-2 py-1 rounded">GET: {{ item.messageTypeStats?.get || 0 }}</span>
+                              <span class="bg-green-50 text-green-600 px-2 py-1 rounded">SET: {{ item.messageTypeStats?.set || 0 }}</span>
+                              <span class="bg-yellow-50 text-yellow-600 px-2 py-1 rounded">GETNEXT: {{ item.messageTypeStats?.getnext || 0 }}</span>
+                              <span class="bg-purple-50 text-purple-600 px-2 py-1 rounded">GETBULK: {{ item.messageTypeStats?.getbulk || 0 }}</span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <!-- RTSP协议特定信息 -->
+                        <div v-else-if="item.protocol === 'RTSP'" class="space-y-2">
+                          <div class="flex items-center justify-between text-sm">
+                            <span class="text-gray-600 font-medium">AFL-NET统计:</span>
+                            <div class="flex space-x-4">
+                              <span class="text-blue-600">覆盖率: {{ item.rtspStats?.map_size || '0%' }}</span>
+                              <span class="text-green-600">速度: {{ item.rtspStats?.execs_per_sec?.toFixed(1) || 0 }}/sec</span>
+                            </div>
+                          </div>
+                          <div class="flex items-center justify-between text-sm">
+                            <span class="text-gray-600 font-medium">状态机信息:</span>
+                            <div class="flex space-x-3 text-xs">
+                              <span class="bg-blue-50 text-blue-600 px-2 py-1 rounded">路径: {{ item.rtspStats?.paths_total || 0 }}</span>
+                              <span class="bg-green-50 text-green-600 px-2 py-1 rounded">节点: {{ item.rtspStats?.n_nodes || 0 }}</span>
+                              <span class="bg-purple-50 text-purple-600 px-2 py-1 rounded">转换: {{ item.rtspStats?.n_edges || 0 }}</span>
+                              <span class="bg-orange-50 text-orange-600 px-2 py-1 rounded">深度: {{ item.rtspStats?.max_depth || 0 }}</span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <!-- MQTT协议特定信息 -->
+                        <div v-else-if="item.protocol === 'MQTT'" class="space-y-2">
+                          <div class="flex items-center justify-between text-sm">
+                            <span class="text-gray-600 font-medium">MBFuzzer统计:</span>
+                            <div class="flex space-x-4">
+                              <span class="text-red-600">发现差异: {{ item.mqttStats?.diff_number?.toLocaleString() || 0 }}</span>
+                              <span class="text-blue-600">有效连接: {{ item.protocolSpecificData?.validConnectNumber?.toLocaleString() || 0 }}</span>
+                            </div>
+                          </div>
+                          <div class="flex items-center justify-between text-sm">
+                            <span class="text-gray-600 font-medium">请求统计:</span>
+                            <div class="flex space-x-3 text-xs">
+                              <span class="bg-blue-50 text-blue-600 px-2 py-1 rounded">客户端: {{ item.protocolSpecificData?.clientRequestCount?.toLocaleString() || 0 }}</span>
+                              <span class="bg-green-50 text-green-600 px-2 py-1 rounded">代理端: {{ item.protocolSpecificData?.brokerRequestCount?.toLocaleString() || 0 }}</span>
+                              <span class="bg-purple-50 text-purple-600 px-2 py-1 rounded">差异率: {{ 
+                                item.protocolSpecificData?.clientRequestCount ? 
+                                (((item.mqttStats?.diff_number || 0) / ((item.protocolSpecificData.clientRequestCount || 0) + (item.protocolSpecificData.brokerRequestCount || 0))) * 100).toFixed(2) : 0 
+                              }}%</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                     
                     <div class="flex items-center space-x-3 ml-6">
@@ -4475,20 +4541,31 @@ onMounted(async () => {
 
                 <div class="bg-gray-50 rounded-lg p-3">
                   <h4 class="font-medium mb-2 text-gray-800">
-                    {{ selectedHistoryItem.protocol === 'RTSP' ? 'AFLNET统计' : '协议版本' }}
+                    {{ selectedHistoryItem.protocol === 'SNMP' ? '协议版本' : 
+                       selectedHistoryItem.protocol === 'RTSP' ? 'AFL-NET统计' : 
+                       'MBFuzzer统计' }}
                   </h4>
                   <div class="space-y-1">
                     <!-- SNMP协议版本统计 -->
-                    <template v-if="selectedHistoryItem.protocol !== 'RTSP'">
-                      <p><span class="text-gray-600">SNMP v1:</span> <span>{{ selectedHistoryItem.protocolStats.v1 }}</span></p>
-                      <p><span class="text-gray-600">SNMP v2c:</span> <span>{{ selectedHistoryItem.protocolStats.v2c }}</span></p>
-                      <p><span class="text-gray-600">SNMP v3:</span> <span>{{ selectedHistoryItem.protocolStats.v3 }}</span></p>
+                    <template v-if="selectedHistoryItem.protocol === 'SNMP'">
+                      <p><span class="text-gray-600">SNMP v1:</span> <span>{{ selectedHistoryItem.protocolStats?.v1 || 0 }}</span></p>
+                      <p><span class="text-gray-600">SNMP v2c:</span> <span>{{ selectedHistoryItem.protocolStats?.v2c || 0 }}</span></p>
+                      <p><span class="text-gray-600">SNMP v3:</span> <span>{{ selectedHistoryItem.protocolStats?.v3 || 0 }}</span></p>
                     </template>
-                    <!-- RTSP协议AFLNET统计 -->
-                    <template v-else-if="selectedHistoryItem.rtspStats">
-                      <p><span class="text-gray-600">执行速度:</span> <span>{{ selectedHistoryItem.rtspStats.execs_per_sec.toFixed(2) }} exec/sec</span></p>
-                      <p><span class="text-gray-600">代码覆盖率:</span> <span>{{ selectedHistoryItem.rtspStats.map_size }}</span></p>
-                      <p><span class="text-gray-600">状态节点:</span> <span>{{ selectedHistoryItem.rtspStats.n_nodes }}</span></p>
+                    <!-- RTSP协议AFL-NET统计 -->
+                    <template v-else-if="selectedHistoryItem.protocol === 'RTSP'">
+                      <p><span class="text-gray-600">执行速度:</span> <span>{{ selectedHistoryItem.rtspStats?.execs_per_sec?.toFixed(2) || 0 }} exec/sec</span></p>
+                      <p><span class="text-gray-600">代码覆盖率:</span> <span>{{ selectedHistoryItem.rtspStats?.map_size || '0%' }}</span></p>
+                      <p><span class="text-gray-600">状态节点:</span> <span>{{ selectedHistoryItem.rtspStats?.n_nodes || 0 }}</span></p>
+                    </template>
+                    <!-- MQTT协议MBFuzzer统计 -->
+                    <template v-else-if="selectedHistoryItem.protocol === 'MQTT'">
+                      <p><span class="text-gray-600">发现差异:</span> <span>{{ selectedHistoryItem.mqttStats?.diff_number?.toLocaleString() || 0 }}</span></p>
+                      <p><span class="text-gray-600">有效连接:</span> <span>{{ selectedHistoryItem.protocolSpecificData?.validConnectNumber?.toLocaleString() || 0 }}</span></p>
+                      <p><span class="text-gray-600">差异发现率:</span> <span>{{ 
+                        selectedHistoryItem.protocolSpecificData?.clientRequestCount ? 
+                        (((selectedHistoryItem.mqttStats?.diff_number || 0) / ((selectedHistoryItem.protocolSpecificData.clientRequestCount || 0) + (selectedHistoryItem.protocolSpecificData.brokerRequestCount || 0))) * 100).toFixed(2) : 0 
+                      }}%</span></p>
                     </template>
                   </div>
                 </div>
@@ -4543,37 +4620,39 @@ onMounted(async () => {
                 </div>
               </div>
 
-              <!-- 消息类型分布和版本统计 / RTSP状态机统计 -->
+              <!-- 协议特定的详细统计 -->
               <div class="xl:col-span-3 bg-white/80 backdrop-blur-sm rounded-xl p-6 border border-orange-200 shadow-card">
                 <h3 class="font-semibold text-xl mb-6">
-                  {{ selectedHistoryItem.protocol === 'RTSP' ? 'RTSP协议状态机统计' : '消息类型分布与版本统计' }}
+                  {{ selectedHistoryItem.protocol === 'SNMP' ? 'SNMP协议详细统计' : 
+                     selectedHistoryItem.protocol === 'RTSP' ? 'RTSP协议状态机统计' : 
+                     'MQTT协议差异分析统计' }}
                 </h3>
                 
                 <!-- SNMP协议图表 -->
-                <div v-if="selectedHistoryItem.protocol !== 'RTSP'" class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div v-if="selectedHistoryItem.protocol === 'SNMP'" class="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <!-- 消息类型分布 -->
                   <div>
                     <h4 class="text-base font-medium mb-4 text-gray-800 text-center">消息类型分布</h4>
                     <div class="grid grid-cols-2 gap-4">
                       <div class="text-center bg-blue-50 rounded-lg p-4">
-                        <div class="text-2xl font-bold text-blue-600">{{ selectedHistoryItem.messageTypeStats.get }}</div>
+                        <div class="text-2xl font-bold text-blue-600">{{ selectedHistoryItem.messageTypeStats?.get || 0 }}</div>
                         <div class="text-sm text-gray-600">GET</div>
-                        <div class="text-xs text-gray-500">{{ Math.round((selectedHistoryItem.messageTypeStats.get / selectedHistoryItem.totalPackets) * 100) }}%</div>
+                        <div class="text-xs text-gray-500">{{ selectedHistoryItem.totalPackets ? Math.round(((selectedHistoryItem.messageTypeStats?.get || 0) / selectedHistoryItem.totalPackets) * 100) : 0 }}%</div>
                       </div>
                       <div class="text-center bg-indigo-50 rounded-lg p-4">
-                        <div class="text-2xl font-bold text-indigo-600">{{ selectedHistoryItem.messageTypeStats.set }}</div>
+                        <div class="text-2xl font-bold text-indigo-600">{{ selectedHistoryItem.messageTypeStats?.set || 0 }}</div>
                         <div class="text-sm text-gray-600">SET</div>
-                        <div class="text-xs text-gray-500">{{ Math.round((selectedHistoryItem.messageTypeStats.set / selectedHistoryItem.totalPackets) * 100) }}%</div>
+                        <div class="text-xs text-gray-500">{{ selectedHistoryItem.totalPackets ? Math.round(((selectedHistoryItem.messageTypeStats?.set || 0) / selectedHistoryItem.totalPackets) * 100) : 0 }}%</div>
                       </div>
                       <div class="text-center bg-pink-50 rounded-lg p-4">
-                        <div class="text-2xl font-bold text-pink-600">{{ selectedHistoryItem.messageTypeStats.getnext }}</div>
+                        <div class="text-2xl font-bold text-pink-600">{{ selectedHistoryItem.messageTypeStats?.getnext || 0 }}</div>
                         <div class="text-sm text-gray-600">GETNEXT</div>
-                        <div class="text-xs text-gray-500">{{ Math.round((selectedHistoryItem.messageTypeStats.getnext / selectedHistoryItem.totalPackets) * 100) }}%</div>
+                        <div class="text-xs text-gray-500">{{ selectedHistoryItem.totalPackets ? Math.round(((selectedHistoryItem.messageTypeStats?.getnext || 0) / selectedHistoryItem.totalPackets) * 100) : 0 }}%</div>
                       </div>
                       <div class="text-center bg-green-50 rounded-lg p-4">
-                        <div class="text-2xl font-bold text-green-600">{{ selectedHistoryItem.messageTypeStats.getbulk }}</div>
+                        <div class="text-2xl font-bold text-green-600">{{ selectedHistoryItem.messageTypeStats?.getbulk || 0 }}</div>
                         <div class="text-sm text-gray-600">GETBULK</div>
-                        <div class="text-xs text-gray-500">{{ Math.round((selectedHistoryItem.messageTypeStats.getbulk / selectedHistoryItem.totalPackets) * 100) }}%</div>
+                        <div class="text-xs text-gray-500">{{ selectedHistoryItem.totalPackets ? Math.round(((selectedHistoryItem.messageTypeStats?.getbulk || 0) / selectedHistoryItem.totalPackets) * 100) : 0 }}%</div>
                       </div>
                     </div>
                   </div>
@@ -4585,41 +4664,41 @@ onMounted(async () => {
                       <div class="bg-yellow-50 rounded-lg p-4">
                         <div class="flex justify-between items-center mb-2">
                           <span class="text-gray-700 font-medium">SNMP v1</span>
-                          <span class="text-lg font-bold text-yellow-600">{{ selectedHistoryItem.protocolStats.v1 }}</span>
+                          <span class="text-lg font-bold text-yellow-600">{{ selectedHistoryItem.protocolStats?.v1 || 0 }}</span>
                         </div>
                         <div class="w-full bg-gray-200 rounded-full h-2">
-                          <div class="bg-yellow-500 h-2 rounded-full" :style="{ width: (selectedHistoryItem.protocolStats.v1 / selectedHistoryItem.totalPackets * 100) + '%' }"></div>
+                          <div class="bg-yellow-500 h-2 rounded-full" :style="{ width: selectedHistoryItem.totalPackets ? ((selectedHistoryItem.protocolStats?.v1 || 0) / selectedHistoryItem.totalPackets * 100) + '%' : '0%' }"></div>
                         </div>
-                        <div class="text-xs text-gray-500 mt-1">{{ Math.round((selectedHistoryItem.protocolStats.v1 / selectedHistoryItem.totalPackets) * 100) }}%</div>
+                        <div class="text-xs text-gray-500 mt-1">{{ selectedHistoryItem.totalPackets ? Math.round(((selectedHistoryItem.protocolStats?.v1 || 0) / selectedHistoryItem.totalPackets) * 100) : 0 }}%</div>
                       </div>
                       
                       <div class="bg-purple-50 rounded-lg p-4">
                         <div class="flex justify-between items-center mb-2">
                           <span class="text-gray-700 font-medium">SNMP v2c</span>
-                          <span class="text-lg font-bold text-purple-600">{{ selectedHistoryItem.protocolStats.v2c }}</span>
+                          <span class="text-lg font-bold text-purple-600">{{ selectedHistoryItem.protocolStats?.v2c || 0 }}</span>
                         </div>
                         <div class="w-full bg-gray-200 rounded-full h-2">
-                          <div class="bg-purple-500 h-2 rounded-full" :style="{ width: (selectedHistoryItem.protocolStats.v2c / selectedHistoryItem.totalPackets * 100) + '%' }"></div>
+                          <div class="bg-purple-500 h-2 rounded-full" :style="{ width: selectedHistoryItem.totalPackets ? ((selectedHistoryItem.protocolStats?.v2c || 0) / selectedHistoryItem.totalPackets * 100) + '%' : '0%' }"></div>
                         </div>
-                        <div class="text-xs text-gray-500 mt-1">{{ Math.round((selectedHistoryItem.protocolStats.v2c / selectedHistoryItem.totalPackets) * 100) }}%</div>
+                        <div class="text-xs text-gray-500 mt-1">{{ selectedHistoryItem.totalPackets ? Math.round(((selectedHistoryItem.protocolStats?.v2c || 0) / selectedHistoryItem.totalPackets) * 100) : 0 }}%</div>
                       </div>
                       
                       <div class="bg-red-50 rounded-lg p-4">
                         <div class="flex justify-between items-center mb-2">
                           <span class="text-gray-700 font-medium">SNMP v3</span>
-                          <span class="text-lg font-bold text-red-600">{{ selectedHistoryItem.protocolStats.v3 }}</span>
+                          <span class="text-lg font-bold text-red-600">{{ selectedHistoryItem.protocolStats?.v3 || 0 }}</span>
                         </div>
                         <div class="w-full bg-gray-200 rounded-full h-2">
-                          <div class="bg-red-500 h-2 rounded-full" :style="{ width: (selectedHistoryItem.protocolStats.v3 / selectedHistoryItem.totalPackets * 100) + '%' }"></div>
+                          <div class="bg-red-500 h-2 rounded-full" :style="{ width: selectedHistoryItem.totalPackets ? ((selectedHistoryItem.protocolStats?.v3 || 0) / selectedHistoryItem.totalPackets * 100) + '%' : '0%' }"></div>
                         </div>
-                        <div class="text-xs text-gray-500 mt-1">{{ Math.round((selectedHistoryItem.protocolStats.v3 / selectedHistoryItem.totalPackets) * 100) }}%</div>
+                        <div class="text-xs text-gray-500 mt-1">{{ selectedHistoryItem.totalPackets ? Math.round(((selectedHistoryItem.protocolStats?.v3 || 0) / selectedHistoryItem.totalPackets) * 100) : 0 }}%</div>
                       </div>
                     </div>
                   </div>
                 </div>
                 
                 <!-- RTSP协议统计 -->
-                <div v-else-if="selectedHistoryItem.rtspStats" class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div v-else-if="selectedHistoryItem.protocol === 'RTSP'" class="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <!-- 路径发现统计 -->
                   <div>
                     <h4 class="text-base font-medium mb-4 text-gray-800 text-center">路径发现统计</h4>
@@ -4681,6 +4760,81 @@ onMounted(async () => {
                           <span class="text-lg font-bold text-orange-600">{{ selectedHistoryItem.rtspStats.map_size }}</span>
                         </div>
                         <div class="text-xs text-gray-500">Code Coverage</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- MQTT协议统计 -->
+                <div v-else-if="selectedHistoryItem.protocol === 'MQTT'" class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <!-- 差异分析统计 -->
+                  <div>
+                    <h4 class="text-base font-medium mb-4 text-gray-800 text-center">差异分析统计</h4>
+                    <div class="grid grid-cols-2 gap-4">
+                      <div class="text-center bg-red-50 rounded-lg p-4">
+                        <div class="text-2xl font-bold text-red-600">{{ selectedHistoryItem.mqttStats?.diff_number?.toLocaleString() || 0 }}</div>
+                        <div class="text-sm text-gray-600">发现差异</div>
+                        <div class="text-xs text-gray-500">Differences Found</div>
+                      </div>
+                      <div class="text-center bg-yellow-50 rounded-lg p-4">
+                        <div class="text-2xl font-bold text-yellow-600">{{ selectedHistoryItem.mqttStats?.duplicate_diff_number?.toLocaleString() || 0 }}</div>
+                        <div class="text-sm text-gray-600">重复差异</div>
+                        <div class="text-xs text-gray-500">Duplicate Diffs</div>
+                      </div>
+                      <div class="text-center bg-blue-50 rounded-lg p-4">
+                        <div class="text-2xl font-bold text-blue-600">{{ selectedHistoryItem.protocolSpecificData?.validConnectNumber?.toLocaleString() || 0 }}</div>
+                        <div class="text-sm text-gray-600">有效连接</div>
+                        <div class="text-xs text-gray-500">Valid Connections</div>
+                      </div>
+                      <div class="text-center bg-purple-50 rounded-lg p-4">
+                        <div class="text-2xl font-bold text-purple-600">{{ selectedHistoryItem.protocolSpecificData?.duplicateConnectDiff?.toLocaleString() || 0 }}</div>
+                        <div class="text-sm text-gray-600">重复连接差异</div>
+                        <div class="text-xs text-gray-500">Duplicate Connect Diffs</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 请求统计 -->
+                  <div>
+                    <h4 class="text-base font-medium mb-4 text-gray-800 text-center">请求统计分析</h4>
+                    <div class="space-y-4">
+                      <div class="bg-blue-50 rounded-lg p-4">
+                        <div class="flex justify-between items-center mb-2">
+                          <span class="text-gray-700 font-medium">客户端请求</span>
+                          <span class="text-lg font-bold text-blue-600">{{ selectedHistoryItem.protocolSpecificData?.clientRequestCount?.toLocaleString() || 0 }}</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                          <div class="bg-blue-500 h-2 rounded-full" :style="{ 
+                            width: (selectedHistoryItem.protocolSpecificData?.clientRequestCount && selectedHistoryItem.protocolSpecificData?.brokerRequestCount) ? 
+                              ((selectedHistoryItem.protocolSpecificData.clientRequestCount / (selectedHistoryItem.protocolSpecificData.clientRequestCount + selectedHistoryItem.protocolSpecificData.brokerRequestCount)) * 100) + '%' : '50%' 
+                          }"></div>
+                        </div>
+                        <div class="text-xs text-gray-500 mt-1">Client Requests</div>
+                      </div>
+                      
+                      <div class="bg-green-50 rounded-lg p-4">
+                        <div class="flex justify-between items-center mb-2">
+                          <span class="text-gray-700 font-medium">代理端请求</span>
+                          <span class="text-lg font-bold text-green-600">{{ selectedHistoryItem.protocolSpecificData?.brokerRequestCount?.toLocaleString() || 0 }}</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                          <div class="bg-green-500 h-2 rounded-full" :style="{ 
+                            width: (selectedHistoryItem.protocolSpecificData?.clientRequestCount && selectedHistoryItem.protocolSpecificData?.brokerRequestCount) ? 
+                              ((selectedHistoryItem.protocolSpecificData.brokerRequestCount / (selectedHistoryItem.protocolSpecificData.clientRequestCount + selectedHistoryItem.protocolSpecificData.brokerRequestCount)) * 100) + '%' : '50%' 
+                          }"></div>
+                        </div>
+                        <div class="text-xs text-gray-500 mt-1">Broker Requests</div>
+                      </div>
+                      
+                      <div class="bg-purple-50 rounded-lg p-4">
+                        <div class="flex justify-between items-center mb-2">
+                          <span class="text-gray-700 font-medium">差异发现率</span>
+                          <span class="text-lg font-bold text-purple-600">{{ 
+                            selectedHistoryItem.protocolSpecificData?.clientRequestCount ? 
+                            (((selectedHistoryItem.mqttStats?.diff_number || 0) / ((selectedHistoryItem.protocolSpecificData.clientRequestCount || 0) + (selectedHistoryItem.protocolSpecificData.brokerRequestCount || 0))) * 100).toFixed(2) : 0 
+                          }}%</span>
+                        </div>
+                        <div class="text-xs text-gray-500">Difference Discovery Rate</div>
                       </div>
                     </div>
                   </div>

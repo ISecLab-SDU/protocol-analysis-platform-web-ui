@@ -27,7 +27,7 @@ export interface FuzzPacket {
 export interface HistoryResult {
   id: string;
   timestamp: string;
-  protocol: string;
+  protocol: 'SNMP' | 'RTSP' | 'MQTT';
   fuzzEngine: string;
   targetHost: string;
   targetPort: number;
@@ -38,23 +38,52 @@ export interface HistoryResult {
   failedCount: number;
   crashCount: number;
   successRate: number;
-  protocolStats: {
+  
+  // SNMP协议专用数据
+  protocolStats?: {
     v1: number;
     v2c: number;
     v3: number;
   };
-  messageTypeStats: {
+  messageTypeStats?: {
     get: number;
     set: number;
     getnext: number;
     getbulk: number;
   };
+  
   // RTSP协议专用统计
   rtspStats?: RTSPStats;
+  
   // MQTT协议专用统计
   mqttStats?: MQTTStats;
+  
   hasCrash: boolean;
   crashDetails?: any;
+  
+  // 协议特定的扩展数据
+  protocolSpecificData?: {
+    // SNMP特定数据
+    oidCoverage?: number;
+    communityStrings?: string[];
+    targetDeviceInfo?: string;
+    
+    // RTSP特定数据
+    pathCoverage?: number;
+    stateTransitions?: number;
+    maxDepth?: number;
+    uniqueHangs?: number;
+    
+    // MQTT特定数据
+    clientRequestCount?: number;
+    brokerRequestCount?: number;
+    diffNumber?: number;
+    duplicateDiffNumber?: number;
+    validConnectNumber?: number;
+    duplicateConnectDiff?: number;
+    fuzzingStartTime?: string;
+    fuzzingEndTime?: string;
+  };
 }
 
 // SNMP协议统计
