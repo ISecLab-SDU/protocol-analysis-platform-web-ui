@@ -3121,25 +3121,16 @@ onMounted(async () => {
                     <div class="text-sm text-red-700 font-medium">崩溃检测</div>
                     <div class="text-xs text-gray-500 mt-1">Crashes Detected</div>
                   </div>
-                  
-                  <div class="bg-yellow-50 rounded-lg p-4 border border-yellow-200 text-center">
-                    <div class="text-3xl font-bold text-yellow-600 mb-2">{{ timeoutCount }}</div>
-                    <div class="text-sm text-yellow-700 font-medium">超时检测</div>
-                    <div class="text-xs text-gray-500 mt-1">Timeouts Detected</div>
-                  </div>
                 </div>
                 
                 <div class="bg-gray-50 rounded-lg p-3 border border-gray-200">
                   <div class="text-xs text-gray-600 mb-2">监控状态</div>
                   <div class="flex items-center space-x-2">
                     <div class="w-2 h-2 rounded-full animate-pulse" 
-                         :class="crashCount > 0 ? 'bg-red-500' : 
-                                 timeoutCount > 10 ? 'bg-yellow-500' : 'bg-green-500'"></div>
+                         :class="crashCount > 0 ? 'bg-red-500' : 'bg-green-500'"></div>
                     <span class="text-sm" 
-                          :class="crashCount > 0 ? 'text-red-700 font-medium' : 
-                                  timeoutCount > 10 ? 'text-yellow-700 font-medium' : 'text-gray-700'">
-                      {{ crashCount > 0 ? '检测到崩溃异常' : 
-                         timeoutCount > 10 ? '发现大量超时' : '运行正常' }}
+                          :class="crashCount > 0 ? 'text-red-700 font-medium' : 'text-gray-700'">
+                      {{ crashCount > 0 ? '检测到崩溃异常' : '运行正常' }}
                     </span>
                   </div>
                   <div class="text-xs text-gray-500 mt-1">
