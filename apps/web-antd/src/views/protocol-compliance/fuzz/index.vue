@@ -520,6 +520,15 @@ function parseText(text: string) {
   snmpFuzzData.value = parsedData;
   totalPacketsInFile.value = parsedData.filter((p) => typeof p.id === 'number').length;
   
+  // Debug: Show distribution of packet results after parsing
+  const resultCounts = parsedData.reduce((acc, packet) => {
+    const result = packet.result || 'unknown';
+    acc[result] = (acc[result] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  console.log('解析后的数据包结果分布:', resultCounts);
+  console.log('总解析数据包数:', parsedData.length);
+  
   // Extract timing information
   const startTimeMatch = text.match(/开始时间:\s*([^\n]+)/);
   const endTimeMatch = text.match(/结束时间:\s*([^\n]+)/);
@@ -2215,7 +2224,28 @@ function loop() {
     
     const packet = snmpFuzzData.value[currentPacketIndex.value];
     if (packet) {
-      processSNMPPacket(packet, addLogToUI);
+      processSNMPPacket(packet, addLogToUI, (result: string) => {
+        // Update result counters based on packet result
+        switch (result) {
+          case 'success':
+            successCount.value++;
+            break;
+          case 'timeout':
+            timeoutCount.value++;
+            break;
+          case 'failed':
+            failedCount.value++;
+            break;
+          case 'crash':
+            crashCount.value++;
+            break;
+        }
+        
+        // Debug: Log every 100 packets to verify counting
+        if (packetCount.value % 100 === 0) {
+          console.log(`统计更新 [包#${packetCount.value}]: 成功=${successCount.value}, 超时=${timeoutCount.value}, 失败=${failedCount.value}, 崩溃=${crashCount.value}`);
+        }
+      });
     }
     
     // Batch update counters to prevent multiple reactive updates

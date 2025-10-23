@@ -253,16 +253,8 @@ export function useSNMP() {
   }
 
   // 处理SNMP数据包
-  function processSNMPPacket(packet: FuzzPacket, addLogToUI: (packet: FuzzPacket, isCrash: boolean) => void) {
+  function processSNMPPacket(packet: FuzzPacket, addLogToUI: (packet: FuzzPacket, isCrash: boolean) => void, updateCounters?: (result: string) => void) {
     try {
-      // Update statistics in a batch to prevent multiple reactive updates
-      const updates = {
-        success: packet.result === 'success' ? 1 : 0,
-        timeout: packet.result === 'timeout' ? 1 : 0,
-        failed: packet.result === 'failed' ? 1 : 0,
-        crash: packet.result === 'crash' ? 1 : 0
-      };
-      
       // Update protocol stats
       if (packet.version === 'v1') protocolStats.value.v1++;
       else if (packet.version === 'v2c') protocolStats.value.v2c++;
@@ -273,6 +265,11 @@ export function useSNMP() {
       else if (packet.type === 'set') messageTypeStats.value.set++;
       else if (packet.type === 'getnext') messageTypeStats.value.getnext++;
       else if (packet.type === 'getbulk') messageTypeStats.value.getbulk++;
+      
+      // Update result counters through callback if provided
+      if (updateCounters) {
+        updateCounters(packet.result || 'unknown');
+      }
       
       // Add to UI log (sparse updates for performance)
       if (packet.result !== 'crash' && Math.random() < 0.1) { // 10% chance to show
