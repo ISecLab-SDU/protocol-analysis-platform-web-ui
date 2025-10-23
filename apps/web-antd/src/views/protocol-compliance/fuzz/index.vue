@@ -1240,7 +1240,7 @@ function updateRealTimeStats(line: string) {
     // 每个差异报告行代表一个差异
     mqttDifferentialStats.value.total_differences++;
     
-    // 统计消息类型
+    // 统计消息类型（只有当存在 msg_type 字段时）
     if (msgTypeMatch) {
       const msgType = msgTypeMatch[1].trim();
       if (mqttDifferentialStats.value.msg_type_stats.hasOwnProperty(msgType)) {
@@ -1684,7 +1684,14 @@ function parseMQTTDifferentialLine(line: string) {
     }
     
     // 构建完整的显示内容，包含所有字段（除file_path外）
-    let content = `protocol_version: ${protocolVersion}, type: {${diffType}}, diff_range_broker: [${brokers.map(b => `'${b}'`).join(', ')}], msg_type: ${msgType}, direction: ${direction}`;
+    let content = `protocol_version: ${protocolVersion}, type: {${diffType}}, diff_range_broker: [${brokers.map(b => `'${b}'`).join(', ')}]`;
+    
+    // 只有当 msg_type 存在且不是 'UNKNOWN' 时才显示
+    if (msgType && msgType !== 'UNKNOWN') {
+      content += `, msg_type: ${msgType}`;
+    }
+    
+    content += `, direction: ${direction}`;
     
     if (field) {
       content += `, field: ${field}`;
