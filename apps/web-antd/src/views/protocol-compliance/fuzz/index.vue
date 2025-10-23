@@ -3403,7 +3403,6 @@ onMounted(async () => {
               :logs="protocolStates[protocolType].logs"
               :is-active="true"
               :format-log-content="getLogFormatter(protocolType)"
-              @clear-logs="() => clearProtocolLogs(protocolType)"
             />
           </div>
           

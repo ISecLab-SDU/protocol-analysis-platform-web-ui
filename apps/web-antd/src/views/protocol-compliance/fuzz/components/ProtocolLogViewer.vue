@@ -9,7 +9,6 @@
       <div 
         ref="scrollContainer"
         class="h-full overflow-y-auto scrollbar-thin p-3"
-        @scroll="handleScroll"
       >
         <!-- 日志项 -->
         <div 
@@ -30,59 +29,8 @@
         </div>
       </div>
       
-      <!-- 实时状态指示器 -->
-      <div 
-        v-if="isRealTime && logs.length > 0"
-        class="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full flex items-center z-10"
-      >
-        <div class="w-2 h-2 bg-white rounded-full mr-1 animate-pulse"></div>
-        实时更新
-      </div>
-      
-      <!-- 日志统计信息 -->
-      <div 
-        v-if="logs.length > 0"
-        class="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded z-10"
-      >
-        共 {{ logs.length }} 条日志
-      </div>
     </div>
     
-    <!-- 简化的控制器 -->
-    <div class="controls mt-3 flex items-center justify-between">
-      <div class="flex items-center space-x-2">
-        <!-- 跳转到最新 -->
-        <button 
-          v-if="!isAtBottom && logs.length > 0"
-          @click="scrollToBottom"
-          class="text-sm bg-primary text-white px-3 py-1 rounded hover:bg-primary/90 transition-colors"
-        >
-          <i class="fa fa-arrow-down mr-1"></i>
-          跳转到最新
-        </button>
-      </div>
-      
-      <div class="flex items-center space-x-2">
-        <!-- 暂停/恢复实时更新 -->
-        <button 
-          @click="toggleRealTime"
-          class="text-sm px-3 py-1 rounded border transition-colors"
-          :class="isRealTime ? 'bg-orange-500 text-white border-orange-500' : 'bg-gray-500 text-white border-gray-500'"
-        >
-          <i :class="isRealTime ? 'fa fa-pause' : 'fa fa-play'" class="mr-1"></i>
-          {{ isRealTime ? '暂停' : '恢复' }}
-        </button>
-        
-        <!-- 清空日志 -->
-        <button 
-          @click="clearLogs"
-          class="text-sm bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 transition-colors"
-        >
-          <i class="fa fa-trash mr-1"></i>
-          清空
-        </button>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -111,8 +59,6 @@ const props = withDefaults(defineProps<Props>(), {
 const scrollContainer = ref<HTMLElement>();
 
 // 状态管理
-const isRealTime = ref(true);
-const isAtBottom = ref(true);
 const maxDisplayLogs = 1000; // 最多显示1000条日志，避免性能问题
 
 // 显示的日志（限制数量以保证性能）
@@ -127,44 +73,18 @@ const displayLogs = computed(() => {
   return props.logs;
 });
 
-// 滚动处理
-function handleScroll(event: Event) {
-  const target = event.target as HTMLElement;
-  
-  // 检查是否在底部
-  const isNearBottom = target.scrollTop + target.clientHeight >= target.scrollHeight - 50;
-  isAtBottom.value = isNearBottom;
-}
-
 // 滚动到底部
 function scrollToBottom() {
   if (scrollContainer.value) {
     scrollContainer.value.scrollTop = scrollContainer.value.scrollHeight;
-    isAtBottom.value = true;
   }
 }
 
-// 自动滚动到底部（如果启用实时更新且在底部）
+// 自动滚动到底部
 function autoScrollToBottom() {
-  if (isRealTime.value && isAtBottom.value) {
-    nextTick(() => {
-      scrollToBottom();
-    });
-  }
-}
-
-// 切换实时更新
-function toggleRealTime() {
-  isRealTime.value = !isRealTime.value;
-  if (isRealTime.value) {
+  nextTick(() => {
     scrollToBottom();
-  }
-}
-
-// 清空日志
-function clearLogs() {
-  // 发送清空事件给父组件
-  emit('clear-logs');
+  });
 }
 
 // 获取日志项样式
@@ -207,11 +127,6 @@ onMounted(() => {
     });
   }
 });
-
-// 事件发射
-const emit = defineEmits<{
-  'clear-logs': [];
-}>();
 </script>
 
 <style scoped>
