@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, nextTick, computed, watch } from 'vue';
+import { onMounted, ref, nextTick, computed, watch, shallowRef } from 'vue';
 import { getFuzzText } from '#/api/custom';
 import { requestClient } from '#/api/request';
 import { useAccessStore } from '@vben/stores';
@@ -77,6 +77,9 @@ const isRunning = ref(false);
 const isTestCompleted = ref(false);
 let testTimer: number | null = null;
 
+// 添加异步操作取消标志
+let mqttSimulationCancelled = false;
+
 // UI configuration
 const protocolType = ref<ProtocolType>('SNMP');
 const fuzzEngine = ref<FuzzEngineType>('SNMP_Fuzz');
@@ -90,9 +93,20 @@ const rtspProcessId = ref<number | null>(null);
 
 // Watch for protocol changes to update port and fuzz engine
 watch(protocolType, (newProtocol, oldProtocol) => {
-  // 停止当前运行的测试
+  console.log(`[DEBUG] 协议切换: ${oldProtocol} -> ${newProtocol}`);
+  
+  // 立即停止当前运行的测试和所有异步操作
   if (isRunning.value) {
+    console.log('[DEBUG] 停止当前运行的测试');
     isRunning.value = false;
+    isTestCompleted.value = false;
+    
+    // 取消MQTT模拟
+    if (oldProtocol === 'MQTT') {
+      mqttSimulationCancelled = true;
+      console.log('[DEBUG] 取消MQTT模拟操作');
+    }
+    
     if (testTimer) {
       clearInterval(testTimer as any);
       testTimer = null;
@@ -101,9 +115,13 @@ watch(protocolType, (newProtocol, oldProtocol) => {
   
   // 清理之前协议的状态
   if (oldProtocol === 'MQTT') {
-    mqttDifferentialLogs.value = [];
-    resetMQTTStats();
-    resetMQTTDifferentialStats();
+    console.log('[DEBUG] 清理MQTT协议状态');
+    // 使用nextTick确保在下一个tick中清理，避免当前更新周期的冲突
+    nextTick(() => {
+      mqttDifferentialLogs.value = [];
+      resetMQTTStats();
+      resetMQTTDifferentialStats();
+    });
   }
   
   // 设置新协议的配置
@@ -119,7 +137,10 @@ watch(protocolType, (newProtocol, oldProtocol) => {
   }
   
   // 重置测试状态
-  resetTestState();
+  nextTick(() => {
+    resetTestState();
+    console.log('[DEBUG] 协议切换完成，状态已重置');
+  });
 });
 const showCharts = ref(false);
 const crashDetails = ref<any>(null);
@@ -823,8 +844,8 @@ const unifiedLogs = ref<Array<{
   protocol: 'SNMP' | 'RTSP' | 'MQTT';
 }>>([]);
 
-// MQTT协议差异报告日志 - 原始格式显示
-const mqttDifferentialLogs = ref<string[]>([]);
+// MQTT协议差异报告日志 - 使用shallowRef减少响应式开销
+const mqttDifferentialLogs = shallowRef<string[]>([]);
 
 // MQTT处理状态
 const mqttIsProcessingLogs = ref(false);
@@ -1137,6 +1158,10 @@ async function parseQLearningData(lines: string[]) {
 
 // 模拟实时Fuzz运行
 async function simulateRealTimeFuzzing(differentialLines: string[]) {
+  // 重置取消标志
+  mqttSimulationCancelled = false;
+  console.log('[DEBUG] 开始MQTT模拟，重置取消标志');
+  
   try {
   if (differentialLines.length === 0) {
     mqttDifferentialLogs.value.push('暂无差异报告数据');
@@ -1178,8 +1203,9 @@ async function simulateRealTimeFuzzing(differentialLines: string[]) {
   
   for (let i = 0; i < differentialLines.length; i++) {
     try {
-      // 检查用户是否停止了测试或切换了协议
-      if (!isRunning.value || protocolType.value !== 'MQTT') {
+      // 检查用户是否停止了测试或切换了协议，或者操作被取消
+      if (!isRunning.value || protocolType.value !== 'MQTT' || mqttSimulationCancelled) {
+        console.log(`[DEBUG] 退出循环: isRunning=${isRunning.value}, protocol=${protocolType.value}, cancelled=${mqttSimulationCancelled}`);
         break;
       }
       
@@ -1195,8 +1221,23 @@ async function simulateRealTimeFuzzing(differentialLines: string[]) {
       
       // 批量更新日志显示
       if (logBatch.length >= batchSize || i === differentialLines.length - 1) {
-        if (isRunning.value && protocolType.value === 'MQTT') {
-          mqttDifferentialLogs.value.push(...logBatch);
+        // 添加更严格的状态检查和调试信息
+        const canUpdate = isRunning.value && protocolType.value === 'MQTT' && !mqttSimulationCancelled;
+        console.log(`[DEBUG] 批量更新检查: isRunning=${isRunning.value}, protocol=${protocolType.value}, cancelled=${mqttSimulationCancelled}, canUpdate=${canUpdate}, batchSize=${logBatch.length}`);
+        
+        if (canUpdate) {
+          try {
+            mqttDifferentialLogs.value.push(...logBatch);
+            console.log(`[DEBUG] 成功添加${logBatch.length}条日志，总数：${mqttDifferentialLogs.value.length}`);
+          } catch (updateError) {
+            console.error('[DEBUG] 批量更新失败:', updateError);
+            // 如果批量更新失败，停止测试
+            isRunning.value = false;
+            break;
+          }
+        } else {
+          console.log('[DEBUG] 跳过批量更新，测试可能已停止或协议已切换');
+          break; // 如果状态不对，直接退出循环
         }
         logBatch.length = 0; // 清空批处理队列
         
