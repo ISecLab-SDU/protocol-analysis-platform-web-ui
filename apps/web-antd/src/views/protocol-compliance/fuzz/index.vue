@@ -3772,13 +3772,24 @@ function initMQTTModule(moduleId: number) {
       let controlX = midX;
       let controlY = midY - 40; // 增加弯曲度
       
-      // 如果是左侧连接（path1），控制点向左偏移
-      if (id.includes('path1')) {
-        controlX = midX - 20;
+      // 根据路径ID调整控制点位置
+      if (id.includes('broker-to-client1') || id.includes('client1-to-broker')) {
+        // 左侧连接，控制点向左偏移
+        controlX = midX - 25;
+        // Client到Broker的路径控制点稍微偏移，避免重叠
+        if (id.includes('client1-to-broker')) {
+          controlX = midX - 15;
+          controlY = midY - 30;
+        }
       }
-      // 如果是右侧连接（path2），控制点向右偏移
-      else if (id.includes('path2')) {
-        controlX = midX + 20;
+      else if (id.includes('broker-to-client2') || id.includes('client2-to-broker')) {
+        // 右侧连接，控制点向右偏移
+        controlX = midX + 25;
+        // Client到Broker的路径控制点稍微偏移，避免重叠
+        if (id.includes('client2-to-broker')) {
+          controlX = midX + 15;
+          controlY = midY - 30;
+        }
       }
       
       // 使用二次贝塞尔曲线创建更自然的连接
@@ -3796,19 +3807,25 @@ function initMQTTModule(moduleId: number) {
       return path;
     }
     
-    // 创建两条主要连接线，使用broker的左下角和右下角连接点
-    const path1 = createPath(bPos.leftBottom, {x: c1Pos.centerX, y: c1Pos.centerY}, 'path1', '#3B82F6');
-    const path2 = createPath(bPos.rightBottom, {x: c2Pos.centerX, y: c2Pos.centerY}, 'path2', '#3B82F6');
+    // 创建四条双向连接线，使用broker的左下角和右下角连接点
+    const path1 = createPath(bPos.leftBottom, {x: c1Pos.centerX, y: c1Pos.centerY}, 'broker-to-client1', '#3B82F6');
+    const path2 = createPath({x: c1Pos.centerX, y: c1Pos.centerY}, bPos.leftBottom, 'client1-to-broker', '#60A5FA');
+    const path3 = createPath(bPos.rightBottom, {x: c2Pos.centerX, y: c2Pos.centerY}, 'broker-to-client2', '#3B82F6');
+    const path4 = createPath({x: c2Pos.centerX, y: c2Pos.centerY}, bPos.rightBottom, 'client2-to-broker', '#60A5FA');
     
-    return { path1, path2 };
+    return { path1, path2, path3, path4 };
   }
 
   // 创建流动粒子
   function createParticles(paths: any) {
     console.log(`[MQTT Animation] Creating particles for module ${moduleId}`);
     const particleSources = [
+      // Broker到Client的粒子（深蓝色）
       { path: paths.path1, start: 0, end: 1, interval: 1500, class: 'mqtt-particle-from-broker', speed: 80 },
-      { path: paths.path2, start: 0, end: 1, interval: 2000, class: 'mqtt-particle-from-broker', speed: 80 }
+      { path: paths.path3, start: 0, end: 1, interval: 2000, class: 'mqtt-particle-from-broker', speed: 80 },
+      // Client到Broker的粒子（浅蓝色）
+      { path: paths.path2, start: 0, end: 1, interval: 2500, class: 'mqtt-particle-from-client', speed: 80 },
+      { path: paths.path4, start: 0, end: 1, interval: 3000, class: 'mqtt-particle-from-client', speed: 80 }
     ];
     
     // 立即创建第一批粒子，然后设置定时器
@@ -3834,15 +3851,21 @@ function initMQTTModule(moduleId: number) {
     try {
       const particle = document.createElement('div');
       particle.className = `mqtt-particle ${particleClass}`;
+      // 根据粒子类型设置不同的样式
+      const isBrokerParticle = particleClass.includes('broker');
+      const backgroundColor = isBrokerParticle ? '#3B82F6' : '#60A5FA';
+      const shadowColor = isBrokerParticle ? 'rgba(59, 130, 246, 0.8)' : 'rgba(96, 165, 250, 0.8)';
+      
       particle.style.cssText = `
         position: absolute;
-        width: 6px;
-        height: 6px;
+        width: 8px;
+        height: 8px;
         border-radius: 50%;
         transform: translate(-50%, -50%);
         z-index: 10;
-        box-shadow: 0 0 4px rgba(59, 130, 246, 0.6);
-        background: ${particleClass.includes('broker') ? '#3B82F6' : '#60A5FA'};
+        box-shadow: 0 0 6px ${shadowColor};
+        background: ${backgroundColor};
+        border: 1px solid rgba(255, 255, 255, 0.3);
       `;
       particles.appendChild(particle);
       
@@ -4361,11 +4384,11 @@ onMounted(async () => {
                       <span class="font-medium text-xs">Broker 1</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-6 left-[8%]">
-                      <IconifyIcon icon="mdi:chip" class="text-2xl" />
+                      <IconifyIcon icon="mdi:chip" class="text-3xl" />
                       <span class="font-medium text-xs">Client1</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-6 right-[8%]">
-                      <IconifyIcon icon="mdi:cloud" class="text-2xl" />
+                      <IconifyIcon icon="mdi:cloud" class="text-3xl" />
                       <span class="font-medium text-xs">Client2</span>
                     </div>
                     <svg class="absolute inset-0 w-full h-full" :id="`connections-viz-1`"></svg>
@@ -4379,11 +4402,11 @@ onMounted(async () => {
                       <span class="font-medium text-xs">Broker 2</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-6 left-[8%]">
-                      <IconifyIcon icon="mdi:chip" class="text-2xl" />
+                      <IconifyIcon icon="mdi:chip" class="text-3xl" />
                       <span class="font-medium text-xs">Client1</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-6 right-[8%]">
-                      <IconifyIcon icon="mdi:cloud" class="text-2xl" />
+                      <IconifyIcon icon="mdi:cloud" class="text-3xl" />
                       <span class="font-medium text-xs">Client2</span>
                     </div>
                     <svg class="absolute inset-0 w-full h-full" :id="`connections-viz-2`"></svg>
@@ -4397,11 +4420,11 @@ onMounted(async () => {
                       <span class="font-medium text-xs">Broker 3</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-6 left-[8%]">
-                      <IconifyIcon icon="mdi:chip" class="text-2xl" />
+                      <IconifyIcon icon="mdi:chip" class="text-3xl" />
                       <span class="font-medium text-xs">Client1</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-6 right-[8%]">
-                      <IconifyIcon icon="mdi:cloud" class="text-2xl" />
+                      <IconifyIcon icon="mdi:cloud" class="text-3xl" />
                       <span class="font-medium text-xs">Client2</span>
                     </div>
                     <svg class="absolute inset-0 w-full h-full" :id="`connections-viz-3`"></svg>
@@ -4415,11 +4438,11 @@ onMounted(async () => {
                       <span class="font-medium text-xs">Broker 4</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-6 left-[8%]">
-                      <IconifyIcon icon="mdi:chip" class="text-2xl" />
+                      <IconifyIcon icon="mdi:chip" class="text-3xl" />
                       <span class="font-medium text-xs">Client1</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-6 right-[8%]">
-                      <IconifyIcon icon="mdi:cloud" class="text-2xl" />
+                      <IconifyIcon icon="mdi:cloud" class="text-3xl" />
                       <span class="font-medium text-xs">Client2</span>
                     </div>
                     <svg class="absolute inset-0 w-full h-full" :id="`connections-viz-4`"></svg>
@@ -4433,11 +4456,11 @@ onMounted(async () => {
                       <span class="font-medium text-xs">Broker 5</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-6 left-[8%]">
-                      <IconifyIcon icon="mdi:chip" class="text-2xl" />
+                      <IconifyIcon icon="mdi:chip" class="text-3xl" />
                       <span class="font-medium text-xs">Client1</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-6 right-[8%]">
-                      <IconifyIcon icon="mdi:cloud" class="text-2xl" />
+                      <IconifyIcon icon="mdi:cloud" class="text-3xl" />
                       <span class="font-medium text-xs">Client2</span>
                     </div>
                     <svg class="absolute inset-0 w-full h-full" :id="`connections-viz-5`"></svg>
@@ -4451,11 +4474,11 @@ onMounted(async () => {
                       <span class="font-medium text-xs">Broker 6</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-6 left-[8%]">
-                      <IconifyIcon icon="mdi:chip" class="text-2xl" />
+                      <IconifyIcon icon="mdi:chip" class="text-3xl" />
                       <span class="font-medium text-xs">Client1</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-6 right-[8%]">
-                      <IconifyIcon icon="mdi:cloud" class="text-2xl" />
+                      <IconifyIcon icon="mdi:cloud" class="text-3xl" />
                       <span class="font-medium text-xs">Client2</span>
                     </div>
                     <svg class="absolute inset-0 w-full h-full" :id="`connections-viz-6`"></svg>
@@ -5587,40 +5610,42 @@ onMounted(async () => {
 
 .mqtt-particle {
   @apply absolute rounded-full transition-all ease-linear;
-  width: 6px;
-  height: 6px;
-  box-shadow: 0 0 6px rgba(59, 130, 246, 0.8);
+  width: 8px;
+  height: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 .mqtt-particle-from-broker {
-  @apply bg-blue-500;
+  @apply bg-blue-600;
   animation: pulse-broker 2s infinite;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.9);
 }
 
 .mqtt-particle-from-client {
   @apply bg-blue-400;
   animation: pulse-client 2s infinite;
+  box-shadow: 0 0 8px rgba(96, 165, 250, 0.9);
 }
 
 @keyframes pulse-broker {
   0%, 100% { 
-    box-shadow: 0 0 6px rgba(59, 130, 246, 0.8);
+    box-shadow: 0 0 8px rgba(59, 130, 246, 0.9);
     transform: scale(1);
   }
   50% { 
-    box-shadow: 0 0 12px rgba(59, 130, 246, 1);
+    box-shadow: 0 0 16px rgba(59, 130, 246, 1);
     transform: scale(1.2);
   }
 }
 
 @keyframes pulse-client {
   0%, 100% { 
-    box-shadow: 0 0 6px rgba(96, 165, 250, 0.8);
+    box-shadow: 0 0 8px rgba(96, 165, 250, 0.9);
     transform: scale(1);
   }
   50% { 
-    box-shadow: 0 0 12px rgba(96, 165, 250, 1);
-    transform: scale(1.2);
+    box-shadow: 0 0 14px rgba(96, 165, 250, 1);
+    transform: scale(1.15);
   }
 }
 
