@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, cast
 
 import toml
-from flask import Blueprint, make_response, request
+from flask import Blueprint, make_response, request, send_file
 from werkzeug.datastructures import FileStorage
 
 try:
@@ -33,6 +33,12 @@ from .analysis import (
     normalize_protocol_name,
     submit_static_analysis_job,
     try_extract_rules_summary,
+)
+from .assertion import (
+    get_assert_generation_job,
+    get_assert_generation_result,
+    get_assert_generation_zip_path,
+    submit_assert_generation_job,
 )
 from .store import STORE, TaskStatus
 
@@ -664,6 +670,121 @@ def static_analysis_result(job_id: str):
             409,
         )
     return make_response(success_response(result), 200)
+
+
+@bp.route("/assertion-generation", methods=["POST"])
+def assertion_generation():
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+
+    if not request.files:
+        return make_response(error_response("请上传源码压缩包和违规数据库"), 400)
+
+    uploads_map = {
+        "codeArchive": request.files.get("codeArchive"),
+        "database": request.files.get("database"),
+    }
+
+    missing = [key for key, value in uploads_map.items() if not isinstance(value, FileStorage)]
+    if missing:
+        labels = {
+            "codeArchive": "源码压缩包",
+            "database": "违规数据库文件",
+        }
+        readable = "、".join(labels.get(item, item) for item in missing)
+        return make_response(error_response(f"请上传完整文件：{readable}"), 400)
+
+    code_upload = cast(FileStorage, uploads_map["codeArchive"])
+    database_upload = cast(FileStorage, uploads_map["database"])
+
+    code_name, code_data = _read_upload(code_upload)
+    database_name, database_data = _read_upload(database_upload)
+
+    if not code_data or not database_data:
+        return make_response(error_response("上传的文件内容为空，请重新上传"), 400)
+
+    build_instructions_raw = request.form.get("buildInstructions", "")
+    notes = request.form.get("notes")
+
+    LOGGER.info(
+        "Assertion generation job requested",
+        extra={
+            "codeArchive": code_name,
+            "database": database_name,
+            "hasBuildInstructions": bool(build_instructions_raw.strip()),
+            "notesLength": len(notes.strip()) if isinstance(notes, str) else 0,
+        },
+    )
+
+    snapshot = submit_assert_generation_job(
+        code_payload=(code_name, code_data),
+        database_payload=(database_name, database_data),
+        build_instructions=build_instructions_raw,
+        notes=notes,
+    )
+    return make_response(success_response(snapshot), 202)
+
+
+@bp.route("/assertion-generation/<job_id>/progress", methods=["GET"])
+def assertion_generation_progress(job_id: str):
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+
+    snapshot = get_assert_generation_job(job_id)
+    if not snapshot:
+        return make_response(error_response("未找到断言生成任务"), 404)
+    return make_response(success_response(snapshot), 200)
+
+
+@bp.route("/assertion-generation/<job_id>/result", methods=["GET"])
+def assertion_generation_result(job_id: str):
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+
+    result = get_assert_generation_result(job_id)
+    if result is None:
+        snapshot = get_assert_generation_job(job_id)
+        if not snapshot:
+            return make_response(error_response("未找到断言生成任务"), 404)
+        status = snapshot.get("status")
+        return make_response(
+            error_response("断言生成任务尚未完成", {"status": status}),
+            409,
+        )
+    return make_response(success_response(result), 200)
+
+
+@bp.route("/assertion-generation/<job_id>/download", methods=["GET"])
+def assertion_generation_download(job_id: str):
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+
+    snapshot = get_assert_generation_job(job_id)
+    if not snapshot:
+        return make_response(error_response("未找到断言生成任务"), 404)
+
+    if snapshot.get("status") != "completed":
+        return make_response(
+            error_response("断言生成任务尚未完成", {"status": snapshot.get("status")}),
+            409,
+        )
+
+    zip_path = get_assert_generation_zip_path(job_id)
+    if not zip_path:
+        return make_response(error_response("未找到断言生成结果压缩包"), 404)
+
+    download_name = f"assertion-generation-{job_id}.zip"
+    return send_file(
+        zip_path,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=download_name,
+        max_age=0,
+    )
 
 
 def _strip_extension(filename: str) -> str:

@@ -6,6 +6,7 @@ import contextlib
 import json
 import logging
 import os
+import shlex
 import shutil
 import socket
 import subprocess
@@ -175,7 +176,7 @@ class ProtocolGuardDockerRunner:
                 "analysis",
                 f"Launching analysis container image {self._settings.analysis_image}",
             )
-            logs = self._run_analysis(job_paths)
+            logs = self._run_analysis(job_paths, command=self._settings.analysis_command)
             self._log_step(job_paths, "analysis", "Analysis container completed successfully")
 
             self._log_step(job_paths, "results", "Collecting analysis results and metadata")
@@ -212,6 +213,147 @@ class ProtocolGuardDockerRunner:
                 else:
                     self._log_step(job_paths, "cleanup", f"Removing temporary builder image {built_builder_image}")
                     self._remove_builder_image(built_builder_image)
+            if not self._settings.keep_artifacts:
+                self._log_step(job_paths, "cleanup", "Cleaning up workspace artefacts")
+                self._cleanup_job(job_paths)
+
+    def run_assert_generation(
+        self,
+        *,
+        code_stream: BinaryIO,
+        code_filename: str,
+        database_stream: BinaryIO,
+        database_filename: str,
+        build_instructions: Optional[str],
+        notes: Optional[str],
+        job_id: Optional[str] = None,
+        progress_callback: Optional[Callable[[str, str, str], None]] = None,
+    ) -> Dict[str, object]:
+        """Execute the ProtocolGuard assertion generation workflow."""
+
+        start = time.time()
+        job_id = job_id or str(uuid.uuid4())
+        job_paths = self._prepare_job_paths(job_id)
+        self._progress_callback = progress_callback
+        self._current_workspace_snapshots = []
+
+        self._log_step(job_paths, "init", "Starting ProtocolGuard assertion generation job")
+
+        command_env = os.environ.get("PG_ASSERT_COMMAND")
+        parsed_command = shlex.split(command_env) if command_env else ["assert"]
+        command = tuple(parsed_command or ["assert"])
+
+        try:
+            self._log_step(job_paths, "workspace", "Preparing workspace directories")
+            self._reset_directory(job_paths.workspace)
+            self._stage_workspace(job_paths)
+
+            uploads_dir = job_paths.workspace / "uploads"
+            project_dir = job_paths.workspace / "project"
+            uploads_dir.mkdir(parents=True, exist_ok=True)
+            project_dir.mkdir(parents=True, exist_ok=True)
+
+            code_filename_real = code_filename or "source-archive"
+            self._log_step(job_paths, "workspace", "Persisting uploaded source archive")
+            code_path = self._write_stream(uploads_dir / code_filename_real, code_stream)
+
+            self._log_step(job_paths, "workspace", "Extracting source archive into /workspace/project")
+            self._reset_directory(project_dir)
+            self._extract_archive(code_path, project_dir)
+            if not any(project_dir.iterdir()):
+                raise ProtocolGuardDockerError(
+                    "Source archive did not contain any files. Please verify the uploaded archive."
+                )
+            self._log_step(job_paths, "workspace", "Source archive extracted into project directory")
+
+            database_filename_real = database_filename or "violations.db"
+            database_destination = job_paths.workspace / "violations.db"
+            self._log_step(job_paths, "workspace", "Staging SQLite database as /workspace/violations.db")
+            self._write_stream(database_destination, database_stream)
+            if not database_destination.exists() or database_destination.stat().st_size == 0:
+                raise ProtocolGuardDockerError("Uploaded database file is empty. Please verify the input.")
+
+            build_instructions_text = build_instructions.strip() if build_instructions else ""
+            if build_instructions_text:
+                instructions_path = job_paths.workspace / "build_instructions.txt"
+                instructions_path.write_text(build_instructions_text, encoding="utf-8")
+                self._log_step(job_paths, "workspace", "Build instructions written to build_instructions.txt")
+            else:
+                self._log_step(job_paths, "workspace", "No build instructions provided; skipping file write")
+
+            notes_text = notes.strip() if notes else ""
+            if notes_text:
+                notes_path = job_paths.workspace / "notes.txt"
+                notes_path.write_text(notes_text, encoding="utf-8")
+                self._log_step(job_paths, "workspace", "Notes written to notes.txt")
+
+            self._snapshot_workspace(job_paths, stage="prepared")
+
+            self._log_step(
+                job_paths,
+                "analysis",
+                f"Launching assertion generation container image {self._settings.analysis_image}",
+            )
+            logs = self._run_analysis(job_paths, command=command)
+            self._log_step(job_paths, "analysis", "Assertion generation container completed successfully")
+
+            cursorkleosr_dir = self._find_cursorkleosr_directory(job_paths.workspace)
+            if cursorkleosr_dir is None:
+                raise ProtocolGuardExecutionError(
+                    "Assertion generation completed but cursorkleosr directory was not found in the workspace.",
+                    logs=logs,
+                    image=self._settings.analysis_image,
+                    status=0,
+                )
+
+            zip_destination = job_paths.output / "cursorkleosr.zip"
+            self._log_step(job_paths, "results", "Packaging cursorkleosr artefacts into ZIP archive")
+            self._zip_directory(cursorkleosr_dir, zip_destination)
+
+            self._snapshot_workspace(job_paths, stage="post-run")
+
+            workspace_snapshots = [dict(snapshot) for snapshot in self._current_workspace_snapshots]
+            duration_ms = int((time.time() - start) * 1000)
+            now_iso = datetime.now(timezone.utc).isoformat()
+            assertion_count = self._count_files(cursorkleosr_dir)
+            protocol_name = self._settings.default_protocol_name
+
+            result: Dict[str, object] = {
+                "jobId": job_paths.job_id,
+                "generatedAt": now_iso,
+                "assertionCount": assertion_count,
+                "protocolName": protocol_name,
+                "inputs": {
+                    "codeFileName": Path(code_filename_real).name,
+                    "databaseFileName": Path(database_filename_real).name,
+                    "buildInstructions": build_instructions_text or None,
+                    "notes": notes_text or None,
+                },
+                "artifacts": {
+                    "workspace": str(job_paths.workspace),
+                    "output": str(job_paths.output),
+                    "logs": str(job_paths.log_file),
+                    "zipPath": str(zip_destination),
+                    "database": str(database_destination),
+                    "workspaceSnapshots": workspace_snapshots,
+                },
+                "docker": {
+                    "image": self._settings.analysis_image,
+                    "command": list(command),
+                    "logs": logs,
+                    "durationMs": duration_ms,
+                },
+            }
+
+            self._log_step(job_paths, "results", "Assertion generation completed successfully")
+            return result
+        except Exception:
+            self._log_step(job_paths, "error", "Assertion generation job failed", level=logging.ERROR)
+            LOGGER.exception("ProtocolGuard assertion generation job %s failed", job_id)
+            raise
+        finally:
+            self._progress_callback = None
+            self._current_workspace_snapshots = []
             if not self._settings.keep_artifacts:
                 self._log_step(job_paths, "cleanup", "Cleaning up workspace artefacts")
                 self._cleanup_job(job_paths)
@@ -570,18 +712,19 @@ class ProtocolGuardDockerRunner:
         )
         self._snapshot_workspace(job_paths, stage="builder")
 
-    def _run_analysis(self, job_paths: JobPaths) -> List[str]:
+    def _run_analysis(self, job_paths: JobPaths, *, command: Sequence[str]) -> List[str]:
+        command_display = " ".join(command) if command else "<default>"
         self._log_step(
             job_paths,
             "analysis",
-            f"Starting analysis container (image={self._settings.analysis_image}, command={' '.join(self._settings.analysis_command)})",
+            f"Starting analysis container (image={self._settings.analysis_image}, command={command_display})",
         )
         volumes = self._build_volumes(job_paths, include_config=True)
         environment = self._build_environment()
         self._inspect_analysis_workspace(job_paths, volumes=volumes, environment=environment)
         logs = self._run_container(
             image=self._settings.analysis_image,
-            command=self._settings.analysis_command,
+            command=command,
             job_paths=job_paths,
             volumes=volumes,
             environment=environment,
@@ -900,6 +1043,29 @@ class ProtocolGuardDockerRunner:
         if not candidates:
             return None
         return candidates[0]
+
+    def _find_cursorkleosr_directory(self, workspace: Path) -> Optional[Path]:
+        for candidate in workspace.rglob("cursorkleosr"):
+            if candidate.is_dir():
+                return candidate
+        return None
+
+    def _zip_directory(self, source: Path, destination: Path) -> Path:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        root_parent = source.parent
+        with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as zip_file:
+            for folder_path, dirnames, filenames in os.walk(source):
+                folder = Path(folder_path)
+                rel_dir = folder.relative_to(root_parent).as_posix()
+                zip_file.writestr(f"{rel_dir}/", "")
+                for filename in filenames:
+                    abs_path = folder / filename
+                    arcname = abs_path.relative_to(root_parent).as_posix()
+                    zip_file.write(abs_path, arcname)
+        return destination
+
+    def _count_files(self, directory: Path) -> int:
+        return sum(1 for path in directory.rglob("*") if path.is_file())
 
     def _extract_findings(
         self,
