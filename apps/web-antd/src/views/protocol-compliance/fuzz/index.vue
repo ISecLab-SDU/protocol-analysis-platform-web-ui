@@ -3743,10 +3743,14 @@ function initMQTTModule(moduleId: number) {
         x: iconCenterX + iconRect.width / 3,
         y: iconCenterY + iconRect.height / 2
       },
-      // 图标底部边缘连接点
-      edge: {
-        x: iconCenterX,
-        y: iconCenterY + iconRect.height / 2 + 2
+      // 图标顶部边缘连接点（左上角和右上角）
+      topLeft: {
+        x: iconCenterX - iconRect.width / 2,
+        y: iconCenterY - iconRect.height / 2 - 2
+      },
+      topRight: {
+        x: iconCenterX + iconRect.width / 2,
+        y: iconCenterY - iconRect.height / 2 - 2
       }
     };
   }
@@ -3773,9 +3777,9 @@ function initMQTTModule(moduleId: number) {
       const midX = (from.x + to.x) / 2;
       const midY = (from.y + to.y) / 2;
       
-      // 根据连接方向调整控制点，避免线条交汇
+      // 根据连接方向调整控制点，因为现在连接到顶部，需要向上弯曲
       let controlX = midX;
-      let controlY = midY - 40; // 增加弯曲度
+      let controlY = midY + 40; // 向下弯曲，因为连接点在顶部
       
       // 根据路径ID调整控制点位置
       if (id.includes('broker-client1')) {
@@ -3802,9 +3806,9 @@ function initMQTTModule(moduleId: number) {
       return path;
     }
     
-    // 创建两条主连接线，每条线上有双向粒子流动
-    const path1 = createPath(bPos.leftBottom, c1Pos.edge, 'broker-client1', '#3B82F6');
-    const path2 = createPath(bPos.rightBottom, c2Pos.edge, 'broker-client2', '#3B82F6');
+    // 创建两条主连接线，连接到client图标的左上角和右上角
+    const path1 = createPath(bPos.leftBottom, c1Pos.topLeft, 'broker-client1', '#3B82F6');
+    const path2 = createPath(bPos.rightBottom, c2Pos.topRight, 'broker-client2', '#3B82F6');
     
     return { path1, path2 };
   }
@@ -4376,7 +4380,7 @@ onMounted(async () => {
                   <div class="mqtt-module" :id="`mqtt-viz-1`">
                     <div class="mqtt-node text-blue-600 absolute top-6 left-1/2 transform -translate-x-1/2">
                       <IconifyIcon icon="mdi:server" class="text-4xl" />
-                      <span class="font-medium text-xs">Broker 1</span>
+                      <span class="font-medium text-xs">HiveMQ</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-6 left-[8%]">
                       <IconifyIcon icon="mdi:chip" class="text-3xl" />
@@ -4394,7 +4398,7 @@ onMounted(async () => {
                   <div class="mqtt-module" :id="`mqtt-viz-2`">
                     <div class="mqtt-node text-blue-600 absolute top-6 left-1/2 transform -translate-x-1/2">
                       <IconifyIcon icon="mdi:server" class="text-4xl" />
-                      <span class="font-medium text-xs">Broker 2</span>
+                      <span class="font-medium text-xs">VerneMQ</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-6 left-[8%]">
                       <IconifyIcon icon="mdi:chip" class="text-3xl" />
@@ -4412,7 +4416,7 @@ onMounted(async () => {
                   <div class="mqtt-module" :id="`mqtt-viz-3`">
                     <div class="mqtt-node text-blue-600 absolute top-6 left-1/2 transform -translate-x-1/2">
                       <IconifyIcon icon="mdi:server" class="text-4xl" />
-                      <span class="font-medium text-xs">Broker 3</span>
+                      <span class="font-medium text-xs">EMQX</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-6 left-[8%]">
                       <IconifyIcon icon="mdi:chip" class="text-3xl" />
@@ -4430,7 +4434,7 @@ onMounted(async () => {
                   <div class="mqtt-module" :id="`mqtt-viz-4`">
                     <div class="mqtt-node text-blue-600 absolute top-6 left-1/2 transform -translate-x-1/2">
                       <IconifyIcon icon="mdi:server" class="text-4xl" />
-                      <span class="font-medium text-xs">Broker 4</span>
+                      <span class="font-medium text-xs">FlashMQ</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-6 left-[8%]">
                       <IconifyIcon icon="mdi:chip" class="text-3xl" />
@@ -4448,7 +4452,7 @@ onMounted(async () => {
                   <div class="mqtt-module" :id="`mqtt-viz-5`">
                     <div class="mqtt-node text-blue-600 absolute top-6 left-1/2 transform -translate-x-1/2">
                       <IconifyIcon icon="mdi:server" class="text-4xl" />
-                      <span class="font-medium text-xs">Broker 5</span>
+                      <span class="font-medium text-xs">NanoMQ</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-6 left-[8%]">
                       <IconifyIcon icon="mdi:chip" class="text-3xl" />
@@ -4466,7 +4470,7 @@ onMounted(async () => {
                   <div class="mqtt-module" :id="`mqtt-viz-6`">
                     <div class="mqtt-node text-blue-600 absolute top-6 left-1/2 transform -translate-x-1/2">
                       <IconifyIcon icon="mdi:server" class="text-4xl" />
-                      <span class="font-medium text-xs">Broker 6</span>
+                      <span class="font-medium text-xs">Mosquitto</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-6 left-[8%]">
                       <IconifyIcon icon="mdi:chip" class="text-3xl" />
