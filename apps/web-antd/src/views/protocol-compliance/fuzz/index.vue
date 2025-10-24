@@ -3647,6 +3647,10 @@ if (typeof window !== 'undefined') {
     console.log('[DEBUG] Current history results:', historyResults.value);
     console.log('[DEBUG] History results length:', historyResults.value.length);
   };
+  (window as any).testMQTTAnimation = () => {
+    console.log('[DEBUG] Manual MQTT animation test');
+    initMQTTAnimations();
+  };
 }
 
 // MQTT动画相关变量和函数
@@ -3654,13 +3658,18 @@ let mqttAnimationIntervals: number[] = [];
 
 // 初始化MQTT动画
 function initMQTTAnimations() {
+  console.log('[MQTT Animation] Starting initialization...');
   // 清理旧的动画
   cleanupMQTTAnimations();
   
-  // 批量初始化6个MQTT模块
-  for (let moduleId = 1; moduleId <= 6; moduleId++) {
-    initMQTTModule(moduleId);
-  }
+  // 等待DOM完全渲染后再初始化
+  setTimeout(() => {
+    // 批量初始化6个MQTT模块
+    for (let moduleId = 1; moduleId <= 6; moduleId++) {
+      console.log(`[MQTT Animation] Initializing module ${moduleId}`);
+      initMQTTModule(moduleId);
+    }
+  }, 100);
 }
 
 // 清理MQTT动画
@@ -3672,7 +3681,10 @@ function cleanupMQTTAnimations() {
 // 单个MQTT模块初始化函数
 function initMQTTModule(moduleId: number) {
   const module = document.getElementById(`mqtt-viz-${moduleId}`);
-  if (!module) return;
+  if (!module) {
+    console.warn(`[MQTT Animation] Module mqtt-viz-${moduleId} not found`);
+    return;
+  }
   
   const broker = module.querySelector('.mqtt-node:nth-child(1)') as HTMLElement;
   const client1 = module.querySelector('.mqtt-node:nth-child(2)') as HTMLElement;
@@ -3680,25 +3692,46 @@ function initMQTTModule(moduleId: number) {
   const connections = document.getElementById(`connections-viz-${moduleId}`) as SVGElement;
   const particles = document.getElementById(`particles-viz-${moduleId}`) as HTMLElement;
   
-  if (!broker || !client1 || !client2 || !connections || !particles) return;
+  console.log(`[MQTT Animation] Module ${moduleId} elements:`, {
+    module: !!module,
+    broker: !!broker,
+    client1: !!client1,
+    client2: !!client2,
+    connections: !!connections,
+    particles: !!particles
+  });
+  
+  if (!broker || !client1 || !client2 || !connections || !particles) {
+    console.warn(`[MQTT Animation] Missing elements for module ${moduleId}`);
+    return;
+  }
 
   // 获取元素位置（基于当前模块容器定位）
   function getPosition(el: HTMLElement) {
     const rect = el.getBoundingClientRect();
-    const icon = el.querySelector('svg') as HTMLElement;
-    const iconRect = icon ? icon.getBoundingClientRect() : rect;
     const containerRect = module.getBoundingClientRect();
     
+    // 使用节点本身的位置，而不是图标的位置
+    const centerX = rect.left + rect.width/2 - containerRect.left;
+    const centerY = rect.top + rect.height/2 - containerRect.top;
+    
+    console.log(`[MQTT Animation] Position for element:`, {
+      centerX,
+      centerY,
+      elementRect: rect,
+      containerRect
+    });
+    
     return {
-      centerX: iconRect.left + iconRect.width/2 - containerRect.left,
-      centerY: iconRect.top + iconRect.height/2 - containerRect.top,
+      centerX,
+      centerY,
       bottomLeft: {
-        x: iconRect.left - containerRect.left + iconRect.width * 0.2,
-        y: iconRect.bottom - containerRect.top - iconRect.height * 0.2
+        x: centerX - 10,
+        y: centerY + 10
       },
       bottomRight: {
-        x: iconRect.right - containerRect.left - iconRect.width * 0.2,
-        y: iconRect.bottom - containerRect.top - iconRect.height * 0.2
+        x: centerX + 10,
+        y: centerY + 10
       }
     };
   }
@@ -3710,26 +3743,37 @@ function initMQTTModule(moduleId: number) {
     const c2Pos = getPosition(client2);
     connections.innerHTML = '';
     
+    console.log(`[MQTT Animation] Creating connections for module ${moduleId}:`, {
+      broker: bPos,
+      client1: c1Pos,
+      client2: c2Pos
+    });
+    
     function createPath(from: {x: number, y: number}, to: {x: number, y: number}, id: string) {
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       const d = `M ${from.x} ${from.y} L ${to.x} ${to.y}`;
       path.setAttribute('d', d);
       path.setAttribute('id', `${id}-${moduleId}`);
       path.setAttribute('class', 'mqtt-connection');
+      path.setAttribute('stroke', '#3B82F6');
+      path.setAttribute('stroke-width', '2');
+      path.setAttribute('fill', 'none');
       connections.appendChild(path);
+      console.log(`[MQTT Animation] Created path ${id}: ${d}`);
       return path;
     }
     
-    const path1 = createPath(bPos.bottomLeft, {x: c1Pos.centerX, y: c1Pos.centerY}, 'path1');
-    const path2 = createPath({x: c1Pos.centerX, y: c1Pos.centerY}, bPos.bottomLeft, 'path2');
-    const path3 = createPath(bPos.bottomRight, {x: c2Pos.centerX, y: c2Pos.centerY}, 'path3');
-    const path4 = createPath({x: c2Pos.centerX, y: c2Pos.centerY}, bPos.bottomRight, 'path4');
+    const path1 = createPath({x: bPos.centerX, y: bPos.centerY}, {x: c1Pos.centerX, y: c1Pos.centerY}, 'path1');
+    const path2 = createPath({x: c1Pos.centerX, y: c1Pos.centerY}, {x: bPos.centerX, y: bPos.centerY}, 'path2');
+    const path3 = createPath({x: bPos.centerX, y: bPos.centerY}, {x: c2Pos.centerX, y: c2Pos.centerY}, 'path3');
+    const path4 = createPath({x: c2Pos.centerX, y: c2Pos.centerY}, {x: bPos.centerX, y: bPos.centerY}, 'path4');
     
     return { path1, path2, path3, path4 };
   }
 
   // 创建流动粒子
   function createParticles(paths: any) {
+    console.log(`[MQTT Animation] Creating particles for module ${moduleId}`);
     const particleSources = [
       { path: paths.path1, start: 0, end: 1, interval: 2000, class: 'mqtt-particle-from-broker', speed: 100 },
       { path: paths.path3, start: 0, end: 1, interval: 2500, class: 'mqtt-particle-from-broker', speed: 100 },
@@ -3738,45 +3782,56 @@ function initMQTTModule(moduleId: number) {
     ];
     
     // 为当前模块添加新定时器
-    particleSources.forEach(source => {
+    particleSources.forEach((source, index) => {
       const interval = setInterval(() => {
+        console.log(`[MQTT Animation] Creating particle ${index} for module ${moduleId}`);
         createParticle(source.path, source.start, source.end, source.class, source.speed);
       }, source.interval);
       mqttAnimationIntervals.push(interval);
     });
+    
+    console.log(`[MQTT Animation] Created ${particleSources.length} particle sources for module ${moduleId}`);
   }
 
   // 创建单个粒子
   function createParticle(path: SVGPathElement, start: number, end: number, particleClass: string, speed: number) {
-    const particle = document.createElement('div');
-    particle.className = `mqtt-particle ${particleClass}`;
-    particle.style.transform = 'translate(-50%, -50%)';
-    particles.appendChild(particle);
-    
-    const length = path.getTotalLength();
-    const duration = length / speed * 1000;
-    
-    let starttime: number | null = null;
-    function animate(timestamp: number) {
-      if (!starttime) starttime = timestamp;
-      const progress = (timestamp - starttime) / duration;
+    try {
+      const particle = document.createElement('div');
+      particle.className = `mqtt-particle ${particleClass}`;
+      particle.style.transform = 'translate(-50%, -50%)';
+      particle.style.position = 'absolute';
+      particle.style.zIndex = '10';
+      particles.appendChild(particle);
       
-      if (progress < 1 && particles.contains(particle)) {
-        const currentLength = start * length + progress * (end - start) * length;
-        const pos = path.getPointAtLength(currentLength);
-        particle.style.left = `${pos.x}px`;
-        particle.style.top = `${pos.y}px`;
-        requestAnimationFrame(animate);
-      } else {
-        setTimeout(() => {
-          if (particles.contains(particle)) {
-            particle.remove();
-          }
-        }, 100);
+      const length = path.getTotalLength();
+      const duration = length / speed * 1000;
+      
+      console.log(`[MQTT Animation] Created particle with length: ${length}, duration: ${duration}`);
+      
+      let starttime: number | null = null;
+      function animate(timestamp: number) {
+        if (!starttime) starttime = timestamp;
+        const progress = (timestamp - starttime) / duration;
+        
+        if (progress < 1 && particles.contains(particle)) {
+          const currentLength = start * length + progress * (end - start) * length;
+          const pos = path.getPointAtLength(currentLength);
+          particle.style.left = `${pos.x}px`;
+          particle.style.top = `${pos.y}px`;
+          requestAnimationFrame(animate);
+        } else {
+          setTimeout(() => {
+            if (particles.contains(particle)) {
+              particle.remove();
+            }
+          }, 100);
+        }
       }
+      
+      requestAnimationFrame(animate);
+    } catch (error) {
+      console.error(`[MQTT Animation] Error creating particle:`, error);
     }
-    
-    requestAnimationFrame(animate);
   }
 
   // 初始化当前模块
