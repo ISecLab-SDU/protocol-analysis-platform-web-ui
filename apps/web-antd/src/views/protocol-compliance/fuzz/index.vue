@@ -3742,6 +3742,11 @@ function initMQTTModule(moduleId: number) {
       rightBottom: {
         x: iconCenterX + iconRect.width / 3,
         y: iconCenterY + iconRect.height / 2
+      },
+      // 图标底部边缘连接点
+      edge: {
+        x: iconCenterX,
+        y: iconCenterY + iconRect.height / 2 + 2
       }
     };
   }
@@ -3773,23 +3778,13 @@ function initMQTTModule(moduleId: number) {
       let controlY = midY - 40; // 增加弯曲度
       
       // 根据路径ID调整控制点位置
-      if (id.includes('broker-to-client1') || id.includes('client1-to-broker')) {
+      if (id.includes('broker-client1')) {
         // 左侧连接，控制点向左偏移
         controlX = midX - 25;
-        // Client到Broker的路径控制点稍微偏移，避免重叠
-        if (id.includes('client1-to-broker')) {
-          controlX = midX - 15;
-          controlY = midY - 30;
-        }
       }
-      else if (id.includes('broker-to-client2') || id.includes('client2-to-broker')) {
+      else if (id.includes('broker-client2')) {
         // 右侧连接，控制点向右偏移
         controlX = midX + 25;
-        // Client到Broker的路径控制点稍微偏移，避免重叠
-        if (id.includes('client2-to-broker')) {
-          controlX = midX + 15;
-          controlY = midY - 30;
-        }
       }
       
       // 使用二次贝塞尔曲线创建更自然的连接
@@ -3807,25 +3802,25 @@ function initMQTTModule(moduleId: number) {
       return path;
     }
     
-    // 创建四条双向连接线，使用broker的左下角和右下角连接点
-    const path1 = createPath(bPos.leftBottom, {x: c1Pos.centerX, y: c1Pos.centerY}, 'broker-to-client1', '#3B82F6');
-    const path2 = createPath({x: c1Pos.centerX, y: c1Pos.centerY}, bPos.leftBottom, 'client1-to-broker', '#60A5FA');
-    const path3 = createPath(bPos.rightBottom, {x: c2Pos.centerX, y: c2Pos.centerY}, 'broker-to-client2', '#3B82F6');
-    const path4 = createPath({x: c2Pos.centerX, y: c2Pos.centerY}, bPos.rightBottom, 'client2-to-broker', '#60A5FA');
+    // 创建两条主连接线，每条线上有双向粒子流动
+    const path1 = createPath(bPos.leftBottom, c1Pos.edge, 'broker-client1', '#3B82F6');
+    const path2 = createPath(bPos.rightBottom, c2Pos.edge, 'broker-client2', '#3B82F6');
     
-    return { path1, path2, path3, path4 };
+    return { path1, path2 };
   }
 
   // 创建流动粒子
   function createParticles(paths: any) {
     console.log(`[MQTT Animation] Creating particles for module ${moduleId}`);
     const particleSources = [
-      // Broker到Client的粒子（深蓝色）
+      // 第一条线：Broker到Client1的粒子（深蓝色）
       { path: paths.path1, start: 0, end: 1, interval: 1500, class: 'mqtt-particle-from-broker', speed: 80 },
-      { path: paths.path3, start: 0, end: 1, interval: 2000, class: 'mqtt-particle-from-broker', speed: 80 },
-      // Client到Broker的粒子（浅蓝色）
-      { path: paths.path2, start: 0, end: 1, interval: 2500, class: 'mqtt-particle-from-client', speed: 80 },
-      { path: paths.path4, start: 0, end: 1, interval: 3000, class: 'mqtt-particle-from-client', speed: 80 }
+      // 第一条线：Client1到Broker的粒子（浅蓝色）
+      { path: paths.path1, start: 1, end: 0, interval: 2500, class: 'mqtt-particle-from-client', speed: 80 },
+      // 第二条线：Broker到Client2的粒子（深蓝色）
+      { path: paths.path2, start: 0, end: 1, interval: 2000, class: 'mqtt-particle-from-broker', speed: 80 },
+      // 第二条线：Client2到Broker的粒子（浅蓝色）
+      { path: paths.path2, start: 1, end: 0, interval: 3000, class: 'mqtt-particle-from-client', speed: 80 }
     ];
     
     // 立即创建第一批粒子，然后设置定时器
