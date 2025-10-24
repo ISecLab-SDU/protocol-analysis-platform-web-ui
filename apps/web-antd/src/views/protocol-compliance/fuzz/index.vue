@@ -831,6 +831,10 @@ function resetMQTTDifferentialStats() {
     mqttRealTimeStats.value.broker_diff_stats[key as keyof typeof mqttRealTimeStats.value.broker_diff_stats] = 0;
   });
   
+  // 重置client和broker发送数据统计
+  mqttRealTimeStats.value.client_sent_count = 0;
+  mqttRealTimeStats.value.broker_sent_count = 0;
+  
   // 重置总差异数
   mqttDifferentialStats.value.total_differences = 0;
 }
@@ -974,7 +978,10 @@ const mqttRealTimeStats = ref({
     flashmq: 0,
     nanomq: 0,
     mosquitto: 0
-  }
+  },
+  // 新增client和broker发送数据统计
+  client_sent_count: 0,
+  broker_sent_count: 0
 });
 
 // MQTT 差异类型分布统计数据
@@ -1656,6 +1663,35 @@ function formatSNMPLogLine(log: any): string {
   return `[${log.timestamp}] [SNMP] ${log.content}`;
 }
 
+// 模拟client和broker发送数据增长
+function simulateDataSending() {
+  const targetClientCount = 851051;
+  const targetBrokerCount = 523790;
+  
+  // 计算当前进度
+  const clientProgress = mqttRealTimeStats.value.client_sent_count / targetClientCount;
+  const brokerProgress = mqttRealTimeStats.value.broker_sent_count / targetBrokerCount;
+  
+  // 如果还没达到目标值，继续增长
+  if (clientProgress < 1) {
+    // 随机增长，但保持相对均匀 (每次增长100-500之间)
+    const clientIncrement = Math.floor(Math.random() * 400) + 100;
+    mqttRealTimeStats.value.client_sent_count = Math.min(
+      mqttRealTimeStats.value.client_sent_count + clientIncrement,
+      targetClientCount
+    );
+  }
+  
+  if (brokerProgress < 1) {
+    // broker增长相对较慢，保持比例关系
+    const brokerIncrement = Math.floor(Math.random() * 250) + 60;
+    mqttRealTimeStats.value.broker_sent_count = Math.min(
+      mqttRealTimeStats.value.broker_sent_count + brokerIncrement,
+      targetBrokerCount
+    );
+  }
+}
+
 // 更新实时统计数据
 function updateRealTimeStats(line: string) {
   try {
@@ -1705,6 +1741,9 @@ function updateRealTimeStats(line: string) {
       
       // 实时更新差异类型分布统计
       updateDiffTypeDistribution(line);
+      
+      // 模拟client和broker发送数据增长
+      simulateDataSending();
     }
   } catch (error) {
     console.warn('[DEBUG] 更新实时统计数据失败:', error);
@@ -4236,14 +4275,28 @@ onMounted(async () => {
             
             <!-- MQTT协议统计 -->
             <div v-else-if="protocolType === 'MQTT'" class="space-y-6">
+              <!-- Client发送数据 -->
               <div>
                 <div class="flex justify-between items-center mb-1">
-                  <span class="text-sm text-dark/70">总差异发现</span>
-                  <span class="text-xl font-bold">{{ mqttDifferentialStats.total_differences }}</span>
+                  <span class="text-sm text-dark/70">Client发送数据</span>
+                  <span class="text-xl font-bold">{{ mqttRealTimeStats.client_sent_count.toLocaleString() }}</span>
                 </div>
                 <div class="w-full bg-light-gray rounded-full h-1.5 overflow-hidden">
-                  <div class="h-full bg-yellow-500" :style="{ width: mqttDifferentialStats.total_differences > 0 ? '100%' : '0%' }"></div>
+                  <div class="h-full bg-blue-500" :style="{ width: (mqttRealTimeStats.client_sent_count / 851051 * 100) + '%' }"></div>
                 </div>
+                <div class="text-xs text-gray-500 mt-1">目标: 851,051</div>
+              </div>
+              
+              <!-- Broker发送数据 -->
+              <div>
+                <div class="flex justify-between items-center mb-1">
+                  <span class="text-sm text-dark/70">Broker发送数据</span>
+                  <span class="text-xl font-bold">{{ mqttRealTimeStats.broker_sent_count.toLocaleString() }}</span>
+                </div>
+                <div class="w-full bg-light-gray rounded-full h-1.5 overflow-hidden">
+                  <div class="h-full bg-green-500" :style="{ width: (mqttRealTimeStats.broker_sent_count / 523790 * 100) + '%' }"></div>
+                </div>
+                <div class="text-xs text-gray-500 mt-1">目标: 523,790</div>
               </div>
               
               <!-- Broker差异统计 -->
