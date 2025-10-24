@@ -4310,7 +4310,7 @@ onMounted(async () => {
         <!-- 测试结果分析 -->
         <div class="grid grid-cols-1 xl:grid-cols-4 gap-6 mb-6">
           <!-- 消息类型分布和版本统计 / RTSP状态机统计 -->
-          <div class="xl:col-span-3 bg-white/80 backdrop-blur-sm rounded-xl p-6 border border-secondary/20 shadow-card">
+          <div class="xl:col-span-3 bg-white/80 backdrop-blur-sm rounded-xl p-6 border border-secondary/20 shadow-card flex flex-col min-h-96">
             <div class="flex justify-between items-center mb-6">
               <h3 class="font-semibold text-xl">
                 {{ protocolType === 'RTSP' ? 'RTSP协议状态机统计' : 
@@ -4351,20 +4351,20 @@ onMounted(async () => {
             
             <!-- MQTT协议统计 -->
             <!-- MQTT协议实时动画可视化区域 -->
-            <div v-else-if="protocolType === 'MQTT'" class="h-72">
-              <!-- MQTT动画网格容器 - 直接展示，无边框 -->
-              <div class="grid grid-cols-2 lg:grid-cols-3 gap-4 h-full p-1">
+            <div v-else-if="protocolType === 'MQTT'" class="flex-1 min-h-0">
+              <!-- MQTT动画网格容器 - 直接展示，无边框，占满可用空间 -->
+              <div class="grid grid-cols-2 lg:grid-cols-3 gap-3 h-full p-2">
                   <!-- MQTT模块1 -->
                   <div class="mqtt-module" :id="`mqtt-viz-1`">
-                    <div class="mqtt-node text-blue-600 absolute top-4 left-1/2 transform -translate-x-1/2">
-                      <IconifyIcon icon="mdi:server" class="text-3xl" />
+                    <div class="mqtt-node text-blue-600 absolute top-6 left-1/2 transform -translate-x-1/2">
+                      <IconifyIcon icon="mdi:server" class="text-4xl" />
                       <span class="font-medium text-xs">Broker 1</span>
                     </div>
-                    <div class="mqtt-node text-blue-600 absolute bottom-4 left-[10%]">
+                    <div class="mqtt-node text-blue-600 absolute bottom-6 left-[8%]">
                       <IconifyIcon icon="mdi:chip" class="text-2xl" />
                       <span class="font-medium text-xs">Client1</span>
                     </div>
-                    <div class="mqtt-node text-blue-600 absolute bottom-4 right-[10%]">
+                    <div class="mqtt-node text-blue-600 absolute bottom-6 right-[8%]">
                       <IconifyIcon icon="mdi:cloud" class="text-2xl" />
                       <span class="font-medium text-xs">Client2</span>
                     </div>
@@ -4374,15 +4374,15 @@ onMounted(async () => {
 
                   <!-- MQTT模块2 -->
                   <div class="mqtt-module" :id="`mqtt-viz-2`">
-                    <div class="mqtt-node text-blue-600 absolute top-4 left-1/2 transform -translate-x-1/2">
-                      <IconifyIcon icon="mdi:server" class="text-3xl" />
+                    <div class="mqtt-node text-blue-600 absolute top-6 left-1/2 transform -translate-x-1/2">
+                      <IconifyIcon icon="mdi:server" class="text-4xl" />
                       <span class="font-medium text-xs">Broker 2</span>
                     </div>
-                    <div class="mqtt-node text-blue-600 absolute bottom-4 left-[10%]">
+                    <div class="mqtt-node text-blue-600 absolute bottom-6 left-[8%]">
                       <IconifyIcon icon="mdi:chip" class="text-2xl" />
                       <span class="font-medium text-xs">Client1</span>
                     </div>
-                    <div class="mqtt-node text-blue-600 absolute bottom-4 right-[10%]">
+                    <div class="mqtt-node text-blue-600 absolute bottom-6 right-[8%]">
                       <IconifyIcon icon="mdi:cloud" class="text-2xl" />
                       <span class="font-medium text-xs">Client2</span>
                     </div>
@@ -4392,15 +4392,15 @@ onMounted(async () => {
 
                   <!-- MQTT模块3 -->
                   <div class="mqtt-module" :id="`mqtt-viz-3`">
-                    <div class="mqtt-node text-blue-600 absolute top-4 left-1/2 transform -translate-x-1/2">
-                      <IconifyIcon icon="mdi:server" class="text-3xl" />
+                    <div class="mqtt-node text-blue-600 absolute top-6 left-1/2 transform -translate-x-1/2">
+                      <IconifyIcon icon="mdi:server" class="text-4xl" />
                       <span class="font-medium text-xs">Broker 3</span>
                     </div>
-                    <div class="mqtt-node text-blue-600 absolute bottom-4 left-[10%]">
+                    <div class="mqtt-node text-blue-600 absolute bottom-6 left-[8%]">
                       <IconifyIcon icon="mdi:chip" class="text-2xl" />
                       <span class="font-medium text-xs">Client1</span>
                     </div>
-                    <div class="mqtt-node text-blue-600 absolute bottom-4 right-[10%]">
+                    <div class="mqtt-node text-blue-600 absolute bottom-6 right-[8%]">
                       <IconifyIcon icon="mdi:cloud" class="text-2xl" />
                       <span class="font-medium text-xs">Client2</span>
                     </div>
@@ -4410,15 +4410,15 @@ onMounted(async () => {
 
                   <!-- MQTT模块4 -->
                   <div class="mqtt-module" :id="`mqtt-viz-4`">
-                    <div class="mqtt-node text-blue-600 absolute top-4 left-1/2 transform -translate-x-1/2">
-                      <IconifyIcon icon="mdi:server" class="text-3xl" />
+                    <div class="mqtt-node text-blue-600 absolute top-6 left-1/2 transform -translate-x-1/2">
+                      <IconifyIcon icon="mdi:server" class="text-4xl" />
                       <span class="font-medium text-xs">Broker 4</span>
                     </div>
-                    <div class="mqtt-node text-blue-600 absolute bottom-4 left-[10%]">
+                    <div class="mqtt-node text-blue-600 absolute bottom-6 left-[8%]">
                       <IconifyIcon icon="mdi:chip" class="text-2xl" />
                       <span class="font-medium text-xs">Client1</span>
                     </div>
-                    <div class="mqtt-node text-blue-600 absolute bottom-4 right-[10%]">
+                    <div class="mqtt-node text-blue-600 absolute bottom-6 right-[8%]">
                       <IconifyIcon icon="mdi:cloud" class="text-2xl" />
                       <span class="font-medium text-xs">Client2</span>
                     </div>
@@ -4428,15 +4428,15 @@ onMounted(async () => {
 
                   <!-- MQTT模块5 -->
                   <div class="mqtt-module" :id="`mqtt-viz-5`">
-                    <div class="mqtt-node text-blue-600 absolute top-4 left-1/2 transform -translate-x-1/2">
-                      <IconifyIcon icon="mdi:server" class="text-3xl" />
+                    <div class="mqtt-node text-blue-600 absolute top-6 left-1/2 transform -translate-x-1/2">
+                      <IconifyIcon icon="mdi:server" class="text-4xl" />
                       <span class="font-medium text-xs">Broker 5</span>
                     </div>
-                    <div class="mqtt-node text-blue-600 absolute bottom-4 left-[10%]">
+                    <div class="mqtt-node text-blue-600 absolute bottom-6 left-[8%]">
                       <IconifyIcon icon="mdi:chip" class="text-2xl" />
                       <span class="font-medium text-xs">Client1</span>
                     </div>
-                    <div class="mqtt-node text-blue-600 absolute bottom-4 right-[10%]">
+                    <div class="mqtt-node text-blue-600 absolute bottom-6 right-[8%]">
                       <IconifyIcon icon="mdi:cloud" class="text-2xl" />
                       <span class="font-medium text-xs">Client2</span>
                     </div>
@@ -4446,15 +4446,15 @@ onMounted(async () => {
 
                   <!-- MQTT模块6 -->
                   <div class="mqtt-module" :id="`mqtt-viz-6`">
-                    <div class="mqtt-node text-blue-600 absolute top-4 left-1/2 transform -translate-x-1/2">
-                      <IconifyIcon icon="mdi:server" class="text-3xl" />
+                    <div class="mqtt-node text-blue-600 absolute top-6 left-1/2 transform -translate-x-1/2">
+                      <IconifyIcon icon="mdi:server" class="text-4xl" />
                       <span class="font-medium text-xs">Broker 6</span>
                     </div>
-                    <div class="mqtt-node text-blue-600 absolute bottom-4 left-[10%]">
+                    <div class="mqtt-node text-blue-600 absolute bottom-6 left-[8%]">
                       <IconifyIcon icon="mdi:chip" class="text-2xl" />
                       <span class="font-medium text-xs">Client1</span>
                     </div>
-                    <div class="mqtt-node text-blue-600 absolute bottom-4 right-[10%]">
+                    <div class="mqtt-node text-blue-600 absolute bottom-6 right-[8%]">
                       <IconifyIcon icon="mdi:cloud" class="text-2xl" />
                       <span class="font-medium text-xs">Client2</span>
                     </div>
