@@ -3712,27 +3712,36 @@ function initMQTTModule(moduleId: number) {
     const moduleRect = module.getBoundingClientRect();
     const elRect = el.getBoundingClientRect();
     
-    // 计算相对于模块容器的位置
-    const relativeX = elRect.left - moduleRect.left + elRect.width / 2;
-    const relativeY = elRect.top - moduleRect.top + elRect.height / 2;
+    // 查找图标元素（SVG）而不是整个节点
+    const iconElement = el.querySelector('svg') as HTMLElement;
+    let iconRect = elRect;
     
-    console.log(`[MQTT Animation] Element position:`, {
-      relativeX,
-      relativeY,
-      element: el.className
+    if (iconElement) {
+      iconRect = iconElement.getBoundingClientRect();
+    }
+    
+    // 计算图标相对于模块容器的位置
+    const iconCenterX = iconRect.left - moduleRect.left + iconRect.width / 2;
+    const iconCenterY = iconRect.top - moduleRect.top + iconRect.height / 2;
+    
+    console.log(`[MQTT Animation] Icon position:`, {
+      iconCenterX,
+      iconCenterY,
+      element: el.className,
+      hasIcon: !!iconElement
     });
     
     return {
-      centerX: relativeX,
-      centerY: relativeY,
-      // 为broker添加左下角和右下角连接点
+      centerX: iconCenterX,
+      centerY: iconCenterY,
+      // 为broker添加左下角和右下角连接点（基于图标位置）
       leftBottom: {
-        x: relativeX - elRect.width / 4,
-        y: relativeY + elRect.height / 3
+        x: iconCenterX - iconRect.width / 3,
+        y: iconCenterY + iconRect.height / 2
       },
       rightBottom: {
-        x: relativeX + elRect.width / 4,
-        y: relativeY + elRect.height / 3
+        x: iconCenterX + iconRect.width / 3,
+        y: iconCenterY + iconRect.height / 2
       }
     };
   }
@@ -3742,6 +3751,8 @@ function initMQTTModule(moduleId: number) {
     const bPos = getPosition(broker);
     const c1Pos = getPosition(client1);
     const c2Pos = getPosition(client2);
+    
+    // 清空之前的连接线，避免重复绘制
     connections.innerHTML = '';
     
     console.log(`[MQTT Animation] Creating connections for module ${moduleId}:`, {
@@ -3759,15 +3770,15 @@ function initMQTTModule(moduleId: number) {
       
       // 根据连接方向调整控制点，避免线条交汇
       let controlX = midX;
-      let controlY = midY - 30; // 增加弯曲度
+      let controlY = midY - 40; // 增加弯曲度
       
-      // 如果是左侧连接，控制点稍微向左偏移
-      if (from.x < to.x && id.includes('path1') || id.includes('path2')) {
-        controlX = midX - 15;
+      // 如果是左侧连接（path1），控制点向左偏移
+      if (id.includes('path1')) {
+        controlX = midX - 20;
       }
-      // 如果是右侧连接，控制点稍微向右偏移
-      else if (from.x > to.x && id.includes('path3') || id.includes('path4')) {
-        controlX = midX + 15;
+      // 如果是右侧连接（path2），控制点向右偏移
+      else if (id.includes('path2')) {
+        controlX = midX + 20;
       }
       
       // 使用二次贝塞尔曲线创建更自然的连接
@@ -3785,13 +3796,11 @@ function initMQTTModule(moduleId: number) {
       return path;
     }
     
-    // 创建双向连接，使用broker的左下角和右下角连接点
+    // 创建两条主要连接线，使用broker的左下角和右下角连接点
     const path1 = createPath(bPos.leftBottom, {x: c1Pos.centerX, y: c1Pos.centerY}, 'path1', '#3B82F6');
-    const path2 = createPath({x: c1Pos.centerX, y: c1Pos.centerY}, bPos.leftBottom, 'path2', '#60A5FA');
-    const path3 = createPath(bPos.rightBottom, {x: c2Pos.centerX, y: c2Pos.centerY}, 'path3', '#3B82F6');
-    const path4 = createPath({x: c2Pos.centerX, y: c2Pos.centerY}, bPos.rightBottom, 'path4', '#60A5FA');
+    const path2 = createPath(bPos.rightBottom, {x: c2Pos.centerX, y: c2Pos.centerY}, 'path2', '#3B82F6');
     
-    return { path1, path2, path3, path4 };
+    return { path1, path2 };
   }
 
   // 创建流动粒子
@@ -3799,9 +3808,7 @@ function initMQTTModule(moduleId: number) {
     console.log(`[MQTT Animation] Creating particles for module ${moduleId}`);
     const particleSources = [
       { path: paths.path1, start: 0, end: 1, interval: 1500, class: 'mqtt-particle-from-broker', speed: 80 },
-      { path: paths.path3, start: 0, end: 1, interval: 2000, class: 'mqtt-particle-from-broker', speed: 80 },
-      { path: paths.path2, start: 0, end: 1, interval: 2500, class: 'mqtt-particle-from-client', speed: 80 },
-      { path: paths.path4, start: 0, end: 1, interval: 3000, class: 'mqtt-particle-from-client', speed: 80 }
+      { path: paths.path2, start: 0, end: 1, interval: 2000, class: 'mqtt-particle-from-broker', speed: 80 }
     ];
     
     // 立即创建第一批粒子，然后设置定时器
@@ -4349,15 +4356,15 @@ onMounted(async () => {
               <div class="grid grid-cols-2 lg:grid-cols-3 gap-4 h-full p-1">
                   <!-- MQTT模块1 -->
                   <div class="mqtt-module" :id="`mqtt-viz-1`">
-                    <div class="mqtt-node text-blue-600 absolute top-3 left-1/2 transform -translate-x-1/2">
+                    <div class="mqtt-node text-blue-600 absolute top-4 left-1/2 transform -translate-x-1/2">
                       <IconifyIcon icon="mdi:server" class="text-3xl" />
                       <span class="font-medium text-xs">Broker 1</span>
                     </div>
-                    <div class="mqtt-node text-blue-600 absolute bottom-3 left-[12%]">
+                    <div class="mqtt-node text-blue-600 absolute bottom-4 left-[10%]">
                       <IconifyIcon icon="mdi:chip" class="text-2xl" />
                       <span class="font-medium text-xs">Client1</span>
                     </div>
-                    <div class="mqtt-node text-blue-600 absolute bottom-3 right-[12%]">
+                    <div class="mqtt-node text-blue-600 absolute bottom-4 right-[10%]">
                       <IconifyIcon icon="mdi:cloud" class="text-2xl" />
                       <span class="font-medium text-xs">Client2</span>
                     </div>
@@ -4367,15 +4374,15 @@ onMounted(async () => {
 
                   <!-- MQTT模块2 -->
                   <div class="mqtt-module" :id="`mqtt-viz-2`">
-                    <div class="mqtt-node text-blue-600 absolute top-3 left-1/2 transform -translate-x-1/2">
+                    <div class="mqtt-node text-blue-600 absolute top-4 left-1/2 transform -translate-x-1/2">
                       <IconifyIcon icon="mdi:server" class="text-3xl" />
                       <span class="font-medium text-xs">Broker 2</span>
                     </div>
-                    <div class="mqtt-node text-blue-600 absolute bottom-3 left-[12%]">
+                    <div class="mqtt-node text-blue-600 absolute bottom-4 left-[10%]">
                       <IconifyIcon icon="mdi:chip" class="text-2xl" />
                       <span class="font-medium text-xs">Client1</span>
                     </div>
-                    <div class="mqtt-node text-blue-600 absolute bottom-3 right-[12%]">
+                    <div class="mqtt-node text-blue-600 absolute bottom-4 right-[10%]">
                       <IconifyIcon icon="mdi:cloud" class="text-2xl" />
                       <span class="font-medium text-xs">Client2</span>
                     </div>
@@ -4385,15 +4392,15 @@ onMounted(async () => {
 
                   <!-- MQTT模块3 -->
                   <div class="mqtt-module" :id="`mqtt-viz-3`">
-                    <div class="mqtt-node text-blue-600 absolute top-3 left-1/2 transform -translate-x-1/2">
+                    <div class="mqtt-node text-blue-600 absolute top-4 left-1/2 transform -translate-x-1/2">
                       <IconifyIcon icon="mdi:server" class="text-3xl" />
                       <span class="font-medium text-xs">Broker 3</span>
                     </div>
-                    <div class="mqtt-node text-blue-600 absolute bottom-3 left-[12%]">
+                    <div class="mqtt-node text-blue-600 absolute bottom-4 left-[10%]">
                       <IconifyIcon icon="mdi:chip" class="text-2xl" />
                       <span class="font-medium text-xs">Client1</span>
                     </div>
-                    <div class="mqtt-node text-blue-600 absolute bottom-3 right-[12%]">
+                    <div class="mqtt-node text-blue-600 absolute bottom-4 right-[10%]">
                       <IconifyIcon icon="mdi:cloud" class="text-2xl" />
                       <span class="font-medium text-xs">Client2</span>
                     </div>
@@ -4403,15 +4410,15 @@ onMounted(async () => {
 
                   <!-- MQTT模块4 -->
                   <div class="mqtt-module" :id="`mqtt-viz-4`">
-                    <div class="mqtt-node text-blue-600 absolute top-3 left-1/2 transform -translate-x-1/2">
+                    <div class="mqtt-node text-blue-600 absolute top-4 left-1/2 transform -translate-x-1/2">
                       <IconifyIcon icon="mdi:server" class="text-3xl" />
                       <span class="font-medium text-xs">Broker 4</span>
                     </div>
-                    <div class="mqtt-node text-blue-600 absolute bottom-3 left-[12%]">
+                    <div class="mqtt-node text-blue-600 absolute bottom-4 left-[10%]">
                       <IconifyIcon icon="mdi:chip" class="text-2xl" />
                       <span class="font-medium text-xs">Client1</span>
                     </div>
-                    <div class="mqtt-node text-blue-600 absolute bottom-3 right-[12%]">
+                    <div class="mqtt-node text-blue-600 absolute bottom-4 right-[10%]">
                       <IconifyIcon icon="mdi:cloud" class="text-2xl" />
                       <span class="font-medium text-xs">Client2</span>
                     </div>
@@ -4421,15 +4428,15 @@ onMounted(async () => {
 
                   <!-- MQTT模块5 -->
                   <div class="mqtt-module" :id="`mqtt-viz-5`">
-                    <div class="mqtt-node text-blue-600 absolute top-3 left-1/2 transform -translate-x-1/2">
+                    <div class="mqtt-node text-blue-600 absolute top-4 left-1/2 transform -translate-x-1/2">
                       <IconifyIcon icon="mdi:server" class="text-3xl" />
                       <span class="font-medium text-xs">Broker 5</span>
                     </div>
-                    <div class="mqtt-node text-blue-600 absolute bottom-3 left-[12%]">
+                    <div class="mqtt-node text-blue-600 absolute bottom-4 left-[10%]">
                       <IconifyIcon icon="mdi:chip" class="text-2xl" />
                       <span class="font-medium text-xs">Client1</span>
                     </div>
-                    <div class="mqtt-node text-blue-600 absolute bottom-3 right-[12%]">
+                    <div class="mqtt-node text-blue-600 absolute bottom-4 right-[10%]">
                       <IconifyIcon icon="mdi:cloud" class="text-2xl" />
                       <span class="font-medium text-xs">Client2</span>
                     </div>
@@ -4439,15 +4446,15 @@ onMounted(async () => {
 
                   <!-- MQTT模块6 -->
                   <div class="mqtt-module" :id="`mqtt-viz-6`">
-                    <div class="mqtt-node text-blue-600 absolute top-3 left-1/2 transform -translate-x-1/2">
+                    <div class="mqtt-node text-blue-600 absolute top-4 left-1/2 transform -translate-x-1/2">
                       <IconifyIcon icon="mdi:server" class="text-3xl" />
                       <span class="font-medium text-xs">Broker 6</span>
                     </div>
-                    <div class="mqtt-node text-blue-600 absolute bottom-3 left-[12%]">
+                    <div class="mqtt-node text-blue-600 absolute bottom-4 left-[10%]">
                       <IconifyIcon icon="mdi:chip" class="text-2xl" />
                       <span class="font-medium text-xs">Client1</span>
                     </div>
-                    <div class="mqtt-node text-blue-600 absolute bottom-3 right-[12%]">
+                    <div class="mqtt-node text-blue-600 absolute bottom-4 right-[10%]">
                       <IconifyIcon icon="mdi:cloud" class="text-2xl" />
                       <span class="font-medium text-xs">Client2</span>
                     </div>
