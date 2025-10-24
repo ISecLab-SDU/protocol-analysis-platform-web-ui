@@ -23,6 +23,7 @@ import {
 } from 'vue';
 
 import { Page } from '@vben/common-ui';
+import { IconifyIcon } from '@vben/icons';
 
 import {
   Button,
@@ -1335,7 +1336,10 @@ async function handleSubmit() {
                   :on-remove="handleArchiveRemove"
                   accept=".zip,.tar,.gz,.tgz,.bz2,.xz,.7z,application/zip,application/x-tar"
                 >
-                  <Button block type="dashed">选择源码压缩包</Button>
+                  <Button block type="dashed">
+                    <IconifyIcon icon="ant-design:file-outlined" class="mr-1" />
+                    选择源码压缩包
+                  </Button>
                 </Upload>
               </FormItem>
 
@@ -1346,7 +1350,10 @@ async function handleSubmit() {
                   :max-count="1"
                   :on-remove="handleBuilderRemove"
                 >
-                  <Button block type="dashed">选择 Dockerfile</Button>
+                  <Button block type="dashed">
+                    <IconifyIcon icon="ant-design:docker-outlined" class="mr-1" />
+                    选择 Dockerfile
+                  </Button>
                 </Upload>
               </FormItem>
 
@@ -1358,7 +1365,10 @@ async function handleSubmit() {
                   :on-remove="handleRulesRemove"
                   accept=".json,.JSON,application/json,text/json"
                 >
-                  <Button block type="dashed">选择规则 JSON</Button>
+                  <Button block type="dashed">
+                    <IconifyIcon icon="ant-design:file-text-outlined" class="mr-1" />
+                    选择规则 JSON
+                  </Button>
                 </Upload>
               </FormItem>
 
@@ -1370,7 +1380,10 @@ async function handleSubmit() {
                   :on-remove="handleConfigRemove"
                   accept=".toml,.TOML,text/toml,text/x-toml,application/toml,text/plain"
                 >
-                  <Button block type="dashed">选择配置文件</Button>
+                  <Button block type="dashed">
+                    <IconifyIcon icon="ant-design:setting-outlined" class="mr-1" />
+                    选择配置文件
+                  </Button>
                 </Upload>
               </FormItem>
             </div>
@@ -1385,12 +1398,20 @@ async function handleSubmit() {
 
             <FormItem class="form-actions" :colon="false">
               <Space>
-                <Button @click="handleReset">清空</Button>
+                <Button @click="handleReset">
+                  <IconifyIcon icon="ant-design:clear-outlined" class="mr-1" />
+                  清空
+                </Button>
                 <Button
                   :loading="isSubmitting"
                   type="primary"
                   @click="handleSubmit"
                 >
+                  <IconifyIcon
+                    v-if="!isSubmitting"
+                    icon="ant-design:play-circle-outlined"
+                    class="mr-1"
+                  />
                   启动分析
                 </Button>
               </Space>
@@ -1406,6 +1427,7 @@ async function handleSubmit() {
               type="link"
               @click="handleCopyProgressLogs"
             >
+              <IconifyIcon icon="ant-design:copy-outlined" class="mr-1" />
               复制日志
             </Button>
           </template>
@@ -1428,7 +1450,16 @@ async function handleSubmit() {
         </Card>
       </div>
 
-      <Card v-if="analysisResult" title="最新分析结果">
+      <Card v-if="analysisResult">
+        <template #title>
+          <Space>
+            <IconifyIcon
+              icon="ant-design:check-circle-outlined"
+              class="text-lg"
+            />
+            <span>最新分析结果</span>
+          </Space>
+        </template>
         <Descriptions bordered :column="1" size="small">
           <Descriptions.Item label="整体评估">
             <div class="analysis-overview">
@@ -1633,6 +1664,11 @@ async function handleSubmit() {
             type="link"
             @click="handleRefreshHistory"
           >
+            <IconifyIcon
+              v-if="!historyLoading"
+              icon="ant-design:reload-outlined"
+              class="mr-1"
+            />
             刷新
           </Button>
         </template>
