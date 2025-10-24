@@ -600,54 +600,10 @@ function updateCharts() {
 
 function updateMQTTChart() {
   try {
-    if (!mqttMessageChart) {
-      console.warn('MQTT Chart not initialized, skipping update');
-      return;
-    }
-    
-    // 计算消息类型分布数据
-    const clientRequests = mqttRealTimeStats.value.client_requests;
-    const brokerRequests = mqttRealTimeStats.value.broker_requests;
-    
-    // 合并客户端和代理端的请求数据
-    const totalConnect = clientRequests.CONNECT + brokerRequests.CONNECT;
-    const totalPublish = clientRequests.PUBLISH + brokerRequests.PUBLISH;
-    const totalSubscribe = clientRequests.SUBSCRIBE + brokerRequests.SUBSCRIBE;
-    const totalPingreq = clientRequests.PINGREQ + brokerRequests.PINGREQ;
-    const totalUnsubscribe = clientRequests.UNSUBSCRIBE + brokerRequests.UNSUBSCRIBE;
-    const totalPuback = clientRequests.PUBACK + brokerRequests.PUBACK;
-    const totalConnack = clientRequests.CONNACK + brokerRequests.CONNACK;
-    const totalSuback = clientRequests.SUBACK + brokerRequests.SUBACK;
-    const totalPingresp = clientRequests.PINGRESP + brokerRequests.PINGRESP;
-    
-    // 计算其他消息类型的总和
-    const totalOthers = (clientRequests.PUBREC + brokerRequests.PUBREC) +
-                       (clientRequests.PUBREL + brokerRequests.PUBREL) +
-                       (clientRequests.PUBCOMP + brokerRequests.PUBCOMP) +
-                       (clientRequests.UNSUBACK + brokerRequests.UNSUBACK) +
-                       (clientRequests.DISCONNECT + brokerRequests.DISCONNECT) +
-                       (clientRequests.AUTH + brokerRequests.AUTH);
-    
-    // 更新图表数据
-    if (mqttMessageChart.data && mqttMessageChart.data.datasets && mqttMessageChart.data.datasets[0]) {
-      mqttMessageChart.data.datasets[0].data = [
-        totalConnect,
-        totalPublish,
-        totalSubscribe,
-        totalPingreq,
-        totalUnsubscribe,
-        totalPuback,
-        totalConnack,
-        totalSuback,
-        totalPingresp,
-        totalOthers
-      ];
-      mqttMessageChart.update('none');
-    }
-    
-    console.log('MQTT Chart updated successfully');
+    // MQTT现在使用broker差异统计卡片显示，不再需要图表更新
+    console.log('MQTT using broker difference statistics cards, chart update skipped');
   } catch (error) {
-    console.error('Error updating MQTT chart:', error);
+    console.error('Error in MQTT chart function:', error);
   }
 }
 
@@ -870,9 +826,9 @@ function resetMQTTDifferentialStats() {
     mqttDifferentialStats.value.version_stats[key as keyof typeof mqttDifferentialStats.value.version_stats] = 0;
   });
   
-  // 重置消息类型统计
-  Object.keys(mqttDifferentialStats.value.msg_type_stats).forEach(key => {
-    mqttDifferentialStats.value.msg_type_stats[key as keyof typeof mqttDifferentialStats.value.msg_type_stats] = 0;
+  // 重置broker差异统计 - 与日志信息保持一致
+  Object.keys(mqttRealTimeStats.value.broker_diff_stats).forEach(key => {
+    mqttRealTimeStats.value.broker_diff_stats[key as keyof typeof mqttRealTimeStats.value.broker_diff_stats] = 0;
   });
   
   // 重置总差异数
@@ -1004,45 +960,21 @@ const mqttProcessingProgress = ref(0);
 
 // MQTT实时统计数据
 const mqttRealTimeStats = ref({
-  client_requests: {
-    CONNECT: 0,
-    CONNACK: 0,
-    PUBLISH: 0,
-    PUBACK: 0,
-    PUBREC: 0,
-    PUBREL: 0,
-    PUBCOMP: 0,
-    SUBSCRIBE: 0,
-    SUBACK: 0,
-    UNSUBSCRIBE: 0,
-    UNSUBACK: 0,
-    PINGREQ: 0,
-    PINGRESP: 0,
-    DISCONNECT: 0,
-    AUTH: 0
-  },
-  broker_requests: {
-    CONNECT: 0,
-    CONNACK: 0,
-    PUBLISH: 0,
-    PUBACK: 0,
-    PUBREC: 0,
-    PUBREL: 0,
-    PUBCOMP: 0,
-    SUBSCRIBE: 0,
-    SUBACK: 0,
-    UNSUBSCRIBE: 0,
-    UNSUBACK: 0,
-    PINGREQ: 0,
-    PINGRESP: 0,
-    DISCONNECT: 0,
-    AUTH: 0
-  },
+  // 保留原有的崩溃和差异统计
   crash_number: 0,
   diff_number: 0,
   duplicate_diff_number: 0,
   valid_connect_number: 0,
-  duplicate_connect_diff: 0
+  duplicate_connect_diff: 0,
+  // 新增broker类型差异统计 - 与日志中diff_range_broker字段对应
+  broker_diff_stats: {
+    hivemq: 0,
+    vernemq: 0,
+    emqx: 0,
+    flashmq: 0,
+    nanomq: 0,
+    mosquitto: 0
+  }
 });
 
 // MQTT 差异类型分布统计数据
@@ -1262,18 +1194,9 @@ async function parseMQTTHeaderStats(headerLines: string[]) {
       }
     }
     
-    // 解析客户端和代理端请求详情
-    const requestMatch = line.match(/^\s*([A-Z]+):\s*(\d+)$/);
-    if (requestMatch) {
-      const msgType = requestMatch[1];
-      const count = parseInt(requestMatch[2]);
-      
-      if (isClientSection && mqttRealTimeStats.value.client_requests.hasOwnProperty(msgType)) {
-        mqttRealTimeStats.value.client_requests[msgType as keyof typeof mqttRealTimeStats.value.client_requests] = count;
-      } else if (isBrokerSection && mqttRealTimeStats.value.broker_requests.hasOwnProperty(msgType)) {
-        mqttRealTimeStats.value.broker_requests[msgType as keyof typeof mqttRealTimeStats.value.broker_requests] = count;
-      }
-    }
+    // 解析客户端和代理端请求详情 - 现在专注于broker差异统计，这部分数据不再使用
+    // const requestMatch = line.match(/^\s*([A-Z]+):\s*(\d+)$/);
+    // 注释掉旧的消息类型统计，现在使用broker差异统计
   }
   
   // MQTT协议使用统计卡片，不需要更新图表
@@ -1745,17 +1668,23 @@ function updateRealTimeStats(line: string) {
     const msgTypeMatch = line.match(/msg_type:\s*([^,\s]+)/);
     const versionMatch = line.match(/protocol_version:\s*(\d+)/);
     const diffTypeMatch = line.match(/type:\s*\{([^}]+)\}/);
+    const brokerMatch = line.match(/diff_range_broker:\s*\[([^\]]+)\]/);
     
-    if (msgTypeMatch || versionMatch || diffTypeMatch) {
+    if (msgTypeMatch || versionMatch || diffTypeMatch || brokerMatch) {
       // 每个差异报告行代表一个差异
       mqttDifferentialStats.value.total_differences++;
       
-      // 统计消息类型（只有当存在 msg_type 字段时）
-      if (msgTypeMatch) {
-        const msgType = msgTypeMatch[1].trim();
-        if (mqttDifferentialStats.value.msg_type_stats.hasOwnProperty(msgType)) {
-          mqttDifferentialStats.value.msg_type_stats[msgType as keyof typeof mqttDifferentialStats.value.msg_type_stats]++;
-        }
+      // 统计受影响的broker类型 - 与日志信息保持一致
+      if (brokerMatch) {
+        const brokers = brokerMatch[1]
+          .split(',')
+          .map(broker => broker.trim().replace(/'/g, ''));
+        
+        brokers.forEach(broker => {
+          if (mqttRealTimeStats.value.broker_diff_stats.hasOwnProperty(broker)) {
+            mqttRealTimeStats.value.broker_diff_stats[broker as keyof typeof mqttRealTimeStats.value.broker_diff_stats]++;
+          }
+        });
       }
       
       // 统计协议版本
@@ -4155,26 +4084,26 @@ onMounted(async () => {
                 </div>
               </div>
               
-              <!-- 消息类型分布统计 -->
+              <!-- Broker类型差异统计 -->
               <div>
                 <h4 class="text-base font-medium mb-3 text-dark/80 text-center">
-                  <i class="fa fa-envelope mr-2 text-green-600"></i>
-                  消息类型分布
+                  <i class="fa fa-server mr-2 text-purple-600"></i>
+                  Broker差异统计
                 </h4>
                 <div class="h-60 bg-white rounded-lg border border-gray-200 p-3 overflow-y-auto scrollbar-thin">
                   <div class="space-y-1">
-                    <div v-for="(count, msgType) in mqttDifferentialStats.msg_type_stats" :key="msgType" 
+                    <div v-for="(count, brokerType) in mqttRealTimeStats.broker_diff_stats" :key="brokerType" 
                          v-show="count > 0"
-                         class="flex justify-between items-center p-1.5 bg-green-50 rounded border border-green-200">
-                      <span class="text-xs text-green-700 font-medium">{{ msgType }}</span>
-                      <span class="text-sm font-bold text-green-600">{{ count }}</span>
+                         class="flex justify-between items-center p-1.5 bg-purple-50 rounded border border-purple-200">
+                      <span class="text-xs text-purple-700 font-medium capitalize">{{ brokerType }}</span>
+                      <span class="text-sm font-bold text-purple-600">{{ count }}</span>
                     </div>
-                    <div v-if="Object.values(mqttDifferentialStats.msg_type_stats).every(count => count === 0)" 
+                    <div v-if="Object.values(mqttRealTimeStats.broker_diff_stats).every(count => count === 0)" 
                          class="text-center py-8">
                       <div class="bg-gray-100 p-3 rounded-full w-12 h-12 mx-auto mb-2 flex items-center justify-center">
-                        <i class="fa fa-envelope text-gray-400"></i>
+                        <i class="fa fa-server text-gray-400"></i>
                       </div>
-                      <span class="text-xs text-gray-500">等待消息数据...</span>
+                      <span class="text-xs text-gray-500">等待Broker数据...</span>
                     </div>
                   </div>
                 </div>
