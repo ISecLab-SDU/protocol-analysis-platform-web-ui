@@ -3,6 +3,7 @@ import { onMounted, ref, nextTick, computed, watch, shallowRef, onErrorCaptured,
 import { getFuzzText } from '#/api/custom';
 import { requestClient } from '#/api/request';
 import { useAccessStore } from '@vben/stores';
+import { IconifyIcon } from '@vben/icons';
 import Chart from 'chart.js/auto';
 
 // 导入协议专用的composables
@@ -3684,8 +3685,8 @@ function initMQTTModule(moduleId: number) {
   // 获取元素位置（基于当前模块容器定位）
   function getPosition(el: HTMLElement) {
     const rect = el.getBoundingClientRect();
-    const icon = el.querySelector('i') as HTMLElement;
-    const iconRect = icon.getBoundingClientRect();
+    const icon = el.querySelector('svg') as HTMLElement;
+    const iconRect = icon ? icon.getBoundingClientRect() : rect;
     const containerRect = module.getBoundingClientRect();
     
     return {
@@ -4245,15 +4246,15 @@ onMounted(async () => {
                   <!-- MQTT模块1 -->
                   <div class="mqtt-module" :id="`mqtt-viz-1`">
                     <div class="mqtt-node text-blue-600 absolute top-2 left-1/2 transform -translate-x-1/2">
-                      <i class="fa fa-server text-2xl"></i>
+                      <IconifyIcon icon="mdi:server" class="text-2xl" />
                       <span class="font-medium text-xs">Broker 1</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-2 left-[15%]">
-                      <i class="fa fa-microchip text-lg"></i>
+                      <IconifyIcon icon="mdi:chip" class="text-lg" />
                       <span class="font-medium text-xs">Client1</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-2 right-[15%]">
-                      <i class="fa fa-cloud text-lg"></i>
+                      <IconifyIcon icon="mdi:cloud" class="text-lg" />
                       <span class="font-medium text-xs">Client2</span>
                     </div>
                     <svg class="absolute inset-0 w-full h-full" :id="`connections-viz-1`"></svg>
@@ -4263,15 +4264,15 @@ onMounted(async () => {
                   <!-- MQTT模块2 -->
                   <div class="mqtt-module" :id="`mqtt-viz-2`">
                     <div class="mqtt-node text-blue-600 absolute top-2 left-1/2 transform -translate-x-1/2">
-                      <i class="fa fa-server text-2xl"></i>
+                      <IconifyIcon icon="mdi:server" class="text-2xl" />
                       <span class="font-medium text-xs">Broker 2</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-2 left-[15%]">
-                      <i class="fa fa-microchip text-lg"></i>
+                      <IconifyIcon icon="mdi:chip" class="text-lg" />
                       <span class="font-medium text-xs">Client1</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-2 right-[15%]">
-                      <i class="fa fa-cloud text-lg"></i>
+                      <IconifyIcon icon="mdi:cloud" class="text-lg" />
                       <span class="font-medium text-xs">Client2</span>
                     </div>
                     <svg class="absolute inset-0 w-full h-full" :id="`connections-viz-2`"></svg>
@@ -4281,15 +4282,15 @@ onMounted(async () => {
                   <!-- MQTT模块3 -->
                   <div class="mqtt-module" :id="`mqtt-viz-3`">
                     <div class="mqtt-node text-blue-600 absolute top-2 left-1/2 transform -translate-x-1/2">
-                      <i class="fa fa-server text-2xl"></i>
+                      <IconifyIcon icon="mdi:server" class="text-2xl" />
                       <span class="font-medium text-xs">Broker 3</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-2 left-[15%]">
-                      <i class="fa fa-microchip text-lg"></i>
+                      <IconifyIcon icon="mdi:chip" class="text-lg" />
                       <span class="font-medium text-xs">Client1</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-2 right-[15%]">
-                      <i class="fa fa-cloud text-lg"></i>
+                      <IconifyIcon icon="mdi:cloud" class="text-lg" />
                       <span class="font-medium text-xs">Client2</span>
                     </div>
                     <svg class="absolute inset-0 w-full h-full" :id="`connections-viz-3`"></svg>
@@ -4299,15 +4300,15 @@ onMounted(async () => {
                   <!-- MQTT模块4 -->
                   <div class="mqtt-module" :id="`mqtt-viz-4`">
                     <div class="mqtt-node text-blue-600 absolute top-2 left-1/2 transform -translate-x-1/2">
-                      <i class="fa fa-server text-2xl"></i>
+                      <IconifyIcon icon="mdi:server" class="text-2xl" />
                       <span class="font-medium text-xs">Broker 4</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-2 left-[15%]">
-                      <i class="fa fa-microchip text-lg"></i>
+                      <IconifyIcon icon="mdi:chip" class="text-lg" />
                       <span class="font-medium text-xs">Client1</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-2 right-[15%]">
-                      <i class="fa fa-cloud text-lg"></i>
+                      <IconifyIcon icon="mdi:cloud" class="text-lg" />
                       <span class="font-medium text-xs">Client2</span>
                     </div>
                     <svg class="absolute inset-0 w-full h-full" :id="`connections-viz-4`"></svg>
@@ -4317,15 +4318,15 @@ onMounted(async () => {
                   <!-- MQTT模块5 -->
                   <div class="mqtt-module" :id="`mqtt-viz-5`">
                     <div class="mqtt-node text-blue-600 absolute top-2 left-1/2 transform -translate-x-1/2">
-                      <i class="fa fa-server text-2xl"></i>
+                      <IconifyIcon icon="mdi:server" class="text-2xl" />
                       <span class="font-medium text-xs">Broker 5</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-2 left-[15%]">
-                      <i class="fa fa-microchip text-lg"></i>
+                      <IconifyIcon icon="mdi:chip" class="text-lg" />
                       <span class="font-medium text-xs">Client1</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-2 right-[15%]">
-                      <i class="fa fa-cloud text-lg"></i>
+                      <IconifyIcon icon="mdi:cloud" class="text-lg" />
                       <span class="font-medium text-xs">Client2</span>
                     </div>
                     <svg class="absolute inset-0 w-full h-full" :id="`connections-viz-5`"></svg>
@@ -4335,15 +4336,15 @@ onMounted(async () => {
                   <!-- MQTT模块6 -->
                   <div class="mqtt-module" :id="`mqtt-viz-6`">
                     <div class="mqtt-node text-blue-600 absolute top-2 left-1/2 transform -translate-x-1/2">
-                      <i class="fa fa-server text-2xl"></i>
+                      <IconifyIcon icon="mdi:server" class="text-2xl" />
                       <span class="font-medium text-xs">Broker 6</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-2 left-[15%]">
-                      <i class="fa fa-microchip text-lg"></i>
+                      <IconifyIcon icon="mdi:chip" class="text-lg" />
                       <span class="font-medium text-xs">Client1</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-2 right-[15%]">
-                      <i class="fa fa-cloud text-lg"></i>
+                      <IconifyIcon icon="mdi:cloud" class="text-lg" />
                       <span class="font-medium text-xs">Client2</span>
                     </div>
                     <svg class="absolute inset-0 w-full h-full" :id="`connections-viz-6`"></svg>
