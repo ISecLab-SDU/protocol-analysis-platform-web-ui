@@ -142,6 +142,8 @@ watch(protocolType, (newProtocol, oldProtocol) => {
   // 清理之前协议的状态
   if (oldProtocol === 'MQTT') {
     console.log('[DEBUG] 清理MQTT协议状态');
+    // 清理MQTT动画
+    cleanupMQTTAnimations();
     // 使用nextTick确保在下一个tick中清理，避免当前更新周期的冲突
     nextTick(() => {
       // 清理定时器
@@ -168,6 +170,10 @@ watch(protocolType, (newProtocol, oldProtocol) => {
   } else if (newProtocol === 'MQTT') {
     targetPort.value = 1883;
     fuzzEngine.value = 'MBFuzzer';
+    // 初始化MQTT动画
+    nextTick(() => {
+      initMQTTAnimations();
+    });
   }
   
   // 重置测试状态
@@ -3642,6 +3648,146 @@ if (typeof window !== 'undefined') {
   };
 }
 
+// MQTT动画相关变量和函数
+let mqttAnimationIntervals: number[] = [];
+
+// 初始化MQTT动画
+function initMQTTAnimations() {
+  // 清理旧的动画
+  cleanupMQTTAnimations();
+  
+  // 批量初始化6个MQTT模块
+  for (let moduleId = 1; moduleId <= 6; moduleId++) {
+    initMQTTModule(moduleId);
+  }
+}
+
+// 清理MQTT动画
+function cleanupMQTTAnimations() {
+  mqttAnimationIntervals.forEach(interval => clearInterval(interval));
+  mqttAnimationIntervals = [];
+}
+
+// 单个MQTT模块初始化函数
+function initMQTTModule(moduleId: number) {
+  const module = document.getElementById(`mqtt-viz-${moduleId}`);
+  if (!module) return;
+  
+  const broker = module.querySelector('.mqtt-node:nth-child(1)') as HTMLElement;
+  const client1 = module.querySelector('.mqtt-node:nth-child(2)') as HTMLElement;
+  const client2 = module.querySelector('.mqtt-node:nth-child(3)') as HTMLElement;
+  const connections = document.getElementById(`connections-viz-${moduleId}`) as SVGElement;
+  const particles = document.getElementById(`particles-viz-${moduleId}`) as HTMLElement;
+  
+  if (!broker || !client1 || !client2 || !connections || !particles) return;
+
+  // 获取元素位置（基于当前模块容器定位）
+  function getPosition(el: HTMLElement) {
+    const rect = el.getBoundingClientRect();
+    const icon = el.querySelector('i') as HTMLElement;
+    const iconRect = icon.getBoundingClientRect();
+    const containerRect = module.getBoundingClientRect();
+    
+    return {
+      centerX: iconRect.left + iconRect.width/2 - containerRect.left,
+      centerY: iconRect.top + iconRect.height/2 - containerRect.top,
+      bottomLeft: {
+        x: iconRect.left - containerRect.left + iconRect.width * 0.2,
+        y: iconRect.bottom - containerRect.top - iconRect.height * 0.2
+      },
+      bottomRight: {
+        x: iconRect.right - containerRect.left - iconRect.width * 0.2,
+        y: iconRect.bottom - containerRect.top - iconRect.height * 0.2
+      }
+    };
+  }
+
+  // 创建连接线
+  function createConnections() {
+    const bPos = getPosition(broker);
+    const c1Pos = getPosition(client1);
+    const c2Pos = getPosition(client2);
+    connections.innerHTML = '';
+    
+    function createPath(from: {x: number, y: number}, to: {x: number, y: number}, id: string) {
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      const d = `M ${from.x} ${from.y} L ${to.x} ${to.y}`;
+      path.setAttribute('d', d);
+      path.setAttribute('id', `${id}-${moduleId}`);
+      path.setAttribute('class', 'mqtt-connection');
+      connections.appendChild(path);
+      return path;
+    }
+    
+    const path1 = createPath(bPos.bottomLeft, {x: c1Pos.centerX, y: c1Pos.centerY}, 'path1');
+    const path2 = createPath({x: c1Pos.centerX, y: c1Pos.centerY}, bPos.bottomLeft, 'path2');
+    const path3 = createPath(bPos.bottomRight, {x: c2Pos.centerX, y: c2Pos.centerY}, 'path3');
+    const path4 = createPath({x: c2Pos.centerX, y: c2Pos.centerY}, bPos.bottomRight, 'path4');
+    
+    return { path1, path2, path3, path4 };
+  }
+
+  // 创建流动粒子
+  function createParticles(paths: any) {
+    const particleSources = [
+      { path: paths.path1, start: 0, end: 1, interval: 2000, class: 'mqtt-particle-from-broker', speed: 100 },
+      { path: paths.path3, start: 0, end: 1, interval: 2500, class: 'mqtt-particle-from-broker', speed: 100 },
+      { path: paths.path2, start: 0, end: 1, interval: 3000, class: 'mqtt-particle-from-client', speed: 100 },
+      { path: paths.path4, start: 0, end: 1, interval: 3500, class: 'mqtt-particle-from-client', speed: 100 }
+    ];
+    
+    // 为当前模块添加新定时器
+    particleSources.forEach(source => {
+      const interval = setInterval(() => {
+        createParticle(source.path, source.start, source.end, source.class, source.speed);
+      }, source.interval);
+      mqttAnimationIntervals.push(interval);
+    });
+  }
+
+  // 创建单个粒子
+  function createParticle(path: SVGPathElement, start: number, end: number, particleClass: string, speed: number) {
+    const particle = document.createElement('div');
+    particle.className = `mqtt-particle ${particleClass}`;
+    particle.style.transform = 'translate(-50%, -50%)';
+    particles.appendChild(particle);
+    
+    const length = path.getTotalLength();
+    const duration = length / speed * 1000;
+    
+    let starttime: number | null = null;
+    function animate(timestamp: number) {
+      if (!starttime) starttime = timestamp;
+      const progress = (timestamp - starttime) / duration;
+      
+      if (progress < 1 && particles.contains(particle)) {
+        const currentLength = start * length + progress * (end - start) * length;
+        const pos = path.getPointAtLength(currentLength);
+        particle.style.left = `${pos.x}px`;
+        particle.style.top = `${pos.y}px`;
+        requestAnimationFrame(animate);
+      } else {
+        setTimeout(() => {
+          if (particles.contains(particle)) {
+            particle.remove();
+          }
+        }, 100);
+      }
+    }
+    
+    requestAnimationFrame(animate);
+  }
+
+  // 初始化当前模块
+  function init() {
+    const paths = createConnections();
+    createParticles(paths);
+  }
+
+  // 执行当前模块初始化
+  init();
+}
+
 // 错误捕获处理
 onErrorCaptured((err, instance, info) => {
   console.error('[Vue Error Captured]:', err);
@@ -3669,6 +3815,9 @@ onErrorCaptured((err, instance, info) => {
 // 组件卸载时清理
 onUnmounted(() => {
   console.log('[DEBUG] 组件卸载，清理MQTT相关资源');
+  
+  // 清理MQTT动画
+  cleanupMQTTAnimations();
   
   // 清理MQTT定时器和数据
   if (mqttUpdateTimer) {
@@ -3723,6 +3872,9 @@ onMounted(async () => {
   // MQTT协议不需要图表初始化，使用统计卡片显示
   if (protocolType.value === 'MQTT') {
     console.log('MQTT protocol uses statistical cards instead of charts');
+    // 初始化MQTT动画
+    await nextTick();
+    initMQTTAnimations();
   }
   
   // Set initial last update time
@@ -4076,19 +4228,127 @@ onMounted(async () => {
             </div>
             
             <!-- MQTT协议统计 -->
-            <!-- MQTT协议预留内容区域 -->
+            <!-- MQTT协议实时动画可视化区域 -->
             <div v-else-if="protocolType === 'MQTT'" class="h-72">
-              <div class="h-full bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200 flex flex-col items-center justify-center p-8">
-                <div class="bg-blue-100 p-4 rounded-full mb-4">
-                  <i class="fa fa-cogs text-3xl text-blue-600"></i>
+              <div class="h-full bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200 p-4">
+                <!-- 标题区域 -->
+                <div class="flex items-center justify-between mb-4">
+                  <h4 class="text-lg font-semibold text-blue-800">MQTT 实时测试可视化</h4>
+                  <div class="flex items-center space-x-2 text-xs text-blue-600">
+                    <div class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                    <span>实时监控中</span>
+                  </div>
                 </div>
-                <h4 class="text-lg font-semibold text-blue-800 mb-2">功能开发中</h4>
-                <p class="text-sm text-blue-600 text-center mb-4">
-                  此区域预留用于MQTT协议的高级分析功能
-                </p>
-                <div class="flex items-center space-x-2 text-xs text-blue-500">
-                  <i class="fa fa-info-circle"></i>
-                  <span>分析结果已移至历史记录中查看</span>
+                
+                <!-- MQTT动画网格容器 -->
+                <div class="grid grid-cols-2 lg:grid-cols-3 gap-3 h-48">
+                  <!-- MQTT模块1 -->
+                  <div class="mqtt-module" :id="`mqtt-viz-1`">
+                    <div class="mqtt-node text-blue-600 absolute top-2 left-1/2 transform -translate-x-1/2">
+                      <i class="fa fa-server text-2xl"></i>
+                      <span class="font-medium text-xs">Broker 1</span>
+                    </div>
+                    <div class="mqtt-node text-blue-600 absolute bottom-2 left-[15%]">
+                      <i class="fa fa-microchip text-lg"></i>
+                      <span class="font-medium text-xs">Client1</span>
+                    </div>
+                    <div class="mqtt-node text-blue-600 absolute bottom-2 right-[15%]">
+                      <i class="fa fa-cloud text-lg"></i>
+                      <span class="font-medium text-xs">Client2</span>
+                    </div>
+                    <svg class="absolute inset-0 w-full h-full" :id="`connections-viz-1`"></svg>
+                    <div :id="`particles-viz-1`" class="absolute inset-0 w-full h-full pointer-events-none"></div>
+                  </div>
+
+                  <!-- MQTT模块2 -->
+                  <div class="mqtt-module" :id="`mqtt-viz-2`">
+                    <div class="mqtt-node text-blue-600 absolute top-2 left-1/2 transform -translate-x-1/2">
+                      <i class="fa fa-server text-2xl"></i>
+                      <span class="font-medium text-xs">Broker 2</span>
+                    </div>
+                    <div class="mqtt-node text-blue-600 absolute bottom-2 left-[15%]">
+                      <i class="fa fa-microchip text-lg"></i>
+                      <span class="font-medium text-xs">Client1</span>
+                    </div>
+                    <div class="mqtt-node text-blue-600 absolute bottom-2 right-[15%]">
+                      <i class="fa fa-cloud text-lg"></i>
+                      <span class="font-medium text-xs">Client2</span>
+                    </div>
+                    <svg class="absolute inset-0 w-full h-full" :id="`connections-viz-2`"></svg>
+                    <div :id="`particles-viz-2`" class="absolute inset-0 w-full h-full pointer-events-none"></div>
+                  </div>
+
+                  <!-- MQTT模块3 -->
+                  <div class="mqtt-module" :id="`mqtt-viz-3`">
+                    <div class="mqtt-node text-blue-600 absolute top-2 left-1/2 transform -translate-x-1/2">
+                      <i class="fa fa-server text-2xl"></i>
+                      <span class="font-medium text-xs">Broker 3</span>
+                    </div>
+                    <div class="mqtt-node text-blue-600 absolute bottom-2 left-[15%]">
+                      <i class="fa fa-microchip text-lg"></i>
+                      <span class="font-medium text-xs">Client1</span>
+                    </div>
+                    <div class="mqtt-node text-blue-600 absolute bottom-2 right-[15%]">
+                      <i class="fa fa-cloud text-lg"></i>
+                      <span class="font-medium text-xs">Client2</span>
+                    </div>
+                    <svg class="absolute inset-0 w-full h-full" :id="`connections-viz-3`"></svg>
+                    <div :id="`particles-viz-3`" class="absolute inset-0 w-full h-full pointer-events-none"></div>
+                  </div>
+
+                  <!-- MQTT模块4 -->
+                  <div class="mqtt-module" :id="`mqtt-viz-4`">
+                    <div class="mqtt-node text-blue-600 absolute top-2 left-1/2 transform -translate-x-1/2">
+                      <i class="fa fa-server text-2xl"></i>
+                      <span class="font-medium text-xs">Broker 4</span>
+                    </div>
+                    <div class="mqtt-node text-blue-600 absolute bottom-2 left-[15%]">
+                      <i class="fa fa-microchip text-lg"></i>
+                      <span class="font-medium text-xs">Client1</span>
+                    </div>
+                    <div class="mqtt-node text-blue-600 absolute bottom-2 right-[15%]">
+                      <i class="fa fa-cloud text-lg"></i>
+                      <span class="font-medium text-xs">Client2</span>
+                    </div>
+                    <svg class="absolute inset-0 w-full h-full" :id="`connections-viz-4`"></svg>
+                    <div :id="`particles-viz-4`" class="absolute inset-0 w-full h-full pointer-events-none"></div>
+                  </div>
+
+                  <!-- MQTT模块5 -->
+                  <div class="mqtt-module" :id="`mqtt-viz-5`">
+                    <div class="mqtt-node text-blue-600 absolute top-2 left-1/2 transform -translate-x-1/2">
+                      <i class="fa fa-server text-2xl"></i>
+                      <span class="font-medium text-xs">Broker 5</span>
+                    </div>
+                    <div class="mqtt-node text-blue-600 absolute bottom-2 left-[15%]">
+                      <i class="fa fa-microchip text-lg"></i>
+                      <span class="font-medium text-xs">Client1</span>
+                    </div>
+                    <div class="mqtt-node text-blue-600 absolute bottom-2 right-[15%]">
+                      <i class="fa fa-cloud text-lg"></i>
+                      <span class="font-medium text-xs">Client2</span>
+                    </div>
+                    <svg class="absolute inset-0 w-full h-full" :id="`connections-viz-5`"></svg>
+                    <div :id="`particles-viz-5`" class="absolute inset-0 w-full h-full pointer-events-none"></div>
+                  </div>
+
+                  <!-- MQTT模块6 -->
+                  <div class="mqtt-module" :id="`mqtt-viz-6`">
+                    <div class="mqtt-node text-blue-600 absolute top-2 left-1/2 transform -translate-x-1/2">
+                      <i class="fa fa-server text-2xl"></i>
+                      <span class="font-medium text-xs">Broker 6</span>
+                    </div>
+                    <div class="mqtt-node text-blue-600 absolute bottom-2 left-[15%]">
+                      <i class="fa fa-microchip text-lg"></i>
+                      <span class="font-medium text-xs">Client1</span>
+                    </div>
+                    <div class="mqtt-node text-blue-600 absolute bottom-2 right-[15%]">
+                      <i class="fa fa-cloud text-lg"></i>
+                      <span class="font-medium text-xs">Client2</span>
+                    </div>
+                    <svg class="absolute inset-0 w-full h-full" :id="`connections-viz-6`"></svg>
+                    <div :id="`particles-viz-6`" class="absolute inset-0 w-full h-full pointer-events-none"></div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -5187,6 +5447,31 @@ onMounted(async () => {
 /* 文字阴影 */
 .text-shadow {
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* MQTT动画样式 */
+.mqtt-module {
+  @apply relative w-full h-full border border-blue-200 rounded-lg bg-white/50 shadow-sm;
+}
+
+.mqtt-node {
+  @apply flex flex-col items-center justify-center transition-all duration-300 hover:scale-105;
+}
+
+.mqtt-connection {
+  @apply absolute stroke-blue-500 stroke-2 fill-none;
+}
+
+.mqtt-particle {
+  @apply absolute w-1.5 h-1.5 rounded-full transition-all ease-linear;
+}
+
+.mqtt-particle-from-broker {
+  @apply bg-blue-500;
+}
+
+.mqtt-particle-from-client {
+  @apply bg-blue-400;
 }
 
 /* 自定义颜色 */
