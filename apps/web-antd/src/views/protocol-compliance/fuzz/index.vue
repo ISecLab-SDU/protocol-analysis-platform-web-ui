@@ -3777,20 +3777,20 @@ function initMQTTModule(moduleId: number) {
       const midX = (from.x + to.x) / 2;
       const midY = (from.y + to.y) / 2;
       
-      // 根据交叉连接调整控制点，创建对称的弧形
+      // 创建向外凸出的优美弧形
       let controlX = midX;
-      let controlY = midY + 50; // 增加弯曲度，让交叉连接更美观
+      let controlY = midY - 50; // 向上偏移，创建向外凸的弧形
       
-      // 根据路径ID调整控制点位置，创建对称弧形
+      // 根据路径ID调整控制点位置，创建向外凸的对称弧形
       if (id.includes('broker-client1')) {
-        // Client1连接右上角，控制点向右下偏移
-        controlX = midX + 30;
-        controlY = midY + 60;
+        // Client1连接右上角，控制点向左上偏移，形成向外凸的弧
+        controlX = midX - 40;
+        controlY = midY - 60;
       }
       else if (id.includes('broker-client2')) {
-        // Client2连接左上角，控制点向左下偏移
-        controlX = midX - 30;
-        controlY = midY + 60;
+        // Client2连接左上角，控制点向右上偏移，形成向外凸的弧
+        controlX = midX + 40;
+        controlY = midY - 60;
       }
       
       // 使用二次贝塞尔曲线创建更自然的连接
