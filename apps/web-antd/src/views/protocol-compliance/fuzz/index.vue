@@ -1045,20 +1045,23 @@ const mqttRealTimeStats = ref({
   duplicate_connect_diff: 0
 });
 
-// MQTT Q-Learning统计数据
-const mqttQLearningStats = ref({
-  total_states: 1024,
-  active_states: 256,
-  top_actions: {
-    CONNECT: 1847,
-    PUBLISH: 2156,
-    SUBSCRIBE: 892,
-    PINGREQ: 634,
-    UNSUBSCRIBE: 423
-  },
-  learning_rate: 0.1,
-  discount_factor: 0.9,
-  temperature: 1.0
+// MQTT 差异类型分布统计数据
+const mqttDiffTypeStats = ref({
+  protocol_violations: 0,
+  timeout_errors: 0,
+  connection_failures: 0,
+  message_corruptions: 0,
+  state_inconsistencies: 0,
+  authentication_errors: 0,
+  total_differences: 0,
+  distribution: {
+    protocol_violations: 0,
+    timeout_errors: 0,
+    connection_failures: 0,
+    message_corruptions: 0,
+    state_inconsistencies: 0,
+    authentication_errors: 0
+  }
 });
 
 // 统一的日志添加函数
@@ -1125,8 +1128,8 @@ async function startMQTTRealTimeSimulation() {
     // 找到Differential Report部分
     const differentialLines = extractDifferentialReport(lines);
     
-    // 解析Q-Learning数据
-    await parseQLearningData(lines);
+    // 解析差异类型分布数据
+    await parseDiffTypeData(differentialLines);
     
     // 开始实时输出差异报告
     await simulateRealTimeFuzzing(differentialLines);
@@ -1300,73 +1303,81 @@ function extractDifferentialReport(lines: string[]): string[] {
   return differentialLines;
 }
 
-// 解析Q-Learning数据
-async function parseQLearningData(lines: string[]) {
-  let inQTableSection = false;
-  let stateCount = 0;
-  let activeStateCount = 0;
-  const actionCounts: { [key: string]: number } = {
-    CONNECT: 0,
-    PUBLISH: 0,
-    SUBSCRIBE: 0,
-    PINGREQ: 0,
-    UNSUBSCRIBE: 0
+// 解析差异类型分布数据
+async function parseDiffTypeData(lines: string[]) {
+  const diffTypeCounts = {
+    protocol_violations: 0,
+    timeout_errors: 0,
+    connection_failures: 0,
+    message_corruptions: 0,
+    state_inconsistencies: 0,
+    authentication_errors: 0
   };
   
   for (const line of lines) {
-    if (line.trim() === 'Q Table:') {
-      inQTableSection = true;
-      continue;
-    }
+    const lowerLine = line.toLowerCase();
     
-    if (inQTableSection && line.trim()) {
-      // 解析Q-Learning状态行
-      const stateMatch = line.match(/^([a-f0-9]+)\s+\{(.+)\}/);
-      if (stateMatch) {
-        stateCount++;
-        
-        // 解析动作值
-        const actionsStr = stateMatch[2];
-        const actionMatches = actionsStr.match(/'([A-Z]+)':\s*([\d.]+)/g);
-        
-        if (actionMatches) {
-          let hasActiveActions = false;
-          actionMatches.forEach(actionMatch => {
-            const actionParts = actionMatch.match(/'([A-Z]+)':\s*([\d.]+)/);
-            if (actionParts) {
-              const actionName = actionParts[1];
-              const actionValue = parseFloat(actionParts[2]);
-              
-              // 如果动作值大于0，认为是活跃状态
-              if (actionValue > 0) {
-                hasActiveActions = true;
-                if (actionCounts.hasOwnProperty(actionName)) {
-                  actionCounts[actionName]++;
-                }
-              }
-            }
-          });
-          
-          if (hasActiveActions) {
-            activeStateCount++;
-          }
-        }
-      }
+    // 协议违规检测
+    if (lowerLine.includes('protocol violation') || 
+        lowerLine.includes('invalid packet') || 
+        lowerLine.includes('malformed') ||
+        lowerLine.includes('protocol error')) {
+      diffTypeCounts.protocol_violations++;
+    }
+    // 超时错误检测
+    else if (lowerLine.includes('timeout') || 
+             lowerLine.includes('connection timeout') ||
+             lowerLine.includes('read timeout')) {
+      diffTypeCounts.timeout_errors++;
+    }
+    // 连接失败检测
+    else if (lowerLine.includes('connection failed') || 
+             lowerLine.includes('connect failed') ||
+             lowerLine.includes('connection refused') ||
+             lowerLine.includes('connection reset')) {
+      diffTypeCounts.connection_failures++;
+    }
+    // 消息损坏检测
+    else if (lowerLine.includes('corrupt') || 
+             lowerLine.includes('checksum') ||
+             lowerLine.includes('invalid data') ||
+             lowerLine.includes('data corruption')) {
+      diffTypeCounts.message_corruptions++;
+    }
+    // 状态不一致检测
+    else if (lowerLine.includes('state') && 
+             (lowerLine.includes('inconsistent') || 
+              lowerLine.includes('mismatch') ||
+              lowerLine.includes('unexpected'))) {
+      diffTypeCounts.state_inconsistencies++;
+    }
+    // 认证错误检测
+    else if (lowerLine.includes('auth') || 
+             lowerLine.includes('unauthorized') ||
+             lowerLine.includes('permission denied') ||
+             lowerLine.includes('access denied')) {
+      diffTypeCounts.authentication_errors++;
     }
   }
   
-  // 更新Q-Learning统计数据
-  mqttQLearningStats.value.total_states = stateCount;
-  mqttQLearningStats.value.active_states = activeStateCount;
-  mqttQLearningStats.value.top_actions = {
-    CONNECT: actionCounts.CONNECT,
-    PUBLISH: actionCounts.PUBLISH,
-    SUBSCRIBE: actionCounts.SUBSCRIBE,
-    PINGREQ: actionCounts.PINGREQ,
-    UNSUBSCRIBE: actionCounts.UNSUBSCRIBE
+  // 计算总数
+  const total = Object.values(diffTypeCounts).reduce((sum, count) => sum + count, 0);
+  
+  // 更新差异类型统计数据
+  mqttDiffTypeStats.value = {
+    ...diffTypeCounts,
+    total_differences: total,
+    distribution: {
+      protocol_violations: total > 0 ? Math.round((diffTypeCounts.protocol_violations / total) * 100) : 0,
+      timeout_errors: total > 0 ? Math.round((diffTypeCounts.timeout_errors / total) * 100) : 0,
+      connection_failures: total > 0 ? Math.round((diffTypeCounts.connection_failures / total) * 100) : 0,
+      message_corruptions: total > 0 ? Math.round((diffTypeCounts.message_corruptions / total) * 100) : 0,
+      state_inconsistencies: total > 0 ? Math.round((diffTypeCounts.state_inconsistencies / total) * 100) : 0,
+      authentication_errors: total > 0 ? Math.round((diffTypeCounts.authentication_errors / total) * 100) : 0
+    }
   };
   
-  console.log('Q-Learning数据解析完成:', mqttQLearningStats.value);
+  console.log('差异类型分布数据解析完成:', mqttDiffTypeStats.value);
 }
 
 // 模拟实时Fuzz运行
@@ -1762,10 +1773,81 @@ function updateRealTimeStats(line: string) {
           mqttDifferentialStats.value.type_stats[diffType as keyof typeof mqttDifferentialStats.value.type_stats]++;
         }
       }
+      
+      // 实时更新差异类型分布统计
+      updateDiffTypeDistribution(line);
     }
   } catch (error) {
     console.warn('[DEBUG] 更新实时统计数据失败:', error);
     // 统计更新失败不应该影响主流程
+  }
+}
+
+// 实时更新差异类型分布统计
+function updateDiffTypeDistribution(line: string) {
+  const lowerLine = line.toLowerCase();
+  
+  // 协议违规检测
+  if (lowerLine.includes('protocol violation') || 
+      lowerLine.includes('invalid packet') || 
+      lowerLine.includes('malformed') ||
+      lowerLine.includes('protocol error')) {
+    mqttDiffTypeStats.value.protocol_violations++;
+  }
+  // 超时错误检测
+  else if (lowerLine.includes('timeout') || 
+           lowerLine.includes('connection timeout') ||
+           lowerLine.includes('read timeout')) {
+    mqttDiffTypeStats.value.timeout_errors++;
+  }
+  // 连接失败检测
+  else if (lowerLine.includes('connection failed') || 
+           lowerLine.includes('connect failed') ||
+           lowerLine.includes('connection refused') ||
+           lowerLine.includes('connection reset')) {
+    mqttDiffTypeStats.value.connection_failures++;
+  }
+  // 消息损坏检测
+  else if (lowerLine.includes('corrupt') || 
+           lowerLine.includes('checksum') ||
+           lowerLine.includes('invalid data') ||
+           lowerLine.includes('data corruption')) {
+    mqttDiffTypeStats.value.message_corruptions++;
+  }
+  // 状态不一致检测
+  else if (lowerLine.includes('state') && 
+           (lowerLine.includes('inconsistent') || 
+            lowerLine.includes('mismatch') ||
+            lowerLine.includes('unexpected'))) {
+    mqttDiffTypeStats.value.state_inconsistencies++;
+  }
+  // 认证错误检测
+  else if (lowerLine.includes('auth') || 
+           lowerLine.includes('unauthorized') ||
+           lowerLine.includes('permission denied') ||
+           lowerLine.includes('access denied')) {
+    mqttDiffTypeStats.value.authentication_errors++;
+  }
+  
+  // 重新计算总数和分布百分比
+  const total = mqttDiffTypeStats.value.protocol_violations + 
+                mqttDiffTypeStats.value.timeout_errors + 
+                mqttDiffTypeStats.value.connection_failures + 
+                mqttDiffTypeStats.value.message_corruptions + 
+                mqttDiffTypeStats.value.state_inconsistencies + 
+                mqttDiffTypeStats.value.authentication_errors;
+  
+  mqttDiffTypeStats.value.total_differences = total;
+  
+  if (total > 0) {
+    mqttDiffTypeStats.value.distribution = {
+      protocol_violations: Math.round((mqttDiffTypeStats.value.protocol_violations / total) * 100),
+      timeout_errors: Math.round((mqttDiffTypeStats.value.timeout_errors / total) * 100),
+      connection_failures: Math.round((mqttDiffTypeStats.value.connection_failures / total) * 100),
+      message_corruptions: Math.round((mqttDiffTypeStats.value.message_corruptions / total) * 100),
+      state_inconsistencies: Math.round((mqttDiffTypeStats.value.state_inconsistencies / total) * 100),
+      authentication_errors: Math.round((mqttDiffTypeStats.value.authentication_errors / total) * 100)
+    };
   }
 }
 
@@ -2745,35 +2827,52 @@ function generateTestReport() {
   URL.revokeObjectURL(url);
 }
 
-// 导出Q-Learning状态数据
-function exportQLearningData() {
+// 导出差异类型分布数据
+function exportDiffTypeData() {
   if (protocolType.value !== 'MQTT') return;
   
-  const qLearningContent = `MBFuzzer Q-Learning状态表导出\n` +
-                          `=============================\n\n` +
-                          `导出时间: ${new Date().toLocaleString()}\n` +
-                          `状态空间大小: ${Object.keys(mqttStats.value.q_learning_states || {}).length}\n` +
-                          `学习参数: α=${0.1}, γ=${0.9}, τ=${1.0}\n\n` +
-                          `状态-动作价值表:\n` +
-                          `===============\n`;
+  let diffTypeContent = `MBFuzzer 差异类型分布统计导出\n` +
+                       `==============================\n\n` +
+                       `导出时间: ${new Date().toLocaleString()}\n` +
+                       `总差异数量: ${mqttDiffTypeStats.value.total_differences}\n\n` +
+                       `差异类型分布:\n` +
+                       `============\n`;
   
-  // 这里可以添加实际的Q-Learning状态数据
-  // 由于当前没有实际的Q-Learning数据，我们添加一个占位符
-  const qStates = mqttStats.value.q_learning_states || {};
-  if (Object.keys(qStates).length > 0) {
-    Object.entries(qStates).forEach(([state, actions]) => {
-      qLearningContent += `状态: ${state}\n`;
-      qLearningContent += `动作价值: ${JSON.stringify(actions, null, 2)}\n\n`;
-    });
+  // 添加各类型的详细统计
+  diffTypeContent += `协议违规: ${mqttDiffTypeStats.value.protocol_violations} 个 (${mqttDiffTypeStats.value.distribution.protocol_violations}%)\n`;
+  diffTypeContent += `超时错误: ${mqttDiffTypeStats.value.timeout_errors} 个 (${mqttDiffTypeStats.value.distribution.timeout_errors}%)\n`;
+  diffTypeContent += `连接失败: ${mqttDiffTypeStats.value.connection_failures} 个 (${mqttDiffTypeStats.value.distribution.connection_failures}%)\n`;
+  diffTypeContent += `消息损坏: ${mqttDiffTypeStats.value.message_corruptions} 个 (${mqttDiffTypeStats.value.distribution.message_corruptions}%)\n`;
+  diffTypeContent += `状态不一致: ${mqttDiffTypeStats.value.state_inconsistencies} 个 (${mqttDiffTypeStats.value.distribution.state_inconsistencies}%)\n`;
+  diffTypeContent += `认证错误: ${mqttDiffTypeStats.value.authentication_errors} 个 (${mqttDiffTypeStats.value.distribution.authentication_errors}%)\n\n`;
+  
+  // 添加分析建议
+  diffTypeContent += `分析建议:\n`;
+  diffTypeContent += `========\n`;
+  
+  const maxType = Object.entries(mqttDiffTypeStats.value.distribution)
+    .reduce((max, [type, count]) => count > max.count ? {type, count} : max, {type: '', count: 0});
+  
+  if (maxType.count > 0) {
+    const typeNames = {
+      protocol_violations: '协议违规',
+      timeout_errors: '超时错误',
+      connection_failures: '连接失败',
+      message_corruptions: '消息损坏',
+      state_inconsistencies: '状态不一致',
+      authentication_errors: '认证错误'
+    };
+    diffTypeContent += `主要问题类型: ${typeNames[maxType.type as keyof typeof typeNames]} (${maxType.count}%)\n`;
+    diffTypeContent += `建议优先关注该类型的差异进行深入分析。\n`;
   } else {
-    qLearningContent += `暂无Q-Learning状态数据\n`;
+    diffTypeContent += `暂无差异类型数据\n`;
   }
   
-  const blob = new Blob([qLearningContent], { type: 'text/plain;charset=utf-8' });
+  const blob = new Blob([diffTypeContent], { type: 'text/plain;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `mbfuzzer_qlearning_${new Date().getTime()}.txt`;
+  a.download = `mbfuzzer_diff_types_${new Date().getTime()}.txt`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -4219,51 +4318,48 @@ onMounted(async () => {
               </div>
               
               <div class="grid grid-cols-1 gap-4">
-                <!-- 第一行：Q-Learning状态空间 -->
+                <!-- 第一行：协议违规和超时错误 -->
                 <div class="grid grid-cols-2 gap-4">
-                  <div class="bg-light-gray rounded-lg p-4 border border-green-200">
-                    <p class="text-sm text-green-700 mb-2">状态空间</p>
-                    <h4 class="text-3xl font-bold text-green-600">{{ mqttQLearningStats.total_states }}</h4>
-                    <p class="text-sm text-dark/60 mt-2">个协议状态</p>
+                  <div class="bg-light-gray rounded-lg p-4 border border-red-200">
+                    <p class="text-sm text-red-700 mb-2">协议违规</p>
+                    <h4 class="text-3xl font-bold text-red-600">{{ mqttDiffTypeStats.protocol_violations }}</h4>
+                    <p class="text-sm text-dark/60 mt-2">{{ mqttDiffTypeStats.distribution.protocol_violations }}%</p>
                   </div>
                   
-                  <div class="bg-light-gray rounded-lg p-4 border border-blue-200">
-                    <p class="text-sm text-blue-700 mb-2">活跃状态</p>
-                    <h4 class="text-3xl font-bold text-blue-600">{{ mqttQLearningStats.active_states }}</h4>
-                    <p class="text-sm text-dark/60 mt-2">个活跃状态</p>
+                  <div class="bg-light-gray rounded-lg p-4 border border-yellow-200">
+                    <p class="text-sm text-yellow-700 mb-2">超时错误</p>
+                    <h4 class="text-3xl font-bold text-yellow-600">{{ mqttDiffTypeStats.timeout_errors }}</h4>
+                    <p class="text-sm text-dark/60 mt-2">{{ mqttDiffTypeStats.distribution.timeout_errors }}%</p>
                   </div>
                 </div>
                 
-                <!-- 第二行：Q-Learning动作统计 -->
+                <!-- 第二行：连接失败和消息损坏 -->
                 <div class="grid grid-cols-2 gap-4">
-                  <div class="bg-light-gray rounded-lg p-4 border border-purple-200">
-                    <p class="text-sm text-purple-700 mb-2">CONNECT动作</p>
-                    <h4 class="text-3xl font-bold text-purple-600">{{ mqttQLearningStats.top_actions.CONNECT }}</h4>
-                    <p class="text-sm text-dark/60 mt-2">次选择</p>
-                  </div>
-                  
                   <div class="bg-light-gray rounded-lg p-4 border border-orange-200">
-                    <p class="text-sm text-orange-700 mb-2">PUBLISH动作</p>
-                    <h4 class="text-3xl font-bold text-orange-600">{{ mqttQLearningStats.top_actions.PUBLISH }}</h4>
-                    <p class="text-sm text-dark/60 mt-2">次选择</p>
+                    <p class="text-sm text-orange-700 mb-2">连接失败</p>
+                    <h4 class="text-3xl font-bold text-orange-600">{{ mqttDiffTypeStats.connection_failures }}</h4>
+                    <p class="text-sm text-dark/60 mt-2">{{ mqttDiffTypeStats.distribution.connection_failures }}%</p>
+                  </div>
+                  
+                  <div class="bg-light-gray rounded-lg p-4 border border-purple-200">
+                    <p class="text-sm text-purple-700 mb-2">消息损坏</p>
+                    <h4 class="text-3xl font-bold text-purple-600">{{ mqttDiffTypeStats.message_corruptions }}</h4>
+                    <p class="text-sm text-dark/60 mt-2">{{ mqttDiffTypeStats.distribution.message_corruptions }}%</p>
                   </div>
                 </div>
                 
-                <!-- 第三行：学习参数 -->
-                <div class="bg-light-gray rounded-lg p-4 border border-indigo-200">
-                  <div class="flex justify-between items-center mb-2">
-                    <span class="text-sm text-indigo-700">Q-Learning参数</span>
-                    <span class="text-lg font-bold text-indigo-600">智能学习</span>
+                <!-- 第三行：状态不一致和认证错误 -->
+                <div class="grid grid-cols-2 gap-4">
+                  <div class="bg-light-gray rounded-lg p-4 border border-blue-200">
+                    <p class="text-sm text-blue-700 mb-2">状态不一致</p>
+                    <h4 class="text-3xl font-bold text-blue-600">{{ mqttDiffTypeStats.state_inconsistencies }}</h4>
+                    <p class="text-sm text-dark/60 mt-2">{{ mqttDiffTypeStats.distribution.state_inconsistencies }}%</p>
                   </div>
-                  <div class="flex items-center justify-between">
-                    <div class="flex items-center space-x-4">
-                      <span class="text-xs text-indigo-700">α={{ mqttQLearningStats.learning_rate }}</span>
-                      <span class="text-xs text-indigo-700">γ={{ mqttQLearningStats.discount_factor }}</span>
-                      <span class="text-xs text-indigo-700">τ={{ mqttQLearningStats.temperature }}</span>
-                    </div>
-                    <div class="text-xs text-gray-600">
-                      学习效率: {{ Math.round(mqttQLearningStats.active_states / Math.max(mqttQLearningStats.total_states, 1) * 100) }}%
-                    </div>
+                  
+                  <div class="bg-light-gray rounded-lg p-4 border border-green-200">
+                    <p class="text-sm text-green-700 mb-2">认证错误</p>
+                    <h4 class="text-3xl font-bold text-green-600">{{ mqttDiffTypeStats.authentication_errors }}</h4>
+                    <p class="text-sm text-dark/60 mt-2">{{ mqttDiffTypeStats.distribution.authentication_errors }}%</p>
                   </div>
                 </div>
               </div>
@@ -4412,12 +4508,12 @@ onMounted(async () => {
                 </div>
                 
                 <div class="flex items-center">
-                  <i class="fa fa-brain text-blue-600 mr-2"></i>
+                  <i class="fa fa-pie-chart text-blue-600 mr-2"></i>
                   <div class="flex-1">
-                    <p class="truncate text-xs font-medium">Q-Learning状态表</p>
-                    <p class="truncate text-xs text-dark/50">{{ Object.keys(mqttStats.q_learning_states || {}).length }} 个协议状态</p>
+                    <p class="truncate text-xs font-medium">差异类型分布</p>
+                    <p class="truncate text-xs text-dark/50">{{ mqttDiffTypeStats.total_differences }} 个差异分析</p>
                   </div>
-                  <button @click="exportQLearningData" class="text-xs bg-blue-50 hover:bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded">
+                  <button @click="exportDiffTypeData" class="text-xs bg-blue-50 hover:bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded">
                     导出
                   </button>
                 </div>
