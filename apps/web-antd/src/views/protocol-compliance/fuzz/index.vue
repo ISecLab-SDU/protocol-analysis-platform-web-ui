@@ -4084,26 +4084,26 @@ onMounted(async () => {
                 </div>
               </div>
               
-              <!-- Broker类型差异统计 -->
+              <!-- 消息类型分布统计 -->
               <div>
                 <h4 class="text-base font-medium mb-3 text-dark/80 text-center">
-                  <i class="fa fa-server mr-2 text-purple-600"></i>
-                  Broker差异统计
+                  <i class="fa fa-envelope mr-2 text-green-600"></i>
+                  消息类型分布
                 </h4>
                 <div class="h-60 bg-white rounded-lg border border-gray-200 p-3 overflow-y-auto scrollbar-thin">
                   <div class="space-y-1">
-                    <div v-for="(count, brokerType) in mqttRealTimeStats.broker_diff_stats" :key="brokerType" 
+                    <div v-for="(count, msgType) in mqttDifferentialStats.msg_type_stats" :key="msgType" 
                          v-show="count > 0"
-                         class="flex justify-between items-center p-1.5 bg-purple-50 rounded border border-purple-200">
-                      <span class="text-xs text-purple-700 font-medium capitalize">{{ brokerType }}</span>
-                      <span class="text-sm font-bold text-purple-600">{{ count }}</span>
+                         class="flex justify-between items-center p-1.5 bg-green-50 rounded border border-green-200">
+                      <span class="text-xs text-green-700 font-medium">{{ msgType }}</span>
+                      <span class="text-sm font-bold text-green-600">{{ count }}</span>
                     </div>
-                    <div v-if="Object.values(mqttRealTimeStats.broker_diff_stats).every(count => count === 0)" 
+                    <div v-if="Object.values(mqttDifferentialStats.msg_type_stats).every(count => count === 0)" 
                          class="text-center py-8">
                       <div class="bg-gray-100 p-3 rounded-full w-12 h-12 mx-auto mb-2 flex items-center justify-center">
-                        <i class="fa fa-server text-gray-400"></i>
+                        <i class="fa fa-envelope text-gray-400"></i>
                       </div>
-                      <span class="text-xs text-gray-500">等待Broker数据...</span>
+                      <span class="text-xs text-gray-500">等待消息数据...</span>
                     </div>
                   </div>
                 </div>
@@ -4246,49 +4246,25 @@ onMounted(async () => {
                 </div>
               </div>
               
-              <div class="grid grid-cols-1 gap-4">
-                <!-- 第一行：协议违规和超时错误 -->
-                <div class="grid grid-cols-2 gap-4">
-                  <div class="bg-light-gray rounded-lg p-4 border border-red-200">
-                    <p class="text-sm text-red-700 mb-2">协议违规</p>
-                    <h4 class="text-3xl font-bold text-red-600">{{ mqttDiffTypeStats.protocol_violations }}</h4>
-                    <p class="text-sm text-dark/60 mt-2">{{ mqttDiffTypeStats.distribution.protocol_violations }}%</p>
+              <!-- Broker差异统计 -->
+              <div class="space-y-3">
+                <h4 class="text-sm font-medium text-dark/80 mb-3">
+                  <i class="fa fa-server mr-2 text-purple-600"></i>
+                  Broker差异统计
+                </h4>
+                <div class="space-y-2">
+                  <div v-for="(count, brokerType) in mqttRealTimeStats.broker_diff_stats" :key="brokerType" 
+                       v-show="count > 0"
+                       class="flex justify-between items-center p-2 bg-purple-50 rounded border border-purple-200">
+                    <span class="text-sm text-purple-700 font-medium capitalize">{{ brokerType }}</span>
+                    <span class="text-lg font-bold text-purple-600">{{ count }}</span>
                   </div>
-                  
-                  <div class="bg-light-gray rounded-lg p-4 border border-yellow-200">
-                    <p class="text-sm text-yellow-700 mb-2">超时错误</p>
-                    <h4 class="text-3xl font-bold text-yellow-600">{{ mqttDiffTypeStats.timeout_errors }}</h4>
-                    <p class="text-sm text-dark/60 mt-2">{{ mqttDiffTypeStats.distribution.timeout_errors }}%</p>
-                  </div>
-                </div>
-                
-                <!-- 第二行：连接失败和消息损坏 -->
-                <div class="grid grid-cols-2 gap-4">
-                  <div class="bg-light-gray rounded-lg p-4 border border-orange-200">
-                    <p class="text-sm text-orange-700 mb-2">连接失败</p>
-                    <h4 class="text-3xl font-bold text-orange-600">{{ mqttDiffTypeStats.connection_failures }}</h4>
-                    <p class="text-sm text-dark/60 mt-2">{{ mqttDiffTypeStats.distribution.connection_failures }}%</p>
-                  </div>
-                  
-                  <div class="bg-light-gray rounded-lg p-4 border border-purple-200">
-                    <p class="text-sm text-purple-700 mb-2">消息损坏</p>
-                    <h4 class="text-3xl font-bold text-purple-600">{{ mqttDiffTypeStats.message_corruptions }}</h4>
-                    <p class="text-sm text-dark/60 mt-2">{{ mqttDiffTypeStats.distribution.message_corruptions }}%</p>
-                  </div>
-                </div>
-                
-                <!-- 第三行：状态不一致和认证错误 -->
-                <div class="grid grid-cols-2 gap-4">
-                  <div class="bg-light-gray rounded-lg p-4 border border-blue-200">
-                    <p class="text-sm text-blue-700 mb-2">状态不一致</p>
-                    <h4 class="text-3xl font-bold text-blue-600">{{ mqttDiffTypeStats.state_inconsistencies }}</h4>
-                    <p class="text-sm text-dark/60 mt-2">{{ mqttDiffTypeStats.distribution.state_inconsistencies }}%</p>
-                  </div>
-                  
-                  <div class="bg-light-gray rounded-lg p-4 border border-green-200">
-                    <p class="text-sm text-green-700 mb-2">认证错误</p>
-                    <h4 class="text-3xl font-bold text-green-600">{{ mqttDiffTypeStats.authentication_errors }}</h4>
-                    <p class="text-sm text-dark/60 mt-2">{{ mqttDiffTypeStats.distribution.authentication_errors }}%</p>
+                  <div v-if="Object.values(mqttRealTimeStats.broker_diff_stats).every(count => count === 0)" 
+                       class="text-center py-4">
+                    <div class="bg-gray-100 p-3 rounded-full w-10 h-10 mx-auto mb-2 flex items-center justify-center">
+                      <i class="fa fa-server text-gray-400"></i>
+                    </div>
+                    <span class="text-xs text-gray-500">等待Broker数据...</span>
                   </div>
                 </div>
               </div>
