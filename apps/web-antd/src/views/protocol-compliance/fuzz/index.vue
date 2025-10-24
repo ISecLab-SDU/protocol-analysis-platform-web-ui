@@ -4275,28 +4275,19 @@ onMounted(async () => {
             
             <!-- MQTT协议统计 -->
             <div v-else-if="protocolType === 'MQTT'" class="space-y-6">
-              <!-- Client发送数据 -->
-              <div>
-                <div class="flex justify-between items-center mb-1">
-                  <span class="text-sm text-dark/70">Client发送数据</span>
-                  <span class="text-xl font-bold">{{ mqttRealTimeStats.client_sent_count.toLocaleString() }}</span>
+              <!-- Client和Broker发送数据方框展示 -->
+              <div class="grid grid-cols-2 gap-4">
+                <!-- Client发送数据 -->
+                <div class="bg-blue-50 rounded-lg p-4 border border-blue-200 text-center">
+                  <div class="text-3xl font-bold text-blue-600 mb-2">{{ mqttRealTimeStats.client_sent_count.toLocaleString() }}</div>
+                  <div class="text-sm text-blue-700 font-medium">Client发送数据</div>
                 </div>
-                <div class="w-full bg-light-gray rounded-full h-1.5 overflow-hidden">
-                  <div class="h-full bg-blue-500" :style="{ width: (mqttRealTimeStats.client_sent_count / 851051 * 100) + '%' }"></div>
+                
+                <!-- Broker发送数据 -->
+                <div class="bg-green-50 rounded-lg p-4 border border-green-200 text-center">
+                  <div class="text-3xl font-bold text-green-600 mb-2">{{ mqttRealTimeStats.broker_sent_count.toLocaleString() }}</div>
+                  <div class="text-sm text-green-700 font-medium">Broker发送数据</div>
                 </div>
-                <div class="text-xs text-gray-500 mt-1">目标: 851,051</div>
-              </div>
-              
-              <!-- Broker发送数据 -->
-              <div>
-                <div class="flex justify-between items-center mb-1">
-                  <span class="text-sm text-dark/70">Broker发送数据</span>
-                  <span class="text-xl font-bold">{{ mqttRealTimeStats.broker_sent_count.toLocaleString() }}</span>
-                </div>
-                <div class="w-full bg-light-gray rounded-full h-1.5 overflow-hidden">
-                  <div class="h-full bg-green-500" :style="{ width: (mqttRealTimeStats.broker_sent_count / 523790 * 100) + '%' }"></div>
-                </div>
-                <div class="text-xs text-gray-500 mt-1">目标: 523,790</div>
               </div>
               
               <!-- Broker差异统计 -->
@@ -4341,15 +4332,6 @@ onMounted(async () => {
                     <div class="text-2xl font-bold text-indigo-600 mb-1">{{ mqttRealTimeStats.broker_diff_stats.mosquitto }}</div>
                     <div class="text-xs text-indigo-700 font-medium">Mosquitto</div>
                   </div>
-                </div>
-                
-                <!-- 无数据时的提示 -->
-                <div v-if="Object.values(mqttRealTimeStats.broker_diff_stats).every(count => count === 0)" 
-                     class="text-center py-4 mt-4">
-                  <div class="bg-gray-100 p-3 rounded-full w-10 h-10 mx-auto mb-2 flex items-center justify-center">
-                    <i class="fa fa-server text-gray-400"></i>
-                  </div>
-                  <span class="text-xs text-gray-500">等待Broker数据...</span>
                 </div>
               </div>
             </div>
