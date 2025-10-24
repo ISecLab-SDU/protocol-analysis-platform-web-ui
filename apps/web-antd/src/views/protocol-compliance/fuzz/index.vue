@@ -3777,18 +3777,20 @@ function initMQTTModule(moduleId: number) {
       const midX = (from.x + to.x) / 2;
       const midY = (from.y + to.y) / 2;
       
-      // 根据连接方向调整控制点，因为现在连接到顶部，需要向上弯曲
+      // 根据交叉连接调整控制点，创建对称的弧形
       let controlX = midX;
-      let controlY = midY + 40; // 向下弯曲，因为连接点在顶部
+      let controlY = midY + 50; // 增加弯曲度，让交叉连接更美观
       
-      // 根据路径ID调整控制点位置
+      // 根据路径ID调整控制点位置，创建对称弧形
       if (id.includes('broker-client1')) {
-        // 左侧连接，控制点向左偏移
-        controlX = midX - 25;
+        // Client1连接右上角，控制点向右下偏移
+        controlX = midX + 30;
+        controlY = midY + 60;
       }
       else if (id.includes('broker-client2')) {
-        // 右侧连接，控制点向右偏移
-        controlX = midX + 25;
+        // Client2连接左上角，控制点向左下偏移
+        controlX = midX - 30;
+        controlY = midY + 60;
       }
       
       // 使用二次贝塞尔曲线创建更自然的连接
@@ -3806,9 +3808,9 @@ function initMQTTModule(moduleId: number) {
       return path;
     }
     
-    // 创建两条主连接线，连接到client图标的左上角和右上角
-    const path1 = createPath(bPos.leftBottom, c1Pos.topLeft, 'broker-client1', '#3B82F6');
-    const path2 = createPath(bPos.rightBottom, c2Pos.topRight, 'broker-client2', '#3B82F6');
+    // 创建两条对称的连接线：Client1连接右上角，Client2连接左上角
+    const path1 = createPath(bPos.leftBottom, c1Pos.topRight, 'broker-client1', '#3B82F6');
+    const path2 = createPath(bPos.rightBottom, c2Pos.topLeft, 'broker-client2', '#3B82F6');
     
     return { path1, path2 };
   }
