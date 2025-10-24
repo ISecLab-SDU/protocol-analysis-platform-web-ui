@@ -3773,8 +3773,28 @@ function initMQTTModule(moduleId: number) {
     function createPath(from: {x: number, y: number}, to: {x: number, y: number}, id: string, color: string = '#3B82F6') {
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       
-      // 创建简洁的直线连接
-      const d = `M ${from.x} ${from.y} L ${to.x} ${to.y}`;
+      // 创建轻微弧度的优美曲线连接
+      const midX = (from.x + to.x) / 2;
+      const midY = (from.y + to.y) / 2;
+      
+      // 轻微的弧度控制点，符合大众审美
+      let controlX = midX;
+      let controlY = midY;
+      
+      // 根据连接方向添加轻微的弧度偏移
+      if (id.includes('broker-client1')) {
+        // Client1连接，轻微向左弯曲
+        controlX = midX - 15;
+        controlY = midY - 20;
+      }
+      else if (id.includes('broker-client2')) {
+        // Client2连接，轻微向右弯曲
+        controlX = midX + 15;
+        controlY = midY - 20;
+      }
+      
+      // 使用二次贝塞尔曲线创建轻微弧度
+      const d = `M ${from.x} ${from.y} Q ${controlX} ${controlY} ${to.x} ${to.y}`;
       
       path.setAttribute('d', d);
       path.setAttribute('id', `${id}-${moduleId}`);
