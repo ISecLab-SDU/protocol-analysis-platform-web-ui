@@ -4252,20 +4252,51 @@ onMounted(async () => {
                   <i class="fa fa-server mr-2 text-purple-600"></i>
                   Broker差异统计
                 </h4>
-                <div class="space-y-2">
-                  <div v-for="(count, brokerType) in mqttRealTimeStats.broker_diff_stats" :key="brokerType" 
-                       v-show="count > 0"
-                       class="flex justify-between items-center p-2 bg-purple-50 rounded border border-purple-200">
-                    <span class="text-sm text-purple-700 font-medium capitalize">{{ brokerType }}</span>
-                    <span class="text-lg font-bold text-purple-600">{{ count }}</span>
+                <div class="grid grid-cols-2 gap-2">
+                  <!-- HiveMQ -->
+                  <div class="bg-purple-50 rounded-lg p-3 border border-purple-200 text-center">
+                    <div class="text-2xl font-bold text-purple-600 mb-1">{{ mqttRealTimeStats.broker_diff_stats.hivemq }}</div>
+                    <div class="text-xs text-purple-700 font-medium">HiveMQ</div>
                   </div>
-                  <div v-if="Object.values(mqttRealTimeStats.broker_diff_stats).every(count => count === 0)" 
-                       class="text-center py-4">
-                    <div class="bg-gray-100 p-3 rounded-full w-10 h-10 mx-auto mb-2 flex items-center justify-center">
-                      <i class="fa fa-server text-gray-400"></i>
-                    </div>
-                    <span class="text-xs text-gray-500">等待Broker数据...</span>
+                  
+                  <!-- VerneMQ -->
+                  <div class="bg-blue-50 rounded-lg p-3 border border-blue-200 text-center">
+                    <div class="text-2xl font-bold text-blue-600 mb-1">{{ mqttRealTimeStats.broker_diff_stats.vernemq }}</div>
+                    <div class="text-xs text-blue-700 font-medium">VerneMQ</div>
                   </div>
+                  
+                  <!-- EMQX -->
+                  <div class="bg-green-50 rounded-lg p-3 border border-green-200 text-center">
+                    <div class="text-2xl font-bold text-green-600 mb-1">{{ mqttRealTimeStats.broker_diff_stats.emqx }}</div>
+                    <div class="text-xs text-green-700 font-medium">EMQX</div>
+                  </div>
+                  
+                  <!-- FlashMQ -->
+                  <div class="bg-orange-50 rounded-lg p-3 border border-orange-200 text-center">
+                    <div class="text-2xl font-bold text-orange-600 mb-1">{{ mqttRealTimeStats.broker_diff_stats.flashmq }}</div>
+                    <div class="text-xs text-orange-700 font-medium">FlashMQ</div>
+                  </div>
+                  
+                  <!-- NanoMQ -->
+                  <div class="bg-pink-50 rounded-lg p-3 border border-pink-200 text-center">
+                    <div class="text-2xl font-bold text-pink-600 mb-1">{{ mqttRealTimeStats.broker_diff_stats.nanomq }}</div>
+                    <div class="text-xs text-pink-700 font-medium">NanoMQ</div>
+                  </div>
+                  
+                  <!-- Mosquitto -->
+                  <div class="bg-indigo-50 rounded-lg p-3 border border-indigo-200 text-center">
+                    <div class="text-2xl font-bold text-indigo-600 mb-1">{{ mqttRealTimeStats.broker_diff_stats.mosquitto }}</div>
+                    <div class="text-xs text-indigo-700 font-medium">Mosquitto</div>
+                  </div>
+                </div>
+                
+                <!-- 无数据时的提示 -->
+                <div v-if="Object.values(mqttRealTimeStats.broker_diff_stats).every(count => count === 0)" 
+                     class="text-center py-4 mt-4">
+                  <div class="bg-gray-100 p-3 rounded-full w-10 h-10 mx-auto mb-2 flex items-center justify-center">
+                    <i class="fa fa-server text-gray-400"></i>
+                  </div>
+                  <span class="text-xs text-gray-500">等待Broker数据...</span>
                 </div>
               </div>
             </div>
