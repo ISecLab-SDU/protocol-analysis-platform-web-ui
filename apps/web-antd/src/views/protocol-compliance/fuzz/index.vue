@@ -4040,7 +4040,7 @@ onMounted(async () => {
             <div class="flex justify-between items-center mb-6">
               <h3 class="font-semibold text-xl">
                 {{ protocolType === 'RTSP' ? 'RTSP协议状态机统计' : 
-                   protocolType === 'MQTT' ? 'MQTT协议消息分布与差异分析' : 
+                   protocolType === 'MQTT' ? 'MQTT协议高级分析' : 
                    '消息类型分布与版本统计' }}
               </h3>
             </div>
@@ -4076,75 +4076,19 @@ onMounted(async () => {
             </div>
             
             <!-- MQTT协议统计 -->
-            <div v-else-if="protocolType === 'MQTT'" class="grid grid-cols-1 md:grid-cols-3 gap-6 h-72">
-              <!-- 差异类型分布统计 -->
-              <div>
-                <h4 class="text-base font-medium mb-3 text-dark/80 text-center">
-                  <i class="fa fa-exclamation-triangle mr-2 text-red-600"></i>
-                  差异类型分布
-                </h4>
-                <div class="h-60 bg-white rounded-lg border border-gray-200 p-3">
-                  <div class="space-y-2">
-                    <div v-for="(count, type) in mqttDifferentialStats.type_stats" :key="type" 
-                         class="flex justify-between items-center p-2 bg-gray-50 rounded">
-                      <span class="text-xs text-gray-700 truncate">{{ type }}</span>
-                      <span class="text-sm font-bold text-red-600">{{ count }}</span>
-                    </div>
-                    <div v-if="mqttDifferentialStats.total_differences === 0" class="text-center py-8">
-                      <div class="bg-gray-100 p-3 rounded-full w-12 h-12 mx-auto mb-2 flex items-center justify-center">
-                        <i class="fa fa-chart-bar text-gray-400"></i>
-                      </div>
-                      <span class="text-xs text-gray-500">等待差异数据...</span>
-                    </div>
-                  </div>
+            <!-- MQTT协议预留内容区域 -->
+            <div v-else-if="protocolType === 'MQTT'" class="h-72">
+              <div class="h-full bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200 flex flex-col items-center justify-center p-8">
+                <div class="bg-blue-100 p-4 rounded-full mb-4">
+                  <i class="fa fa-cogs text-3xl text-blue-600"></i>
                 </div>
-              </div>
-              
-              <!-- 协议版本分布统计 -->
-              <div>
-                <h4 class="text-base font-medium mb-3 text-dark/80 text-center">
-                  <i class="fa fa-code-fork mr-2 text-blue-600"></i>
-                  协议版本分布
-                </h4>
-                <div class="h-60 bg-white rounded-lg border border-gray-200 p-3">
-                  <div class="space-y-2">
-                    <div v-for="(count, version) in mqttDifferentialStats.version_stats" :key="version" 
-                         class="flex justify-between items-center p-2 bg-gray-50 rounded">
-                      <span class="text-xs text-gray-700 truncate">MQTT v{{ version }}</span>
-                      <span class="text-sm font-bold text-blue-600">{{ count }}</span>
-                    </div>
-                    <div v-if="mqttDifferentialStats.total_differences === 0" class="text-center py-8">
-                      <div class="bg-gray-100 p-3 rounded-full w-12 h-12 mx-auto mb-2 flex items-center justify-center">
-                        <i class="fa fa-code-fork text-gray-400"></i>
-                      </div>
-                      <span class="text-xs text-gray-500">等待版本数据...</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <!-- 消息类型分布统计 -->
-              <div>
-                <h4 class="text-base font-medium mb-3 text-dark/80 text-center">
-                  <i class="fa fa-envelope mr-2 text-green-600"></i>
-                  消息类型分布
-                </h4>
-                <div class="h-60 bg-white rounded-lg border border-gray-200 p-3 overflow-y-auto scrollbar-thin">
-                  <div class="space-y-1">
-                    <div v-for="(count, msgType) in mqttDifferentialStats.msg_type_stats" :key="msgType" 
-                         v-show="count > 0"
-                         class="flex justify-between items-center p-1.5 bg-green-50 rounded border border-green-200">
-                      <span class="text-xs text-green-700 font-medium">{{ msgType }}</span>
-                      <span class="text-sm font-bold text-green-600">{{ count }}</span>
-                    </div>
-                    <div v-if="Object.values(mqttDifferentialStats.msg_type_stats).every(count => count === 0)" 
-                         class="text-center py-8">
-                      <div class="bg-gray-100 p-3 rounded-full w-12 h-12 mx-auto mb-2 flex items-center justify-center">
-                        <i class="fa fa-envelope text-gray-400"></i>
-                      </div>
-                      <span class="text-xs text-gray-500">等待消息数据...</span>
-                    </div>
-                  </div>
+                <h4 class="text-lg font-semibold text-blue-800 mb-2">功能开发中</h4>
+                <p class="text-sm text-blue-600 text-center mb-4">
+                  此区域预留用于MQTT协议的高级分析功能
+                </p>
+                <div class="flex items-center space-x-2 text-xs text-blue-500">
+                  <i class="fa fa-info-circle"></i>
+                  <span>分析结果已移至历史记录中查看</span>
                 </div>
               </div>
             </div>
