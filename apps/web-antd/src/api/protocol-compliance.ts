@@ -320,3 +320,97 @@ export function deleteProtocolStaticAnalysisJob(jobId: string) {
     `/protocol-compliance/static-analysis/history/${jobId}`,
   );
 }
+
+// Assertion Generation Types and APIs
+export type ProtocolAssertGenerationJobStatus =
+  | 'queued'
+  | 'running'
+  | 'completed'
+  | 'failed';
+
+export interface ProtocolAssertGenerationProgressEvent {
+  message: string;
+  stage: string;
+  timestamp: string;
+}
+
+export interface ProtocolAssertGenerationResult {
+  assertionCount: number;
+  generatedAt: string;
+  jobId: string;
+  protocolName: string;
+}
+
+export interface ProtocolAssertGenerationJob {
+  createdAt: string;
+  error?: null | string;
+  events: ProtocolAssertGenerationProgressEvent[];
+  jobId: string;
+  message: string;
+  result?: null | ProtocolAssertGenerationResult;
+  stage: string;
+  status: ProtocolAssertGenerationJobStatus;
+  updatedAt: string;
+}
+
+export interface RunProtocolAssertGenerationPayload {
+  buildInstructions: string;
+  codeArchive: File;
+  database: File;
+  notes?: string;
+}
+
+export function runProtocolAssertGeneration(
+  payload: RunProtocolAssertGenerationPayload,
+) {
+  const { buildInstructions, codeArchive, database, notes } = payload;
+  const formData = new FormData();
+  formData.append('codeArchive', codeArchive);
+  formData.append('database', database);
+  formData.append('buildInstructions', buildInstructions.trim());
+  if (notes?.trim()) {
+    formData.append('notes', notes.trim());
+  }
+
+  return requestClient.post<ProtocolAssertGenerationJob>(
+    '/protocol-compliance/assertion-generation',
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    },
+  );
+}
+
+export function fetchProtocolAssertGenerationProgress(jobId: string) {
+  return requestClient.get<ProtocolAssertGenerationJob>(
+    `/protocol-compliance/assertion-generation/${jobId}/progress`,
+  );
+}
+
+export function fetchProtocolAssertGenerationResult(jobId: string) {
+  return requestClient.get<ProtocolAssertGenerationResult>(
+    `/protocol-compliance/assertion-generation/${jobId}/result`,
+  );
+}
+
+export async function downloadProtocolAssertGenerationResult(jobId: string) {
+  const accessStore = useAccessStore();
+  const token = accessStore.accessToken;
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = (await baseRequestClient.request(
+    `/protocol-compliance/assertion-generation/${jobId}/download`,
+    {
+      headers,
+      method: 'GET',
+      responseType: 'blob',
+    },
+  )) as { data: Blob };
+
+  return response.data;
+}
