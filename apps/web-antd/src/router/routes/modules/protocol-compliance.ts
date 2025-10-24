@@ -28,21 +28,21 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
-        name: 'ProtocolComplianceFuzz',
-        path: '/protocol-compliance/fuzz',
-        component: () =>
-          import('#/views/protocol-compliance/fuzz/index.vue'),
-        meta: {
-          title: '协议模糊测试',
-        },
-      },
-      {
         name: 'ProtocolComplianceAssert',
         path: '/protocol-compliance/assert',
         component: () =>
           import('#/views/protocol-compliance/assert/index.vue'),
         meta: {
           title: '断言生成',
+        },
+      },
+      {
+        name: 'ProtocolComplianceFuzz',
+        path: '/protocol-compliance/fuzz',
+        component: () =>
+          import('#/views/protocol-compliance/fuzz/index.vue'),
+        meta: {
+          title: '协议模糊测试',
         },
       },
     ],
