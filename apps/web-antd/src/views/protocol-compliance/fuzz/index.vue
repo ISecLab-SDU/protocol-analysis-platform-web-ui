@@ -568,6 +568,48 @@ function initMQTTChart() {
   }
 }
 
+// 从fuzz数据重新计算统计信息的函数
+function recalculateStatsFromFuzzData() {
+  try {
+    if (!snmpFuzzData.value || snmpFuzzData.value.length === 0) {
+      console.warn('No fuzz data available for recalculation');
+      return;
+    }
+    
+    console.log('Recalculating statistics from fuzz data...');
+    
+    // 重置统计数据
+    const newProtocolStats = { v1: 0, v2c: 0, v3: 0 };
+    const newMessageTypeStats = { get: 0, set: 0, getnext: 0, getbulk: 0 };
+    
+    // 遍历fuzz数据重新计算统计
+    snmpFuzzData.value.forEach(packet => {
+      // 统计协议版本
+      if (packet.version === 'v1') newProtocolStats.v1++;
+      else if (packet.version === 'v2c') newProtocolStats.v2c++;
+      else if (packet.version === 'v3') newProtocolStats.v3++;
+      
+      // 统计消息类型
+      if (packet.type === 'get') newMessageTypeStats.get++;
+      else if (packet.type === 'set') newMessageTypeStats.set++;
+      else if (packet.type === 'getnext') newMessageTypeStats.getnext++;
+      else if (packet.type === 'getbulk') newMessageTypeStats.getbulk++;
+    });
+    
+    // 更新统计数据
+    protocolStats.value = newProtocolStats;
+    messageTypeStats.value = newMessageTypeStats;
+    
+    console.log('Statistics recalculated from fuzz data:', {
+      protocolStats: newProtocolStats,
+      messageTypeStats: newMessageTypeStats,
+      totalPackets: snmpFuzzData.value.length
+    });
+  } catch (error) {
+    console.error('Error recalculating stats from fuzz data:', error);
+  }
+}
+
 function updateCharts() {
   try {
     if (!messageTypeChart || !versionChart) {
@@ -596,7 +638,19 @@ function updateCharts() {
       versionChart.update('none'); // Use 'none' animation mode for better performance
     }
     
-    console.log('Charts updated successfully');
+    console.log('Charts updated successfully with data:', {
+      messageTypeData: [
+        messageTypeStats.value.get || 0,
+        messageTypeStats.value.set || 0,
+        messageTypeStats.value.getnext || 0,
+        messageTypeStats.value.getbulk || 0,
+      ],
+      versionData: [
+        protocolStats.value.v1 || 0,
+        protocolStats.value.v2c || 0,
+        protocolStats.value.v3 || 0,
+      ]
+    });
   } catch (error) {
     console.error('Error updating charts:', error);
   }
@@ -2748,10 +2802,27 @@ function stopTest() {
         try {
           // 只有在测试真正完成且不是MQTT协议时才更新图表
           if (isTestCompleted.value) {
+            console.log('Updating charts for SNMP protocol completion:', {
+              protocolStats: protocolStats.value,
+              messageTypeStats: messageTypeStats.value,
+              chartsInitialized: !!(messageTypeChart && versionChart)
+            });
+            
             // Double-check charts are initialized before updating
             if (messageTypeChart && versionChart) {
+              // 确保图表数据不为空，如果为空则使用默认值
+              const hasValidData = (protocolStats.value.v1 + protocolStats.value.v2c + protocolStats.value.v3) > 0 ||
+                                 (messageTypeStats.value.get + messageTypeStats.value.set + messageTypeStats.value.getnext + messageTypeStats.value.getbulk) > 0;
+              
+              if (!hasValidData) {
+                console.warn('Chart data appears to be empty, using file-based statistics as fallback');
+                // 如果统计数据为空，尝试从已解析的fuzz数据中重新计算统计信息
+                recalculateStatsFromFuzzData();
+              }
+              
               updateCharts();
               showCharts.value = true;
+              console.log('Charts updated successfully for SNMP protocol');
             } else {
               // Try to reinitialize charts if they're not available
               console.log('Charts not initialized, attempting to reinitialize...');
@@ -2759,6 +2830,7 @@ function stopTest() {
               if (success) {
                 updateCharts();
                 showCharts.value = true;
+                console.log('Charts reinitialized and updated successfully');
               } else {
                 console.warn('Failed to reinitialize charts');
               }
@@ -4135,6 +4207,18 @@ onMounted(async () => {
   const success = initCharts();
   if (success) {
     console.log('Charts initialized successfully on mount');
+    
+    // 如果已有fuzz数据但统计数据为空，重新计算统计数据
+    if (protocolType.value === 'SNMP' && snmpFuzzData.value.length > 0) {
+      const hasValidData = (protocolStats.value.v1 + protocolStats.value.v2c + protocolStats.value.v3) > 0 ||
+                          (messageTypeStats.value.get + messageTypeStats.value.set + messageTypeStats.value.getnext + messageTypeStats.value.getbulk) > 0;
+      
+      if (!hasValidData) {
+        console.log('Recalculating stats on mount due to empty statistics');
+        recalculateStatsFromFuzzData();
+      }
+    }
+    
     // Update charts with initial data but don't show them yet
     updateCharts();
     // 只有在有完整数据且测试已完成时才显示图表
