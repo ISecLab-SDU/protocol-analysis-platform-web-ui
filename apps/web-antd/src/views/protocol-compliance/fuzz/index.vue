@@ -1622,7 +1622,66 @@ function addToMQTTLogs(logs: string | string[]) {
   // 使用实时流添加日志
   logEntries.forEach(logEntry => {
     addToRealtimeStream('MQTT', logEntry);
+    
+    // 实时累加协议差异统计 - 只对差异报告行进行计数
+    if (isRunning.value && isDifferentialLogEntry(logEntry.content)) {
+      // 递增差异计数
+      mqttRealTimeStats.value.diff_number++;
+      mqttStats.value.diff_number = mqttRealTimeStats.value.diff_number;
+      
+      // 同步更新总差异数
+      mqttDifferentialStats.value.total_differences = mqttRealTimeStats.value.diff_number;
+      mqttDiffTypeStats.value.total_differences = mqttRealTimeStats.value.diff_number;
+      
+      // 确保历史记录与统计信息保持同步
+      if (mqttStats.value.total_differences !== undefined) {
+        mqttStats.value.total_differences = mqttRealTimeStats.value.diff_number;
+      }
+    }
   });
+}
+
+// 判断是否为差异报告日志条目
+function isDifferentialLogEntry(content: string): boolean {
+  // 检查是否包含差异报告的关键字段
+  const differentialKeywords = [
+    'protocol_version:',
+    'msg_type:',
+    'diff_range_broker:',
+    'type: {',
+    'direction:',
+    'file_path:',
+    'capture_time:'
+  ];
+  
+  // 排除非差异的系统消息
+  const systemMessages = [
+    '=== MBFuzzer',
+    '开始时间:',
+    '目标代理:',
+    '正在分析',
+    '处理进度:',
+    '差异分析完成',
+    '处理完成:',
+    '发现差异:',
+    '结束时间:'
+  ];
+  
+  // 如果包含系统消息关键词，则不是差异报告
+  for (const systemMsg of systemMessages) {
+    if (content.includes(systemMsg)) {
+      return false;
+    }
+  }
+  
+  // 如果包含差异报告关键词，则是差异报告
+  for (const keyword of differentialKeywords) {
+    if (content.includes(keyword)) {
+      return true;
+    }
+  }
+  
+  return false;
 }
 
 // 根据日志内容判断类型
