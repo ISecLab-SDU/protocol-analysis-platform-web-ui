@@ -297,7 +297,7 @@ const historyResults = ref<HistoryResult[]>([
       duplicate_diff_number: 118563,
       valid_connect_number: 1362,
       duplicate_connect_diff: 1507,
-      total_differences: 6557,
+      total_differences: 0,
       client_messages: {
         CONNECT: 125000, CONNACK: 0, PUBLISH: 320000, PUBACK: 180000,
         PUBREC: 45000, PUBREL: 45000, PUBCOMP: 45000, SUBSCRIBE: 85000,
@@ -1518,7 +1518,7 @@ const mqttDifferentialStats = ref({
     'DISCONNECT': 234,
     'AUTH': 67
   },
-  total_differences: 6557
+  total_differences: 0
 });
 
 // 直接DOM操作更新MQTT日志，避免Vue响应式冲突
@@ -4257,10 +4257,6 @@ onMounted(async () => {
                          mqttDifferentialStats.total_differences > 0 ? '发现协议差异' : '差异分析中...' }}
                     </span>
                   </div>
-                  <div class="text-xs text-gray-500 mt-1">
-                    差异发现率: {{ mqttDifferentialStats.total_differences > 0 ? 
-                      Math.round((mqttDifferentialStats.total_differences / Math.max(packetCount, 1)) * 100) : 0 }}%
-                  </div>
                 </div>
               </div>
               
@@ -4338,7 +4334,7 @@ onMounted(async () => {
             <div class="flex justify-between items-center mb-6">
               <h3 class="font-semibold text-xl">
                 {{ protocolType === 'RTSP' ? 'RTSP协议状态机统计' : 
-                   protocolType === 'MQTT' ? 'MQTT协议高级分析' : 
+                   protocolType === 'MQTT' ? 'MQTT多方模糊测试' : 
                    '消息类型分布与版本统计' }}
               </h3>
             </div>
@@ -4376,8 +4372,18 @@ onMounted(async () => {
             <!-- MQTT协议统计 -->
             <!-- MQTT协议实时动画可视化区域 -->
             <div v-else-if="protocolType === 'MQTT'" class="flex-1 min-h-0">
-              <!-- MQTT动画网格容器 - 直接展示，无边框，占满可用空间 -->
-              <div class="grid grid-cols-2 lg:grid-cols-3 gap-3 h-full p-2">
+              <!-- 初始状态显示设备待启动 -->
+              <div v-if="!isRunning && !isTestCompleted" class="flex items-center justify-center h-full">
+                <div class="text-center">
+                  <div class="bg-gray-100 p-8 rounded-full mb-4 mx-auto w-24 h-24 flex items-center justify-center">
+                    <IconifyIcon icon="mdi:power-standby" class="text-4xl text-gray-500" />
+                  </div>
+                  <div class="text-lg font-medium text-gray-600 mb-2">设备待启动</div>
+                  <div class="text-sm text-gray-500">点击"开始测试"启动MQTT多方模糊测试</div>
+                </div>
+              </div>
+              <!-- MQTT动画网格容器 - 测试运行时显示 -->
+              <div v-else class="grid grid-cols-2 lg:grid-cols-3 gap-3 h-full p-2">
                   <!-- MQTT模块1 -->
                   <div class="mqtt-module" :id="`mqtt-viz-1`">
                     <div class="mqtt-node text-blue-600 absolute top-6 left-1/2 transform -translate-x-1/2">
@@ -4386,11 +4392,11 @@ onMounted(async () => {
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-6 left-[8%]">
                       <IconifyIcon icon="mdi:chip" class="text-3xl" />
-                      <span class="font-medium text-xs">Client1</span>
+                      <span class="font-medium text-xs">Fuzzer(Client)</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-6 right-[8%]">
                       <IconifyIcon icon="mdi:cloud" class="text-3xl" />
-                      <span class="font-medium text-xs">Client2</span>
+                      <span class="font-medium text-xs">Fuzzer(Broker)</span>
                     </div>
                     <svg class="absolute inset-0 w-full h-full" :id="`connections-viz-1`"></svg>
                     <div :id="`particles-viz-1`" class="absolute inset-0 w-full h-full pointer-events-none"></div>
@@ -4404,11 +4410,11 @@ onMounted(async () => {
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-6 left-[8%]">
                       <IconifyIcon icon="mdi:chip" class="text-3xl" />
-                      <span class="font-medium text-xs">Client1</span>
+                      <span class="font-medium text-xs">Fuzzer(Client)</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-6 right-[8%]">
                       <IconifyIcon icon="mdi:cloud" class="text-3xl" />
-                      <span class="font-medium text-xs">Client2</span>
+                      <span class="font-medium text-xs">Fuzzer(Broker)</span>
                     </div>
                     <svg class="absolute inset-0 w-full h-full" :id="`connections-viz-2`"></svg>
                     <div :id="`particles-viz-2`" class="absolute inset-0 w-full h-full pointer-events-none"></div>
@@ -4422,11 +4428,11 @@ onMounted(async () => {
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-6 left-[8%]">
                       <IconifyIcon icon="mdi:chip" class="text-3xl" />
-                      <span class="font-medium text-xs">Client1</span>
+                      <span class="font-medium text-xs">Fuzzer(Client)</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-6 right-[8%]">
                       <IconifyIcon icon="mdi:cloud" class="text-3xl" />
-                      <span class="font-medium text-xs">Client2</span>
+                      <span class="font-medium text-xs">Fuzzer(Broker)</span>
                     </div>
                     <svg class="absolute inset-0 w-full h-full" :id="`connections-viz-3`"></svg>
                     <div :id="`particles-viz-3`" class="absolute inset-0 w-full h-full pointer-events-none"></div>
@@ -4440,11 +4446,11 @@ onMounted(async () => {
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-6 left-[8%]">
                       <IconifyIcon icon="mdi:chip" class="text-3xl" />
-                      <span class="font-medium text-xs">Client1</span>
+                      <span class="font-medium text-xs">Fuzzer(Client)</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-6 right-[8%]">
                       <IconifyIcon icon="mdi:cloud" class="text-3xl" />
-                      <span class="font-medium text-xs">Client2</span>
+                      <span class="font-medium text-xs">Fuzzer(Broker)</span>
                     </div>
                     <svg class="absolute inset-0 w-full h-full" :id="`connections-viz-4`"></svg>
                     <div :id="`particles-viz-4`" class="absolute inset-0 w-full h-full pointer-events-none"></div>
@@ -4458,11 +4464,11 @@ onMounted(async () => {
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-6 left-[8%]">
                       <IconifyIcon icon="mdi:chip" class="text-3xl" />
-                      <span class="font-medium text-xs">Client1</span>
+                      <span class="font-medium text-xs">Fuzzer(Client)</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-6 right-[8%]">
                       <IconifyIcon icon="mdi:cloud" class="text-3xl" />
-                      <span class="font-medium text-xs">Client2</span>
+                      <span class="font-medium text-xs">Fuzzer(Broker)</span>
                     </div>
                     <svg class="absolute inset-0 w-full h-full" :id="`connections-viz-5`"></svg>
                     <div :id="`particles-viz-5`" class="absolute inset-0 w-full h-full pointer-events-none"></div>
@@ -4476,16 +4482,16 @@ onMounted(async () => {
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-6 left-[8%]">
                       <IconifyIcon icon="mdi:chip" class="text-3xl" />
-                      <span class="font-medium text-xs">Client1</span>
+                      <span class="font-medium text-xs">Fuzzer(Client)</span>
                     </div>
                     <div class="mqtt-node text-blue-600 absolute bottom-6 right-[8%]">
                       <IconifyIcon icon="mdi:cloud" class="text-3xl" />
-                      <span class="font-medium text-xs">Client2</span>
+                      <span class="font-medium text-xs">Fuzzer(Broker)</span>
                     </div>
                     <svg class="absolute inset-0 w-full h-full" :id="`connections-viz-6`"></svg>
                     <div :id="`particles-viz-6`" class="absolute inset-0 w-full h-full pointer-events-none"></div>
                   </div>
-                </div>
+              </div>
             </div>
             
             <!-- RTSP协议统计 -->
@@ -4775,8 +4781,6 @@ onMounted(async () => {
                   <p><span class="text-dark/60">重复差异过滤:</span> <span>{{ (mqttStats.duplicate_diff_number || 0).toLocaleString() || '118,563' }}</span></p>
                   <p><span class="text-dark/60">有效连接数:</span> <span>{{ (mqttStats.valid_connect_number || 0).toLocaleString() || '1,362' }}</span></p>
                   <p><span class="text-dark/60">重复CONNECT差异:</span> <span>{{ (mqttStats.duplicate_connect_diff || 0).toLocaleString() || '1,507' }}</span></p>
-                  <p><span class="text-dark/60">差异发现率:</span> <span>{{ ((mqttStats.client_request_count || 0) + (mqttStats.broker_request_count || 0)) > 0 ? 
-                    Math.round(((mqttStats.diff_number || 0) / ((mqttStats.client_request_count || 0) + (mqttStats.broker_request_count || 0))) * 10000) / 100 : 0.42 }}%</span></p>
                 </template>
                 <!-- SNMP协议统计 -->
                 <template v-else-if="protocolType !== 'RTSP'">
@@ -5164,10 +5168,6 @@ onMounted(async () => {
                     <template v-else-if="selectedHistoryItem.protocol === 'MQTT'">
                       <p><span class="text-gray-600">发现差异:</span> <span>{{ selectedHistoryItem.mqttStats?.diff_number?.toLocaleString() || 0 }}</span></p>
                       <p><span class="text-gray-600">有效连接:</span> <span>{{ selectedHistoryItem.protocolSpecificData?.validConnectNumber?.toLocaleString() || 0 }}</span></p>
-                      <p><span class="text-gray-600">差异发现率:</span> <span>{{ 
-                        selectedHistoryItem.protocolSpecificData?.clientRequestCount ? 
-                        (((selectedHistoryItem.mqttStats?.diff_number || 0) / ((selectedHistoryItem.protocolSpecificData.clientRequestCount || 0) + (selectedHistoryItem.protocolSpecificData.brokerRequestCount || 0))) * 100).toFixed(2) : 0 
-                      }}%</span></p>
                     </template>
                   </div>
                 </div>
@@ -5428,16 +5428,6 @@ onMounted(async () => {
                         <div class="text-xs text-gray-500 mt-1">Broker Requests</div>
                       </div>
                       
-                      <div class="bg-purple-50 rounded-lg p-4">
-                        <div class="flex justify-between items-center mb-2">
-                          <span class="text-gray-700 font-medium">差异发现率</span>
-                          <span class="text-lg font-bold text-purple-600">{{ 
-                            selectedHistoryItem.protocolSpecificData?.clientRequestCount ? 
-                            (((selectedHistoryItem.mqttStats?.diff_number || 0) / ((selectedHistoryItem.protocolSpecificData.clientRequestCount || 0) + (selectedHistoryItem.protocolSpecificData.brokerRequestCount || 0))) * 100).toFixed(2) : 0 
-                          }}%</span>
-                        </div>
-                        <div class="text-xs text-gray-500">Difference Discovery Rate</div>
-                      </div>
                     </div>
                   </div>
                 </div>
