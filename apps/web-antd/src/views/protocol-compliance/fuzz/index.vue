@@ -5370,11 +5370,17 @@ onMounted(async () => {
                       <p><span class="text-gray-600">客户端请求数:</span> <span class="font-medium">{{ selectedHistoryItem.mqttStats?.client_request_count?.toLocaleString() || '851,051' }}</span></p>
                       <p><span class="text-gray-600">代理端请求数:</span> <span class="font-medium">{{ selectedHistoryItem.mqttStats?.broker_request_count?.toLocaleString() || '523,790' }}</span></p>
                     </template>
-                    <!-- 其他协议统计 -->
-                    <template v-else>
+                    <!-- RTSP协议统计 -->
+                    <template v-else-if="selectedHistoryItem.protocol === 'RTSP'">
                       <p><span class="text-gray-600">发现路径数:</span> <span class="font-medium">{{ selectedHistoryItem.rtspStats?.paths_total || selectedHistoryItem.totalPackets || 0 }}</span></p>
                       <p><span class="text-gray-600">状态转换数:</span> <span class="font-medium">{{ selectedHistoryItem.protocolSpecificData?.stateTransitions || selectedHistoryItem.rtspStats?.n_edges || Math.floor((selectedHistoryItem.successRate || 0) * 10) || 0 }}</span></p>
                       <p><span class="text-gray-600">最大深度:</span> <span class="font-medium">{{ selectedHistoryItem.protocolSpecificData?.maxDepth || selectedHistoryItem.rtspStats?.max_depth || Math.floor((selectedHistoryItem.crashCount || 0) + 5) || 5 }}</span></p>
+                    </template>
+                    <!-- SNMP协议统计 -->
+                    <template v-else>
+                      <p><span class="text-gray-600">总发包数:</span> <span class="font-medium">{{ selectedHistoryItem.totalPackets }}</span></p>
+                      <p><span class="text-gray-600">成功率:</span> <span class="font-medium" :class="selectedHistoryItem.successRate >= 80 ? 'text-green-600' : selectedHistoryItem.successRate >= 60 ? 'text-yellow-600' : 'text-red-600'">{{ selectedHistoryItem.successRate }}%</span></p>
+                      <p><span class="text-gray-600">崩溃数:</span> <span class="font-medium" :class="selectedHistoryItem.crashCount > 0 ? 'text-red-600' : 'text-green-600'">{{ selectedHistoryItem.crashCount }}</span></p>
                     </template>
                   </div>
                 </div>
