@@ -290,11 +290,11 @@ const historyResults = ref<HistoryResult[]>([
       broker_request_count: 523790,
       total_request_count: 1374841,
       crash_number: 0,
-      diff_number: 6657,
+      diff_number: 0,
       duplicate_diff_number: 118563,
       valid_connect_number: 1362,
       duplicate_connect_diff: 1507,
-      total_differences: 6657,
+      total_differences: 0,
       client_messages: {
         CONNECT: 125000, CONNACK: 0, PUBLISH: 320000, PUBACK: 180000,
         PUBREC: 45000, PUBREL: 45000, PUBCOMP: 45000, SUBSCRIBE: 85000,
@@ -1551,7 +1551,7 @@ const mqttDifferentialStats = ref({
     'DISCONNECT': 234,
     'AUTH': 67
   },
-  total_differences: 6657
+  total_differences: 0
 });
 
 // 直接DOM操作更新MQTT日志，避免Vue响应式冲突
@@ -4367,7 +4367,7 @@ onMounted(async () => {
               <div v-if="protocolType === 'MQTT'" class="space-y-4">
                 <div class="grid grid-cols-1 gap-4">
                   <div class="bg-yellow-50 rounded-lg p-4 border border-yellow-200 text-center">
-                    <div class="text-3xl font-bold text-yellow-600 mb-2">{{ isTestCompleted ? (mqttStats.diff_number || 6657) : mqttDifferentialStats.total_differences }}</div>
+                    <div class="text-3xl font-bold text-yellow-600 mb-2">{{ isTestCompleted ? mqttStats.diff_number : mqttDifferentialStats.total_differences }}</div>
                     <div class="text-sm text-yellow-700 font-medium">协议差异发现</div>
                     <div class="text-xs text-gray-500 mt-1">Protocol Differences</div>
                   </div>
