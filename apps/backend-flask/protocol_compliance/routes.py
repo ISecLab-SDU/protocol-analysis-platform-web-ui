@@ -624,3 +624,177 @@ def stop_process():
         return make_response(error_response(f"进程 {pid} 不存在或已停止"), 404)
     except Exception as e:
         return make_response(error_response(f"停止进程失败: {str(e)}"), 500)
+
+
+@bp.route("/stop-and-cleanup", methods=["POST"])
+def stop_and_cleanup():
+    """停止Docker容器并清理输出文件"""
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+    
+    data = request.get_json()
+    if not data:
+        return make_response(error_response("请求数据不能为空"), 400)
+    
+    container_id = data.get("container_id")
+    protocol = data.get("protocol", "UNKNOWN")
+    
+    if not container_id:
+        return make_response(error_response("容器ID不能为空"), 400)
+    
+    cleanup_results = {
+        "container_stopped": False,
+        "container_removed": False,
+        "output_cleaned": False,
+        "errors": []
+    }
+    
+    try:
+        print(f"[DEBUG] 开始停止和清理{protocol}容器: {container_id}")
+        
+        # 1. 停止Docker容器
+        try:
+            stop_result = subprocess.run(
+                f"docker stop {container_id}",
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=30
+            )
+            
+            if stop_result.returncode == 0:
+                cleanup_results["container_stopped"] = True
+                print(f"[DEBUG] 容器停止成功: {container_id}")
+            else:
+                error_msg = stop_result.stderr.strip() or "停止容器失败"
+                cleanup_results["errors"].append(f"停止容器失败: {error_msg}")
+                print(f"[DEBUG] 停止容器失败: {error_msg}")
+                
+        except subprocess.TimeoutExpired:
+            cleanup_results["errors"].append("停止容器超时")
+            print(f"[DEBUG] 停止容器超时")
+        except Exception as e:
+            cleanup_results["errors"].append(f"停止容器异常: {str(e)}")
+            print(f"[DEBUG] 停止容器异常: {e}")
+        
+        # 2. 删除Docker容器
+        try:
+            remove_result = subprocess.run(
+                f"docker rm -f {container_id}",
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=30
+            )
+            
+            if remove_result.returncode == 0:
+                cleanup_results["container_removed"] = True
+                print(f"[DEBUG] 容器删除成功: {container_id}")
+            else:
+                error_msg = remove_result.stderr.strip() or "删除容器失败"
+                cleanup_results["errors"].append(f"删除容器失败: {error_msg}")
+                print(f"[DEBUG] 删除容器失败: {error_msg}")
+                
+        except subprocess.TimeoutExpired:
+            cleanup_results["errors"].append("删除容器超时")
+            print(f"[DEBUG] 删除容器超时")
+        except Exception as e:
+            cleanup_results["errors"].append(f"删除容器异常: {str(e)}")
+            print(f"[DEBUG] 删除容器异常: {e}")
+        
+        # 3. 清理输出文件夹
+        if protocol == "RTSP":
+            output_dir = os.path.dirname(RTSP_CONFIG["log_file_path"])  # 从RTSP_CONFIG获取路径
+            
+            # Linux安全检查：防止删除系统重要目录
+            dangerous_paths = ['/', '/home', '/usr', '/var', '/etc', '/bin', '/sbin', '/lib', '/opt']
+            if output_dir in dangerous_paths or len(output_dir.strip()) < 5:
+                cleanup_results["errors"].append(f"拒绝清理危险路径: {output_dir}")
+                print(f"[DEBUG] 安全检查失败，拒绝清理: {output_dir}")
+            else:
+                try:
+                    if os.path.exists(output_dir):
+                        import shutil
+                        import stat
+                        
+                        # 删除output目录下的所有文件和子目录，但保留目录本身
+                        cleaned_items = []
+                        failed_items = []
+                        
+                        for item in os.listdir(output_dir):
+                            item_path = os.path.join(output_dir, item)
+                            try:
+                                # 处理符号链接
+                                if os.path.islink(item_path):
+                                    os.unlink(item_path)
+                                    cleaned_items.append(f"符号链接: {item}")
+                                # 处理普通文件
+                                elif os.path.isfile(item_path):
+                                    # Linux下处理只读文件
+                                    if not os.access(item_path, os.W_OK):
+                                        os.chmod(item_path, stat.S_IWRITE | stat.S_IREAD)
+                                    os.remove(item_path)
+                                    cleaned_items.append(f"文件: {item}")
+                                # 处理目录
+                                elif os.path.isdir(item_path):
+                                    # 递归处理只读目录和文件
+                                    def handle_remove_readonly(func, path, exc):
+                                        if os.path.exists(path):
+                                            os.chmod(path, stat.S_IWRITE | stat.S_IREAD)
+                                            func(path)
+                                    
+                                    shutil.rmtree(item_path, onerror=handle_remove_readonly)
+                                    cleaned_items.append(f"目录: {item}")
+                            except PermissionError as pe:
+                                failed_items.append(f"{item} (权限不足: {pe})")
+                            except OSError as oe:
+                                failed_items.append(f"{item} (系统错误: {oe})")
+                            except Exception as ie:
+                                failed_items.append(f"{item} (未知错误: {ie})")
+                        
+                        # 设置清理结果
+                        if len(failed_items) == 0:
+                            cleanup_results["output_cleaned"] = True
+                            print(f"[DEBUG] 输出目录完全清理成功: {output_dir}")
+                            print(f"[DEBUG] 已清理项目: {cleaned_items}")
+                        else:
+                            cleanup_results["output_cleaned"] = len(cleaned_items) > 0
+                            cleanup_results["errors"].append(f"部分文件清理失败: {failed_items}")
+                            print(f"[DEBUG] 输出目录部分清理: 成功{len(cleaned_items)}项, 失败{len(failed_items)}项")
+                            print(f"[DEBUG] 清理成功: {cleaned_items}")
+                            print(f"[DEBUG] 清理失败: {failed_items}")
+                    else:
+                        cleanup_results["errors"].append(f"输出目录不存在: {output_dir}")
+                        print(f"[DEBUG] 输出目录不存在: {output_dir}")
+                        
+                except Exception as e:
+                    cleanup_results["errors"].append(f"清理输出目录失败: {str(e)}")
+                    print(f"[DEBUG] 清理输出目录异常: {e}")
+        
+        # 构建响应消息
+        success_count = sum([
+            cleanup_results["container_stopped"],
+            cleanup_results["container_removed"], 
+            cleanup_results["output_cleaned"]
+        ])
+        
+        if success_count == 3:
+            message = f"{protocol}容器已完全停止并清理"
+        elif success_count > 0:
+            message = f"{protocol}容器部分清理完成 ({success_count}/3)"
+        else:
+            message = f"{protocol}容器清理失败"
+        
+        return success_response({
+            "message": message,
+            "container_id": container_id,
+            "protocol": protocol,
+            "cleanup_results": cleanup_results
+        })
+        
+    except Exception as e:
+        print(f"[DEBUG] 清理过程异常: {e}")
+        return make_response(error_response(f"清理过程失败: {str(e)}"), 500)

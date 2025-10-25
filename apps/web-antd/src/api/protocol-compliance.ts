@@ -199,3 +199,33 @@ export function addAnalysisHistory(data: {
 export function getAnalysisHistory() {
   return requestClient.get('/protocol-compliance/analysis-history');
 }
+
+// 停止进程
+export function stopProcess(data: { pid: string | number; protocol: string }) {
+  return requestClient.post('/protocol-compliance/stop-process', data);
+}
+
+// 停止并清理Docker容器
+export function stopAndCleanup(data: { container_id: string; protocol: string }) {
+  return requestClient.post('/protocol-compliance/stop-and-cleanup', data);
+}
+
+// 写入脚本文件
+export function writeScript(data: { content: string; protocol: string }) {
+  return requestClient.post('/protocol-compliance/write-script', data);
+}
+
+// 执行命令
+export function executeCommand(data: { protocol: string }) {
+  return requestClient.post('/protocol-compliance/execute-command', data);
+}
+
+// 读取日志
+export function readLog(data: { protocol: string; lastPosition: number }) {
+  return requestClient.post('/protocol-compliance/read-log', data);
+}
+
+// 检查状态
+export function checkStatus(data: { protocol: string }) {
+  return requestClient.post('/protocol-compliance/check-status', data);
+}

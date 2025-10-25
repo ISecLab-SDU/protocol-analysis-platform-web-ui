@@ -197,12 +197,43 @@ export function useRTSP() {
     }
   }
 
+  // 停止并清理RTSP Docker容器
+  async function stopAndCleanupRTSP(containerId: string) {
+    if (!containerId) {
+      return;
+    }
+    
+    try {
+      const response = await fetch('/api/protocol-compliance/stop-and-cleanup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          container_id: containerId,
+          protocol: 'RTSP'
+        }),
+      });
+      
+      if (response.ok) {
+        return await response.json();
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.message || '停止和清理容器失败');
+      }
+    } catch (error) {
+      console.error('停止和清理RTSP容器失败:', error);
+      throw error;
+    }
+  }
+
   return {
     rtspStats,
     resetRTSPStats,
     processRTSPLogLine,
     writeRTSPScript,
     executeRTSPCommand,
-    stopRTSPProcess
+    stopRTSPProcess,
+    stopAndCleanupRTSP
   };
 }

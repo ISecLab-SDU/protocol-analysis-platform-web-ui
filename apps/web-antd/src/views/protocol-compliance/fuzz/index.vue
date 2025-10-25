@@ -44,7 +44,7 @@ const {
   processSNMPPacket,
   addSNMPLogToUI
 } = useSNMP();
-const { rtspStats, resetRTSPStats, processRTSPLogLine, writeRTSPScript, executeRTSPCommand, stopRTSPProcess } = useRTSP();
+const { rtspStats, resetRTSPStats, processRTSPLogLine, writeRTSPScript, executeRTSPCommand, stopRTSPProcess, stopAndCleanupRTSP } = useRTSP();
 const { mqttStats, resetMQTTStats, processMQTTLogLine } = useMQTT();
 const { 
   logContainer, 
@@ -2655,20 +2655,72 @@ async function stopRTSPProcessWrapper() {
   }
   
   try {
-    await stopRTSPProcess(rtspProcessId.value);
+    // 检查rtspProcessId是否是Docker容器ID（通常是长字符串）
+    const isDockerContainer = typeof rtspProcessId.value === 'string' && rtspProcessId.value.length > 10;
     
-    addLogToUI({ 
-      timestamp: new Date().toLocaleTimeString(),
-      version: 'RTSP',
-      type: 'STOP',
-      oids: [`RTSP进程已停止 (PID: ${rtspProcessId.value})`],
-      hex: '',
-      result: 'success'
-    } as any, false);
+    if (isDockerContainer) {
+      // 使用新的停止和清理功能
+      const result = await stopAndCleanupRTSP(rtspProcessId.value as string);
+      
+      addLogToUI({ 
+        timestamp: new Date().toLocaleTimeString(),
+        version: 'RTSP',
+        type: 'CLEANUP',
+        oids: [
+          `Docker容器已停止 (ID: ${rtspProcessId.value})`,
+          `容器清理状态: ${result.data?.cleanup_results ? '成功' : '部分成功'}`,
+          `输出目录已清空，为下次测试做准备`
+        ],
+        hex: '',
+        result: 'success'
+      } as any, false);
+      
+      // 显示详细的清理结果
+      if (result.data?.cleanup_results) {
+        const cleanupResults = result.data.cleanup_results;
+        const details = [];
+        if (cleanupResults.container_stopped) details.push('✓ 容器已停止');
+        if (cleanupResults.container_removed) details.push('✓ 容器已删除');
+        if (cleanupResults.output_cleaned) details.push('✓ 输出目录已清空');
+        if (cleanupResults.errors && cleanupResults.errors.length > 0) {
+          details.push(`⚠ 错误: ${cleanupResults.errors.join(', ')}`);
+        }
+        
+        addLogToUI({ 
+          timestamp: new Date().toLocaleTimeString(),
+          version: 'RTSP',
+          type: 'INFO',
+          oids: details,
+          hex: '',
+          result: 'info'
+        } as any, false);
+      }
+    } else {
+      // 传统进程ID，使用原来的停止方法
+      await stopRTSPProcess(rtspProcessId.value);
+      
+      addLogToUI({ 
+        timestamp: new Date().toLocaleTimeString(),
+        version: 'RTSP',
+        type: 'STOP',
+        oids: [`RTSP进程已停止 (PID: ${rtspProcessId.value})`],
+        hex: '',
+        result: 'success'
+      } as any, false);
+    }
     
     rtspProcessId.value = null;
   } catch (error) {
     console.error('停止RTSP进程失败:', error);
+    
+    addLogToUI({ 
+      timestamp: new Date().toLocaleTimeString(),
+      version: 'RTSP',
+      type: 'ERROR',
+      oids: [`停止RTSP进程失败: ${error.message || error}`],
+      hex: '',
+      result: 'error'
+    } as any, false);
   }
 }
 
