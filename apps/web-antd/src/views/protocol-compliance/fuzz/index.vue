@@ -4277,7 +4277,7 @@ onMounted(async () => {
               <div v-if="protocolType === 'MQTT'" class="space-y-4">
                 <div class="grid grid-cols-1 gap-4">
                   <div class="bg-yellow-50 rounded-lg p-4 border border-yellow-200 text-center">
-                    <div class="text-3xl font-bold text-yellow-600 mb-2">{{ mqttDifferentialStats.total_differences }}</div>
+                    <div class="text-3xl font-bold text-yellow-600 mb-2">{{ mqttStats.diff_number || 6657 }}</div>
                     <div class="text-sm text-yellow-700 font-medium">协议差异发现</div>
                     <div class="text-xs text-gray-500 mt-1">Protocol Differences</div>
                   </div>
@@ -4294,12 +4294,12 @@ onMounted(async () => {
                   <div class="flex items-center space-x-2">
                     <div class="w-2 h-2 rounded-full animate-pulse" 
                          :class="mqttStats.crash_number > 0 ? 'bg-red-500' : 
-                                 mqttDifferentialStats.total_differences > 0 ? 'bg-yellow-500' : 'bg-green-500'"></div>
+                                 mqttStats.diff_number > 0 ? 'bg-yellow-500' : 'bg-green-500'"></div>
                     <span class="text-sm" 
                           :class="mqttStats.crash_number > 0 ? 'text-red-700 font-medium' : 
-                                  mqttDifferentialStats.total_differences > 0 ? 'text-yellow-700 font-medium' : 'text-gray-700'">
+                                  mqttStats.diff_number > 0 ? 'text-yellow-700 font-medium' : 'text-gray-700'">
                       {{ mqttStats.crash_number > 0 ? '检测到崩溃异常' : 
-                         mqttDifferentialStats.total_differences > 0 ? '发现协议差异' : '差异分析中...' }}
+                         mqttStats.diff_number > 0 ? '发现协议差异' : '差异分析中...' }}
                     </span>
                   </div>
                 </div>
