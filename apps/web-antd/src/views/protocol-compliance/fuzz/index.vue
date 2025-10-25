@@ -171,10 +171,7 @@ watch(protocolType, (newProtocol, oldProtocol) => {
   } else if (newProtocol === 'MQTT') {
     targetPort.value = 1883;
     fuzzEngine.value = 'MBFuzzer';
-    // 初始化MQTT动画
-    nextTick(() => {
-      initMQTTAnimations();
-    });
+    // MQTT动画将在测试开始时初始化
   }
   
   // 重置测试状态
@@ -806,6 +803,10 @@ async function startMQTTTest() {
     mqttDifferentialLogsData = [];
     mqttLogsPendingUpdate = false;
     mqttLogsUpdateKey.value++;
+    
+    // 初始化MQTT动画（在测试开始时）
+    await nextTick();
+    initMQTTAnimations();
     
     // 开始实时模拟MQTT测试
     await startMQTTRealTimeSimulation();
@@ -4018,9 +4019,7 @@ onMounted(async () => {
   // MQTT协议不需要图表初始化，使用统计卡片显示
   if (protocolType.value === 'MQTT') {
     console.log('MQTT protocol uses statistical cards instead of charts');
-    // 初始化MQTT动画
-    await nextTick();
-    initMQTTAnimations();
+    // MQTT动画将在测试开始时初始化
   }
   
   // Set initial last update time
