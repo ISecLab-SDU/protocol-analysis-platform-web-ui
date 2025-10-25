@@ -105,7 +105,7 @@ let mqttSimulationCancelled = false;
 // UI configuration
 const protocolType = ref<ProtocolType>('SNMP');
 const fuzzEngine = ref<FuzzEngineType>('SNMP_Fuzz');
-const targetHost = ref('192.168.102.2');
+const targetHost = ref('127.0.0.1');
 const targetPort = ref(161);
 const rtspCommandConfig = ref('afl-fuzz -d -i $AFLNET/tutorials/live555/in-rtsp -o out-live555 -N tcp://127.0.0.1/8554 -x $AFLNET/tutorials/live555/rtsp.dict -P RTSP -D 10000 -q 3 -s 3 -E -K -R ./testOnDemandRTSPServer 8554');
 
@@ -166,7 +166,7 @@ watch(protocolType, (newProtocol, oldProtocol) => {
     targetPort.value = 161;
     fuzzEngine.value = 'SNMP_Fuzz';
   } else if (newProtocol === 'RTSP') {
-    targetPort.value = 554;
+    targetPort.value = 8554;
     fuzzEngine.value = 'AFLNET';
   } else if (newProtocol === 'MQTT') {
     targetPort.value = 1883;
@@ -211,7 +211,7 @@ const historyResults = ref<HistoryResult[]>([
     timestamp: '2025-01-20 14:30:25',
     protocol: 'SNMP',
     fuzzEngine: 'SNMP_Fuzz',
-    targetHost: '192.168.102.2',
+    targetHost: '127.0.0.1',
     targetPort: 161,
     duration: 127,
     totalPackets: 2847,
@@ -229,7 +229,7 @@ const historyResults = ref<HistoryResult[]>([
     timestamp: '2025-01-20 11:15:42',
     protocol: 'SNMP',
     fuzzEngine: 'SNMP_Fuzz',
-    targetHost: '192.168.102.5',
+    targetHost: '127.0.0.1',
     targetPort: 161,
     duration: 89,
     totalPackets: 1924,
@@ -274,7 +274,7 @@ const historyResults = ref<HistoryResult[]>([
     timestamp: '2025-01-23 20:36:44',
     protocol: 'MQTT',
     fuzzEngine: 'MBFuzzer',
-    targetHost: '192.168.102.1',
+    targetHost: '127.0.0.1',
     targetPort: 1883,
     duration: 13,
     totalPackets: 953,
