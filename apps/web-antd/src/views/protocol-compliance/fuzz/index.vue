@@ -290,11 +290,11 @@ const historyResults = ref<HistoryResult[]>([
       broker_request_count: 523790,
       total_request_count: 1374841,
       crash_number: 0,
-      diff_number: 5841,
+      diff_number: 6657,
       duplicate_diff_number: 118563,
       valid_connect_number: 1362,
       duplicate_connect_diff: 1507,
-      total_differences: 0,
+      total_differences: 6657,
       client_messages: {
         CONNECT: 125000, CONNACK: 0, PUBLISH: 320000, PUBACK: 180000,
         PUBREC: 45000, PUBREL: 45000, PUBCOMP: 45000, SUBSCRIBE: 85000,
@@ -1519,7 +1519,7 @@ const mqttDifferentialStats = ref({
     'DISCONNECT': 234,
     'AUTH': 67
   },
-  total_differences: 0
+  total_differences: 6657
 });
 
 // 直接DOM操作更新MQTT日志，避免Vue响应式冲突
@@ -5168,9 +5168,18 @@ onMounted(async () => {
                 <div class="bg-gray-50 rounded-lg p-3">
                   <h4 class="font-medium mb-2 text-gray-800">性能统计</h4>
                   <div class="space-y-1">
-                    <p><span class="text-gray-600">总发包数:</span> <span class="font-medium">{{ selectedHistoryItem.totalPackets }}</span></p>
-                    <p><span class="text-gray-600">成功率:</span> <span class="font-medium" :class="selectedHistoryItem.successRate >= 80 ? 'text-green-600' : selectedHistoryItem.successRate >= 60 ? 'text-yellow-600' : 'text-red-600'">{{ selectedHistoryItem.successRate }}%</span></p>
-                    <p><span class="text-gray-600">崩溃数:</span> <span class="font-medium" :class="selectedHistoryItem.crashCount > 0 ? 'text-red-600' : 'text-green-600'">{{ selectedHistoryItem.crashCount }}</span></p>
+                    <!-- MQTT协议统计 -->
+                    <template v-if="selectedHistoryItem.protocol === 'MQTT'">
+                      <p><span class="text-gray-600">测试引擎:</span> <span class="font-medium">MBFuzzer (智能差异测试)</span></p>
+                      <p><span class="text-gray-600">客户端请求数:</span> <span class="font-medium">{{ selectedHistoryItem.mqttStats?.client_request_count?.toLocaleString() || '851,051' }}</span></p>
+                      <p><span class="text-gray-600">代理端请求数:</span> <span class="font-medium">{{ selectedHistoryItem.mqttStats?.broker_request_count?.toLocaleString() || '523,790' }}</span></p>
+                    </template>
+                    <!-- 其他协议统计 -->
+                    <template v-else>
+                      <p><span class="text-gray-600">总发包数:</span> <span class="font-medium">{{ selectedHistoryItem.totalPackets }}</span></p>
+                      <p><span class="text-gray-600">成功率:</span> <span class="font-medium" :class="selectedHistoryItem.successRate >= 80 ? 'text-green-600' : selectedHistoryItem.successRate >= 60 ? 'text-yellow-600' : 'text-red-600'">{{ selectedHistoryItem.successRate }}%</span></p>
+                      <p><span class="text-gray-600">崩溃数:</span> <span class="font-medium" :class="selectedHistoryItem.crashCount > 0 ? 'text-red-600' : 'text-green-600'">{{ selectedHistoryItem.crashCount }}</span></p>
+                    </template>
                   </div>
                 </div>
 
@@ -5195,7 +5204,7 @@ onMounted(async () => {
                     </template>
                     <!-- MQTT协议MBFuzzer统计 -->
                     <template v-else-if="selectedHistoryItem.protocol === 'MQTT'">
-                      <p><span class="text-gray-600">协议差异发现:</span> <span>6,657</span></p>
+                      <p><span class="text-gray-600">协议差异发现:</span> <span>{{ selectedHistoryItem.mqttStats?.diff_number?.toLocaleString() || '6,657' }}</span></p>
                       <p><span class="text-gray-600">客户端请求:</span> <span>851,051</span></p>
                       <p><span class="text-gray-600">代理端请求:</span> <span>523,790</span></p>
                     </template>
@@ -5555,7 +5564,7 @@ onMounted(async () => {
                     <h4 class="text-lg font-semibold mb-4 text-gray-800 text-center">MBFuzzer测试总结</h4>
                     <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div class="text-center">
-                        <div class="text-2xl font-bold text-blue-600">6,657</div>
+                        <div class="text-2xl font-bold text-blue-600">{{ selectedHistoryItem.mqttStats?.diff_number?.toLocaleString() || '6,657' }}</div>
                         <div class="text-sm text-gray-600">协议差异发现</div>
                       </div>
                       <div class="text-center">
