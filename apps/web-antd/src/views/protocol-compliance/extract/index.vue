@@ -3,11 +3,15 @@ import type { TableColumnType, UploadFile, UploadProps } from 'ant-design-vue';
 
 import { computed, h, onMounted, reactive, ref } from 'vue';
 
+import { Page } from '@vben/common-ui';
+import { IconifyIcon } from '@vben/icons';
+
 import {
   Button,
   Card,
-  Divider,
   Empty,
+  Form,
+  FormItem,
   message,
   Select,
   Space,
@@ -51,6 +55,9 @@ const currentPage = ref(1);
 const pageSize = ref(10);
 const totalItems = ref(0);
 const historyData = ref<HistoryItem[]>([]);
+
+const TypographyParagraph = Typography.Paragraph;
+const TypographyText = Typography.Text;
 
 // -------- 规则分类 --------
 const ruleCategories = [
@@ -131,6 +138,8 @@ async function startAnalysis() {
   isAnalyzing.value = true;
   analysisCompleted.value = false;
   stagedResults.value = [];
+  selectedGroup.value = null;
+  currentPage.value = 1;
 
   try {
     await new Promise((resolve) => setTimeout(resolve, 1500));
@@ -204,6 +213,8 @@ function openFromHistory(item: HistoryItem) {
   stagedResults.value = item.rules;
   totalItems.value = item.rules.length;
   analysisCompleted.value = true;
+  selectedGroup.value = null;
+  currentPage.value = 1;
   activeMenuKey.value = 'analyze';
 }
 
@@ -273,6 +284,71 @@ function handleTableChange(pagination: any) {
   pageSize.value = pagination.pageSize;
 }
 
+const historyColumns = computed<TableColumnType<HistoryItem>[]>(() => [
+  {
+    title: '协议',
+    dataIndex: 'protocol',
+    key: 'protocol',
+    customRender: ({ text, record }) =>
+      h(
+        Tag,
+        {
+          color: 'cyan',
+          style: 'cursor: pointer',
+        },
+        () =>
+          h(
+            'a',
+            {
+              onClick: () => openFromHistory(record as HistoryItem),
+            },
+            String(text ?? ''),
+          ),
+      ),
+  },
+  {
+    title: '规则数量',
+    dataIndex: 'ruleCount',
+    key: 'ruleCount',
+    customRender: ({ text }) => h(Tag, { color: 'green' }, String(text ?? '0')),
+  },
+  {
+    title: '分析时间',
+    dataIndex: 'analysisTime',
+    key: 'analysisTime',
+    customRender: ({ text }) =>
+      h(Tag, { color: 'default' }, String(text ?? '未知')),
+  },
+  {
+    title: '规则分类',
+    dataIndex: 'categories',
+    key: 'categories',
+    customRender: ({ text }) => {
+      const categories = Array.isArray(text) ? text : [];
+      const colors = [
+        'magenta',
+        'purple',
+        'blue',
+        'cyan',
+        'green',
+        'orange',
+        'volcano',
+      ];
+      return categories.map((category, index) =>
+        h(
+          Tag,
+          {
+            color: colors[index % colors.length],
+            key: `${String(category)}-${index}`,
+            style: 'margin: 2px',
+          },
+          () => category,
+        ),
+      );
+    },
+  },
+]);
+
 // -------- 页面挂载时加载历史记录 --------
 onMounted(() => {
   loadHistoryFromStorage();
@@ -280,299 +356,307 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="page-container">
-    <Tabs v-model:active-key="activeMenuKey">
-      <Tabs.TabPane key="analyze" tab="规则提取" />
-      <Tabs.TabPane key="history" tab="历史记录" />
-    </Tabs>
-
-    <!-- 分析页面 -->
-    <div v-if="activeMenuKey === 'analyze'" class="main-content">
-      <Typography.Paragraph class="step-desc">
-        将协议文档分块处理，再通过大模型分析，快速提取规则。
-      </Typography.Paragraph>
-
-      <Card class="card-upload">
-        <div class="upload-header">
-          <Typography.Title level="4" style="margin-bottom: 8px">
-            📄 上传 RFC 文件
-          </Typography.Title>
-          <Typography.Text type="secondary">
-            请输入或选择协议类型，然后上传文件进行规则分析
-          </Typography.Text>
-        </div>
-
-        <div class="upload-row">
-          <Select
-            v-model:value="formData.protocol"
-            show-search
-            placeholder="选择或输入协议类型"
-            class="input-protocol"
-            allow-clear
-            :filter-option="
-              (input, option) =>
-                option?.value?.toLowerCase().includes(input.toLowerCase())
-            "
-          >
-            <Select.Option value="CoAP">CoAP</Select.Option>
-            <Select.Option value="DHCPv6">DHCPv6</Select.Option>
-            <Select.Option value="MQTTv3_1_1">MQTTv3_1_1</Select.Option>
-            <Select.Option value="MQTTv5">MQTTv5</Select.Option>
-            <Select.Option value="TLSv1_3">TLSv1_3</Select.Option>
-            <Select.Option value="FTP">FTP</Select.Option>
-          </Select>
-
-          <Upload
-            :file-list="rfcFileList"
-            :before-upload="beforeUploadRFC"
-            :on-remove="removeRFC"
-            :max-count="1"
-          >
-            <Button type="default" ghost>选择 RFC 文件</Button>
-          </Upload>
-
-          <Button
-            type="primary"
-            class="btn-analyze"
-            :loading="isAnalyzing"
-            @click="startAnalysis"
-          >
-            🚀 开始分析
-          </Button>
-        </div>
-
-        <div v-if="isAnalyzing" class="spin-overlay">
-          <Spin tip="正在分析 RFC 文件..." size="large" />
-        </div>
-      </Card>
-
-      <Card v-if="analysisCompleted" class="card-result">
-        <div class="result-header">
-          <Typography.Title level="4">
-            {{ formData.protocol }} 协议规则
-          </Typography.Title>
-          <div class="result-tools">
-            <Typography.Text>共 {{ totalItems }} 条规则</Typography.Text>
-            <Select
-              v-model:value="selectedGroup"
-              allow-clear
-              placeholder="筛选消息组别"
-              class="select-group"
-            >
-              <Select.Option v-for="g in groupList" :key="g" :value="g">
-                {{ g }}
-              </Select.Option>
-            </Select>
-            <Button type="primary" @click="downloadAnalysisResult">
-              ⬇️ 下载 JSON
-            </Button>
+  <Page
+    description="上传协议类型与 RFC 文件，生成结构化的协议规则供静态分析与后续验证。"
+    title="协议规则提取"
+  >
+    <div class="protocol-extract">
+      <Tabs v-model:active-key="activeMenuKey" class="extract-tabs">
+        <Tabs.TabPane key="analyze" tab="规则提取">
+          <div class="analyze-layout">
+            <Card class="form-card">
+              <template #title>
+                <Space>
+                  <IconifyIcon icon="ant-design:cloud-upload-outlined" class="text-lg" />
+                  <span>上传协议资料</span>
+                </Space>
+              </template>
+              <Spin :spinning="isAnalyzing" tip="正在分析 RFC 文件...">
+                <Form class="extract-form" layout="vertical">
+                  <FormItem label="协议类型">
+                    <Select
+                      v-model:value="formData.protocol"
+                      allow-clear
+                      class="input-protocol"
+                      placeholder="选择或输入协议类型"
+                      show-search
+                      :filter-option="
+                        (input, option) =>
+                          option?.value?.toLowerCase().includes(input.toLowerCase())
+                      "
+                    >
+                      <Select.Option value="CoAP">CoAP</Select.Option>
+                      <Select.Option value="DHCPv6">DHCPv6</Select.Option>
+                      <Select.Option value="MQTTv3_1_1">MQTTv3_1_1</Select.Option>
+                      <Select.Option value="MQTTv5">MQTTv5</Select.Option>
+                      <Select.Option value="TLSv1_3">TLSv1_3</Select.Option>
+                      <Select.Option value="FTP">FTP</Select.Option>
+                    </Select>
+                  </FormItem>
+                  <FormItem label="RFC 文件">
+                    <Upload
+                      :before-upload="beforeUploadRFC"
+                      :file-list="rfcFileList"
+                      :max-count="1"
+                      :on-remove="removeRFC"
+                    >
+                      <Button block type="dashed">
+                        <IconifyIcon icon="ant-design:file-add-outlined" class="mr-1" />
+                        选择 RFC 文件
+                      </Button>
+                    </Upload>
+                  </FormItem>
+                  <TypographyParagraph class="form-tip" type="secondary">
+                    支持 PDF、TXT 或 JSON 文件，上传内容仅用于本地演示。
+                  </TypographyParagraph>
+                  <FormItem class="form-actions" :colon="false">
+                    <Space>
+                      <Button
+                        type="primary"
+                        :loading="isAnalyzing"
+                        @click="startAnalysis"
+                      >
+                        <IconifyIcon icon="ant-design:play-circle-outlined" class="mr-1" />
+                        开始分析
+                      </Button>
+                    </Space>
+                  </FormItem>
+                </Form>
+              </Spin>
+            </Card>
+            <Card class="result-card">
+              <template #title>
+                <Space>
+                  <IconifyIcon icon="ant-design:profile-outlined" class="text-lg" />
+                  <span>规则预览</span>
+                </Space>
+              </template>
+              <div class="result-toolbar">
+                <TypographyText type="secondary">
+                  共 {{ totalItems }} 条规则
+                  <span v-if="selectedGroup">
+                    · 已筛选 {{ filteredResults.length }} 条
+                  </span>
+                </TypographyText>
+                <Space size="small" wrap>
+                  <Select
+                    v-model:value="selectedGroup"
+                    allow-clear
+                    class="select-group"
+                    :disabled="!analysisCompleted || !groupList.length"
+                    placeholder="筛选消息组别"
+                  >
+                    <Select.Option v-for="g in groupList" :key="g" :value="g">
+                      {{ g }}
+                    </Select.Option>
+                  </Select>
+                  <Button
+                    :disabled="!analysisCompleted || !stagedResults.length"
+                    @click="downloadAnalysisResult"
+                  >
+                    <IconifyIcon icon="ant-design:download-outlined" class="mr-1" />
+                    下载 JSON
+                  </Button>
+                </Space>
+              </div>
+              <div
+                v-if="analysisCompleted && filteredResults.length"
+                class="table-wrapper"
+              >
+                <Table
+                  :columns="columns"
+                  :data-source="currentPageData"
+                  :pagination="{
+                    current: currentPage,
+                    pageSize,
+                    total: filteredResults.length,
+                    showSizeChanger: true,
+                    showQuickJumper: true,
+                    showTotal: (total) => `共 ${total} 条规则`,
+                  }"
+                  :row-key="(record, index) => index"
+                  :scroll="{ x: 'max-content', y: 400 }"
+                  bordered
+                  @change="handleTableChange"
+                />
+              </div>
+              <Empty
+                v-else-if="analysisCompleted"
+                description="未找到规则数据"
+              />
+              <TypographyParagraph
+                v-else
+                class="result-placeholder"
+                type="secondary"
+              >
+                上传协议资料并启动分析后将展示提取到的规则列表。
+              </TypographyParagraph>
+            </Card>
           </div>
-        </div>
-        <Divider />
-        <div v-if="filteredResults.length === 0">
-          <Empty description="未找到规则数据" />
-        </div>
-        <div class="table-wrapper" v-else>
-          <Table
-            :columns="columns"
-            :data-source="currentPageData"
-            :pagination="{
-              current: currentPage,
-              pageSize,
-              total: filteredResults.length,
-              showSizeChanger: true,
-              showQuickJumper: true,
-              showTotal: (total) => `共 ${total} 条规则`,
-            }"
-            :row-key="(record, index) => index"
-            @change="handleTableChange"
-            bordered
-            :scroll="{ x: 'max-content', y: 400 }"
-          />
-        </div>
-      </Card>
+        </Tabs.TabPane>
+        <Tabs.TabPane key="history" tab="历史记录">
+          <Card class="history-card">
+            <template #title>
+              <Space>
+                <IconifyIcon icon="ant-design:calendar-outlined" class="text-lg" />
+                <span>历史记录</span>
+              </Space>
+            </template>
+            <div v-if="historyData.length" class="history-header">
+              <TypographyText type="secondary">已分析协议</TypographyText>
+              <Space size="small" wrap class="history-protocols">
+                <Tag
+                  v-for="(item, index) in historyData"
+                  :key="`${item.protocol}-${index}`"
+                  color="blue"
+                >
+                  {{ item.protocol }}
+                </Tag>
+              </Space>
+            </div>
+            <TypographyParagraph class="history-tip" type="secondary">
+              历史数据保存在浏览器本地，方便快速回看最近一次的分析结果。
+            </TypographyParagraph>
+            <div class="history-table-wrapper">
+              <Table
+                :columns="historyColumns"
+                :data-source="historyData"
+                :pagination="{
+                  pageSize: 10,
+                  showSizeChanger: true,
+                  showQuickJumper: true,
+                }"
+                :row-key="(record, index) => index"
+                bordered
+                :scroll="{ x: 'max-content' }"
+              >
+                <template #emptyText>
+                  <Empty description="暂无历史记录" />
+                </template>
+              </Table>
+            </div>
+          </Card>
+        </Tabs.TabPane>
+      </Tabs>
     </div>
-
-    <!-- 历史记录页面 -->
-    <div v-if="activeMenuKey === 'history'" class="main-content">
-      <Card class="card-history">
-        <div class="analyzed-protocols">
-          <Typography.Text strong>已分析的协议：</Typography.Text>
-          <Space size="small" wrap>
-            <Tag v-for="item in historyData" :key="item.protocol" color="blue">
-              {{ item.protocol }}
-            </Tag>
-          </Space>
-        </div>
-
-        <Table
-          :columns="[
-            {
-              title: '协议',
-              dataIndex: 'protocol',
-              key: 'protocol',
-              customRender: ({ text, record }) =>
-                h(Tag, { color: 'cyan', style: 'cursor:pointer' }, () =>
-                  h('a', { onClick: () => openFromHistory(record) }, text),
-                ),
-            },
-            {
-              title: '规则数量',
-              dataIndex: 'ruleCount',
-              key: 'ruleCount',
-              customRender: ({ text }) => h(Tag, { color: 'green' }, text),
-            },
-            {
-              title: '分析时间',
-              dataIndex: 'analysisTime',
-              key: 'analysisTime',
-              customRender: ({ text }) => h(Tag, { color: 'default' }, text),
-            },
-            {
-              title: '规则分类',
-              dataIndex: 'categories',
-              key: 'categories',
-              customRender: ({ text }) =>
-                text.map((c, idx) => {
-                  const colors = [
-                    'magenta',
-                    'purple',
-                    'blue',
-                    'cyan',
-                    'green',
-                    'orange',
-                    'volcano',
-                  ];
-                  return h(
-                    Tag,
-                    {
-                      color: colors[idx % colors.length],
-                      style: 'margin-right:4px',
-                    },
-                    c,
-                  );
-                }),
-            },
-          ]"
-          :data-source="historyData"
-          :pagination="{
-            pageSize: 10,
-            showSizeChanger: true,
-            showQuickJumper: true,
-          }"
-          :row-key="(record, index) => index"
-          bordered
-          :scroll="{ x: 'max-content' }"
-        />
-      </Card>
-    </div>
-  </div>
+  </Page>
 </template>
 
+
 <style scoped>
-.page-container {
-  max-width: 1200px;
-  min-height: 100vh;
-  padding: 24px;
-  margin: 0 auto;
-  font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
-}
-
-.step-desc {
-  padding: 10px 18px;
-  margin-bottom: 18px;
-  font-size: 15px;
-  font-weight: 500;
-  color: #333;
-  text-align: center;
-  background: linear-gradient(90deg, #f0f5ff 0%, #f9faff 100%);
-  border-radius: 8px;
-}
-
-.main-content {
+.protocol-extract {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
+  height: 100%;
 }
 
-.card-upload,
-.card-result,
-.card-history {
-  padding: 24px;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgb(0 0 0 / 8%);
+.extract-tabs :deep(.ant-tabs-nav) {
+  margin-bottom: 16px;
 }
 
-.upload-header {
-  margin-bottom: 18px;
-  text-align: center;
+.analyze-layout {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 16px;
+  align-items: start;
 }
 
-.upload-row {
+.form-card,
+.result-card {
   display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  height: 100%;
+}
+
+.form-card :deep(.ant-card-body),
+.result-card :deep(.ant-card-body) {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+}
+
+.extract-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .input-protocol {
-  width: 260px;
+  width: 100%;
 }
 
-.btn-analyze {
-  background: linear-gradient(90deg, #1677ff 0%, #5b9aff 100%);
-  border: none;
-  transition: all 0.3s;
+.form-tip {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ant-text-color-secondary);
 }
 
-.btn-analyze:hover {
-  filter: brightness(1.1);
-  transform: translateY(-1px);
+.form-actions {
+  margin: 0;
 }
 
-.spin-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgb(255 255 255 / 70%);
-  border-radius: 8px;
-}
-
-.result-header {
+.result-toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-.result-tools {
-  display: flex;
-  flex-wrap: wrap;
   gap: 12px;
-  align-items: center;
 }
 
 .select-group {
-  width: 200px;
+  min-width: 180px;
 }
 
 .table-wrapper {
-  max-height: 400px;
-  overflow-y: auto;
+  flex: 1;
+  min-height: 240px;
 }
 
-.analyzed-protocols {
-  padding: 8px 0;
-  margin-bottom: 12px;
+.result-placeholder {
+  margin: 0;
+  font-size: 13px;
+}
+
+.history-card :deep(.ant-card-body) {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.history-protocols {
+  display: inline-flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.history-tip {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ant-text-color-secondary);
+}
+
+.history-table-wrapper {
+  width: 100%;
 }
 
 :deep(.ant-table-cell) {
-  word-break: break-word;
   white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@media (max-width: 1200px) {
+  .analyze-layout {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
