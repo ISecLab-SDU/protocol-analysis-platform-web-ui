@@ -1037,20 +1037,10 @@ function addUnifiedLog(type: 'INFO' | 'ERROR' | 'WARNING' | 'SUCCESS', content: 
     protocol
   });
   
-  // 实时累加协议差异统计 - 随机增长模拟真实场景
+  // 实时累加协议差异统计 - 逐个递增确保数据准确
   if (protocol === 'MQTT' && isRunning.value) {
-    // 随机递增差异计数 (60%概率增加1个，30%概率增加2个，10%概率增加3个)
-    const randomValue = Math.random();
-    let increment = 1;
-    if (randomValue < 0.6) {
-      increment = 1;
-    } else if (randomValue < 0.9) {
-      increment = 2;
-    } else {
-      increment = 3;
-    }
-    
-    mqttRealTimeStats.value.diff_number += increment;
+    // 精确递增差异计数，每条差异记录+1
+    mqttRealTimeStats.value.diff_number++;
     mqttStats.value.diff_number = mqttRealTimeStats.value.diff_number;
     
     // 同步更新总差异数
@@ -1402,10 +1392,8 @@ async function simulateRealTimeFuzzing(differentialLines: string[]) {
   // 等待一下让用户看到开始信息
   await new Promise(resolve => setTimeout(resolve, 500));
   
-  // 使用随机批量处理来减少响应式更新频率，模拟真实测试的不规律性
-  const baseBatchSize = 8;
-  const randomVariation = Math.floor(Math.random() * 5); // 0-4的随机变化
-  const batchSize = baseBatchSize + randomVariation; // 8-12之间的随机批处理大小
+  // 使用较小的批量处理来实现更平滑的增长效果
+  const batchSize = 1; // 改为逐个处理，实现平滑增长
   const logBatch = [];
   
   for (let i = 0; i < differentialLines.length; i++) {
@@ -1460,11 +1448,9 @@ async function simulateRealTimeFuzzing(differentialLines: string[]) {
         elapsedTime.value = Math.floor(processedCount / 10);
       }
       
-      // 随机等待时间模拟真实处理的不规律性
-      if (i % batchSize === 0) {
-        const baseDelay = 150;
-        const randomDelay = Math.floor(Math.random() * 100); // 0-99ms的随机延迟
-        await new Promise(resolve => setTimeout(resolve, baseDelay + randomDelay));
+      // 固定短间隔处理，实现平滑增长
+      if (i % Math.max(1, batchSize) === 0) {
+        await new Promise(resolve => setTimeout(resolve, 50)); // 50ms固定间隔
       }
     } catch (lineError) {
       console.warn('处理差异行时出错:', lineError);
@@ -1637,22 +1623,10 @@ function addToMQTTLogs(logs: string | string[]) {
   logEntries.forEach(logEntry => {
     addToRealtimeStream('MQTT', logEntry);
     
-    // 实时累加协议差异统计 - 只对差异报告行进行计数，使用随机增长
+    // 实时累加协议差异统计 - 只对差异报告行进行计数，逐个递增
     if (isRunning.value && isDifferentialLogEntry(logEntry.content)) {
-      // 随机递增差异计数，模拟真实测试中的不规律发现
-      const randomValue = Math.random();
-      let increment = 1;
-      if (randomValue < 0.7) {
-        increment = 1;  // 70%概率增加1个
-      } else if (randomValue < 0.9) {
-        increment = 2;  // 20%概率增加2个
-      } else if (randomValue < 0.97) {
-        increment = 3;  // 7%概率增加3个
-      } else {
-        increment = Math.floor(Math.random() * 3) + 4;  // 3%概率增加4-6个（发现重要漏洞）
-      }
-      
-      mqttRealTimeStats.value.diff_number += increment;
+      // 精确递增差异计数，每条差异记录+1
+      mqttRealTimeStats.value.diff_number++;
       mqttStats.value.diff_number = mqttRealTimeStats.value.diff_number;
       
       // 同步更新总差异数
@@ -2076,14 +2050,12 @@ async function startMQTTDifferentialReading() {
           mqttProcessedRecords.value = processedCount;
           mqttProcessingProgress.value = Math.round((processedCount / totalDifferentialLines) * 100);
           
-          // 随机间隔显示进度，模拟真实测试的不规律性
-          const progressInterval = 8 + Math.floor(Math.random() * 5); // 8-12条记录显示一次进度
-          if (processedCount % progressInterval === 0) {
+          // 每处理50条记录显示进度
+          if (processedCount % 50 === 0) {
             addUnifiedLog('INFO', `处理进度: ${processedCount}/${totalDifferentialLines} (${mqttProcessingProgress.value}%)`, 'MQTT');
             
-            // 随机短暂延迟，让界面有时间更新
-            const progressDelay = 80 + Math.floor(Math.random() * 40); // 80-120ms随机延迟
-            await new Promise(resolve => setTimeout(resolve, progressDelay));
+            // 短暂延迟，让界面有时间更新
+            await new Promise(resolve => setTimeout(resolve, 100));
           }
         } else if (inDifferentialSection) {
           // 记录跳过的行
