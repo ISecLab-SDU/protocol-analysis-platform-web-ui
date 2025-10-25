@@ -5217,35 +5217,6 @@ onMounted(async () => {
                         </span>
                       </div>
                       
-                      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                        <div class="flex items-center space-x-2">
-                          <i class="fa fa-server text-gray-400"></i>
-                          <span class="text-gray-600">目标:</span>
-                          <span class="font-mono">{{ item.targetHost }}:{{ item.targetPort }}</span>
-                        </div>
-                        <div class="flex items-center space-x-2" v-if="item.protocol === 'MQTT'">
-                          <i class="fa fa-link text-gray-400"></i>
-                          <span class="text-gray-600">有效连接:</span>
-                          <span>{{ item.duration }}</span>
-                        </div>
-                        <div class="flex items-center space-x-2" v-else>
-                          <i class="fa fa-clock-o text-gray-400"></i>
-                          <span class="text-gray-600">耗时:</span>
-                          <span>{{ item.duration }}秒</span>
-                        </div>
-                        <div class="flex items-center space-x-2">
-                          <i class="fa fa-send text-gray-400"></i>
-                          <span class="text-gray-600">总包数:</span>
-                          <span class="font-medium">{{ item.totalPackets }}</span>
-                        </div>
-                        <div class="flex items-center space-x-2">
-                          <i class="fa fa-check-circle text-gray-400"></i>
-                          <span class="text-gray-600">成功率:</span>
-                          <span class="font-medium" :class="item.successRate >= 80 ? 'text-green-600' : item.successRate >= 60 ? 'text-yellow-600' : 'text-red-600'">
-                            {{ item.successRate }}%
-                          </span>
-                        </div>
-                      </div>
                       
                       <!-- 协议特定的详细信息 -->
                       <div class="mt-3 pt-3 border-t border-gray-100">
