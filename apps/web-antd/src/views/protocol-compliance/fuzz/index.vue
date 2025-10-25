@@ -5204,56 +5204,8 @@ onMounted(async () => {
               </div>
             </div>
 
-            <!-- 测试结果分析（复用现有的图表区域样式） -->
-            <div class="grid grid-cols-1 xl:grid-cols-4 gap-6">
-              <!-- 实时统计 -->
-              <div class="xl:col-span-1 bg-white/80 backdrop-blur-sm rounded-xl p-6 border border-orange-200 shadow-card">
-                <h3 class="font-semibold text-lg mb-4">测试结果统计</h3>
-                <div class="space-y-6">
-                  <div>
-                    <div class="flex justify-between items-center mb-1">
-                      <span class="text-sm text-gray-700">总发送包数</span>
-                      <span class="text-xl font-bold">{{ selectedHistoryItem.totalPackets }}</span>
-                    </div>
-                    <div class="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                      <div class="h-full bg-orange-500" style="width: 100%"></div>
-                    </div>
-                  </div>
-                  
-                  <div class="grid grid-cols-1 gap-4">
-                    <div class="grid grid-cols-2 gap-4">
-                      <div class="bg-green-50 rounded-lg p-4 border border-green-200">
-                        <p class="text-sm text-green-700 mb-2">正常响应</p>
-                        <h4 class="text-3xl font-bold text-green-600">{{ selectedHistoryItem.successCount }}</h4>
-                        <p class="text-sm text-gray-600 mt-2">{{ selectedHistoryItem.successRate }}%</p>
-                      </div>
-                      
-                      <div class="bg-red-50 rounded-lg p-4 border border-red-200">
-                        <p class="text-sm text-red-700 mb-2">失败</p>
-                        <h4 class="text-3xl font-bold text-red-600">{{ selectedHistoryItem.failedCount }}</h4>
-                        <p class="text-sm text-gray-600 mt-2">{{ Math.round((selectedHistoryItem.failedCount / selectedHistoryItem.totalPackets) * 100) }}%</p>
-                      </div>
-                    </div>
-                    
-                    <div class="grid grid-cols-2 gap-4">
-                      <div class="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
-                        <p class="text-sm text-yellow-700 mb-2">超时</p>
-                        <h4 class="text-3xl font-bold text-yellow-600">{{ selectedHistoryItem.timeoutCount }}</h4>
-                        <p class="text-sm text-gray-600 mt-2">{{ Math.round((selectedHistoryItem.timeoutCount / selectedHistoryItem.totalPackets) * 100) }}%</p>
-                      </div>
-                      
-                      <div class="bg-red-50 rounded-lg p-4 border border-red-200">
-                        <p class="text-sm text-red-700 mb-2">崩溃</p>
-                        <h4 class="text-3xl font-bold text-red-600">{{ selectedHistoryItem.crashCount }}</h4>
-                        <p class="text-sm text-gray-600 mt-2">{{ Math.round((selectedHistoryItem.crashCount / selectedHistoryItem.totalPackets) * 100) }}%</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 协议特定的详细统计 -->
-              <div class="xl:col-span-3 bg-white/80 backdrop-blur-sm rounded-xl p-6 border border-orange-200 shadow-card">
+            <!-- 协议特定的详细统计 -->
+            <div class="bg-white/80 backdrop-blur-sm rounded-xl p-6 border border-orange-200 shadow-card">
                 <h3 class="font-semibold text-xl mb-6">
                   {{ selectedHistoryItem.protocol === 'SNMP' ? 'SNMP协议详细统计' : 
                      selectedHistoryItem.protocol === 'RTSP' ? 'RTSP协议状态机统计' : 
@@ -5489,28 +5441,24 @@ onMounted(async () => {
                             <span class="text-sm text-gray-700">Field Different</span>
                             <span class="text-lg font-bold text-red-600">3,247</span>
                           </div>
-                          <div class="text-xs text-gray-500 mt-1">字段差异</div>
                         </div>
                         <div class="bg-orange-50 rounded-lg p-3 border border-orange-200">
                           <div class="flex justify-between items-center">
                             <span class="text-sm text-gray-700">Message Unexpected</span>
                             <span class="text-lg font-bold text-orange-600">1,892</span>
                           </div>
-                          <div class="text-xs text-gray-500 mt-1">意外消息</div>
                         </div>
                         <div class="bg-yellow-50 rounded-lg p-3 border border-yellow-200">
                           <div class="flex justify-between items-center">
                             <span class="text-sm text-gray-700">Field Missing</span>
                             <span class="text-lg font-bold text-yellow-600">456</span>
                           </div>
-                          <div class="text-xs text-gray-500 mt-1">字段缺失</div>
                         </div>
                         <div class="bg-purple-50 rounded-lg p-3 border border-purple-200">
                           <div class="flex justify-between items-center">
                             <span class="text-sm text-gray-700">Field Unexpected</span>
                             <span class="text-lg font-bold text-purple-600">246</span>
                           </div>
-                          <div class="text-xs text-gray-500 mt-1">意外字段</div>
                         </div>
                       </div>
                     </div>
@@ -5524,42 +5472,36 @@ onMounted(async () => {
                             <span class="text-sm text-gray-700">FlashMQ</span>
                             <span class="text-lg font-bold text-blue-600">1,456</span>
                           </div>
-                          <div class="text-xs text-gray-500 mt-1">差异数量</div>
                         </div>
                         <div class="bg-green-50 rounded-lg p-3 border border-green-200">
                           <div class="flex justify-between items-center">
                             <span class="text-sm text-gray-700">NanoMQ</span>
                             <span class="text-lg font-bold text-green-600">1,234</span>
                           </div>
-                          <div class="text-xs text-gray-500 mt-1">差异数量</div>
                         </div>
                         <div class="bg-purple-50 rounded-lg p-3 border border-purple-200">
                           <div class="flex justify-between items-center">
                             <span class="text-sm text-gray-700">EMQX</span>
                             <span class="text-lg font-bold text-purple-600">987</span>
                           </div>
-                          <div class="text-xs text-gray-500 mt-1">差异数量</div>
                         </div>
                         <div class="bg-indigo-50 rounded-lg p-3 border border-indigo-200">
                           <div class="flex justify-between items-center">
                             <span class="text-sm text-gray-700">HiveMQ</span>
                             <span class="text-lg font-bold text-indigo-600">876</span>
                           </div>
-                          <div class="text-xs text-gray-500 mt-1">差异数量</div>
                         </div>
                         <div class="bg-pink-50 rounded-lg p-3 border border-pink-200">
                           <div class="flex justify-between items-center">
                             <span class="text-sm text-gray-700">Mosquitto</span>
                             <span class="text-lg font-bold text-pink-600">654</span>
                           </div>
-                          <div class="text-xs text-gray-500 mt-1">差异数量</div>
                         </div>
                         <div class="bg-cyan-50 rounded-lg p-3 border border-cyan-200">
                           <div class="flex justify-between items-center">
                             <span class="text-sm text-gray-700">VerneMQ</span>
                             <span class="text-lg font-bold text-cyan-600">434</span>
                           </div>
-                          <div class="text-xs text-gray-500 mt-1">差异数量</div>
                         </div>
                       </div>
                     </div>
@@ -5573,42 +5515,36 @@ onMounted(async () => {
                             <span class="text-sm text-gray-700">CONNECT</span>
                             <span class="text-lg font-bold text-red-600">2,156</span>
                           </div>
-                          <div class="text-xs text-gray-500 mt-1">差异数量</div>
                         </div>
                         <div class="bg-orange-50 rounded-lg p-3 border border-orange-200">
                           <div class="flex justify-between items-center">
                             <span class="text-sm text-gray-700">PUBLISH</span>
                             <span class="text-lg font-bold text-orange-600">1,789</span>
                           </div>
-                          <div class="text-xs text-gray-500 mt-1">差异数量</div>
                         </div>
                         <div class="bg-yellow-50 rounded-lg p-3 border border-yellow-200">
                           <div class="flex justify-between items-center">
                             <span class="text-sm text-gray-700">SUBSCRIBE</span>
                             <span class="text-lg font-bold text-yellow-600">567</span>
                           </div>
-                          <div class="text-xs text-gray-500 mt-1">差异数量</div>
                         </div>
                         <div class="bg-green-50 rounded-lg p-3 border border-green-200">
                           <div class="flex justify-between items-center">
                             <span class="text-sm text-gray-700">PINGREQ</span>
                             <span class="text-lg font-bold text-green-600">432</span>
                           </div>
-                          <div class="text-xs text-gray-500 mt-1">差异数量</div>
                         </div>
                         <div class="bg-blue-50 rounded-lg p-3 border border-blue-200">
                           <div class="flex justify-between items-center">
                             <span class="text-sm text-gray-700">PUBREC</span>
                             <span class="text-lg font-bold text-blue-600">298</span>
                           </div>
-                          <div class="text-xs text-gray-500 mt-1">差异数量</div>
                         </div>
                         <div class="bg-purple-50 rounded-lg p-3 border border-purple-200">
                           <div class="flex justify-between items-center">
                             <span class="text-sm text-gray-700">其他</span>
                             <span class="text-lg font-bold text-purple-600">599</span>
                           </div>
-                          <div class="text-xs text-gray-500 mt-1">差异数量</div>
                         </div>
                       </div>
                     </div>
@@ -5637,7 +5573,6 @@ onMounted(async () => {
                     </div>
                   </div>
                 </div>
-              </div>
             </div>
 
             <!-- 崩溃信息（如果有） -->
