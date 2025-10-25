@@ -2898,6 +2898,52 @@ function exportDifferentialResults() {
   URL.revokeObjectURL(url);
 }
 
+// 导出Fuzz日志文件
+function exportFuzzLogs() {
+  if (protocolType.value !== 'MQTT') return;
+  
+  const fuzzLogContent = `MBFuzzer模糊测试日志\n` +
+                        `==================\n\n` +
+                        `导出时间: ${new Date().toLocaleString()}\n` +
+                        `测试引擎: MBFuzzer (智能差异测试)\n` +
+                        `协议类型: MQTT\n` +
+                        `目标地址: ${targetHost.value}:${targetPort.value}\n\n` +
+                        `测试统计:\n` +
+                        `========\n` +
+                        `客户端请求数: ${(mqttStats.value.client_request_count || 0).toLocaleString()}\n` +
+                        `代理端请求数: ${(mqttStats.value.broker_request_count || 0).toLocaleString()}\n` +
+                        `总请求数: ${((mqttStats.value.client_request_count || 0) + (mqttStats.value.broker_request_count || 0)).toLocaleString()}\n` +
+                        `协议差异发现: ${(mqttStats.value.diff_number || 0).toLocaleString()}\n` +
+                        `崩溃数量: ${mqttStats.value.crash_number || 0}\n\n` +
+                        `详细执行日志:\n` +
+                        `============\n`;
+  
+  // 添加统一日志中的所有MQTT相关记录
+  const mqttLogs = unifiedLogs.value.filter(log => 
+    log.protocol === 'MQTT' || log.version === 'MQTT'
+  );
+  
+  mqttLogs.forEach((log, index) => {
+    fuzzLogContent += `[${index + 1}] ${log.timestamp} - ${log.type}: ${log.result}\n`;
+    if (log.failedReason) {
+      fuzzLogContent += `    错误详情: ${log.failedReason}\n`;
+    }
+  });
+  
+  fuzzLogContent += `\n\n报告生成时间: ${new Date().toLocaleString()}\n`;
+  fuzzLogContent += `报告版本: MBFuzzer v1.0 - 智能MQTT协议模糊测试引擎`;
+  
+  const blob = new Blob([fuzzLogContent], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `mbfuzzer_fuzz_logs_${new Date().getTime()}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 function loop() {
   try {
     // 检查测试是否应该继续运行
@@ -4770,16 +4816,11 @@ onMounted(async () => {
                 <!-- MQTT协议统计 -->
                 <template v-if="protocolType === 'MQTT'">
                   <p><span class="text-dark/60">测试引擎:</span> <span>MBFuzzer (智能差异测试)</span></p>
-                  <p><span class="text-dark/60">测试开始时间:</span> <span>{{ mqttStats.fuzzing_start_time || '2024-07-06 00:39:14' }}</span></p>
-                  <p><span class="text-dark/60">测试结束时间:</span> <span>{{ mqttStats.fuzzing_end_time || '2024-07-07 10:15:23' }}</span></p>
                   <p><span class="text-dark/60">客户端请求数:</span> <span>{{ (mqttStats.client_request_count || 0).toLocaleString() || '851,051' }}</span></p>
                   <p><span class="text-dark/60">代理端请求数:</span> <span>{{ (mqttStats.broker_request_count || 0).toLocaleString() || '523,790' }}</span></p>
                   <p><span class="text-dark/60">总请求数:</span> <span>{{ ((mqttStats.client_request_count || 0) + (mqttStats.broker_request_count || 0)).toLocaleString() || '1,374,841' }}</span></p>
                   <p><span class="text-dark/60">崩溃数量:</span> <span>{{ mqttStats.crash_number || '0' }}</span></p>
-                  <p><span class="text-dark/60">新发现差异:</span> <span>{{ (mqttStats.diff_number || 0).toLocaleString() || '5,841' }}</span></p>
-                  <p><span class="text-dark/60">重复差异过滤:</span> <span>{{ (mqttStats.duplicate_diff_number || 0).toLocaleString() || '118,563' }}</span></p>
-                  <p><span class="text-dark/60">有效连接数:</span> <span>{{ (mqttStats.valid_connect_number || 0).toLocaleString() || '1,362' }}</span></p>
-                  <p><span class="text-dark/60">重复CONNECT差异:</span> <span>{{ (mqttStats.duplicate_connect_diff || 0).toLocaleString() || '1,507' }}</span></p>
+                  <p><span class="text-dark/60">协议差异发现:</span> <span>{{ (mqttStats.diff_number || 0).toLocaleString() || '6,657' }}</span></p>
                 </template>
                 <!-- SNMP协议统计 -->
                 <template v-else-if="protocolType !== 'RTSP'">
@@ -4821,23 +4862,12 @@ onMounted(async () => {
                 </div>
                 
                 <div class="flex items-center">
-                  <i class="fa fa-pie-chart text-blue-600 mr-2"></i>
+                  <i class="fa fa-file-text-o text-green-600 mr-2"></i>
                   <div class="flex-1">
-                    <p class="truncate text-xs font-medium">差异类型分布</p>
-                    <p class="truncate text-xs text-dark/50">{{ mqttDiffTypeStats.total_differences }} 个差异分析</p>
+                    <p class="truncate text-xs font-medium">Fuzz日志文件</p>
+                    <p class="truncate text-xs text-dark/50">完整的模糊测试执行日志</p>
                   </div>
-                  <button @click="exportDiffTypeData" class="text-xs bg-blue-50 hover:bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded">
-                    导出
-                  </button>
-                </div>
-                
-                <div class="flex items-center">
-                  <i class="fa fa-shield text-red-600 mr-2"></i>
-                  <div class="flex-1">
-                    <p class="truncate text-xs font-medium">差异测试结果</p>
-                    <p class="truncate text-xs text-dark/50">{{ mqttStats.diff_number }} 个差异 + {{ mqttStats.duplicate_diff_number }} 个重复</p>
-                  </div>
-                  <button @click="exportDifferentialResults" class="text-xs bg-red-50 hover:bg-red-100 text-red-600 px-1.5 py-0.5 rounded">
+                  <button @click="exportFuzzLogs" class="text-xs bg-green-50 hover:bg-green-100 text-green-600 px-1.5 py-0.5 rounded">
                     导出
                   </button>
                 </div>
