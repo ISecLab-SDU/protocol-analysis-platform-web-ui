@@ -6,16 +6,12 @@ import type {
   ProtocolAssertGenerationJob,
   ProtocolAssertGenerationProgressEvent,
   ProtocolAssertGenerationResult,
+  ProtocolDiffParsingJob,
+  ProtocolDiffParsingProgressEvent,
+  ProtocolDiffParsingResult,
 } from '#/api/protocol-compliance';
 
-import {
-  computed,
-  nextTick,
-  onBeforeUnmount,
-  reactive,
-  ref,
-  watch,
-} from 'vue';
+import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -23,15 +19,17 @@ import { IconifyIcon } from '@vben/icons';
 import {
   Button,
   Card,
-  Col,
+  Collapse,
   Descriptions,
   Form,
   FormItem,
   Input,
   message,
-  Row,
+  Progress,
   Space,
   Tag,
+  Tooltip,
+  Typography,
   Upload,
 } from 'ant-design-vue';
 
@@ -40,6 +38,9 @@ import {
   fetchProtocolAssertGenerationResult,
   runProtocolAssertGeneration,
   downloadProtocolAssertGenerationResult,
+  startProtocolDiffParsing,
+  fetchProtocolDiffParsingProgress,
+  fetchProtocolDiffParsingResult,
 } from '#/api/protocol-compliance';
 
 const formRef = ref<FormInstance>();
@@ -60,8 +61,27 @@ const progressLogs = ref<string[]>([]);
 const progressError = ref<null | string>(null);
 const pollingTimer = ref<null | number>(null);
 
+// Diff Parsing State
+const activeDiffJob = ref<null | ProtocolDiffParsingJob>(null);
+const activeDiffJobId = ref<null | string>(null);
+const diffResult = ref<null | ProtocolDiffParsingResult>(null);
+const diffPollingTimer = ref<null | number>(null);
+const diffProgressLogs = ref<string[]>([]);
+const diffProgressError = ref<null | string>(null);
+const activeDiffFileKeys = ref<number[]>([]);
+
 const PROGRESS_STATUS_META: Record<
   ProtocolAssertGenerationJob['status'],
+  { color: string; label: string }
+> = {
+  completed: { color: 'success', label: '已完成' },
+  failed: { color: 'error', label: '失败' },
+  queued: { color: 'default', label: '排队中' },
+  running: { color: 'processing', label: '运行中' },
+};
+
+const DIFF_STATUS_META: Record<
+  ProtocolDiffParsingJob['status'],
   { color: string; label: string }
 > = {
   completed: { color: 'success', label: '已完成' },
@@ -134,6 +154,32 @@ const canDownloadResult = computed(
   () => progressStatus.value === 'completed' && activeJobId.value,
 );
 
+const diffProgressStatus = computed<null | ProtocolDiffParsingJob['status']>(
+  () => activeDiffJob.value?.status ?? null,
+);
+
+const diffProgressStatusLabel = computed(() => {
+  if (!diffProgressStatus.value) {
+    return '未开始';
+  }
+  return DIFF_STATUS_META[diffProgressStatus.value].label;
+});
+
+const diffProgressStatusColor = computed(() => {
+  if (!diffProgressStatus.value) {
+    return 'default';
+  }
+  return DIFF_STATUS_META[diffProgressStatus.value].color;
+});
+
+const diffProgressMessage = computed(
+  () => activeDiffJob.value?.message ?? '等待任务开始',
+);
+
+const diffProgressPercentage = computed(
+  () => activeDiffJob.value?.percentage ?? 0,
+);
+
 const progressTextRef = ref<HTMLDivElement>();
 
 watch(progressText, () => {
@@ -173,12 +219,28 @@ function stopPolling() {
   }
 }
 
+function stopDiffPolling() {
+  if (diffPollingTimer.value !== null) {
+    window.clearInterval(diffPollingTimer.value);
+    diffPollingTimer.value = null;
+  }
+}
+
 function resetProgressState() {
   stopPolling();
   activeJob.value = null;
   activeJobId.value = null;
   progressLogs.value = [];
   progressError.value = null;
+}
+
+function resetDiffProgressState() {
+  stopDiffPolling();
+  activeDiffJob.value = null;
+  activeDiffJobId.value = null;
+  diffResult.value = null;
+  diffProgressLogs.value = [];
+  diffProgressError.value = null;
 }
 
 async function handleStatusTransition(
@@ -195,6 +257,8 @@ async function handleStatusTransition(
       analysisResult.value = result;
       if (previousStatus !== 'completed') {
         message.success('断言生成完成');
+        // Automatically start diff parsing
+        await startDiffParsingWorkflow(snapshot.jobId);
       }
     } catch (error) {
       const messageText =
@@ -238,6 +302,7 @@ function schedulePolling(jobId: string) {
 
 onBeforeUnmount(() => {
   stopPolling();
+  stopDiffPolling();
 });
 
 async function copyToClipboard(content: string) {
@@ -294,7 +359,9 @@ async function handleDownloadResult() {
     return;
   }
   try {
-    const blob = await downloadProtocolAssertGenerationResult(activeJobId.value);
+    const blob = await downloadProtocolAssertGenerationResult(
+      activeJobId.value,
+    );
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -343,6 +410,109 @@ const handleDatabaseRemove: UploadProps['onRemove'] = () => {
   return true;
 };
 
+function toDiffProgressLine(event: ProtocolDiffParsingProgressEvent) {
+  const timeLabel = (() => {
+    try {
+      return logFormatter.format(new Date(event.timestamp));
+    } catch {
+      return event.timestamp ?? '';
+    }
+  })();
+  const stage = event.stage || 'unknown';
+  const messageText = event.message || '';
+  const percentage = event.percentage || 0;
+  return `[${timeLabel}] (${stage}) ${messageText} [${percentage}%]`;
+}
+
+function applyDiffProgressSnapshot(snapshot: ProtocolDiffParsingJob) {
+  activeDiffJob.value = snapshot;
+  activeDiffJobId.value = snapshot.jobId;
+  diffProgressError.value = snapshot.error ?? null;
+  diffProgressLogs.value = snapshot.events?.length
+    ? snapshot.events.map((event) => toDiffProgressLine(event))
+    : [];
+}
+
+async function handleDiffStatusTransition(
+  previousStatus: null | ProtocolDiffParsingJob['status'],
+  snapshot: ProtocolDiffParsingJob,
+) {
+  if (snapshot.status === 'completed') {
+    stopDiffPolling();
+    try {
+      const result =
+        snapshot.result ??
+        (await fetchProtocolDiffParsingResult(
+          snapshot.parentJobId,
+          snapshot.jobId,
+        ));
+      diffResult.value = result;
+      // Auto-expand first file in diff
+      if (result.files.length > 0) {
+        activeDiffFileKeys.value = [0];
+      }
+      if (previousStatus !== 'completed') {
+        message.success('差异解析完成');
+      }
+    } catch (error) {
+      const messageText =
+        error instanceof Error ? error.message : String(error ?? '');
+      diffProgressError.value = messageText || '无法获取解析结果';
+      if (previousStatus !== 'completed') {
+        message.error(`获取差异解析结果失败：${messageText}`);
+      }
+    }
+    return;
+  }
+
+  if (snapshot.status === 'failed') {
+    stopDiffPolling();
+    diffResult.value = null;
+    const failure =
+      snapshot.error ?? snapshot.message ?? '差异解析失败，请查看后台日志';
+    if (previousStatus !== 'failed') {
+      message.error(failure);
+    }
+  }
+}
+
+async function refreshDiffProgress(assertJobId: string, diffJobId: string) {
+  const previousStatus = activeDiffJob.value?.status ?? null;
+  const snapshot = await fetchProtocolDiffParsingProgress(
+    assertJobId,
+    diffJobId,
+  );
+  applyDiffProgressSnapshot(snapshot);
+  await handleDiffStatusTransition(previousStatus, snapshot);
+}
+
+function scheduleDiffPolling(assertJobId: string, diffJobId: string) {
+  stopDiffPolling();
+  diffPollingTimer.value = window.setInterval(() => {
+    refreshDiffProgress(assertJobId, diffJobId).catch((error) => {
+      diffProgressError.value =
+        error instanceof Error ? error.message : String(error ?? '');
+    });
+  }, 1500);
+}
+
+async function startDiffParsingWorkflow(assertJobId: string) {
+  try {
+    resetDiffProgressState();
+    const snapshot = await startProtocolDiffParsing(assertJobId);
+    applyDiffProgressSnapshot(snapshot);
+    await handleDiffStatusTransition(null, snapshot);
+    if (snapshot.status === 'queued' || snapshot.status === 'running') {
+      scheduleDiffPolling(assertJobId, snapshot.jobId);
+    }
+  } catch (error) {
+    const messageText =
+      error instanceof Error ? error.message : String(error ?? '');
+    diffProgressError.value = messageText || '差异解析启动失败';
+    message.error(`启动差异解析失败：${messageText}`);
+  }
+}
+
 function handleReset() {
   formRef.value?.resetFields();
   archiveFileList.value = [];
@@ -353,6 +523,7 @@ function handleReset() {
   formState.notes = '';
   analysisResult.value = null;
   resetProgressState();
+  resetDiffProgressState();
 }
 
 async function handleSubmit() {
@@ -440,7 +611,10 @@ async function handleSubmit() {
                 accept=".db,.sqlite,.sqlite3,.db3,application/x-sqlite3,application/vnd.sqlite3"
               >
                 <Button block type="dashed">
-                  <IconifyIcon icon="ant-design:database-outlined" class="mr-1" />
+                  <IconifyIcon
+                    icon="ant-design:database-outlined"
+                    class="mr-1"
+                  />
                   选择数据库文件
                 </Button>
               </Upload>
@@ -577,6 +751,141 @@ async function handleSubmit() {
           </Descriptions.Item>
         </Descriptions>
       </Card>
+
+      <!-- 差异解析进度 -->
+      <Card v-if="activeDiffJob" title="代码差异解析">
+        <div class="diff-parsing-progress">
+          <Space class="progress-status" wrap>
+            <Tag :color="diffProgressStatusColor">{{
+              diffProgressStatusLabel
+            }}</Tag>
+            <span class="progress-message">{{ diffProgressMessage }}</span>
+          </Space>
+          <Progress
+            :percent="diffProgressPercentage"
+            :status="
+              diffProgressStatus === 'failed'
+                ? 'exception'
+                : diffProgressStatus === 'completed'
+                  ? 'success'
+                  : 'active'
+            "
+            :stroke-color="{
+              '0%': '#108ee9',
+              '100%': '#87d068',
+            }"
+          />
+          <p v-if="diffProgressError" class="progress-error">
+            {{ diffProgressError }}
+          </p>
+        </div>
+      </Card>
+
+      <!-- 差异结果展示 -->
+      <Card v-if="diffResult">
+        <template #title>
+          <Space>
+            <IconifyIcon icon="ant-design:diff-outlined" class="text-lg" />
+            <span>代码变更</span>
+          </Space>
+        </template>
+        <template #extra>
+          <Space>
+            <Tooltip title="新增行数">
+              <Tag color="success">
+                <IconifyIcon icon="ant-design:plus-outlined" class="mr-1" />
+                {{ diffResult.summary.insertions }}
+              </Tag>
+            </Tooltip>
+            <Tooltip title="删除行数">
+              <Tag color="error">
+                <IconifyIcon icon="ant-design:minus-outlined" class="mr-1" />
+                {{ diffResult.summary.deletions }}
+              </Tag>
+            </Tooltip>
+            <Tooltip title="修改文件数">
+              <Tag color="default">
+                <IconifyIcon icon="ant-design:file-outlined" class="mr-1" />
+                {{ diffResult.summary.filesChanged }}
+              </Tag>
+            </Tooltip>
+          </Space>
+        </template>
+
+        <Collapse
+          v-model:active-key="activeDiffFileKeys"
+          class="diff-collapse"
+          :bordered="false"
+        >
+          <Collapse.Panel
+            v-for="(file, fileIndex) in diffResult.files"
+            :key="fileIndex"
+            class="diff-file-panel"
+          >
+            <template #header>
+              <div class="diff-file-header-content">
+                <Space>
+                  <IconifyIcon icon="ant-design:file-text-outlined" />
+                  <Typography.Text code class="file-path">
+                    {{ file.from }}
+                  </Typography.Text>
+                  <template v-if="file.from !== file.to">
+                    <IconifyIcon
+                      icon="ant-design:arrow-right-outlined"
+                      class="text-xs"
+                    />
+                    <Typography.Text code class="file-path">
+                      {{ file.to }}
+                    </Typography.Text>
+                  </template>
+                </Space>
+                <Space class="file-stats">
+                  <Tag v-if="file.additions > 0" color="success" size="small">
+                    +{{ file.additions }}
+                  </Tag>
+                  <Tag v-if="file.deletions > 0" color="error" size="small">
+                    -{{ file.deletions }}
+                  </Tag>
+                </Space>
+              </div>
+            </template>
+
+            <div class="diff-viewer">
+              <div
+                v-for="(hunk, hunkIndex) in file.hunks"
+                :key="hunkIndex"
+                class="diff-hunk"
+              >
+                <div class="hunk-header">
+                  <Typography.Text code class="hunk-info">
+                    @@ -{{ hunk.oldStart }},{{ hunk.oldLines }} +{{
+                      hunk.newStart
+                    }},{{ hunk.newLines }} @@
+                  </Typography.Text>
+                </div>
+                <div class="hunk-content">
+                  <div
+                    v-for="(line, lineIndex) in hunk.lines"
+                    :key="lineIndex"
+                    :class="['diff-line', `diff-line-${line.type}`]"
+                  >
+                    <span class="line-prefix">{{
+                      line.type === 'add'
+                        ? '+'
+                        : line.type === 'delete'
+                          ? '-'
+                          : ' '
+                    }}</span>
+                    <Typography.Text class="line-content" :code="false">
+                      {{ line.content }}
+                    </Typography.Text>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Collapse.Panel>
+        </Collapse>
+      </Card>
     </div>
   </Page>
 </template>
@@ -620,7 +929,6 @@ async function handleSubmit() {
   display: flex;
   flex-direction: column;
 }
-
 
 .form-actions {
   margin-bottom: 0;
@@ -790,5 +1098,162 @@ async function handleSubmit() {
     min-height: 400px;
   }
 }
-</style>
 
+.diff-parsing-progress {
+  padding: 8px 0;
+}
+
+.diff-collapse {
+  background-color: transparent;
+}
+
+.diff-collapse :deep(.ant-collapse-item) {
+  border: 1px solid var(--ant-color-border);
+  border-radius: var(--ant-border-radius);
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
+.diff-collapse :deep(.ant-collapse-item:last-child) {
+  margin-bottom: 0;
+}
+
+.diff-collapse :deep(.ant-collapse-header) {
+  padding: 12px 16px !important;
+  background-color: var(--ant-color-fill-quaternary);
+  align-items: center;
+}
+
+.diff-collapse :deep(.ant-collapse-content) {
+  border-top: 1px solid var(--ant-color-border);
+}
+
+.diff-collapse :deep(.ant-collapse-content-box) {
+  padding: 0;
+}
+
+.diff-file-header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding-right: 24px;
+}
+
+.file-stats {
+  margin-left: auto;
+}
+
+.file-path {
+  font-size: 13px;
+  max-width: 500px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diff-viewer {
+  background-color: var(--ant-color-bg-container);
+  overflow: hidden;
+}
+
+.diff-hunk {
+  margin: 0;
+}
+
+.hunk-header {
+  padding: 8px 16px;
+  background-color: var(--ant-color-fill-alter);
+  border-top: 1px solid var(--ant-color-border);
+  border-bottom: 1px solid var(--ant-color-border);
+}
+
+.hunk-info {
+  font-size: 12px;
+  color: var(--ant-text-color-secondary);
+}
+
+.hunk-content {
+  margin: 0;
+  padding: 0;
+}
+
+.diff-line {
+  display: flex;
+  padding: 0;
+  margin: 0;
+  line-height: 1.6;
+  border-bottom: 1px solid transparent;
+  transition: background-color 0.2s;
+}
+
+.diff-line:hover {
+  filter: brightness(0.98);
+}
+
+.diff-line-add {
+  background-color: var(--ant-success-color-deprecated-bg);
+  border-bottom-color: var(--ant-success-color-deprecated-border);
+}
+
+.diff-line-delete {
+  background-color: var(--ant-error-color-deprecated-bg);
+  border-bottom-color: var(--ant-error-color-deprecated-border);
+}
+
+.diff-line-normal {
+  background-color: var(--ant-color-bg-container);
+}
+
+.line-prefix {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  padding: 4px 8px;
+  text-align: center;
+  user-select: none;
+  flex-shrink: 0;
+  font-family:
+    ui-monospace, SFMono-Regular, SFMono, Menlo, Monaco, Consolas,
+    'Liberation Mono', 'Courier New', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+.diff-line-add .line-prefix {
+  color: var(--ant-success-color);
+  background-color: var(--ant-success-color-deprecated-bg);
+}
+
+.diff-line-delete .line-prefix {
+  color: var(--ant-error-color);
+  background-color: var(--ant-error-color-deprecated-bg);
+}
+
+.diff-line-normal .line-prefix {
+  color: var(--ant-text-color-secondary);
+}
+
+.line-content {
+  flex: 1;
+  padding: 4px 12px;
+  overflow-x: auto;
+  font-family:
+    ui-monospace, SFMono-Regular, SFMono, Menlo, Monaco, Consolas,
+    'Liberation Mono', 'Courier New', monospace;
+  font-size: 13px;
+  white-space: pre;
+  color: var(--ant-text-color);
+}
+
+/* Dark theme adjustments */
+html[data-theme='dark'] .line-prefix {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+html[data-theme='dark'] .diff-line:hover {
+  filter: brightness(1.1);
+}
+</style>

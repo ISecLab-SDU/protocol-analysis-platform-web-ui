@@ -414,3 +414,87 @@ export async function downloadProtocolAssertGenerationResult(jobId: string) {
 
   return response.data;
 }
+
+// Diff Parsing Types and APIs
+export type ProtocolDiffParsingJobStatus =
+  | 'queued'
+  | 'running'
+  | 'completed'
+  | 'failed';
+
+export interface DiffHunk {
+  newLines: number;
+  newStart: number;
+  oldLines: number;
+  oldStart: number;
+  lines: Array<{
+    content: string;
+    type: 'add' | 'delete' | 'normal';
+  }>;
+}
+
+export interface DiffFile {
+  additions: number;
+  deletions: number;
+  from: string;
+  hunks: DiffHunk[];
+  to: string;
+}
+
+export interface ProtocolDiffParsingResult {
+  diffContent: string;
+  files: DiffFile[];
+  generatedAt: string;
+  jobId: string;
+  summary: {
+    filesChanged: number;
+    insertions: number;
+    deletions: number;
+  };
+}
+
+export interface ProtocolDiffParsingProgressEvent {
+  message: string;
+  percentage: number;
+  stage: string;
+  timestamp: string;
+}
+
+export interface ProtocolDiffParsingJob {
+  createdAt: string;
+  error?: null | string;
+  events: ProtocolDiffParsingProgressEvent[];
+  jobId: string;
+  message: string;
+  parentJobId: string;
+  percentage: number;
+  result?: null | ProtocolDiffParsingResult;
+  stage: string;
+  status: ProtocolDiffParsingJobStatus;
+  updatedAt: string;
+}
+
+export function startProtocolDiffParsing(assertGenerationJobId: string) {
+  return requestClient.post<ProtocolDiffParsingJob>(
+    `/protocol-compliance/assertion-generation/${assertGenerationJobId}/diff-parsing`,
+    {},
+  );
+}
+
+export function fetchProtocolDiffParsingProgress(
+  assertGenerationJobId: string,
+  diffParsingJobId: string,
+) {
+  return requestClient.get<ProtocolDiffParsingJob>(
+    `/protocol-compliance/assertion-generation/${assertGenerationJobId}/diff-parsing/${diffParsingJobId}/progress`,
+  );
+}
+
+export function fetchProtocolDiffParsingResult(
+  assertGenerationJobId: string,
+  diffParsingJobId: string,
+) {
+  return requestClient.get<ProtocolDiffParsingResult>(
+    `/protocol-compliance/assertion-generation/${assertGenerationJobId}/diff-parsing/${diffParsingJobId}/result`,
+  );
+}
