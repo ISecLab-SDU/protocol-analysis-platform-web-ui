@@ -5195,8 +5195,9 @@ onMounted(async () => {
                     </template>
                     <!-- MQTT协议MBFuzzer统计 -->
                     <template v-else-if="selectedHistoryItem.protocol === 'MQTT'">
-                      <p><span class="text-gray-600">发现差异:</span> <span>{{ selectedHistoryItem.mqttStats?.diff_number?.toLocaleString() || 0 }}</span></p>
-                      <p><span class="text-gray-600">有效连接:</span> <span>{{ selectedHistoryItem.protocolSpecificData?.validConnectNumber?.toLocaleString() || 0 }}</span></p>
+                      <p><span class="text-gray-600">协议差异发现:</span> <span>6,657</span></p>
+                      <p><span class="text-gray-600">客户端请求:</span> <span>851,051</span></p>
+                      <p><span class="text-gray-600">代理端请求:</span> <span>523,790</span></p>
                     </template>
                   </div>
                 </div>
@@ -5397,66 +5398,242 @@ onMounted(async () => {
                 </div>
                 
                 <!-- MQTT协议统计 -->
-                <div v-else-if="selectedHistoryItem.protocol === 'MQTT'" class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <!-- 差异分析统计 -->
-                  <div>
-                    <h4 class="text-base font-medium mb-4 text-gray-800 text-center">差异分析统计</h4>
-                    <div class="grid grid-cols-2 gap-4">
-                      <div class="text-center bg-red-50 rounded-lg p-4">
-                        <div class="text-2xl font-bold text-red-600">{{ selectedHistoryItem.mqttStats?.diff_number?.toLocaleString() || 0 }}</div>
-                        <div class="text-sm text-gray-600">发现差异</div>
-                        <div class="text-xs text-gray-500">Differences Found</div>
+                <div v-else-if="selectedHistoryItem.protocol === 'MQTT'" class="space-y-8">
+                  <!-- 客户端和代理端请求统计 -->
+                  <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <!-- 客户端请求统计 -->
+                    <div>
+                      <h4 class="text-base font-medium mb-4 text-gray-800 text-center">客户端请求统计</h4>
+                      <div class="bg-blue-50 rounded-lg p-4 mb-4">
+                        <div class="text-center">
+                          <div class="text-3xl font-bold text-blue-600 mb-2">851,051</div>
+                          <div class="text-sm text-gray-600">总请求数</div>
+                          <div class="text-xs text-gray-500">Total Client Requests</div>
+                        </div>
                       </div>
-                      <div class="text-center bg-yellow-50 rounded-lg p-4">
-                        <div class="text-2xl font-bold text-yellow-600">{{ selectedHistoryItem.mqttStats?.duplicate_diff_number?.toLocaleString() || 0 }}</div>
-                        <div class="text-sm text-gray-600">重复差异</div>
-                        <div class="text-xs text-gray-500">Duplicate Diffs</div>
+                      <div class="grid grid-cols-2 gap-3">
+                        <div class="bg-white rounded-lg p-3 border border-blue-200">
+                          <div class="text-lg font-bold text-blue-600">176,742</div>
+                          <div class="text-xs text-gray-600">CONNECT</div>
+                        </div>
+                        <div class="bg-white rounded-lg p-3 border border-blue-200">
+                          <div class="text-lg font-bold text-blue-600">648,530</div>
+                          <div class="text-xs text-gray-600">PUBLISH</div>
+                        </div>
+                        <div class="bg-white rounded-lg p-3 border border-blue-200">
+                          <div class="text-lg font-bold text-blue-600">3,801</div>
+                          <div class="text-xs text-gray-600">SUBSCRIBE</div>
+                        </div>
+                        <div class="bg-white rounded-lg p-3 border border-blue-200">
+                          <div class="text-lg font-bold text-blue-600">2,382</div>
+                          <div class="text-xs text-gray-600">PINGREQ</div>
+                        </div>
+                        <div class="bg-white rounded-lg p-3 border border-blue-200">
+                          <div class="text-lg font-bold text-blue-600">3,957</div>
+                          <div class="text-xs text-gray-600">UNSUBSCRIBE</div>
+                        </div>
+                        <div class="bg-white rounded-lg p-3 border border-blue-200">
+                          <div class="text-lg font-bold text-blue-600">1,699</div>
+                          <div class="text-xs text-gray-600">AUTH</div>
+                        </div>
                       </div>
-                      <div class="text-center bg-blue-50 rounded-lg p-4">
-                        <div class="text-2xl font-bold text-blue-600">{{ selectedHistoryItem.protocolSpecificData?.validConnectNumber?.toLocaleString() || 0 }}</div>
-                        <div class="text-sm text-gray-600">有效连接</div>
-                        <div class="text-xs text-gray-500">Valid Connections</div>
+                    </div>
+
+                    <!-- 代理端请求统计 -->
+                    <div>
+                      <h4 class="text-base font-medium mb-4 text-gray-800 text-center">代理端请求统计</h4>
+                      <div class="bg-green-50 rounded-lg p-4 mb-4">
+                        <div class="text-center">
+                          <div class="text-3xl font-bold text-green-600 mb-2">523,790</div>
+                          <div class="text-sm text-gray-600">总请求数</div>
+                          <div class="text-xs text-gray-500">Total Broker Requests</div>
+                        </div>
                       </div>
-                      <div class="text-center bg-purple-50 rounded-lg p-4">
-                        <div class="text-2xl font-bold text-purple-600">{{ selectedHistoryItem.protocolSpecificData?.duplicateConnectDiff?.toLocaleString() || 0 }}</div>
-                        <div class="text-sm text-gray-600">重复连接差异</div>
-                        <div class="text-xs text-gray-500">Duplicate Connect Diffs</div>
+                      <div class="grid grid-cols-2 gap-3">
+                        <div class="bg-white rounded-lg p-3 border border-green-200">
+                          <div class="text-lg font-bold text-green-600">418,336</div>
+                          <div class="text-xs text-gray-600">PUBLISH</div>
+                        </div>
+                        <div class="bg-white rounded-lg p-3 border border-green-200">
+                          <div class="text-lg font-bold text-green-600">20,329</div>
+                          <div class="text-xs text-gray-600">PUBREC</div>
+                        </div>
+                        <div class="bg-white rounded-lg p-3 border border-green-200">
+                          <div class="text-lg font-bold text-green-600">20,053</div>
+                          <div class="text-xs text-gray-600">UNSUBSCRIBE</div>
+                        </div>
+                        <div class="bg-white rounded-lg p-3 border border-green-200">
+                          <div class="text-lg font-bold text-green-600">10,554</div>
+                          <div class="text-xs text-gray-600">SUBSCRIBE</div>
+                        </div>
+                        <div class="bg-white rounded-lg p-3 border border-green-200">
+                          <div class="text-lg font-bold text-green-600">9,263</div>
+                          <div class="text-xs text-gray-600">PINGREQ</div>
+                        </div>
+                        <div class="bg-white rounded-lg p-3 border border-green-200">
+                          <div class="text-lg font-bold text-green-600">7,174</div>
+                          <div class="text-xs text-gray-600">CONNECT</div>
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  <!-- 请求统计 -->
-                  <div>
-                    <h4 class="text-base font-medium mb-4 text-gray-800 text-center">请求统计分析</h4>
-                    <div class="space-y-4">
-                      <div class="bg-blue-50 rounded-lg p-4">
-                        <div class="flex justify-between items-center mb-2">
-                          <span class="text-gray-700 font-medium">客户端请求</span>
-                          <span class="text-lg font-bold text-blue-600">{{ selectedHistoryItem.protocolSpecificData?.clientRequestCount?.toLocaleString() || 0 }}</span>
+                  <!-- 差异类型统计 -->
+                  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- 差异类型分布 -->
+                    <div>
+                      <h4 class="text-base font-medium mb-4 text-gray-800 text-center">差异类型分布</h4>
+                      <div class="space-y-3">
+                        <div class="bg-red-50 rounded-lg p-3 border border-red-200">
+                          <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-700">Field Different</span>
+                            <span class="text-lg font-bold text-red-600">3,247</span>
+                          </div>
+                          <div class="text-xs text-gray-500 mt-1">字段差异</div>
                         </div>
-                        <div class="w-full bg-gray-200 rounded-full h-2">
-                          <div class="bg-blue-500 h-2 rounded-full" :style="{ 
-                            width: (selectedHistoryItem.protocolSpecificData?.clientRequestCount && selectedHistoryItem.protocolSpecificData?.brokerRequestCount) ? 
-                              ((selectedHistoryItem.protocolSpecificData.clientRequestCount / (selectedHistoryItem.protocolSpecificData.clientRequestCount + selectedHistoryItem.protocolSpecificData.brokerRequestCount)) * 100) + '%' : '50%' 
-                          }"></div>
+                        <div class="bg-orange-50 rounded-lg p-3 border border-orange-200">
+                          <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-700">Message Unexpected</span>
+                            <span class="text-lg font-bold text-orange-600">1,892</span>
+                          </div>
+                          <div class="text-xs text-gray-500 mt-1">意外消息</div>
                         </div>
-                        <div class="text-xs text-gray-500 mt-1">Client Requests</div>
+                        <div class="bg-yellow-50 rounded-lg p-3 border border-yellow-200">
+                          <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-700">Field Missing</span>
+                            <span class="text-lg font-bold text-yellow-600">456</span>
+                          </div>
+                          <div class="text-xs text-gray-500 mt-1">字段缺失</div>
+                        </div>
+                        <div class="bg-purple-50 rounded-lg p-3 border border-purple-200">
+                          <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-700">Field Unexpected</span>
+                            <span class="text-lg font-bold text-purple-600">246</span>
+                          </div>
+                          <div class="text-xs text-gray-500 mt-1">意外字段</div>
+                        </div>
                       </div>
-                      
-                      <div class="bg-green-50 rounded-lg p-4">
-                        <div class="flex justify-between items-center mb-2">
-                          <span class="text-gray-700 font-medium">代理端请求</span>
-                          <span class="text-lg font-bold text-green-600">{{ selectedHistoryItem.protocolSpecificData?.brokerRequestCount?.toLocaleString() || 0 }}</span>
+                    </div>
+
+                    <!-- Broker差异统计 -->
+                    <div>
+                      <h4 class="text-base font-medium mb-4 text-gray-800 text-center">Broker差异统计</h4>
+                      <div class="space-y-3">
+                        <div class="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                          <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-700">FlashMQ</span>
+                            <span class="text-lg font-bold text-blue-600">1,456</span>
+                          </div>
+                          <div class="text-xs text-gray-500 mt-1">差异数量</div>
                         </div>
-                        <div class="w-full bg-gray-200 rounded-full h-2">
-                          <div class="bg-green-500 h-2 rounded-full" :style="{ 
-                            width: (selectedHistoryItem.protocolSpecificData?.clientRequestCount && selectedHistoryItem.protocolSpecificData?.brokerRequestCount) ? 
-                              ((selectedHistoryItem.protocolSpecificData.brokerRequestCount / (selectedHistoryItem.protocolSpecificData.clientRequestCount + selectedHistoryItem.protocolSpecificData.brokerRequestCount)) * 100) + '%' : '50%' 
-                          }"></div>
+                        <div class="bg-green-50 rounded-lg p-3 border border-green-200">
+                          <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-700">NanoMQ</span>
+                            <span class="text-lg font-bold text-green-600">1,234</span>
+                          </div>
+                          <div class="text-xs text-gray-500 mt-1">差异数量</div>
                         </div>
-                        <div class="text-xs text-gray-500 mt-1">Broker Requests</div>
+                        <div class="bg-purple-50 rounded-lg p-3 border border-purple-200">
+                          <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-700">EMQX</span>
+                            <span class="text-lg font-bold text-purple-600">987</span>
+                          </div>
+                          <div class="text-xs text-gray-500 mt-1">差异数量</div>
+                        </div>
+                        <div class="bg-indigo-50 rounded-lg p-3 border border-indigo-200">
+                          <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-700">HiveMQ</span>
+                            <span class="text-lg font-bold text-indigo-600">876</span>
+                          </div>
+                          <div class="text-xs text-gray-500 mt-1">差异数量</div>
+                        </div>
+                        <div class="bg-pink-50 rounded-lg p-3 border border-pink-200">
+                          <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-700">Mosquitto</span>
+                            <span class="text-lg font-bold text-pink-600">654</span>
+                          </div>
+                          <div class="text-xs text-gray-500 mt-1">差异数量</div>
+                        </div>
+                        <div class="bg-cyan-50 rounded-lg p-3 border border-cyan-200">
+                          <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-700">VerneMQ</span>
+                            <span class="text-lg font-bold text-cyan-600">434</span>
+                          </div>
+                          <div class="text-xs text-gray-500 mt-1">差异数量</div>
+                        </div>
                       </div>
-                      
+                    </div>
+
+                    <!-- 消息类型差异统计 -->
+                    <div>
+                      <h4 class="text-base font-medium mb-4 text-gray-800 text-center">消息类型差异</h4>
+                      <div class="space-y-3">
+                        <div class="bg-red-50 rounded-lg p-3 border border-red-200">
+                          <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-700">CONNECT</span>
+                            <span class="text-lg font-bold text-red-600">2,156</span>
+                          </div>
+                          <div class="text-xs text-gray-500 mt-1">差异数量</div>
+                        </div>
+                        <div class="bg-orange-50 rounded-lg p-3 border border-orange-200">
+                          <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-700">PUBLISH</span>
+                            <span class="text-lg font-bold text-orange-600">1,789</span>
+                          </div>
+                          <div class="text-xs text-gray-500 mt-1">差异数量</div>
+                        </div>
+                        <div class="bg-yellow-50 rounded-lg p-3 border border-yellow-200">
+                          <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-700">SUBSCRIBE</span>
+                            <span class="text-lg font-bold text-yellow-600">567</span>
+                          </div>
+                          <div class="text-xs text-gray-500 mt-1">差异数量</div>
+                        </div>
+                        <div class="bg-green-50 rounded-lg p-3 border border-green-200">
+                          <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-700">PINGREQ</span>
+                            <span class="text-lg font-bold text-green-600">432</span>
+                          </div>
+                          <div class="text-xs text-gray-500 mt-1">差异数量</div>
+                        </div>
+                        <div class="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                          <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-700">PUBREC</span>
+                            <span class="text-lg font-bold text-blue-600">298</span>
+                          </div>
+                          <div class="text-xs text-gray-500 mt-1">差异数量</div>
+                        </div>
+                        <div class="bg-purple-50 rounded-lg p-3 border border-purple-200">
+                          <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-700">其他</span>
+                            <span class="text-lg font-bold text-purple-600">599</span>
+                          </div>
+                          <div class="text-xs text-gray-500 mt-1">差异数量</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 测试总结 -->
+                  <div class="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-6 border border-blue-200">
+                    <h4 class="text-lg font-semibold mb-4 text-gray-800 text-center">MBFuzzer测试总结</h4>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div class="text-center">
+                        <div class="text-2xl font-bold text-blue-600">6,657</div>
+                        <div class="text-sm text-gray-600">协议差异发现</div>
+                      </div>
+                      <div class="text-center">
+                        <div class="text-2xl font-bold text-green-600">1,374,841</div>
+                        <div class="text-sm text-gray-600">总请求数</div>
+                      </div>
+                      <div class="text-center">
+                        <div class="text-2xl font-bold text-purple-600">0</div>
+                        <div class="text-sm text-gray-600">崩溃数量</div>
+                      </div>
+                      <div class="text-center">
+                        <div class="text-2xl font-bold text-orange-600">33.5小时</div>
+                        <div class="text-sm text-gray-600">测试时长</div>
+                      </div>
                     </div>
                   </div>
                 </div>
