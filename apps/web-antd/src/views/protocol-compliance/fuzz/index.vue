@@ -1414,6 +1414,9 @@ async function simulateRealTimeFuzzing(differentialLines: string[]) {
       
       processedCount++;
       
+      // 根据处理进度同步更新client和broker发送数据
+      updateDataSendingProgress(processedCount, differentialLines.length);
+      
       // 批量更新日志显示
       if (logBatch.length >= batchSize || i === differentialLines.length - 1) {
         // 添加更严格的状态检查和调试信息
@@ -1762,33 +1765,21 @@ function formatSNMPLogLine(log: any): string {
   return `[${log.timestamp}] [SNMP] ${log.content}`;
 }
 
-// 模拟client和broker发送数据增长
-function simulateDataSending() {
+// 根据差异处理进度同步更新client和broker发送数据
+function updateDataSendingProgress(processedCount: number, totalCount: number) {
   const targetClientCount = 851051;
   const targetBrokerCount = 523790;
   
-  // 计算当前进度
-  const clientProgress = mqttRealTimeStats.value.client_sent_count / targetClientCount;
-  const brokerProgress = mqttRealTimeStats.value.broker_sent_count / targetBrokerCount;
+  // 根据处理进度计算应该达到的数值
+  const progress = Math.min(processedCount / totalCount, 1);
   
-  // 如果还没达到目标值，继续增长
-  if (clientProgress < 1) {
-    // 随机增长，但保持相对均匀 (每次增长100-500之间)
-    const clientIncrement = Math.floor(Math.random() * 400) + 100;
-    mqttRealTimeStats.value.client_sent_count = Math.min(
-      mqttRealTimeStats.value.client_sent_count + clientIncrement,
-      targetClientCount
-    );
-  }
+  // 按比例更新client和broker发送数据
+  const expectedClientCount = Math.floor(targetClientCount * progress);
+  const expectedBrokerCount = Math.floor(targetBrokerCount * progress);
   
-  if (brokerProgress < 1) {
-    // broker增长相对较慢，保持比例关系
-    const brokerIncrement = Math.floor(Math.random() * 250) + 60;
-    mqttRealTimeStats.value.broker_sent_count = Math.min(
-      mqttRealTimeStats.value.broker_sent_count + brokerIncrement,
-      targetBrokerCount
-    );
-  }
+  // 平滑更新到目标值
+  mqttRealTimeStats.value.client_sent_count = expectedClientCount;
+  mqttRealTimeStats.value.broker_sent_count = expectedBrokerCount;
 }
 
 // 更新实时统计数据
@@ -1839,9 +1830,6 @@ function updateRealTimeStats(line: string) {
       
       // 实时更新差异类型分布统计
       updateDiffTypeDistribution(line);
-      
-      // 模拟client和broker发送数据增长
-      simulateDataSending();
     }
   } catch (error) {
     console.warn('[DEBUG] 更新实时统计数据失败:', error);
@@ -2027,6 +2015,9 @@ async function startMQTTDifferentialReading() {
         const diffData = parseMQTTDifferentialLine(line);
         if (diffData) {
           processedCount++;
+          
+          // 根据处理进度同步更新client和broker发送数据
+          updateDataSendingProgress(processedCount, totalDifferentialLines);
           
           // 统计数据
           if (diffData.type === 'ERROR') {
