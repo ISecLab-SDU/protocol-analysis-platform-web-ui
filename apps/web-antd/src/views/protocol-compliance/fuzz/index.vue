@@ -3407,10 +3407,12 @@ function saveTestToHistory() {
       actualCrashCount
     });
     
-    // 计算测试持续时间
-    const duration = testStartTime.value && testEndTime.value 
-      ? Math.round((testEndTime.value.getTime() - testStartTime.value.getTime()) / 1000)
-      : elapsedTime.value;
+    // 获取有效连接数量（对于MQTT协议）或保持原有的测试持续时间（对于其他协议）
+    const duration = protocolType.value === 'MQTT' && mqttStats.value.valid_connect_number 
+      ? mqttStats.value.valid_connect_number
+      : (testStartTime.value && testEndTime.value 
+        ? Math.round((testEndTime.value.getTime() - testStartTime.value.getTime()) / 1000)
+        : elapsedTime.value);
     
     // 计算成功率
     const total = actualTotalPackets || (actualSuccessCount + actualTimeoutCount + actualFailedCount + actualCrashCount);
@@ -5094,7 +5096,12 @@ onMounted(async () => {
                           <span class="text-gray-600">目标:</span>
                           <span class="font-mono">{{ item.targetHost }}:{{ item.targetPort }}</span>
                         </div>
-                        <div class="flex items-center space-x-2">
+                        <div class="flex items-center space-x-2" v-if="item.protocol === 'MQTT'">
+                          <i class="fa fa-link text-gray-400"></i>
+                          <span class="text-gray-600">有效连接:</span>
+                          <span>{{ item.duration }}</span>
+                        </div>
+                        <div class="flex items-center space-x-2" v-else>
                           <i class="fa fa-clock-o text-gray-400"></i>
                           <span class="text-gray-600">耗时:</span>
                           <span>{{ item.duration }}秒</span>
@@ -5251,7 +5258,8 @@ onMounted(async () => {
                   <div class="space-y-1">
                     <p><span class="text-gray-600">测试ID:</span> <span class="font-mono">{{ selectedHistoryItem.id }}</span></p>
                     <p><span class="text-gray-600">目标:</span> <span class="font-mono">{{ selectedHistoryItem.targetHost }}:{{ selectedHistoryItem.targetPort }}</span></p>
-                    <p><span class="text-gray-600">测试时长:</span> <span>{{ selectedHistoryItem.duration }}秒</span></p>
+                    <p v-if="selectedHistoryItem.protocol === 'MQTT'"><span class="text-gray-600">有效连接数量:</span> <span>{{ selectedHistoryItem.duration }}</span></p>
+                    <p v-else><span class="text-gray-600">测试时长:</span> <span>{{ selectedHistoryItem.duration }}秒</span></p>
                   </div>
                 </div>
                 
@@ -5666,8 +5674,8 @@ onMounted(async () => {
                         <div class="text-sm text-gray-600">崩溃数量</div>
                       </div>
                       <div class="text-center">
-                        <div class="text-2xl font-bold text-orange-600">33.5小时</div>
-                        <div class="text-sm text-gray-600">测试时长</div>
+                        <div class="text-2xl font-bold text-orange-600">1,362</div>
+                        <div class="text-sm text-gray-600">有效连接数量</div>
                       </div>
                     </div>
                   </div>
