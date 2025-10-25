@@ -5285,7 +5285,7 @@ onMounted(async () => {
                   <h4 class="font-medium mb-2 text-gray-800">
                     {{ selectedHistoryItem.protocol === 'SNMP' ? '协议版本' : 
                        selectedHistoryItem.protocol === 'RTSP' ? 'AFL-NET统计' : 
-                       'MBFuzzer统计' }}
+                       'MBFuzzer分析报告' }}
                   </h4>
                   <div class="space-y-1">
                     <!-- SNMP协议版本统计 -->
@@ -5300,11 +5300,31 @@ onMounted(async () => {
                       <p><span class="text-gray-600">代码覆盖率:</span> <span>{{ selectedHistoryItem.rtspStats?.map_size || '0%' }}</span></p>
                       <p><span class="text-gray-600">状态节点:</span> <span>{{ selectedHistoryItem.rtspStats?.n_nodes || 0 }}</span></p>
                     </template>
-                    <!-- MQTT协议MBFuzzer统计 -->
+                    <!-- MQTT协议MBFuzzer分析报告 -->
                     <template v-else-if="selectedHistoryItem.protocol === 'MQTT'">
-                      <p><span class="text-gray-600">协议差异发现:</span> <span>{{ selectedHistoryItem.mqttStats?.diff_number?.toLocaleString() || '6,657' }}</span></p>
-                      <p><span class="text-gray-600">客户端请求:</span> <span>851,051</span></p>
-                      <p><span class="text-gray-600">代理端请求:</span> <span>523,790</span></p>
+                      <div class="space-y-2">
+                        <div class="flex items-center">
+                          <i class="fa fa-file-code-o text-purple-600 mr-2"></i>
+                          <div class="flex-1">
+                            <p class="truncate text-xs font-medium">fuzzing_report.txt</p>
+                            <p class="truncate text-xs text-gray-500">MBFuzzer完整分析报告</p>
+                          </div>
+                          <button class="text-xs bg-purple-50 hover:bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded">
+                            导出
+                          </button>
+                        </div>
+                        
+                        <div class="flex items-center">
+                          <i class="fa fa-file-text-o text-green-600 mr-2"></i>
+                          <div class="flex-1">
+                            <p class="truncate text-xs font-medium">Fuzz日志文件</p>
+                            <p class="truncate text-xs text-gray-500">完整的模糊测试执行日志</p>
+                          </div>
+                          <button class="text-xs bg-green-50 hover:bg-green-100 text-green-600 px-1.5 py-0.5 rounded">
+                            导出
+                          </button>
+                        </div>
+                      </div>
                     </template>
                   </div>
                 </div>
