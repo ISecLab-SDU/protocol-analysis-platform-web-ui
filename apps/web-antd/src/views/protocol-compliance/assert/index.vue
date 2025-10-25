@@ -15,6 +15,8 @@ import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
+import '@git-diff-view/vue/styles/diff-view.css';
+import { DiffView, DiffModeEnum } from '@git-diff-view/vue';
 
 import {
   Button,
@@ -179,6 +181,42 @@ const diffProgressMessage = computed(
 const diffProgressPercentage = computed(
   () => activeDiffJob.value?.percentage ?? 0,
 );
+
+// Transform diff data for @git-diff-view/vue
+const transformedDiffFiles = computed(() => {
+  if (!diffResult.value) return [];
+
+  return diffResult.value.files.map((file) => {
+    // Build a complete unified diff string for each file
+    const fileHeader = `--- ${file.from}\n+++ ${file.to}`;
+
+    const hunksText = file.hunks
+      .map((hunk) => {
+        const header = `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`;
+        const lines = hunk.lines.map((line) => {
+          const prefix =
+            line.type === 'add' ? '+' : line.type === 'delete' ? '-' : ' ';
+          return prefix + line.content;
+        });
+        return [header, ...lines].join('\n');
+      })
+      .join('\n');
+
+    const completeDiff = `${fileHeader}\n${hunksText}`;
+
+    return {
+      oldFile: {
+        fileName: file.from,
+        content: '',
+      },
+      newFile: {
+        fileName: file.to,
+        content: '',
+      },
+      hunks: [completeDiff],
+    };
+  });
+});
 
 const progressTextRef = ref<HTMLDivElement>();
 
@@ -770,10 +808,8 @@ async function handleSubmit() {
                   ? 'success'
                   : 'active'
             "
-            :stroke-color="{
-              '0%': '#108ee9',
-              '100%': '#87d068',
-            }"
+            :stroke-width="4"
+            stroke-color="#1890ff"
           />
           <p v-if="diffProgressError" class="progress-error">
             {{ diffProgressError }}
@@ -850,38 +886,14 @@ async function handleSubmit() {
               </div>
             </template>
 
-            <div class="diff-viewer">
-              <div
-                v-for="(hunk, hunkIndex) in file.hunks"
-                :key="hunkIndex"
-                class="diff-hunk"
-              >
-                <div class="hunk-header">
-                  <Typography.Text code class="hunk-info">
-                    @@ -{{ hunk.oldStart }},{{ hunk.oldLines }} +{{
-                      hunk.newStart
-                    }},{{ hunk.newLines }} @@
-                  </Typography.Text>
-                </div>
-                <div class="hunk-content">
-                  <div
-                    v-for="(line, lineIndex) in hunk.lines"
-                    :key="lineIndex"
-                    :class="['diff-line', `diff-line-${line.type}`]"
-                  >
-                    <span class="line-prefix">{{
-                      line.type === 'add'
-                        ? '+'
-                        : line.type === 'delete'
-                          ? '-'
-                          : ' '
-                    }}</span>
-                    <Typography.Text class="line-content" :code="false">
-                      {{ line.content }}
-                    </Typography.Text>
-                  </div>
-                </div>
-              </div>
+            <div class="diff-viewer-container">
+              <DiffView
+                :data="transformedDiffFiles[fileIndex]"
+                :diff-view-mode="DiffModeEnum.Unified"
+                :diff-view-highlight="true"
+                :diff-view-theme="'light'"
+                :diff-view-font-size="13"
+              />
             </div>
           </Collapse.Panel>
         </Collapse>
@@ -936,19 +948,24 @@ async function handleSubmit() {
 }
 
 .progress-box {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  min-height: 0;
+  overflow: visible;
+  /* Ensure the content doesn't visually collide with the card header */
+  margin-top: 16px;
+  /* Provide consistent spacing between the status row and the log area */
+  gap: 16px;
 }
 
 .progress-status {
-  display: inline-flex;
+  /* Use block-level flex so subsequent sections always render beneath it */
+  display: flex;
   gap: 8px;
   align-items: center;
   font-size: 13px;
-  margin-bottom: 12px;
+  /* Spacing is handled by parent gap; avoid double-spacing here */
+  margin-bottom: 0;
+  flex-shrink: 0;
 }
 
 .progress-message {
@@ -956,9 +973,8 @@ async function handleSubmit() {
 }
 
 .progress-text {
-  flex: 1;
   overflow-y: auto;
-  min-height: 200px;
+  height: 300px;
   max-height: 400px;
   padding: 12px;
   font-family:
@@ -1152,108 +1168,8 @@ async function handleSubmit() {
   white-space: nowrap;
 }
 
-.diff-viewer {
+.diff-viewer-container {
   background-color: var(--ant-color-bg-container);
   overflow: hidden;
-}
-
-.diff-hunk {
-  margin: 0;
-}
-
-.hunk-header {
-  padding: 8px 16px;
-  background-color: var(--ant-color-fill-alter);
-  border-top: 1px solid var(--ant-color-border);
-  border-bottom: 1px solid var(--ant-color-border);
-}
-
-.hunk-info {
-  font-size: 12px;
-  color: var(--ant-text-color-secondary);
-}
-
-.hunk-content {
-  margin: 0;
-  padding: 0;
-}
-
-.diff-line {
-  display: flex;
-  padding: 0;
-  margin: 0;
-  line-height: 1.6;
-  border-bottom: 1px solid transparent;
-  transition: background-color 0.2s;
-}
-
-.diff-line:hover {
-  filter: brightness(0.98);
-}
-
-.diff-line-add {
-  background-color: var(--ant-success-color-deprecated-bg);
-  border-bottom-color: var(--ant-success-color-deprecated-border);
-}
-
-.diff-line-delete {
-  background-color: var(--ant-error-color-deprecated-bg);
-  border-bottom-color: var(--ant-error-color-deprecated-border);
-}
-
-.diff-line-normal {
-  background-color: var(--ant-color-bg-container);
-}
-
-.line-prefix {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  padding: 4px 8px;
-  text-align: center;
-  user-select: none;
-  flex-shrink: 0;
-  font-family:
-    ui-monospace, SFMono-Regular, SFMono, Menlo, Monaco, Consolas,
-    'Liberation Mono', 'Courier New', monospace;
-  font-size: 13px;
-  font-weight: 600;
-  background-color: rgba(0, 0, 0, 0.02);
-}
-
-.diff-line-add .line-prefix {
-  color: var(--ant-success-color);
-  background-color: var(--ant-success-color-deprecated-bg);
-}
-
-.diff-line-delete .line-prefix {
-  color: var(--ant-error-color);
-  background-color: var(--ant-error-color-deprecated-bg);
-}
-
-.diff-line-normal .line-prefix {
-  color: var(--ant-text-color-secondary);
-}
-
-.line-content {
-  flex: 1;
-  padding: 4px 12px;
-  overflow-x: auto;
-  font-family:
-    ui-monospace, SFMono-Regular, SFMono, Menlo, Monaco, Consolas,
-    'Liberation Mono', 'Courier New', monospace;
-  font-size: 13px;
-  white-space: pre;
-  color: var(--ant-text-color);
-}
-
-/* Dark theme adjustments */
-html[data-theme='dark'] .line-prefix {
-  background-color: rgba(255, 255, 255, 0.04);
-}
-
-html[data-theme='dark'] .diff-line:hover {
-  filter: brightness(1.1);
 }
 </style>
