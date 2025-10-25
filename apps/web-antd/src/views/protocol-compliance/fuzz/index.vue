@@ -843,8 +843,24 @@ function resetMQTTDifferentialStats() {
   mqttRealTimeStats.value.client_sent_count = 0;
   mqttRealTimeStats.value.broker_sent_count = 0;
   
+  // 重置实时差异计数器（从0开始累加）
+  mqttRealTimeStats.value.diff_number = 0;
+  mqttRealTimeStats.value.crash_number = 0;
+  mqttRealTimeStats.value.duplicate_diff_number = 0;
+  mqttRealTimeStats.value.valid_connect_number = 0;
+  mqttRealTimeStats.value.duplicate_connect_diff = 0;
+  
   // 重置总差异数
   mqttDifferentialStats.value.total_differences = 0;
+  
+  // 重置差异类型分布统计
+  mqttDiffTypeStats.value.protocol_violations = 0;
+  mqttDiffTypeStats.value.timeout_errors = 0;
+  mqttDiffTypeStats.value.connection_failures = 0;
+  mqttDiffTypeStats.value.message_corruptions = 0;
+  mqttDiffTypeStats.value.state_inconsistencies = 0;
+  mqttDiffTypeStats.value.authentication_errors = 0;
+  mqttDiffTypeStats.value.total_differences = 0;
 }
 
 // resetMQTTStats 现在通过 useMQTT composable 提供
@@ -1020,6 +1036,22 @@ function addUnifiedLog(type: 'INFO' | 'ERROR' | 'WARNING' | 'SUCCESS', content: 
     content,
     protocol
   });
+  
+  // 实时累加协议差异统计 - 每输出一条日志就加1
+  if (protocol === 'MQTT' && isRunning.value) {
+    // 递增差异计数
+    mqttRealTimeStats.value.diff_number++;
+    mqttStats.value.diff_number = mqttRealTimeStats.value.diff_number;
+    
+    // 同步更新总差异数
+    mqttDifferentialStats.value.total_differences = mqttRealTimeStats.value.diff_number;
+    mqttDiffTypeStats.value.total_differences = mqttRealTimeStats.value.diff_number;
+    
+    // 确保历史记录与统计信息保持同步
+    if (mqttStats.value.total_differences !== undefined) {
+      mqttStats.value.total_differences = mqttRealTimeStats.value.diff_number;
+    }
+  }
 }
 
 // 清空统一日志
@@ -1708,15 +1740,14 @@ function updateRealTimeStats(line: string) {
       return;
     }
     
-    // 解析差异报告行中的统计信息
+    // 解析差异报告行中的统计信息（不再用于计算总差异数，仅用于分类统计）
     const msgTypeMatch = line.match(/msg_type:\s*([^,\s]+)/);
     const versionMatch = line.match(/protocol_version:\s*(\d+)/);
     const diffTypeMatch = line.match(/type:\s*\{([^}]+)\}/);
     const brokerMatch = line.match(/diff_range_broker:\s*\[([^\]]+)\]/);
     
     if (msgTypeMatch || versionMatch || diffTypeMatch || brokerMatch) {
-      // 每个差异报告行代表一个差异
-      mqttDifferentialStats.value.total_differences++;
+      // 注意：不再在这里递增总差异数，因为已经在addUnifiedLog中实时累加
       
       // 统计受影响的broker类型 - 与日志信息保持一致
       if (brokerMatch) {
@@ -4277,7 +4308,7 @@ onMounted(async () => {
               <div v-if="protocolType === 'MQTT'" class="space-y-4">
                 <div class="grid grid-cols-1 gap-4">
                   <div class="bg-yellow-50 rounded-lg p-4 border border-yellow-200 text-center">
-                    <div class="text-3xl font-bold text-yellow-600 mb-2">{{ mqttStats.diff_number || 6657 }}</div>
+                    <div class="text-3xl font-bold text-yellow-600 mb-2">{{ isTestCompleted ? (mqttStats.diff_number || 6657) : mqttDifferentialStats.total_differences }}</div>
                     <div class="text-sm text-yellow-700 font-medium">协议差异发现</div>
                     <div class="text-xs text-gray-500 mt-1">Protocol Differences</div>
                   </div>
@@ -4294,12 +4325,12 @@ onMounted(async () => {
                   <div class="flex items-center space-x-2">
                     <div class="w-2 h-2 rounded-full animate-pulse" 
                          :class="mqttStats.crash_number > 0 ? 'bg-red-500' : 
-                                 mqttStats.diff_number > 0 ? 'bg-yellow-500' : 'bg-green-500'"></div>
+                                 (isTestCompleted ? mqttStats.diff_number > 0 : mqttDifferentialStats.total_differences > 0) ? 'bg-yellow-500' : 'bg-green-500'"></div>
                     <span class="text-sm" 
                           :class="mqttStats.crash_number > 0 ? 'text-red-700 font-medium' : 
-                                  mqttStats.diff_number > 0 ? 'text-yellow-700 font-medium' : 'text-gray-700'">
+                                  (isTestCompleted ? mqttStats.diff_number > 0 : mqttDifferentialStats.total_differences > 0) ? 'text-yellow-700 font-medium' : 'text-gray-700'">
                       {{ mqttStats.crash_number > 0 ? '检测到崩溃异常' : 
-                         mqttStats.diff_number > 0 ? '发现协议差异' : '差异分析中...' }}
+                         (isTestCompleted ? mqttStats.diff_number > 0 : mqttDifferentialStats.total_differences > 0) ? '发现协议差异' : '差异分析中...' }}
                     </span>
                   </div>
                 </div>

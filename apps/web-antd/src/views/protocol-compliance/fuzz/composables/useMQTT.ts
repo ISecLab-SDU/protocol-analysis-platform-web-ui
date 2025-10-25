@@ -72,11 +72,11 @@ export function useMQTT() {
       broker_request_count: 0,
       total_request_count: 0,
       crash_number: 0,
-      diff_number: 0,
+      diff_number: 0, // 实时累加模式：从0开始
       duplicate_diff_number: 0,
       valid_connect_number: 0,
       duplicate_connect_diff: 0,
-      total_differences: 0,
+      total_differences: 0, // 与diff_number保持同步
       
       client_messages: createEmptyMQTTMessageStats(),
       broker_messages: createEmptyMQTTMessageStats(),
@@ -328,10 +328,8 @@ export function useMQTT() {
       }
       
       if (line.includes('Diff Number:')) {
-        const match = line.match(/Diff Number:\s*(\d+)/);
-        if (match) {
-          mqttStats.value.diff_number = parseInt(match[1]);
-        }
+        // 注意：不再从日志解析diff_number，改为实时累加模式
+        // diff_number现在由addUnifiedLog函数实时递增
         return null; // 静默处理，不显示
       }
       
