@@ -665,17 +665,9 @@ watch(
   >
     <!-- 顶部导航栏 - 现代设计 -->
     <Layout.Header
-      class="relative overflow-hidden bg-gradient-to-r from-indigo-800 to-purple-800 text-white shadow-lg"
+      class="relative overflow-hidden bg-white text-gray-800 shadow-lg"
     >
-      <!-- 装饰背景 -->
-      <div class="absolute inset-0 opacity-10">
-        <div
-          class="absolute right-0 top-0 h-full w-1/3 -translate-y-1/4 translate-x-1/2 transform rounded-full bg-white"
-        ></div>
-        <div
-          class="absolute bottom-0 left-1/4 h-1/2 w-1/4 -translate-x-1/2 translate-y-1/4 transform rounded-full bg-white"
-        ></div>
-      </div>
+      <!-- 标题区域 - 白色背景 -->
 
       <div
         class="container relative z-10 mx-auto flex flex-col items-center justify-between px-4 py-4 md:flex-row"
@@ -683,22 +675,18 @@ watch(
         <div class="mb-2 flex items-center space-x-3 md:mb-0">
           <IconifyIcon
             icon="ant-design:security-scan-outlined"
-            class="text-2xl text-indigo-200"
+            class="text-2xl text-indigo-600"
           />
           <Typography.Title
             :level="3"
-            class="m-0 font-light tracking-wide text-white"
+            class="m-0 font-light tracking-wide text-gray-800"
           >
-            <span class="font-bold text-white"
-              >CryptoScan 固件安全分析平台</span
+            <span class="font-bold text-gray-900"
+              >密码算法安全分析</span
             >
           </Typography.Title>
         </div>
-        <div
-          class="hidden rounded-full bg-white bg-opacity-10 px-4 py-1.5 text-sm opacity-90 md:block"
-        >
-          <span class="font-bold">基于数据流的密码规范检测技术</span>
-        </div>
+        <!-- 已删除基于数据流的密码规范检测技术 -->
       </div>
     </Layout.Header>
 
@@ -734,19 +722,14 @@ watch(
         v-if="currentNav === 'system-intro'"
       >
         <!-- 英雄区域 -->
-        <Card
-          class="mb-8 overflow-hidden border-none bg-gradient-to-br from-indigo-50 to-purple-50 shadow-xl"
-        >
+        <Card class="mb-8 overflow-hidden border-none bg-white shadow-xl">
           <div class="p-8 text-center md:p-12">
             <IconifyIcon
               icon="ant-design:security-scan-outlined"
               class="mb-6 text-5xl text-indigo-600"
             />
-            <Typography.Title
-              :level="2"
-              class="mb-4 bg-gradient-to-r from-indigo-700 to-purple-700 bg-clip-text font-bold text-transparent"
-            >
-              网络设备固件密码规范分析平台
+            <Typography.Title :level="2" class="mb-4 font-bold text-gray-800">
+              密码算法安全分析平台
             </Typography.Title>
             <Typography.Paragraph
               class="mx-auto mb-8 max-w-3xl text-lg text-gray-700"
@@ -1562,7 +1545,7 @@ watch(
 
     <!-- 页脚 - 美化版本 -->
     <Layout.Footer
-      class="mt-16 bg-gradient-to-r from-gray-800 to-gray-900 py-12 text-white"
+      class="mt-16 border-t border-gray-200 bg-white py-12 text-gray-800"
     >
       <div class="container mx-auto px-4">
         <div
@@ -1571,30 +1554,30 @@ watch(
           <div class="mb-6 flex items-center space-x-3 md:mb-0">
             <IconifyIcon
               icon="ant-design:security-scan-outlined"
-              class="text-2xl text-indigo-300"
+              class="text-2xl text-indigo-600"
             />
-            <Typography.Title :level="4" class="m-0 font-light text-white">
-              <span class="font-bold text-white"
-                >CryptoScan 固件安全分析平台</span
+            <Typography.Title :level="4" class="m-0 font-light text-gray-800">
+              <span class="font-bold text-gray-900"
+                >密码算法安全分析</span
               >
             </Typography.Title>
           </div>
           <div class="flex space-x-6">
             <a
               href="#"
-              class="text-gray-300 transition-colors hover:text-white"
+              class="text-gray-600 transition-colors hover:text-gray-900"
             >
               <IconifyIcon icon="ant-design:github-outlined" class="text-xl" />
             </a>
             <a
               href="#"
-              class="text-gray-300 transition-colors hover:text-white"
+              class="text-gray-600 transition-colors hover:text-gray-900"
             >
               <IconifyIcon icon="ant-design:book-outlined" class="text-xl" />
             </a>
             <a
               href="#"
-              class="text-gray-300 transition-colors hover:text-white"
+              class="text-gray-600 transition-colors hover:text-gray-900"
             >
               <IconifyIcon
                 icon="ant-design:question-circle-outlined"
@@ -1603,16 +1586,8 @@ watch(
             </a>
           </div>
         </div>
-        <Divider class="my-6 bg-gray-700 opacity-50" />
-        <div class="text-center text-sm text-gray-400">
-          <p class="mb-2 text-white">
-            ©{{ new Date().getFullYear() }}
-            <span class="font-bold text-white"
-              >CryptoScan 安全平台 - 基于数据流的网络设备固件密码规范分析系统
-            </span>
-          </p>
-          <p>集成CRYPTODY分析引擎 | 学术级安全分析解决方案</p>
-        </div>
+        <Divider class="my-6 bg-gray-300 opacity-80" />
+        <!-- 已删除底栏版权信息 -->
       </div>
     </Layout.Footer>
   </div>
