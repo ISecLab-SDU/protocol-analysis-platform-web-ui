@@ -2,13 +2,11 @@
 import { onMounted, ref, nextTick, computed, watch, h, shallowRef, onErrorCaptured, onUnmounted } from 'vue';
 import { getFuzzText } from '#/api/custom';
 import { requestClient } from '#/api/request';
-import { useAccessStore } from '@vben/stores';
 import { IconifyIcon } from '@vben/icons';
 import Chart from 'chart.js/auto';
 import type { TableColumnType } from 'ant-design-vue';
 
 import { Page } from '@vben/common-ui';
-import { IconifyIcon as IconIcon } from '@vben/icons';
 
 import {
   Alert,
@@ -102,18 +100,19 @@ const {
   stopAllRealtimeStreams
 } = useProtocolDataManager();
 
-const TypographyParagraph = Typography.Paragraph;
-const TypographyText = Typography.Text;
-const TypographyTitle = Typography.Title;
-
-// Parsed data - kept for backward compatibility
-const fuzzData = ref<FuzzPacket[]>([]);
+// fuzzData现在通过useSNMP composable管理，使用snmpFuzzData
 const totalPacketsInFile = ref(0);
 // File-level summary stats parsed from txt
 const fileTotalPackets = ref(0);
 const fileSuccessCount = ref(0);
 const fileTimeoutCount = ref(0);
 const fileFailedCount = ref(0);
+
+const TypographyParagraph = Typography.Paragraph;
+const TypographyText = Typography.Text;
+const TypographyTitle = Typography.Title;
+
+// 协议统计数据现在通过composables管理 (protocolStats, messageTypeStats)
 
 // Runtime stats
 const packetCount = ref(0);
@@ -138,21 +137,76 @@ const targetHost = ref('127.0.0.1');
 const targetPort = ref(161);
 const rtspCommandConfig = ref('afl-fuzz -d -i $AFLNET/tutorials/live555/in-rtsp -o out-live555 -N tcp://127.0.0.1/8554 -x $AFLNET/tutorials/live555/rtsp.dict -P RTSP -D 10000 -q 3 -s 3 -E -K -R ./testOnDemandRTSPServer 8554');
 
-// Real-time log reading
-const isReadingLogOld = ref(false);
-const logReadingIntervalOld = ref<number | null>(null);
-const rtspProcessId = ref<number | null>(null);
-const logReadPositionOld = ref(0);
 
-// Watch for protocol changes to update port
-watch(protocolType, (newProtocol) => {
+// Real-time log reading (现在通过useLogReader管理)
+const rtspProcessId = ref<number | string | null>(null);
+
+// Watch for protocol changes to update port and fuzz engine
+watch(protocolType, (newProtocol, oldProtocol) => {
+  console.log(`[DEBUG] 协议切换: ${oldProtocol} -> ${newProtocol}`);
+  
+  // 立即停止当前运行的测试和所有异步操作
+  if (isRunning.value) {
+    console.log('[DEBUG] 停止当前运行的测试');
+    isRunning.value = false;
+    isTestCompleted.value = false;
+    
+    // 取消MQTT模拟
+    if (oldProtocol === 'MQTT') {
+      mqttSimulationCancelled = true;
+      console.log('[DEBUG] 取消MQTT模拟操作');
+    }
+    
+    if (testTimer) {
+      clearInterval(testTimer as any);
+      testTimer = null;
+    }
+  }
+  
+  // 停止所有实时流和日志读取
+  console.log('[DEBUG] 停止所有实时流和日志读取');
+  stopAllRealtimeStreams();
+  stopLogReading();
+  
+  // 清理之前协议的状态
+  if (oldProtocol === 'MQTT') {
+    console.log('[DEBUG] 清理MQTT协议状态');
+    // 清理MQTT动画
+    cleanupMQTTAnimations();
+    // 使用nextTick确保在下一个tick中清理，避免当前更新周期的冲突
+    nextTick(() => {
+      // 清理定时器
+      if (mqttUpdateTimer) {
+        clearTimeout(mqttUpdateTimer);
+        mqttUpdateTimer = null;
+      }
+      // 清理非响应式日志数据
+      mqttDifferentialLogsData = [];
+      mqttLogsPendingUpdate = false;
+      mqttLogsUpdateKey.value++;
+      resetMQTTStats();
+      resetMQTTDifferentialStats();
+    });
+  }
+  
+  // 设置新协议的配置
   if (newProtocol === 'SNMP') {
     targetPort.value = 161;
+    fuzzEngine.value = 'SNMP_Fuzz';
   } else if (newProtocol === 'RTSP') {
-    targetPort.value = 554;
+    targetPort.value = 8554;
+    fuzzEngine.value = 'AFLNET';
   } else if (newProtocol === 'MQTT') {
     targetPort.value = 1883;
+    fuzzEngine.value = 'MBFuzzer';
+    // MQTT动画将在测试开始时初始化
   }
+  
+  // 重置测试状态
+  nextTick(() => {
+    resetTestState();
+    console.log('[DEBUG] 协议切换完成，状态已重置');
+  });
 });
 const showCharts = ref(false);
 const crashDetails = ref<any>(null);
@@ -191,35 +245,7 @@ watch(historyDrawerOpen, (open) => {
 const showNotification = ref(false);
 const notificationMessage = ref('');
 
-// 历史结果数据接口
-interface HistoryResult {
-  id: string;
-  timestamp: string;
-  protocol: string;
-  fuzzEngine: string;
-  targetHost: string;
-  targetPort: number;
-  duration: number;
-  totalPackets: number;
-  successCount: number;
-  timeoutCount: number;
-  failedCount: number;
-  crashCount: number;
-  successRate: number;
-  protocolStats: {
-    v1: number;
-    v2c: number;
-    v3: number;
-  };
-  messageTypeStats: {
-    get: number;
-    set: number;
-    getnext: number;
-    getbulk: number;
-  };
-  hasCrash: boolean;
-  crashDetails?: any;
-}
+// HistoryResult 接口现在从 composables 导入
 
 // 模拟历史结果数据
 const historyResults = ref<HistoryResult[]>([
@@ -228,7 +254,7 @@ const historyResults = ref<HistoryResult[]>([
     timestamp: '2025-01-20 14:30:25',
     protocol: 'SNMP',
     fuzzEngine: 'SNMP_Fuzz',
-    targetHost: '192.168.102.2',
+    targetHost: '127.0.0.1',
     targetPort: 161,
     duration: 127,
     totalPackets: 2847,
@@ -246,7 +272,7 @@ const historyResults = ref<HistoryResult[]>([
     timestamp: '2025-01-20 11:15:42',
     protocol: 'SNMP',
     fuzzEngine: 'SNMP_Fuzz',
-    targetHost: '192.168.102.5',
+    targetHost: '127.0.0.1',
     targetPort: 161,
     duration: 89,
     totalPackets: 1924,
@@ -285,15 +311,78 @@ const historyResults = ref<HistoryResult[]>([
     protocolStats: { v1: 1789, v2c: 1456, v3: 1276 },
     messageTypeStats: { get: 1823, set: 1124, getnext: 892, getbulk: 682 },
     hasCrash: false
+  },
+  {
+    id: 'hist_004',
+    timestamp: '2025-01-23 20:36:44',
+    protocol: 'MQTT',
+    fuzzEngine: 'MBFuzzer',
+    targetHost: '127.0.0.1',
+    targetPort: 1883,
+    duration: 13,
+    totalPackets: 953,
+    successCount: 650,
+    timeoutCount: 303,
+    failedCount: 0,
+    crashCount: 0,
+    successRate: 68,
+    mqttStats: {
+      fuzzing_start_time: '2024-07-06 00:39:14',
+      fuzzing_end_time: '2024-07-07 10:15:23',
+      client_request_count: 851051,
+      broker_request_count: 523790,
+      total_request_count: 1374841,
+      crash_number: 0,
+      diff_number: 0,
+      duplicate_diff_number: 118563,
+      valid_connect_number: 1362,
+      duplicate_connect_diff: 1507,
+      total_differences: 0,
+      client_messages: {
+        CONNECT: 125000, CONNACK: 0, PUBLISH: 320000, PUBACK: 180000,
+        PUBREC: 45000, PUBREL: 45000, PUBCOMP: 45000, SUBSCRIBE: 85000,
+        SUBACK: 0, UNSUBSCRIBE: 25000, UNSUBACK: 0, PINGREQ: 21051,
+        PINGRESP: 0, DISCONNECT: 0, AUTH: 0
+      },
+      broker_messages: {
+        CONNECT: 0, CONNACK: 125000, PUBLISH: 180000, PUBACK: 85000,
+        PUBREC: 25000, PUBREL: 25000, PUBCOMP: 25000, SUBSCRIBE: 0,
+        SUBACK: 45000, UNSUBSCRIBE: 0, UNSUBACK: 12790, PINGREQ: 0,
+        PINGRESP: 21000, DISCONNECT: 0, AUTH: 0
+      },
+      duplicate_diffs: {
+        CONNECT: 1507, CONNACK: 0, PUBLISH: 0, PUBACK: 0,
+        PUBREC: 0, PUBREL: 0, PUBCOMP: 0, SUBSCRIBE: 0,
+        SUBACK: 0, UNSUBSCRIBE: 0, UNSUBACK: 0, PINGREQ: 0,
+        PINGRESP: 0, DISCONNECT: 0, AUTH: 0
+      },
+      differential_reports: [],
+      q_table_states: [],
+      broker_issues: {
+        hivemq: 0, vernemq: 0, emqx: 0, flashmq: 0, nanomq: 0, mosquitto: 0
+      }
+    },
+    protocolSpecificData: {
+      clientRequestCount: 851051,
+      brokerRequestCount: 523790,
+      diffNumber: 5841,
+      duplicateDiffNumber: 118563,
+      validConnectNumber: 1362,
+      duplicateConnectDiff: 1507,
+      fuzzingStartTime: '2024-07-06 00:39:14',
+      fuzzingEndTime: '2024-07-07 10:15:23'
+    },
+    hasCrash: false
   }
 ]);
 
-// UI refs
-const logContainer = ref<HTMLDivElement | null>(null);
+// UI refs (logContainer现在通过useLogReader管理)
 const messageCanvas = ref<HTMLCanvasElement>();
 const versionCanvas = ref<HTMLCanvasElement>();
+const mqttMessageCanvas = ref<HTMLCanvasElement>();
 let messageTypeChart: any = null;
 let versionChart: any = null;
+let mqttMessageChart: any = null;
 
 // Computed properties
 const progressWidth = computed(() => {
@@ -316,43 +405,12 @@ const failedRate = computed(() => {
   return total > 0 ? Math.round((failedCount.value / total) * 100) : 0;
 });
 
-// 生成默认测试数据
-function generateDefaultFuzzData() {
-  return `[1] 版本=v1, 类型=get
-选择OIDs=['1.3.6.1.2.1.1.1.0']
-报文HEX: 302902010004067075626C6963A01C02040E8F83C502010002010030
-[发送尝试] 长度=43 字节
-[接收成功] 42 字节
-[2] 版本=v2c, 类型=set
-选择OIDs=['1.3.6.1.2.1.1.2.0']
-报文HEX: 304502010104067075626C6963A03802040E8F83C502010002010030
-[发送尝试] 长度=71 字节
-[接收超时]
-[3] 版本=v3, 类型=getnext
-选择OIDs=['1.3.6.1.2.1.1.3.0']
-报文HEX: 305502010304067075626C6963A04802040E8F83C502010002010030
-[发送尝试] 长度=87 字节
-[接收成功] 156 字节
-[4] 生成失败: 无效的OID格式
-[5] 版本=v1, 类型=getbulk
-选择OIDs=['1.3.6.1.2.1.1.4.0']
-报文HEX: 306502010004067075626C6963A05802040E8F83C502010002010030
-[发送尝试] 长度=103 字节
-[运行监控] 收到崩溃通知: 健康服务报告 VM 不可达
-[崩溃信息] 疑似崩溃数据包: 306502010004067075626C6963A05802040E8F83C502010002010030
-[崩溃信息] 崩溃队列信息导出: /home/hhh/下载/snmp_fuzz/snmp_github/snmp_fuzz/scan_result/crash_logs/20251014-110318
-[运行监控] 检测到崩溃，停止 fuzz 循环
-统计: {'v1': 3, 'v2c': 1, 'v3': 1}, {'get': 2, 'set': 1, 'getnext': 1, 'getbulk': 1}
-开始时间: 2025-01-14 11:03:18
-结束时间: 2025-01-14 11:03:25
-总耗时: 7.2 秒
-发送总数据包: 5
-平均发送速率: 0.69 包/秒`;
-}
+// generateDefaultFuzzData 现在通过 useSNMP composable 提供
 
 async function fetchText() {
   loading.value = true;
   try {
+    // 尝试从Flask后端获取SNMP日志数据
     const resp = await getFuzzText();
     const text = (resp as any)?.text ?? (resp as any)?.data?.text ?? '';
     console.log('API响应数据长度:', text?.length || 0);
@@ -362,6 +420,7 @@ async function fetchText() {
       console.warn('API返回空数据，使用默认数据');
       rawText.value = generateDefaultFuzzData();
     } else {
+      console.log('成功从SNMP日志文件加载数据');
       rawText.value = text;
     }
   } catch (e: any) {
@@ -484,6 +543,116 @@ function initCharts() {
   }
 }
 
+function initMQTTChart() {
+  if (!mqttMessageCanvas.value) {
+    console.warn('MQTT Canvas element not ready');
+    return false;
+  }
+
+  try {
+    const mqttCtx = mqttMessageCanvas.value.getContext('2d');
+    if (!mqttCtx) {
+      console.warn('Failed to get MQTT canvas context');
+      return false;
+    }
+
+    mqttMessageChart = new Chart(mqttCtx, {
+      type: 'doughnut',
+      data: {
+        labels: ['CONNECT', 'PUBLISH', 'SUBSCRIBE', 'PINGREQ', 'UNSUBSCRIBE', 'PUBACK', 'CONNACK', 'SUBACK', 'PINGRESP', '其他'],
+        datasets: [{ 
+          data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 
+          backgroundColor: [
+            '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', 
+            '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6B7280'
+          ], 
+          borderColor: '#FFFFFF', 
+          borderWidth: 2, 
+          hoverOffset: 6 
+        }],
+      },
+      options: { 
+        responsive: true, 
+        maintainAspectRatio: false, 
+        plugins: { 
+          legend: { 
+            position: 'bottom', 
+            labels: { 
+              color: '#1F2937', 
+              padding: 10, 
+              font: { size: 10, weight: 'bold' }, 
+              usePointStyle: true 
+            } 
+          },
+          tooltip: {
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            titleColor: 'white',
+            bodyColor: 'white',
+            borderColor: 'rgba(255, 255, 255, 0.1)',
+            borderWidth: 1,
+            callbacks: {
+              label: function(context: any) {
+                const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
+                const percentage = total > 0 ? Math.round((context.parsed / total) * 100) : 0;
+                return `${context.label}: ${context.parsed} (${percentage}%)`;
+              }
+            }
+          }
+        }, 
+        cutout: '50%' 
+      },
+    });
+    
+    console.log('MQTT Chart initialized successfully');
+    return true;
+  } catch (error) {
+    console.error('Failed to initialize MQTT chart:', error);
+    return false;
+  }
+}
+
+// 从fuzz数据重新计算统计信息的函数
+function recalculateStatsFromFuzzData() {
+  try {
+    if (!snmpFuzzData.value || snmpFuzzData.value.length === 0) {
+      console.warn('No fuzz data available for recalculation');
+      return;
+    }
+    
+    console.log('Recalculating statistics from fuzz data...');
+    
+    // 重置统计数据
+    const newProtocolStats = { v1: 0, v2c: 0, v3: 0 };
+    const newMessageTypeStats = { get: 0, set: 0, getnext: 0, getbulk: 0 };
+    
+    // 遍历fuzz数据重新计算统计
+    snmpFuzzData.value.forEach(packet => {
+      // 统计协议版本
+      if (packet.version === 'v1') newProtocolStats.v1++;
+      else if (packet.version === 'v2c') newProtocolStats.v2c++;
+      else if (packet.version === 'v3') newProtocolStats.v3++;
+      
+      // 统计消息类型
+      if (packet.type === 'get') newMessageTypeStats.get++;
+      else if (packet.type === 'set') newMessageTypeStats.set++;
+      else if (packet.type === 'getnext') newMessageTypeStats.getnext++;
+      else if (packet.type === 'getbulk') newMessageTypeStats.getbulk++;
+    });
+    
+    // 更新统计数据
+    protocolStats.value = newProtocolStats;
+    messageTypeStats.value = newMessageTypeStats;
+    
+    console.log('Statistics recalculated from fuzz data:', {
+      protocolStats: newProtocolStats,
+      messageTypeStats: newMessageTypeStats,
+      totalPackets: snmpFuzzData.value.length
+    });
+  } catch (error) {
+    console.error('Error recalculating stats from fuzz data:', error);
+  }
+}
+
 function updateCharts() {
   try {
     if (!messageTypeChart || !versionChart) {
@@ -512,148 +681,48 @@ function updateCharts() {
       versionChart.update('none'); // Use 'none' animation mode for better performance
     }
     
-    console.log('Charts updated successfully');
+    console.log('Charts updated successfully with data:', {
+      messageTypeData: [
+        messageTypeStats.value.get || 0,
+        messageTypeStats.value.set || 0,
+        messageTypeStats.value.getnext || 0,
+        messageTypeStats.value.getbulk || 0,
+      ],
+      versionData: [
+        protocolStats.value.v1 || 0,
+        protocolStats.value.v2c || 0,
+        protocolStats.value.v3 || 0,
+      ]
+    });
   } catch (error) {
     console.error('Error updating charts:', error);
   }
 }
 
+function updateMQTTChart() {
+  try {
+    // MQTT现在使用broker差异统计卡片显示，不再需要图表更新
+    console.log('MQTT using broker difference statistics cards, chart update skipped');
+  } catch (error) {
+    console.error('Error in MQTT chart function:', error);
+  }
+}
+
 function parseText(text: string) {
-  if (!text || typeof text !== 'string') {
-    console.error('Invalid fuzz data format');
-    return;
-  }
-
-  const lines = text.split('\n');
-  console.log('解析文本总行数:', lines.length);
+  // 使用SNMP composable的解析功能
+  const parsedData = parseSNMPText(text);
+  snmpFuzzData.value = parsedData;
+  totalPacketsInFile.value = parsedData.filter((p) => typeof p.id === 'number').length;
   
-  if (lines.length < 5) {
-    console.error('Insufficient fuzz data');
-    return;
-  }
-
-  fuzzData.value = [];
-  let currentPacket: FuzzPacket | null = null;
-  let localFailedCount = 0;
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-
-    const packetMatch = line.match(/^\[(\d+)\]\s+版本=([^,]+),\s+类型=([^,]+)/);
-    if (packetMatch) {
-      if (currentPacket) fuzzData.value.push(currentPacket);
-      const packetNumber = parseInt(packetMatch[1]);
-      
-      // 调试信息：每100个包输出一次
-      if (packetNumber % 100 === 0 || packetNumber <= 5) {
-        console.log(`解析数据包 #${packetNumber}: 版本=${packetMatch[2]}, 类型=${packetMatch[3]}`);
-      }
-      currentPacket = {
-        id: packetNumber,
-        version: packetMatch[2],
-        type: packetMatch[3],
-        oids: [],
-        hex: '',
-        result: 'unknown',
-        responseSize: 0,
-        timestamp: new Date().toLocaleTimeString(),
-        failed: false,
-      };
-      continue;
-    }
-
-    const failedMatch = line.match(/^\[(\d+)\]\s+生成失败:/);
-    if (failedMatch) {
-      const failedId = parseInt(failedMatch[1]);
-      localFailedCount++;
-      if (currentPacket && currentPacket.id === failedId) {
-        currentPacket.result = 'failed';
-        currentPacket.failed = true;
-        currentPacket.failedReason = line;
-        currentPacket.timestamp = new Date().toLocaleTimeString();
-        fuzzData.value.push(currentPacket);
-        currentPacket = null;
-      } else {
-        fuzzData.value.push({ id: failedId, version: 'unknown', type: 'unknown', oids: [], hex: '', result: 'failed', responseSize: 0, timestamp: new Date().toLocaleTimeString(), failed: true, failedReason: line });
-      }
-      continue;
-    }
-
-    if (line.includes('选择OIDs=') && currentPacket) {
-      const oidMatch = line.match(/选择OIDs=\[(.*?)\]/);
-      if (oidMatch) currentPacket.oids = oidMatch[1].split(',').map((oid) => oid.trim().replace(/'/g, ''));
-      continue;
-    }
-
-    if (line.includes('报文HEX:') && currentPacket) {
-      const hexMatch = line.match(/报文HEX:\s*([A-F0-9]+)/);
-      if (hexMatch) currentPacket.hex = hexMatch[1];
-      continue;
-    }
-
-    if (line.includes('[发送尝试]') && currentPacket) {
-      const sizeMatch = line.match(/长度=(\d+)\s*字节/);
-      if (sizeMatch) (currentPacket as any).sendSize = parseInt(sizeMatch[1]);
-      continue;
-    }
-
-    if (line.includes('[接收成功]') && currentPacket) {
-      const sizeMatch = line.match(/(\d+)\s*字节/);
-      if (sizeMatch) {
-        currentPacket.responseSize = parseInt(sizeMatch[1]);
-        currentPacket.result = 'success';
-      }
-      continue;
-    }
-    
-    if (line.includes('[接收超时]') && currentPacket) {
-      currentPacket.result = 'timeout';
-      continue;
-    }
-
-    if (line.includes('[运行监控]')) {
-      const isExactCrashNotice = line.includes('[运行监控] 收到崩溃通知: 健康服务报告 VM 不可达');
-      if (isExactCrashNotice || line.includes('崩溃通知')) {
-        const crashEvent = { type: 'crash_notification', message: line, timestamp: new Date().toLocaleTimeString(), crashPacket: '', crashLogPath: '' };
-        for (let j = i + 1; j < lines.length && j < i + 30; j++) {
-          const nextLine = lines[j].trim();
-          if (nextLine.includes('[崩溃信息] 疑似崩溃数据包:')) crashEvent.crashPacket = nextLine.replace('[崩溃信息] 疑似崩溃数据包: ', '');
-          else if (nextLine.includes('[崩溃信息] 崩溃队列信息导出:')) crashEvent.crashLogPath = nextLine.replace('[崩溃信息] 崩溃队列信息导出: ', '');
-          if (crashEvent.crashPacket && crashEvent.crashLogPath) break;
-        }
-        fuzzData.value.push({ id: 'crash_event', version: 'crash', type: 'crash', oids: [], hex: crashEvent.crashPacket, result: 'crash', responseSize: 0, timestamp: crashEvent.timestamp, crashEvent, });
-        if (currentPacket) { currentPacket.result = 'crash'; (currentPacket as any).crashInfo = line; }
-      } else if (line.includes('检测到崩溃')) {
-        if (currentPacket) (currentPacket as any).monitorInfo = line;
-      }
-      continue;
-    }
-  }
-
-  if (currentPacket) fuzzData.value.push(currentPacket);
-  totalPacketsInFile.value = fuzzData.value.filter((p) => typeof p.id === 'number').length;
+  // Debug: Show distribution of packet results after parsing
+  const resultCounts = parsedData.reduce((acc, packet) => {
+    const result = packet.result || 'unknown';
+    acc[result] = (acc[result] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  console.log('解析后的数据包结果分布:', resultCounts);
+  console.log('总解析数据包数:', parsedData.length);
   
-  console.log('解析完成统计:');
-  console.log('- 总数据包数:', fuzzData.value.length);
-  console.log('- 有效数据包数:', totalPacketsInFile.value);
-  console.log('- 失败数据包数:', localFailedCount);
-
-  // Stats line
-  const statsLine = (text.match(/^统计:.*$/m) || [])[0];
-  if (statsLine) {
-    const objMatch = statsLine.match(/统计:\s*(\{[^}]+\})\s*,\s*(\{[^}]+\})/);
-    if (objMatch) {
-      try {
-        const versionJson = objMatch[1].replace(/'/g, '"');
-        const typeJson = objMatch[2].replace(/'/g, '"');
-        const parsedVersion = JSON.parse(versionJson);
-        const parsedType = JSON.parse(typeJson);
-        protocolStats.value = { v1: parsedVersion.v1 || 0, v2c: parsedVersion.v2c || 0, v3: parsedVersion.v3 || 0 };
-        messageTypeStats.value = { get: parsedType.get || 0, set: parsedType.set || 0, getnext: parsedType.getnext || 0, getbulk: parsedType.getbulk || 0 };
-      } catch {}
-    }
-  }
-
   // Extract timing information
   const startTimeMatch = text.match(/开始时间:\s*([^\n]+)/);
   const endTimeMatch = text.match(/结束时间:\s*([^\n]+)/);
@@ -661,10 +730,10 @@ function parseText(text: string) {
   const totalPacketsMatch = text.match(/发送总数据包:\s*(\d+)/) || text.match(/\[日志系统\]\s*数据包统计:\s*(\d+)\s*\/\s*\d+\s*个/);
   const avgSpeedMatch = text.match(/平均发送速率:\s*([\d.]+)\s*包\/秒/);
   
-  if (startTimeMatch) startTime.value = startTimeMatch[1];
-  if (endTimeMatch) endTime.value = endTimeMatch[1];
-  if (durationMatch) testDuration.value = parseFloat(durationMatch[1]);
-  if (avgSpeedMatch) packetsPerSecond.value = parseFloat(avgSpeedMatch[1]);
+  if (startTimeMatch?.[1]) startTime.value = startTimeMatch[1];
+  if (endTimeMatch?.[1]) endTime.value = endTimeMatch[1];
+  if (durationMatch?.[1]) testDuration.value = parseFloat(durationMatch[1]);
+  if (avgSpeedMatch?.[1]) packetsPerSecond.value = parseFloat(avgSpeedMatch[1]);
 
   // Counters from file
   const successCountInFile = (text.match(/\[接收成功\]/g) || []).length;
@@ -673,7 +742,7 @@ function parseText(text: string) {
   fileSuccessCount.value = successCountInFile;
   fileTimeoutCount.value = timeoutCountInFile;
   fileFailedCount.value = failedCountInFile;
-  fileTotalPackets.value = totalPacketsMatch ? parseInt(totalPacketsMatch[1]) : successCountInFile + timeoutCountInFile + failedCountInFile;
+  fileTotalPackets.value = totalPacketsMatch?.[1] ? parseInt(totalPacketsMatch[1]) : successCountInFile + timeoutCountInFile + failedCountInFile;
 }
 
 function resetTestState() {
@@ -691,6 +760,14 @@ function resetTestState() {
     showCrashDetails.value = false;
     logEntries.value = [];
     
+    // 重置协议专用的统计数据
+    resetSNMPStats();
+    resetRTSPStats();
+    resetMQTTStats();
+    
+    // 重置日志读取器
+    resetLogReader();
+    
     // Reset log container with proper checks
     nextTick(() => {
       try {
@@ -707,7 +784,8 @@ function resetTestState() {
 }
 
 async function startTest() {
-  if (!fuzzData.value.length) return;
+  // MQTT协议不需要fuzzData，直接从文件读取
+  if (protocolType.value !== 'MQTT' && !snmpFuzzData.value.length) return;
   
   resetTestState();
   isRunning.value = true;
@@ -720,7 +798,19 @@ async function startTest() {
     if (protocolType.value === 'RTSP') {
       await startRTSPTest();
     } else if (protocolType.value === 'SNMP') {
-      await startSNMPTest();
+      // 初始化SNMP协议数据管理器
+      clearProtocolLogs('SNMP');
+      updateProtocolState('SNMP', {
+        isRunning: true,
+        isProcessing: true,
+        totalRecords: snmpFuzzData.value.length,
+        processedRecords: 0
+      });
+      
+      // 启动SNMP实时流
+      startRealtimeStream('SNMP', { batchSize: 20, interval: 100 });
+      
+      await startSNMPTest(loop);
     } else if (protocolType.value === 'MQTT') {
       await startMQTTTest();
     } else {
@@ -755,10 +845,10 @@ async function startTest() {
 async function startRTSPTest() {
   try {
     // 1. 写入脚本文件
-    await writeRTSPScript();
+    await writeRTSPScriptWrapper();
     
     // 2. 执行shell命令启动程序
-    await executeRTSPCommand();
+    await executeRTSPCommandWrapper();
     
     // 3. 开始实时读取日志
     startRTSPLogReading();
@@ -778,47 +868,1643 @@ async function startRTSPTest() {
   }
 }
 
-async function startSNMPTest() {
-  // SNMP协议的原有逻辑
-  packetDelay.value = 1000 / packetsPerSecond.value;
-  loop();
-}
+// startSNMPTest 现在通过 useSNMP composable 提供
 
 async function startMQTTTest() {
-  // MQTT协议的启动逻辑（待实现）
-  console.log('MQTT test starting...');
-  addLogToUI({ 
-    timestamp: new Date().toLocaleTimeString(),
-    version: 'MQTT',
-    type: 'START',
-    oids: ['MQTT测试已启动'],
-    hex: '',
-    result: 'success'
-  } as any, false);
+  try {
+    console.log('开始MQTT协议测试');
+    
+    // 重置MQTT统计数据
+    resetMQTTStats();
+    
+    // 重置差异统计数据
+    resetMQTTDifferentialStats();
+    
+    // 清空协议日志
+    clearProtocolLogs('MQTT');
+    
+    // 更新协议状态
+    updateProtocolState('MQTT', {
+      isRunning: true,
+      isProcessing: true,
+      totalRecords: 0,
+      processedRecords: 0
+    });
+    
+    // 启动MQTT实时流（更快的刷新频率）
+    startRealtimeStream('MQTT', { batchSize: 20, interval: 50 });
+    
+    // 清空旧的差异日志数据（向后兼容）
+    if (mqttUpdateTimer) {
+      clearTimeout(mqttUpdateTimer);
+      mqttUpdateTimer = null;
+    }
+    mqttDifferentialLogsData = [];
+    mqttLogsPendingUpdate = false;
+    mqttLogsUpdateKey.value++;
+    
+    // 初始化MQTT动画（在测试开始时）
+    await nextTick();
+    initMQTTAnimations();
+    
+    // 开始实时模拟MQTT测试
+    await startMQTTRealTimeSimulation();
+    
+  } catch (error: any) {
+    console.error('MQTT测试启动失败:', error);
+    // 更新协议状态
+    updateProtocolState('MQTT', {
+      isRunning: false,
+      isProcessing: false
+    });
+    throw error;
+  }
 }
 
-// RTSP specific functions
-async function writeRTSPScript() {
+// 重置MQTT差异统计数据
+function resetMQTTDifferentialStats() {
+  // 重置差异类型统计
+  Object.keys(mqttDifferentialStats.value.type_stats).forEach(key => {
+    mqttDifferentialStats.value.type_stats[key as keyof typeof mqttDifferentialStats.value.type_stats] = 0;
+  });
+  
+  // 重置协议版本统计
+  Object.keys(mqttDifferentialStats.value.version_stats).forEach(key => {
+    mqttDifferentialStats.value.version_stats[key as keyof typeof mqttDifferentialStats.value.version_stats] = 0;
+  });
+  
+  // 重置broker差异统计 - 与日志信息保持一致
+  Object.keys(mqttRealTimeStats.value.broker_diff_stats).forEach(key => {
+    mqttRealTimeStats.value.broker_diff_stats[key as keyof typeof mqttRealTimeStats.value.broker_diff_stats] = 0;
+  });
+  
+  // 重置client和broker发送数据统计
+  mqttRealTimeStats.value.client_sent_count = 0;
+  mqttRealTimeStats.value.broker_sent_count = 0;
+  
+  // 重置实时差异计数器（从0开始累加）
+  mqttRealTimeStats.value.diff_number = 0;
+  mqttRealTimeStats.value.crash_number = 0;
+  mqttRealTimeStats.value.duplicate_diff_number = 0;
+  mqttRealTimeStats.value.valid_connect_number = 0;
+  mqttRealTimeStats.value.duplicate_connect_diff = 0;
+  
+  // 重置总差异数
+  mqttDifferentialStats.value.total_differences = 0;
+  
+  // 重置差异类型分布统计
+  mqttDiffTypeStats.value.protocol_violations = 0;
+  mqttDiffTypeStats.value.timeout_errors = 0;
+  mqttDiffTypeStats.value.connection_failures = 0;
+  mqttDiffTypeStats.value.message_corruptions = 0;
+  mqttDiffTypeStats.value.state_inconsistencies = 0;
+  mqttDiffTypeStats.value.authentication_errors = 0;
+  mqttDiffTypeStats.value.total_differences = 0;
+}
+
+// resetMQTTStats 现在通过 useMQTT composable 提供
+
+// 解析MQTT统计数据从文件
+async function parseMQTTStatsFromFile() {
+  try {
+    console.log('[调试-统计] 开始调用MQTT统计数据API');
+    const result = await requestClient.post('/protocol-compliance/read-log', {
+      protocol: 'MQTT',
+      lastPosition: 0  // 从文件开头读取全部内容
+    });
+    
+    console.log('[调试-统计] ✅ MQTT统计数据API调用成功');
+    console.log('[调试-统计] 响应数据:', result);
+    
+    // requestClient已经处理了错误检查，直接使用返回的data
+    const content = result.content;
+    const lines = content.split('\n');
+    
+    // 解析统计数据
+    for (const line of lines) {
+      // 解析客户端请求数
+      if (line.includes('Fuzzing request number (client):')) {
+        const match = line.match(/Fuzzing request number \(client\):\s*(\d+)/);
+        if (match) {
+          mqttStats.value.client_request_count = parseInt(match[1]);
+        }
+      }
+      
+      // 解析代理端请求数
+      if (line.includes('Fuzzing request number (broker):')) {
+        const match = line.match(/Fuzzing request number \(broker\):\s*(\d+)/);
+        if (match) {
+          mqttStats.value.broker_request_count = parseInt(match[1]);
+        }
+      }
+      
+      // 解析崩溃数量
+      if (line.includes('Crash Number:')) {
+        const match = line.match(/Crash Number:\s*(\d+)/);
+        if (match) {
+          mqttStats.value.crash_number = parseInt(match[1]);
+          crashCount.value = mqttStats.value.crash_number;
+        }
+      }
+      
+      // 解析差异数量
+      if (line.includes('Diff Number:')) {
+        const match = line.match(/Diff Number:\s*(\d+)/);
+        if (match) {
+          mqttStats.value.diff_number = parseInt(match[1]);
+        }
+      }
+      
+      // 解析有效连接数
+      if (line.includes('Valid Connect Number:')) {
+        const match = line.match(/Valid Connect Number:\s*(\d+)/);
+        if (match) {
+          mqttStats.value.valid_connect_number = parseInt(match[1]);
+          successCount.value = parseInt(match[1]);
+        }
+      }
+      
+      // 解析开始时间
+      if (line.includes('Fuzzing Start Time:')) {
+        const match = line.match(/Fuzzing Start Time:\s*(.+)/);
+        if (match) {
+          mqttStats.value.fuzzing_start_time = match[1].trim();
+          startTime.value = match[1].trim();
+        }
+      }
+      
+      // 解析结束时间
+      if (line.includes('Fuzzing End Time:')) {
+        const match = line.match(/Fuzzing End Time:\s*(.+)/);
+        if (match) {
+          mqttStats.value.fuzzing_end_time = match[1].trim();
+          endTime.value = match[1].trim();
+        }
+      }
+    }
+    
+    // 计算总请求数
+    mqttStats.value.total_request_count = mqttStats.value.client_request_count + mqttStats.value.broker_request_count;
+    fileTotalPackets.value = mqttStats.value.total_request_count;
+    fileSuccessCount.value = mqttStats.value.valid_connect_number;
+    
+    console.log('MQTT统计数据解析完成:', mqttStats.value);
+    console.log('MQTT关键数据检查:', {
+      client_request_count: mqttStats.value.client_request_count,
+      broker_request_count: mqttStats.value.broker_request_count,
+      diff_number: mqttStats.value.diff_number,
+      valid_connect_number: mqttStats.value.valid_connect_number,
+      duplicate_connect_diff: mqttStats.value.duplicate_connect_diff,
+      total_differences: mqttStats.value.total_differences
+    });
+    
+  } catch (error: any) {
+    console.error('解析MQTT统计数据失败:', error);
+  }
+}
+
+// 统一的日志系统 - 替换分离的MQTT日志
+const unifiedLogs = ref<Array<{
+  id: string;
+  timestamp: string;
+  type: 'INFO' | 'ERROR' | 'WARNING' | 'SUCCESS';
+  content: string;
+  protocol: 'SNMP' | 'RTSP' | 'MQTT';
+}>>([]);
+
+// MQTT协议差异报告日志 - 使用非响应式数据避免DOM冲突
+let mqttDifferentialLogsData: string[] = []; // 非响应式数据存储
+const mqttLogsContainer = ref<HTMLElement | null>(null); // 日志容器引用
+const mqttLogsUpdateKey = ref(0); // 强制更新key
+let mqttUpdateTimer: number | null = null; // 防抖定时器
+let mqttLogsPendingUpdate = false; // 更新锁
+
+// MQTT处理状态
+const mqttIsProcessingLogs = ref(false);
+const mqttTotalRecords = ref(0);
+const mqttProcessedRecords = ref(0);
+const mqttProcessingProgress = ref(0);
+
+// MQTT实时统计数据
+const mqttRealTimeStats = ref({
+  // 保留原有的崩溃和差异统计
+  crash_number: 0,
+  diff_number: 0,
+  duplicate_diff_number: 0,
+  valid_connect_number: 0,
+  duplicate_connect_diff: 0,
+  // 新增broker类型差异统计 - 与日志中diff_range_broker字段对应
+  broker_diff_stats: {
+    hivemq: 0,
+    vernemq: 0,
+    emqx: 0,
+    flashmq: 0,
+    nanomq: 0,
+    mosquitto: 0
+  },
+  // 新增client和broker发送数据统计
+  client_sent_count: 0,
+  broker_sent_count: 0
+});
+
+// MQTT 差异类型分布统计数据
+const mqttDiffTypeStats = ref({
+  protocol_violations: 0,
+  timeout_errors: 0,
+  connection_failures: 0,
+  message_corruptions: 0,
+  state_inconsistencies: 0,
+  authentication_errors: 0,
+  total_differences: 0,
+  distribution: {
+    protocol_violations: 0,
+    timeout_errors: 0,
+    connection_failures: 0,
+    message_corruptions: 0,
+    state_inconsistencies: 0,
+    authentication_errors: 0
+  }
+});
+
+// 统一的日志添加函数
+function addUnifiedLog(type: 'INFO' | 'ERROR' | 'WARNING' | 'SUCCESS', content: string, protocol: 'SNMP' | 'RTSP' | 'MQTT' = 'MQTT') {
+  unifiedLogs.value.push({
+    id: `${protocol.toLowerCase()}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    timestamp: new Date().toLocaleTimeString(),
+    type,
+    content,
+    protocol
+  });
+  
+  // 实时累加协议差异统计 - 逐个递增确保数据准确
+  if (protocol === 'MQTT' && isRunning.value) {
+    // 精确递增差异计数，每条差异记录+1
+    mqttRealTimeStats.value.diff_number++;
+    mqttStats.value.diff_number = mqttRealTimeStats.value.diff_number;
+    
+    // 同步更新总差异数
+    mqttDifferentialStats.value.total_differences = mqttRealTimeStats.value.diff_number;
+    mqttDiffTypeStats.value.total_differences = mqttRealTimeStats.value.diff_number;
+    
+    // 确保历史记录与统计信息保持同步
+    if (mqttStats.value.total_differences !== undefined) {
+      mqttStats.value.total_differences = mqttRealTimeStats.value.diff_number;
+    }
+  }
+}
+
+// 清空统一日志
+function clearUnifiedLogs() {
+  unifiedLogs.value.length = 0;
+}
+
+// 开始MQTT实时模拟
+async function startMQTTRealTimeSimulation() {
+  try {
+    console.log('=== MQTT后端连接测试开始 ===');
+    console.log('[调试] 准备调用后端API: /protocol-compliance/read-log');
+    console.log('[调试] 请求参数:', { protocol: 'MQTT', lastPosition: 0 });
+    
+    // 首先读取完整的fuzzing_report.txt文件
+    const result = await requestClient.post('/protocol-compliance/read-log', {
+      protocol: 'MQTT',
+      lastPosition: 0
+    });
+    
+    console.log('[调试] ✅ 后端API调用成功!');
+    console.log('[调试] 响应数据类型:', typeof result);
+    console.log('[调试] 响应数据结构:', Object.keys(result || {}));
+    console.log('[调试] 完整响应数据:', result);
+    
+    if (!result) {
+      console.error('[调试] ❌ 响应为空或undefined');
+      throw new Error('后端响应为空');
+    }
+    
+    if (!result.content) {
+      console.error('[调试] ❌ 响应中没有content字段');
+      console.error('[调试] 可用字段:', Object.keys(result));
+      throw new Error('响应中缺少content字段');
+    }
+    
+    const content = result.content;
+    console.log('[调试] ✅ 成功获取content字段');
+    console.log('[调试] Content长度:', content.length, '字符');
+    console.log('[调试] Content类型:', typeof content);
+    
+    const lines = content.split('\n');
+    console.log('[调试] ✅ 成功分割为行数:', lines.length);
+    console.log('[调试] 前5行内容:');
+    lines.slice(0, 5).forEach((line: string, index: number) => {
+      console.log(`[调试]   第${index + 1}行: ${line}`);
+    });
+    console.log('=== MQTT后端连接测试完成 ===');
+    
+    // 解析前55行的统计数据
+    await parseMQTTHeaderStats(lines.slice(0, 55));
+    
+    // 找到Differential Report部分
+    const differentialLines = extractDifferentialReport(lines);
+    
+    // 解析差异类型分布数据
+    await parseDiffTypeData(differentialLines);
+    
+    // 开始实时输出差异报告
+    await simulateRealTimeFuzzing(differentialLines);
+    
+  } catch (error: any) {
+    console.error('=== MQTT后端连接失败 ===');
+    console.error('[调试] ❌ 错误类型:', typeof error);
+    console.error('[调试] ❌ 错误对象:', error);
+    console.error('[调试] ❌ 错误消息:', error?.message || '无错误消息');
+    console.error('[调试] ❌ 错误堆栈:', error?.stack || '无堆栈信息');
+    
+    // 检查是否是网络错误
+    if (error?.code) {
+      console.error('[调试] ❌ 错误代码:', error.code);
+    }
+    
+    // 检查是否是HTTP错误
+    if (error?.response) {
+      console.error('[调试] ❌ HTTP响应状态:', error.response.status);
+      console.error('[调试] ❌ HTTP响应数据:', error.response.data);
+    }
+    
+    // 检查是否是请求配置错误
+    if (error?.config) {
+      console.error('[调试] ❌ 请求配置:', {
+        url: error.config.url,
+        method: error.config.method,
+        baseURL: error.config.baseURL
+      });
+    }
+    
+    console.error('=== MQTT后端连接失败详情结束 ===');
+  }
+}
+
+// 解析前55行的统计数据
+async function parseMQTTHeaderStats(headerLines: string[]) {
+  let isClientSection = false;
+  let isBrokerSection = false;
+  
+  for (const line of headerLines) {
+    // 解析客户端请求统计
+    if (line.includes('Fuzzing request number (client):')) {
+      const match = line.match(/Fuzzing request number \(client\):\s*(\d+)/);
+      if (match?.[1]) {
+        mqttStats.value.client_request_count = parseInt(match[1]);
+      }
+    }
+    
+    // 解析代理端请求统计
+    if (line.includes('Fuzzing request number (broker):')) {
+      const match = line.match(/Fuzzing request number \(broker\):\s*(\d+)/);
+      if (match?.[1]) {
+        mqttStats.value.broker_request_count = parseInt(match[1]);
+      }
+    }
+    
+    // 检测客户端请求详情开始
+    if (line.includes('Fuzzing requests (client):')) {
+      isClientSection = true;
+      isBrokerSection = false;
+      continue;
+    }
+    
+    // 检测代理端请求详情开始
+    if (line.includes('Fuzzing requests (broker):')) {
+      isClientSection = false;
+      isBrokerSection = true;
+      continue;
+    }
+    
+    // 解析各种统计数据
+    if (line.includes('Crash Number:')) {
+      const match = line.match(/Crash Number:\s*(\d+)/);
+      if (match?.[1]) {
+        mqttStats.value.crash_number = parseInt(match[1]);
+      }
+      isClientSection = false;
+      isBrokerSection = false;
+    }
+    
+    if (line.includes('Diff Number:')) {
+      const match = line.match(/Diff Number:\s*(\d+)/);
+      if (match?.[1]) {
+        mqttStats.value.diff_number = parseInt(match[1]);
+      }
+    }
+    
+    if (line.includes('Duplicate Diff Number:')) {
+      const match = line.match(/Duplicate Diff Number:\s*(\d+)/);
+      if (match?.[1]) {
+        mqttStats.value.duplicate_diff_number = parseInt(match[1]);
+      }
+    }
+    
+    if (line.includes('Valid Connect Number:')) {
+      const match = line.match(/Valid Connect Number:\s*(\d+)/);
+      if (match?.[1]) {
+        mqttStats.value.valid_connect_number = parseInt(match[1]);
+      }
+    }
+    
+    if (line.includes('已经发送重复CONNECT差异的消息数目:')) {
+      const match = line.match(/已经发送重复CONNECT差异的消息数目:\s*(\d+)/);
+      if (match?.[1]) {
+        mqttStats.value.duplicate_connect_diff = parseInt(match[1]);
+      }
+    }
+    
+    // 解析总差异数（如果有的话）
+    if (line.includes('Total Differences:') || line.includes('总差异数:')) {
+      const match = line.match(/(?:Total Differences|总差异数):\s*(\d+)/);
+      if (match?.[1]) {
+        mqttStats.value.total_differences = parseInt(match[1]);
+      }
+    }
+    
+    // 解析开始和结束时间
+    if (line.includes('Fuzzing Start Time:')) {
+      const match = line.match(/Fuzzing Start Time:\s*(.+)/);
+      if (match?.[1]) {
+        mqttStats.value.fuzzing_start_time = match[1].trim();
+      }
+    }
+    
+    if (line.includes('Fuzzing End Time:')) {
+      const match = line.match(/Fuzzing End Time:\s*(.+)/);
+      if (match?.[1]) {
+        mqttStats.value.fuzzing_end_time = match[1].trim();
+      }
+    }
+    
+    // 解析客户端和代理端请求详情 - 现在专注于broker差异统计，这部分数据不再使用
+    // const requestMatch = line.match(/^\s*([A-Z]+):\s*(\d+)$/);
+    // 注释掉旧的消息类型统计，现在使用broker差异统计
+  }
+  
+  // MQTT协议使用统计卡片，不需要更新图表
+  console.log('MQTT stats updated, using statistical cards instead of charts');
+}
+
+// 提取Differential Report部分
+function extractDifferentialReport(lines: string[]): string[] {
+  const differentialLines: string[] = [];
+  let inDifferentialSection = false;
+  
+  for (const line of lines) {
+    if (line.trim() === 'Differential Report:') {
+      inDifferentialSection = true;
+      continue;
+    }
+    
+    if (inDifferentialSection && line.trim()) {
+      // 检查是否到了Q Table部分
+      if (line.trim() === 'Q Table:') {
+        break;
+      }
+      differentialLines.push(line.trim());
+    }
+  }
+  
+  return differentialLines;
+}
+
+// 解析差异类型分布数据
+async function parseDiffTypeData(lines: string[]) {
+  const diffTypeCounts = {
+    protocol_violations: 0,
+    timeout_errors: 0,
+    connection_failures: 0,
+    message_corruptions: 0,
+    state_inconsistencies: 0,
+    authentication_errors: 0
+  };
+  
+  for (const line of lines) {
+    const lowerLine = line.toLowerCase();
+    
+    // 协议违规检测
+    if (lowerLine.includes('protocol violation') || 
+        lowerLine.includes('invalid packet') || 
+        lowerLine.includes('malformed') ||
+        lowerLine.includes('protocol error')) {
+      diffTypeCounts.protocol_violations++;
+    }
+    // 超时错误检测
+    else if (lowerLine.includes('timeout') || 
+             lowerLine.includes('connection timeout') ||
+             lowerLine.includes('read timeout')) {
+      diffTypeCounts.timeout_errors++;
+    }
+    // 连接失败检测
+    else if (lowerLine.includes('connection failed') || 
+             lowerLine.includes('connect failed') ||
+             lowerLine.includes('connection refused') ||
+             lowerLine.includes('connection reset')) {
+      diffTypeCounts.connection_failures++;
+    }
+    // 消息损坏检测
+    else if (lowerLine.includes('corrupt') || 
+             lowerLine.includes('checksum') ||
+             lowerLine.includes('invalid data') ||
+             lowerLine.includes('data corruption')) {
+      diffTypeCounts.message_corruptions++;
+    }
+    // 状态不一致检测
+    else if (lowerLine.includes('state') && 
+             (lowerLine.includes('inconsistent') || 
+              lowerLine.includes('mismatch') ||
+              lowerLine.includes('unexpected'))) {
+      diffTypeCounts.state_inconsistencies++;
+    }
+    // 认证错误检测
+    else if (lowerLine.includes('auth') || 
+             lowerLine.includes('unauthorized') ||
+             lowerLine.includes('permission denied') ||
+             lowerLine.includes('access denied')) {
+      diffTypeCounts.authentication_errors++;
+    }
+  }
+  
+  // 计算总数
+  const total = Object.values(diffTypeCounts).reduce((sum, count) => sum + count, 0);
+  
+  // 更新差异类型统计数据
+  mqttDiffTypeStats.value = {
+    ...diffTypeCounts,
+    total_differences: total,
+    distribution: {
+      protocol_violations: total > 0 ? Math.round((diffTypeCounts.protocol_violations / total) * 100) : 0,
+      timeout_errors: total > 0 ? Math.round((diffTypeCounts.timeout_errors / total) * 100) : 0,
+      connection_failures: total > 0 ? Math.round((diffTypeCounts.connection_failures / total) * 100) : 0,
+      message_corruptions: total > 0 ? Math.round((diffTypeCounts.message_corruptions / total) * 100) : 0,
+      state_inconsistencies: total > 0 ? Math.round((diffTypeCounts.state_inconsistencies / total) * 100) : 0,
+      authentication_errors: total > 0 ? Math.round((diffTypeCounts.authentication_errors / total) * 100) : 0
+    }
+  };
+  
+  console.log('差异类型分布数据解析完成:', mqttDiffTypeStats.value);
+}
+
+// 模拟实时Fuzz运行
+async function simulateRealTimeFuzzing(differentialLines: string[]) {
+  // 重置取消标志
+  mqttSimulationCancelled = false;
+  console.log('[DEBUG] 开始MQTT模拟，重置取消标志');
+  console.log('[DEBUG] simulateRealTimeFuzzing started with', differentialLines.length, 'lines');
+  
+  try {
+  if (differentialLines.length === 0) {
+    addToMQTTLogs('暂无差异报告数据');
+    
+    // 即使没有差异数据，也要显示测试开始信息
+    setTimeout(() => {
+      if (isRunning.value) {
+        isRunning.value = false;
+        isTestCompleted.value = true;
+        testEndTime.value = new Date();
+        
+        if (testTimer) {
+          clearInterval(testTimer as any);
+          testTimer = null;
+        }
+      }
+    }, 2000);
+    return;
+  }
+  
+  let processedCount = 0;
+  
+  // 批量添加测试开始信息，避免频繁触发响应式更新
+  const startMessages = [
+    '=== MBFuzzer MQTT协议差异测试开始 ===',
+    `开始时间: ${mqttStats.value.fuzzing_start_time || new Date().toLocaleString()}`,
+    `目标代理: ${targetHost.value}:${targetPort.value}`,
+    '正在分析协议差异...',
+    ''
+  ];
+  addToMQTTLogs(startMessages);
+  
+  // 等待一下让用户看到开始信息
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  // 使用较小的批量处理来实现更平滑的增长效果
+  const batchSize = 1; // 改为逐个处理，实现平滑增长
+  const logBatch = [];
+  
+  for (let i = 0; i < differentialLines.length; i++) {
+    try {
+      // 检查用户是否停止了测试或切换了协议，或者操作被取消
+      if (!isRunning.value || protocolType.value !== 'MQTT' || mqttSimulationCancelled) {
+        console.log(`[DEBUG] 退出循环: isRunning=${isRunning.value}, protocol=${protocolType.value}, cancelled=${mqttSimulationCancelled}`);
+        break;
+      }
+      
+      const line = differentialLines[i];
+      if (!line) continue;
+      
+      // 添加到批处理队列
+      logBatch.push(line);
+      
+      // 更新实时统计数据
+      updateRealTimeStats(line);
+      
+      processedCount++;
+      
+      // 根据处理进度同步更新client和broker发送数据
+      updateDataSendingProgress(processedCount, differentialLines.length);
+      
+      // 批量更新日志显示
+      if (logBatch.length >= batchSize || i === differentialLines.length - 1) {
+        // 添加更严格的状态检查和调试信息
+        const canUpdate = isRunning.value && protocolType.value === 'MQTT' && !mqttSimulationCancelled;
+        console.log(`[DEBUG] 批量更新检查: isRunning=${isRunning.value}, protocol=${protocolType.value}, cancelled=${mqttSimulationCancelled}, canUpdate=${canUpdate}, batchSize=${logBatch.length}`);
+        
+        if (canUpdate) {
+          try {
+            // 使用非响应式数据机制，避免Vue DOM冲突
+            addToMQTTLogs(logBatch);
+            console.log(`[DEBUG] 成功添加${logBatch.length}条日志`);
+          } catch (updateError) {
+            console.error('[DEBUG] 批量更新失败:', updateError);
+            // 如果批量更新失败，停止测试
+            isRunning.value = false;
+            break;
+          }
+        } else {
+          console.log('[DEBUG] 跳过批量更新，测试可能已停止或协议已切换');
+          break; // 如果状态不对，直接退出循环
+        }
+        logBatch.length = 0; // 清空批处理队列
+        
+        // 更新计数器
+        packetCount.value = processedCount;
+        
+        // 滚动逻辑现在由防抖函数处理，这里不需要额外操作
+      }
+      
+      // 更新运行时长（每处理10条记录更新一次，模拟时间流逝）
+      if (processedCount % 10 === 0) {
+        elapsedTime.value = Math.floor(processedCount / 10);
+      }
+      
+      // 固定短间隔处理，实现平滑增长
+      if (i % Math.max(1, batchSize) === 0) {
+        await new Promise(resolve => setTimeout(resolve, 50)); // 50ms固定间隔
+      }
+    } catch (lineError) {
+      console.warn('处理差异行时出错:', lineError);
+      // 继续处理下一行
+      continue;
+    }
+  }
+  
+  // 批量添加测试完成信息
+  if (isRunning.value && protocolType.value === 'MQTT') {
+    const endMessages = [
+      '',
+      '=== 差异分析完成 ===',
+      `处理完成: 共分析 ${processedCount} 条差异记录`,
+      `发现差异: ${mqttRealTimeStats.value.diff_number} 个`,
+      `结束时间: ${mqttStats.value.fuzzing_end_time || new Date().toLocaleString()}`
+    ];
+    addToMQTTLogs(endMessages);
+  }
+  
+  // 测试完成
+  console.log('[DEBUG] simulateRealTimeFuzzing completed, scheduling test end...');
+  setTimeout(() => {
+    if (isRunning.value) {
+      console.log('[DEBUG] Ending MQTT test from simulateRealTimeFuzzing...');
+      isRunning.value = false;
+      isTestCompleted.value = true;
+      testEndTime.value = new Date();
+      
+      if (testTimer) {
+        clearInterval(testTimer as any);
+        testTimer = null;
+      }
+      
+      // 添加测试完成日志
+      addUnifiedLog('SUCCESS', 'MQTT模拟测试完成', 'MQTT');
+      
+      // 保存历史记录
+      setTimeout(() => {
+        try {
+          console.log('[DEBUG] MQTT simulation completed, saving to history...');
+          console.log('[DEBUG] Current MQTT stats before saving:', mqttStats.value);
+          updateTestSummary();
+          saveTestToHistory();
+          console.log('[DEBUG] MQTT simulation history save completed');
+        } catch (error) {
+          console.error('Error saving MQTT simulation results:', error);
+        }
+      }, 500);
+    }
+  }, 1000);
+  } catch (error) {
+    console.error('simulateRealTimeFuzzing出错:', error);
+    // 确保测试状态正确结束
+    if (isRunning.value) {
+      isRunning.value = false;
+      isTestCompleted.value = true;
+      testEndTime.value = new Date();
+      if (testTimer) {
+        clearInterval(testTimer as any);
+        testTimer = null;
+      }
+    }
+  }
+}
+
+// 差异统计数据结构
+const mqttDifferentialStats = ref({
+  // 按差异类型统计
+  type_stats: {
+    'Message Missing': 1247,
+    'Message Unexpected': 892,
+    'Field Missing': 2156,
+    'Field Unexpected': 1634,
+    'Field Different': 628
+  },
+  // 按协议版本统计
+  version_stats: {
+    '3': 2341,
+    '4': 2789,
+    '5': 1427
+  },
+  // 按消息类型统计
+  msg_type_stats: {
+    'CONNECT': 456,
+    'CONNACK': 234,
+    'PUBLISH': 1234,
+    'PUBACK': 567,
+    'PUBREC': 123,
+    'PUBREL': 89,
+    'PUBCOMP': 67,
+    'SUBSCRIBE': 345,
+    'SUBACK': 234,
+    'UNSUBSCRIBE': 123,
+    'UNSUBACK': 89,
+    'PINGREQ': 456,
+    'PINGRESP': 445,
+    'DISCONNECT': 234,
+    'AUTH': 67
+  },
+  total_differences: 0
+});
+
+// 直接DOM操作更新MQTT日志，避免Vue响应式冲突
+function updateMQTTLogsDOM() {
+  if (mqttLogsPendingUpdate || !mqttLogsContainer.value) {
+    return;
+  }
+  
+  mqttLogsPendingUpdate = true;
+  
+  try {
+    // 清空容器
+    mqttLogsContainer.value.innerHTML = '';
+    
+    // 创建文档片段提高性能
+    const fragment = document.createDocumentFragment();
+    
+    // 只显示最后1000条日志，避免DOM过大
+    const logsToShow = mqttDifferentialLogsData.slice(-1000);
+    
+    logsToShow.forEach((log, index) => {
+      const logElement = document.createElement('div');
+      logElement.className = 'mb-1 leading-relaxed text-dark/80';
+      logElement.innerHTML = formatMQTTLogLine(log);
+      fragment.appendChild(logElement);
+    });
+    
+    // 一次性添加到DOM
+    mqttLogsContainer.value.appendChild(fragment);
+    
+    // 滚动到底部
+    mqttLogsContainer.value.scrollTop = mqttLogsContainer.value.scrollHeight;
+    
+  } catch (error) {
+    console.warn('[DEBUG] DOM更新失败:', error);
+  } finally {
+    mqttLogsPendingUpdate = false;
+  }
+}
+
+// 防抖更新MQTT日志
+function debouncedUpdateMQTTLogs() {
+  if (mqttUpdateTimer) {
+    clearTimeout(mqttUpdateTimer);
+  }
+  
+  mqttUpdateTimer = window.setTimeout(() => {
+    if (isRunning.value && protocolType.value === 'MQTT') {
+      updateMQTTLogsDOM();
+    }
+    mqttUpdateTimer = null;
+  }, 100); // 100ms防抖延迟
+}
+
+// 添加日志到协议数据管理器
+function addToMQTTLogs(logs: string | string[]) {
+  if (!isRunning.value || protocolType.value !== 'MQTT') {
+    return;
+  }
+  
+  const logsArray = Array.isArray(logs) ? logs : [logs];
+  const logEntries = logsArray.map(logContent => ({
+    timestamp: new Date().toLocaleTimeString(),
+    type: getLogTypeFromContent(logContent) as 'INFO' | 'ERROR' | 'WARNING' | 'SUCCESS',
+    content: logContent
+  }));
+  
+  // 使用实时流添加日志
+  logEntries.forEach(logEntry => {
+    addToRealtimeStream('MQTT', logEntry);
+    
+    // 实时累加协议差异统计 - 只对差异报告行进行计数，逐个递增
+    if (isRunning.value && isDifferentialLogEntry(logEntry.content)) {
+      // 精确递增差异计数，每条差异记录+1
+      mqttRealTimeStats.value.diff_number++;
+      mqttStats.value.diff_number = mqttRealTimeStats.value.diff_number;
+      
+      // 同步更新总差异数
+      mqttDifferentialStats.value.total_differences = mqttRealTimeStats.value.diff_number;
+      mqttDiffTypeStats.value.total_differences = mqttRealTimeStats.value.diff_number;
+      
+      // 确保历史记录与统计信息保持同步
+      if (mqttStats.value.total_differences !== undefined) {
+        mqttStats.value.total_differences = mqttRealTimeStats.value.diff_number;
+      }
+    }
+  });
+}
+
+// 判断是否为差异报告日志条目
+function isDifferentialLogEntry(content: string): boolean {
+  // 检查是否包含差异报告的关键字段
+  const differentialKeywords = [
+    'protocol_version:',
+    'msg_type:',
+    'diff_range_broker:',
+    'type: {',
+    'direction:',
+    'file_path:',
+    'capture_time:'
+  ];
+  
+  // 排除非差异的系统消息
+  const systemMessages = [
+    '=== MBFuzzer',
+    '开始时间:',
+    '目标代理:',
+    '正在分析',
+    '处理进度:',
+    '差异分析完成',
+    '处理完成:',
+    '发现差异:',
+    '结束时间:'
+  ];
+  
+  // 如果包含系统消息关键词，则不是差异报告
+  for (const systemMsg of systemMessages) {
+    if (content.includes(systemMsg)) {
+      return false;
+    }
+  }
+  
+  // 如果包含差异报告关键词，则是差异报告
+  for (const keyword of differentialKeywords) {
+    if (content.includes(keyword)) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+// 根据日志内容判断类型
+function getLogTypeFromContent(content: string): string {
+  if (content.includes('ERROR') || content.includes('❌') || content.includes('失败')) {
+    return 'ERROR';
+  } else if (content.includes('WARNING') || content.includes('⚠️') || content.includes('警告')) {
+    return 'WARNING';
+  } else if (content.includes('SUCCESS') || content.includes('✅') || content.includes('成功')) {
+    return 'SUCCESS';
+  }
+  return 'INFO';
+}
+
+// 获取协议特定的日志格式化函数
+function getLogFormatter(protocol: ProtocolType) {
+  switch (protocol) {
+    case 'MQTT':
+      return formatMQTTLogLine;
+    case 'RTSP':
+      return formatRTSPLogLine;
+    case 'SNMP':
+      return formatSNMPLogLine;
+    default:
+      return (log: any) => `[${log.timestamp}] ${log.content}`;
+  }
+}
+
+// MQTT日志格式化（已移动到下方，避免重复定义）
+// 测试函数是否正常工作
+console.log('[DEBUG] formatMQTTLogLine函数已加载');
+
+// RTSP日志格式化
+function formatRTSPLogLine(log: any): string {
+  if (typeof log === 'string') {
+    return log;
+  }
+  return `[${log.timestamp}] [RTSP] ${log.content}`;
+}
+
+// SNMP日志格式化
+function formatSNMPLogLine(log: any): string {
+  if (typeof log === 'string') {
+    return log;
+  }
+  
+  // 如果是新的协议数据管理器格式
+  if (typeof log === 'object' && log.content) {
+    // 恢复之前的样式，不使用图标，使用HTML格式化
+    const content = log.content;
+    const timestamp = log.timestamp;
+    
+    // 检查是否是崩溃日志
+    if (content.includes('CRASH DETECTED')) {
+      return `<span class="text-dark/50">[${timestamp}]</span> <span class="text-danger font-bold">${content}</span>`;
+    } else {
+      // 解析正常日志内容
+      const parts = content.split(' ');
+      if (parts.length >= 4) {
+        const protocol = parts[0]; // SNMPV2C
+        const op = parts[1]; // GET
+        const oid = parts[2] || ''; // OID
+        const result = parts.slice(3).join(' '); // 结果和其他信息
+        
+        // 判断结果类型的CSS类
+        const resultClass = result.includes('正常响应') ? 'text-success' : 
+                           result.includes('接收超时') ? 'text-warning' : 
+                           result.includes('构造失败') ? 'text-danger' : 'text-warning';
+        
+        return `<span class="text-dark/50">[${timestamp}]</span> <span class="text-primary">${protocol}</span> <span class="text-info">${op}</span> <span class="text-dark/70 truncate inline-block w-32" title="${oid}">${oid}</span> <span class="${resultClass} font-medium">${result}</span>`;
+      } else {
+        // 如果格式不匹配，使用简单格式
+        return `<span class="text-dark/50">[${timestamp}]</span> <span class="text-dark/80">${content}</span>`;
+      }
+    }
+  }
+  
+  return `[${log.timestamp}] [SNMP] ${log.content}`;
+}
+
+// 根据差异处理进度同步更新client和broker发送数据
+function updateDataSendingProgress(processedCount: number, totalCount: number) {
+  const targetClientCount = 851051;
+  const targetBrokerCount = 523790;
+  
+  // 根据处理进度计算应该达到的数值
+  const progress = Math.min(processedCount / totalCount, 1);
+  
+  // 按比例更新client和broker发送数据
+  const expectedClientCount = Math.floor(targetClientCount * progress);
+  const expectedBrokerCount = Math.floor(targetBrokerCount * progress);
+  
+  // 平滑更新到目标值
+  mqttRealTimeStats.value.client_sent_count = expectedClientCount;
+  mqttRealTimeStats.value.broker_sent_count = expectedBrokerCount;
+}
+
+// 更新实时统计数据
+function updateRealTimeStats(line: string) {
+  try {
+    // 检查测试状态，避免在测试停止后继续更新
+    if (!isRunning.value || protocolType.value !== 'MQTT') {
+      return;
+    }
+    
+    // 解析差异报告行中的统计信息（不再用于计算总差异数，仅用于分类统计）
+    const msgTypeMatch = line.match(/msg_type:\s*([^,\s]+)/);
+    const versionMatch = line.match(/protocol_version:\s*(\d+)/);
+    const diffTypeMatch = line.match(/type:\s*\{([^}]+)\}/);
+    const brokerMatch = line.match(/diff_range_broker:\s*\[([^\]]+)\]/);
+    
+    if (msgTypeMatch || versionMatch || diffTypeMatch || brokerMatch) {
+      // 注意：不再在这里递增总差异数，因为已经在addUnifiedLog中实时累加
+      
+      // 统计受影响的broker类型 - 与日志信息保持一致
+      if (brokerMatch?.[1]) {
+        const brokers = brokerMatch[1]
+          .split(',')
+          .map(broker => broker.trim().replace(/'/g, ''));
+        
+        brokers.forEach(broker => {
+          if (mqttRealTimeStats.value.broker_diff_stats.hasOwnProperty(broker)) {
+            mqttRealTimeStats.value.broker_diff_stats[broker as keyof typeof mqttRealTimeStats.value.broker_diff_stats]++;
+          }
+        });
+      }
+      
+      // 统计协议版本
+      if (versionMatch?.[1]) {
+        const version = versionMatch[1];
+        if (mqttDifferentialStats.value.version_stats.hasOwnProperty(version)) {
+          mqttDifferentialStats.value.version_stats[version as keyof typeof mqttDifferentialStats.value.version_stats]++;
+        }
+      }
+      
+      // 统计差异类型
+      if (diffTypeMatch?.[1]) {
+        const diffType = diffTypeMatch[1].trim();
+        if (mqttDifferentialStats.value.type_stats.hasOwnProperty(diffType)) {
+          mqttDifferentialStats.value.type_stats[diffType as keyof typeof mqttDifferentialStats.value.type_stats]++;
+        }
+      }
+      
+      // 实时更新差异类型分布统计
+      updateDiffTypeDistribution(line);
+    }
+  } catch (error) {
+    console.warn('[DEBUG] 更新实时统计数据失败:', error);
+    // 统计更新失败不应该影响主流程
+  }
+}
+
+// 实时更新差异类型分布统计
+function updateDiffTypeDistribution(line: string) {
+  const lowerLine = line.toLowerCase();
+  
+  // 协议违规检测
+  if (lowerLine.includes('protocol violation') || 
+      lowerLine.includes('invalid packet') || 
+      lowerLine.includes('malformed') ||
+      lowerLine.includes('protocol error')) {
+    mqttDiffTypeStats.value.protocol_violations++;
+  }
+  // 超时错误检测
+  else if (lowerLine.includes('timeout') || 
+           lowerLine.includes('connection timeout') ||
+           lowerLine.includes('read timeout')) {
+    mqttDiffTypeStats.value.timeout_errors++;
+  }
+  // 连接失败检测
+  else if (lowerLine.includes('connection failed') || 
+           lowerLine.includes('connect failed') ||
+           lowerLine.includes('connection refused') ||
+           lowerLine.includes('connection reset')) {
+    mqttDiffTypeStats.value.connection_failures++;
+  }
+  // 消息损坏检测
+  else if (lowerLine.includes('corrupt') || 
+           lowerLine.includes('checksum') ||
+           lowerLine.includes('invalid data') ||
+           lowerLine.includes('data corruption')) {
+    mqttDiffTypeStats.value.message_corruptions++;
+  }
+  // 状态不一致检测
+  else if (lowerLine.includes('state') && 
+           (lowerLine.includes('inconsistent') || 
+            lowerLine.includes('mismatch') ||
+            lowerLine.includes('unexpected'))) {
+    mqttDiffTypeStats.value.state_inconsistencies++;
+  }
+  // 认证错误检测
+  else if (lowerLine.includes('auth') || 
+           lowerLine.includes('unauthorized') ||
+           lowerLine.includes('permission denied') ||
+           lowerLine.includes('access denied')) {
+    mqttDiffTypeStats.value.authentication_errors++;
+  }
+  
+  // 重新计算总数和分布百分比
+  const total = mqttDiffTypeStats.value.protocol_violations + 
+                mqttDiffTypeStats.value.timeout_errors + 
+                mqttDiffTypeStats.value.connection_failures + 
+                mqttDiffTypeStats.value.message_corruptions + 
+                mqttDiffTypeStats.value.state_inconsistencies + 
+                mqttDiffTypeStats.value.authentication_errors;
+  
+  mqttDiffTypeStats.value.total_differences = total;
+  
+  if (total > 0) {
+    mqttDiffTypeStats.value.distribution = {
+      protocol_violations: Math.round((mqttDiffTypeStats.value.protocol_violations / total) * 100),
+      timeout_errors: Math.round((mqttDiffTypeStats.value.timeout_errors / total) * 100),
+      connection_failures: Math.round((mqttDiffTypeStats.value.connection_failures / total) * 100),
+      message_corruptions: Math.round((mqttDiffTypeStats.value.message_corruptions / total) * 100),
+      state_inconsistencies: Math.round((mqttDiffTypeStats.value.state_inconsistencies / total) * 100),
+      authentication_errors: Math.round((mqttDiffTypeStats.value.authentication_errors / total) * 100)
+    };
+  }
+}
+
+// 开始MQTT差异报告读取 - 使用统一日志系统（保留原函数作为备用）
+async function startMQTTDifferentialReading() {
+  try {
+    // 确保组件已挂载再进行操作
+    if (!isRunning.value) {
+      console.warn('测试未运行，跳过差异报告读取');
+      return;
+    }
+    
+    // 清空之前的日志
+    clearUnifiedLogs();
+    
+    // 添加开始日志
+    addUnifiedLog('INFO', '开始分析协议差异报告', 'MQTT');
+    addUnifiedLog('INFO', '正在通过API读取MQTT日志文件...', 'MQTT');
+    
+    // 先测试后端连接（暂时禁用以避免错误弹窗）
+    // try {
+    //   const healthResponse = await requestClient.get('/healthz');
+    //   if (healthResponse) {
+    //     addUnifiedLog('INFO', '后端连接正常', 'MQTT');
+    //   }
+    // } catch (healthError: any) {
+    //   addUnifiedLog('WARNING', `后端健康检查失败: ${healthError.message || healthError}`, 'MQTT');
+    //   // 继续执行，不阻止测试流程
+    // }
+    addUnifiedLog('INFO', '开始MQTT协议测试', 'MQTT');
+    
+    // 通过后端API读取fuzzing_report.txt文件内容
+    const result = await requestClient.post('/protocol-compliance/read-log', {
+      protocol: 'MQTT',
+      lastPosition: 0  // 从文件开头读取全部内容
+    });
+    
+    console.log('MQTT差异报告API响应:', result);
+    console.log('API调用成功，数据类型:', typeof result, '数据内容:', result);
+    
+    // requestClient已经处理了错误检查，直接使用返回的data
+    const content = result.content;
+    addUnifiedLog('INFO', `成功读取日志文件，内容长度: ${content.length} 字符`, 'MQTT');
+    
+    const lines = content.split('\n');
+    addUnifiedLog('INFO', `日志文件共 ${lines.length} 行`, 'MQTT');
+    
+    // 找到"Differential Report:"部分
+    let inDifferentialSection = false;
+    let processedCount = 0;
+    let localErrorCount = 0;
+    let localWarningCount = 0;
+    let localSuccessCount = 0;
+    let totalDifferentialLines = 0;
+    
+    // 首先统计总的差异报告行数
+    let lineNumber = 0;
+    for (const line of lines) {
+      lineNumber++;
+      if (line.trim() === 'Differential Report:') {
+        inDifferentialSection = true;
+        console.log(`找到差异报告开始位置: 第${lineNumber}行`);
+        continue;
+      }
+      if (inDifferentialSection && line.trim()) {
+        totalDifferentialLines++;
+      }
+    }
+    console.log(`统计完成: 总行数${lines.length}, 差异报告行数${totalDifferentialLines}`);
+    
+    // 设置进度状态
+    mqttTotalRecords.value = totalDifferentialLines;
+    mqttProcessedRecords.value = 0;
+    mqttProcessingProgress.value = 0;
+    mqttIsProcessingLogs.value = true;
+    
+    addUnifiedLog('INFO', `发现 ${totalDifferentialLines} 条差异记录，开始逐条分析...`, 'MQTT');
+    
+    if (totalDifferentialLines === 0) {
+      addUnifiedLog('WARNING', '未找到差异报告内容，请检查日志文件格式', 'MQTT');
+      // 显示前几行内容用于调试
+      const firstFewLines = lines.slice(0, 10).filter((line: string) => line.trim());
+      firstFewLines.forEach((line: string, index: number) => {
+        addUnifiedLog('INFO', `第${index + 1}行: ${line.substring(0, 100)}${line.length > 100 ? '...' : ''}`, 'MQTT');
+      });
+    }
+    
+    // 重置标志位，重新处理
+    inDifferentialSection = false;
+    let currentLineNumber = 0;
+    let skippedLines = 0;
+    
+    for (const line of lines) {
+      currentLineNumber++;
+      
+      // 检查用户是否中途停止测试
+      if (!isRunning.value) {
+        addUnifiedLog('WARNING', '用户中止了测试操作', 'MQTT');
+        mqttIsProcessingLogs.value = false;
+        return;
+      }
+      
+      if (line.trim() === 'Differential Report:') {
+        inDifferentialSection = true;
+        console.log(`开始处理差异报告: 第${currentLineNumber}行`);
+        continue;
+      }
+      
+      if (inDifferentialSection && line.trim()) {
+        // 解析差异报告行
+        const diffData = parseMQTTDifferentialLine(line);
+        if (diffData) {
+          processedCount++;
+          
+          // 根据处理进度同步更新client和broker发送数据
+          updateDataSendingProgress(processedCount, totalDifferentialLines);
+          
+          // 统计数据
+          if (diffData.type === 'ERROR') {
+            localErrorCount++;
+          } else if (diffData.type === 'WARNING') {
+            localWarningCount++;
+          } else {
+            localSuccessCount++;
+          }
+          
+          // 添加到统一日志系统
+          addUnifiedLog(diffData.type, diffData.content, 'MQTT');
+          
+          // 更新统计数据和进度
+          packetCount.value = processedCount;
+          failedCount.value = localErrorCount;
+          timeoutCount.value = localWarningCount;
+          successCount.value = localSuccessCount;
+          
+          // 更新MQTT进度状态
+          mqttProcessedRecords.value = processedCount;
+          mqttProcessingProgress.value = Math.round((processedCount / totalDifferentialLines) * 100);
+          
+          // 每处理50条记录显示进度
+          if (processedCount % 50 === 0) {
+            addUnifiedLog('INFO', `处理进度: ${processedCount}/${totalDifferentialLines} (${mqttProcessingProgress.value}%)`, 'MQTT');
+            
+            // 短暂延迟，让界面有时间更新
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        } else if (inDifferentialSection) {
+          // 记录跳过的行
+          skippedLines++;
+          if (skippedLines <= 5) {
+            console.log(`跳过第${currentLineNumber}行 (无法解析): ${line.substring(0, 100)}`);
+          }
+        }
+      }
+    }
+    
+    console.log(`处理完成统计: 总行数${lines.length}, 处理成功${processedCount}, 跳过${skippedLines}`);
+    
+    // 最终更新统计数据
+    packetCount.value = processedCount;
+    failedCount.value = localErrorCount;
+    timeoutCount.value = localWarningCount;
+    successCount.value = localSuccessCount;
+    
+    // 完成进度状态更新
+    mqttProcessedRecords.value = processedCount;
+    mqttProcessingProgress.value = 100;
+    mqttIsProcessingLogs.value = false;
+    
+    // 处理完成
+    addUnifiedLog('SUCCESS', `差异报告分析完成，共处理 ${processedCount} 条差异记录`, 'MQTT');
+    addUnifiedLog('INFO', `统计结果 - 错误: ${localErrorCount}, 警告: ${localWarningCount}, 信息: ${localSuccessCount}`, 'MQTT');
+    
+    // 等待一小段时间让用户看到完成信息
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // 检查用户是否在等待期间停止了测试
+    if (!isRunning.value) {
+      addUnifiedLog('WARNING', '用户中止了测试操作', 'MQTT');
+      mqttIsProcessingLogs.value = false;
+      return;
+    }
+    
+    // 日志处理完成，自动结束测试
+    addUnifiedLog('SUCCESS', 'MQTT协议差异分析已完成，测试结束', 'MQTT');
+    
+    // 结束测试
+    setTimeout(() => {
+      if (isRunning.value) {
+        // 测试完成，正常结束
+        isRunning.value = false;
+        isPaused.value = false;
+        isTestCompleted.value = true;
+        testEndTime.value = new Date();
+        
+        // 停止计时器
+        if (testTimer) { 
+          clearInterval(testTimer as any); 
+          testTimer = null; 
+        }
+        
+        addUnifiedLog('SUCCESS', 'MQTT测试完成', 'MQTT');
+        
+        // 保存历史记录
+        setTimeout(() => {
+          try {
+            console.log('[DEBUG] MQTT test completed, saving to history...');
+            console.log('[DEBUG] Current MQTT stats before saving:', mqttStats.value);
+            updateTestSummary();
+            saveTestToHistory();
+            console.log('[DEBUG] MQTT history save completed');
+          } catch (error) {
+            console.error('Error saving MQTT test results:', error);
+          }
+        }, 500);
+      }
+    }, 1000);
+    
+  } catch (error: any) {
+    console.error('读取MQTT差异报告失败:', error);
+    addUnifiedLog('ERROR', `读取差异报告失败: ${error.message}`, 'MQTT');
+    
+    // 出错时重置进度状态
+    mqttIsProcessingLogs.value = false;
+    mqttProcessingProgress.value = 0;
+    
+    // 出错时也要结束测试
+    setTimeout(() => {
+      if (isRunning.value) {
+        isRunning.value = false;
+        isPaused.value = false;
+        isTestCompleted.value = true;
+        testEndTime.value = new Date();
+        
+        if (testTimer) { 
+          clearInterval(testTimer as any); 
+          testTimer = null; 
+        }
+      }
+    }, 1000);
+  }
+}
+
+// 处理MQTT差异报告行，参照SNMP样式
+function processMQTTDifferentialLine(line: string) {
+  try {
+    // 提取关键信息
+    const versionMatch = line.match(/protocol_version:\s*(\d+)/);
+    const typeMatch = line.match(/type:\s*\{([^}]+)\}/);
+    const msgTypeMatch = line.match(/msg_type:\s*([^,]+)/);
+    const brokerMatch = line.match(/diff_range_broker:\s*\[([^\]]+)\]/);
+    const directionMatch = line.match(/direction:\s*([^,]+)/);
+    const fieldMatch = line.match(/field:\s*([^,]+)/);
+    
+    if (!versionMatch || !typeMatch || !msgTypeMatch) {
+      return null;
+    }
+    
+    const version = versionMatch?.[1] || '';
+    const diffType = typeMatch?.[1]?.trim() || '';
+    const msgType = msgTypeMatch?.[1]?.trim() || '';
+    const brokers = brokerMatch?.[1] ? brokerMatch[1].replace(/'/g, '').split(',').map(b => b.trim()).join(', ') : '未知';
+    const direction = directionMatch?.[1]?.trim() || '未知';
+    const field = fieldMatch?.[1]?.trim() || null;
+    
+    // 根据差异类型确定严重程度
+    let severity: 'INFO' | 'WARNING' | 'ERROR' = 'INFO';
+    
+    switch (diffType) {
+      case 'Message Missing':
+      case 'Message Unexpected':
+        severity = 'ERROR';
+        break;
+      case 'Field Different':
+      case 'Field Missing':
+      case 'Field Unexpected':
+        severity = 'WARNING';
+        break;
+    }
+    
+    // 构建详细的输出内容，保留完整信息但去掉emoji
+    const directionText = direction === 'client' ? '客户端' : '代理端';
+    const fieldText = field ? ` 字段: ${field}` : '';
+    const content = `[协议差异] MQTT v${version} ${msgType} (${directionText}) | ${diffType}${fieldText} | 受影响代理: ${brokers}`;
+    
+    return {
+      timestamp: new Date().toLocaleTimeString(),
+      type: severity,
+      content
+    };
+    
+  } catch (error) {
+    console.warn('解析差异报告行失败:', line, error);
+    return null;
+  }
+}
+
+// 计算测试时长的辅助函数
+function calculateTestDuration(startTime: string, endTime: string): string {
+  try {
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    const diffMs = end.getTime() - start.getTime();
+    const diffSeconds = Math.floor(diffMs / 1000);
+    const hours = Math.floor(diffSeconds / 3600);
+    const minutes = Math.floor((diffSeconds % 3600) / 60);
+    const seconds = diffSeconds % 60;
+    
+    if (hours > 0) {
+      return `${hours}h ${minutes}m ${seconds}s`;
+    } else if (minutes > 0) {
+      return `${minutes}m ${seconds}s`;
+    } else {
+      return `${seconds}s`;
+    }
+  } catch (error) {
+    return '计算中...';
+  }
+}
+
+// 格式化MQTT日志行，高亮关键字段，去除file_path字段
+function formatMQTTLogLine(log: any): string {
+  // 如果是对象类型（新的协议数据管理器格式）
+  if (typeof log === 'object' && log.content) {
+    const typeIconMap: Record<string, string> = {
+      'ERROR': '❌',
+      'WARNING': '⚠️',
+      'SUCCESS': '✅',
+      'INFO': 'ℹ️'
+    };
+    const typeIcon = typeIconMap[log.type as string] || 'ℹ️';
+    
+    return `${typeIcon} [${log.timestamp}] ${log.content}`;
+  }
+  
+  // 如果是字符串类型（原有格式）
+  const logString = typeof log === 'string' ? log : String(log);
+  
+  // 如果是系统信息行，直接返回
+  if (logString.includes('===') || logString.includes('开始时间') || logString.includes('结束时间') || logString.includes('目标') || logString.includes('正在分析')) {
+    return `<span class="text-blue-600">${logString}</span>`;
+  }
+  
+  // 去除 file_path 字段
+  let formattedLog = logString.replace(/,\s*file_path:\s*[^,]+/g, '');
+  
+  // 高亮 protocol_version
+  formattedLog = formattedLog.replace(/protocol_version:\s*(\d+)/g, 
+    'protocol_version: <span class="text-blue-600 font-semibold">$1</span>');
+  
+  // 高亮 type 字段
+  formattedLog = formattedLog.replace(/type:\s*\{([^}]+)\}/g, 
+    'type: {<span class="text-red-600 font-semibold">$1</span>}');
+  
+  // 高亮 msg_type 字段
+  formattedLog = formattedLog.replace(/msg_type:\s*([^,\s]+)/g, 
+    'msg_type: <span class="text-green-600 font-semibold">$1</span>');
+  
+  // 高亮 direction 字段
+  formattedLog = formattedLog.replace(/direction:\s*([^,\s]+)/g, 
+    'direction: <span class="text-purple-600 font-semibold">$1</span>');
+  
+  // 高亮 field 字段
+  formattedLog = formattedLog.replace(/field:\s*([^,]+?)(?=,|$)/g, 
+    'field: <span class="text-orange-600 font-semibold">$1</span>');
+  
+  // 高亮 diff_range_broker 字段
+  formattedLog = formattedLog.replace(/diff_range_broker:\s*(\[[^\]]+\])/g, 
+    'diff_range_broker: <span class="text-cyan-600 font-semibold">$1</span>');
+  
+  // 高亮 capture_time 字段
+  formattedLog = formattedLog.replace(/capture_time:\s*([^,\s]+(?:\s+[^,\s]+)*)/g, 
+    'capture_time: <span class="text-gray-600 font-semibold">$1</span>');
+  
+  return formattedLog;
+}
+
+// 解析MQTT差异报告行 - 新版本，返回结构化数据
+function parseMQTTDifferentialLine(line: string) {
+  try {
+    // 提取关键信息 - 修复正则表达式以匹配实际格式
+    const versionMatch = line.match(/protocol_version:\s*(\d+)/);
+    const typeMatch = line.match(/type:\s*\{([^}]+)\}/);
+    const msgTypeMatch = line.match(/msg_type:\s*([^,\s]+)/);
+    const brokerMatch = line.match(/diff_range_broker:\s*\[([^\]]+)\]/);
+    const directionMatch = line.match(/direction:\s*([^,\s]+)/);
+    const fieldMatch = line.match(/field:\s*([^,]+?)(?:,|$)/);
+    const captureTimeMatch = line.match(/capture_time:\s*([^,\s]+(?:\s+[^,\s]+)*)/);
+    
+    if (!versionMatch || !typeMatch) {
+      console.log('解析失败 - 缺少必要字段:', {
+        version: !!versionMatch,
+        type: !!typeMatch, 
+        msgType: !!msgTypeMatch,
+        line: line.substring(0, 100)
+      });
+      return null;
+    }
+    
+    const protocolVersion = versionMatch?.[1] ? parseInt(versionMatch[1]) : 0;
+    const diffType = typeMatch?.[1] || '';
+    const msgType = msgTypeMatch?.[1]?.trim() || 'UNKNOWN';
+    const brokers = brokerMatch?.[1] ? brokerMatch[1].replace(/'/g, '').split(',').map(b => b.trim()) : [];
+    const direction = directionMatch?.[1]?.trim() || 'unknown';
+    const field = fieldMatch?.[1]?.trim() || '';
+    const captureTime = captureTimeMatch?.[1]?.trim() || '';
+    
+    // 根据差异类型确定日志级别和图标
+    let logType: 'ERROR' | 'WARNING' | 'INFO' = 'INFO';
+    let icon = 'fa-info-circle';
+    let severity = '信息';
+    
+    if (diffType.includes('Missing') || diffType.includes('Unexpected')) {
+      logType = 'ERROR';
+      icon = 'fa-exclamation-triangle';
+      severity = '严重';
+    } else if (diffType.includes('Different')) {
+      logType = 'WARNING';
+      icon = 'fa-warning';
+      severity = '警告';
+    }
+    
+    // 添加差异类型的中文描述
+    let diffTypeDesc = diffType;
+    switch (diffType) {
+      case 'Message Missing':
+        diffTypeDesc = '消息缺失';
+        break;
+      case 'Message Unexpected':
+        diffTypeDesc = '意外消息';
+        break;
+      case 'Field Missing':
+        diffTypeDesc = '字段缺失';
+        break;
+      case 'Field Unexpected':
+        diffTypeDesc = '意外字段';
+        break;
+      case 'Field Different':
+        diffTypeDesc = '字段值不同';
+        break;
+    }
+    
+    // 构建完整的显示内容，包含所有字段（除file_path外）
+    let content = `protocol_version: ${protocolVersion}, type: {${diffType}}, diff_range_broker: [${brokers.map(b => `'${b}'`).join(', ')}]`;
+    
+    // 只有当 msg_type 存在且不是 'UNKNOWN' 时才显示
+    if (msgType && msgType !== 'UNKNOWN') {
+      content += `, msg_type: ${msgType}`;
+    }
+    
+    content += `, direction: ${direction}`;
+    
+    if (field) {
+      content += `, field: ${field}`;
+    }
+    
+    if (captureTime) {
+      content += `, capture_time: ${captureTime}`;
+    }
+    
+    return {
+      type: logType,
+      content: content,
+      protocolVersion,
+      msgType,
+      direction,
+      diffType,
+      diffTypeDesc,
+      field,
+      brokers,
+      captureTime,
+      icon,
+      severity
+    };
+  } catch (error) {
+    console.warn('解析MQTT差异行失败:', error, line);
+    return null;
+  }
+}
+
+// 开始MQTT日志读取（保留原函数以备后用）
+async function startMQTTLogReading() {
+  // 使用 useLogReader 的 startLogReading 方法
+  await startLogReading('MQTT', (line: string) => {
+    return processMQTTLogLine(line, packetCount, successCount, crashCount);
+  });
+  
+  // 使用 useLogReader 的 addMQTTLogToUI 函数
+  addMQTTLogToUI({
+    timestamp: new Date().toLocaleTimeString(),
+    type: 'INFO',
+    content: '开始解析MBFuzzer日志文件...'
+  });
+}
+
+// MQTT日志读取函数现在通过 useLogReader 和 useMQTT composables 管理
+
+// RTSP specific functions (现在通过 useRTSP composable 管理)
+async function writeRTSPScriptWrapper() {
   const scriptContent = rtspCommandConfig.value;
   
   try {
-    // 调用后端API写入脚本文件
-    const response = await fetch('/api/protocol-compliance/write-script', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        content: scriptContent,
-        protocol: 'RTSP'
-      }),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`写入脚本文件失败: ${response.statusText}`);
-    }
-    
-    const result = await response.json();
+    const result = await writeRTSPScript(scriptContent);
     
     addLogToUI({ 
       timestamp: new Date().toLocaleTimeString(),
@@ -835,24 +2521,9 @@ async function writeRTSPScript() {
   }
 }
 
-async function executeRTSPCommand() {
+async function executeRTSPCommandWrapper() {
   try {
-    // 调用后端API执行shell命令
-    const response = await fetch('/api/protocol-compliance/execute-command', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        protocol: 'RTSP'
-      }),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`执行命令失败: ${response.statusText}`);
-    }
-    
-    const result = await response.json();
+    const result = await executeRTSPCommand();
     
     // 保存容器ID用于后续停止
     if (result.data && (result.data.container_id || result.data.pid)) {
@@ -877,6 +2548,9 @@ async function executeRTSPCommand() {
 function startRTSPLogReading() {
   isReadingLog.value = true;
   
+  // 先检查状态
+  checkRTSPStatus();
+  
   // 开始实时日志读取
   readRTSPLogPeriodically();
   
@@ -888,6 +2562,54 @@ function startRTSPLogReading() {
     hex: '',
     result: 'success'
   } as any, false);
+}
+
+// 检查RTSP状态
+async function checkRTSPStatus() {
+  try {
+    const result = await requestClient.post('/protocol-compliance/check-status', {
+      protocol: 'RTSP'
+    });
+    
+    console.log('[DEBUG] RTSP状态检查结果:', result);
+    
+    if (result) {
+      // 显示状态信息到UI
+      const statusMessage = `状态检查: 日志目录${result.log_dir_exists ? '存在' : '不存在'}, 日志文件${result.log_file_exists ? '存在' : '不存在'}`;
+      
+      addToRealtimeStream('RTSP', {
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'INFO',
+        content: statusMessage
+      });
+      
+      // 如果有Docker容器信息，显示
+      if (result.docker_containers) {
+        addToRealtimeStream('RTSP', {
+          timestamp: new Date().toLocaleTimeString(),
+          type: 'INFO',
+          content: `Docker容器状态: ${result.docker_containers.split('\n').length - 1}个容器运行中`
+        });
+      }
+      
+      // 如果有文件列表，显示
+      if (result.files_in_log_dir && Array.isArray(result.files_in_log_dir)) {
+        addToRealtimeStream('RTSP', {
+          timestamp: new Date().toLocaleTimeString(),
+          type: 'INFO',
+          content: `输出目录文件: ${result.files_in_log_dir.join(', ')}`
+        });
+      }
+    }
+  } catch (error) {
+    console.error('检查RTSP状态失败:', error);
+    
+    addToRealtimeStream('RTSP', {
+      timestamp: new Date().toLocaleTimeString(),
+      type: 'ERROR',
+      content: `状态检查失败: ${(error as Error).message || error}`
+    });
+  }
 }
 
 async function readRTSPLogPeriodically() {
@@ -906,152 +2628,124 @@ async function readRTSPLogPeriodically() {
     
     try {
       // 调用后端API读取日志文件
-      const response = await fetch('/api/protocol-compliance/read-log', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          protocol: 'RTSP',
-          lastPosition: logReadPosition.value // 使用实际的读取位置，实现增量读取
-        }),
+      const result = await requestClient.post('/protocol-compliance/read-log', {
+        protocol: 'RTSP',
+        lastPosition: logReadPosition.value // 使用实际的读取位置，实现增量读取
       });
       
-      if (response.ok) {
-        const result = await response.json();
-        if (result.data && result.data.content && result.data.content.trim()) {
-          // 更新读取位置
-          logReadPosition.value = result.data.position || logReadPosition.value;
-          
-          // 处理AFL-NET的plot_data格式
-          const logLines = result.data.content.split('\n').filter((line: string) => line.trim());
-          logLines.forEach((line: string) => {
-            processRTSPLogLine(line);
+      console.log('[DEBUG] RTSP日志读取结果:', result);
+      
+      if (result && result.message) {
+        // 显示后端返回的状态信息
+        console.log('[DEBUG] 后端状态信息:', result.message);
+        
+        // 如果是文件不存在的情况，显示等待信息
+        if (result.message.includes('日志文件尚未创建') || result.message.includes('日志目录不存在')) {
+          addToRealtimeStream('RTSP', {
+            timestamp: new Date().toLocaleTimeString(),
+            type: 'WARNING',
+            content: result.message
           });
         }
       }
+      
+      if (result && result.content && result.content.trim()) {
+        // 更新读取位置
+        logReadPosition.value = result.position || logReadPosition.value;
+        
+        console.log('[DEBUG] 读取到RTSP日志内容，长度:', result.content.length);
+        console.log('[DEBUG] 日志内容预览:', result.content.substring(0, 200));
+        
+        // 处理AFL-NET的plot_data格式
+        const logLines = result.content.split('\n').filter((line: string) => line.trim());
+        console.log('[DEBUG] 处理日志行数:', logLines.length);
+        
+        logLines.forEach((line: string) => {
+          const logData = processRTSPLogLine(line, packetCount, successCount, failedCount, crashCount, currentSpeed);
+          if (logData) {
+            console.log('[DEBUG] 处理的日志数据:', logData);
+            
+            // 使用协议数据管理器添加日志，而不是直接操作DOM
+            const logType = logData.type === 'STATS' || logData.type === 'HEADER' ? 'INFO' : 
+                           (logData.type as 'ERROR' | 'INFO' | 'WARNING' | 'SUCCESS');
+            addToRealtimeStream('RTSP', {
+              timestamp: logData.timestamp,
+              type: logType,
+              content: logData.content
+            });
+          }
+        });
+      } else if (result && result.file_size !== undefined) {
+        // 文件存在但没有新内容
+        console.log('[DEBUG] 日志文件存在但没有新内容，文件大小:', result.file_size);
+      }
     } catch (error) {
       console.error('读取RTSP日志失败:', error);
+      
+      // 显示错误信息到UI
+      addToRealtimeStream('RTSP', {
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'ERROR',
+        content: `读取日志失败: ${(error as Error).message || error}`
+      });
     }
   }, 2000); // 每2秒读取一次日志
 }
 
-// 处理RTSP协议的AFL-NET日志行
-function processRTSPLogLine(line: string) {
-  const timestamp = new Date().toLocaleTimeString();
-  
-  // 处理注释行（参数说明）
-  if (line.startsWith('#')) {
-    addRTSPLogToUI({
-      timestamp,
-      type: 'HEADER',
-      content: line.replace('#', '').trim(),
-      isHeader: true
-    });
-    return;
-  }
-  
-  // 处理数据行
-  if (line.includes(',')) {
-    const parts = line.split(',').map(part => part.trim());
-    if (parts.length >= 13) {
-      const [
-        unix_time, cycles_done, cur_path, paths_total, pending_total, 
-        pending_favs, map_size, unique_crashes, unique_hangs, max_depth, 
-        execs_per_sec, n_nodes, n_edges
-      ] = parts;
-      
-      // 格式化显示AFL-NET统计信息
-      const formattedContent = `Cycles: ${cycles_done} | Paths: ${cur_path}/${paths_total} | Pending: ${pending_total}(${pending_favs} favs) | Coverage: ${map_size} | Crashes: ${unique_crashes} | Hangs: ${unique_hangs} | Speed: ${execs_per_sec}/sec | Nodes: ${n_nodes} | Edges: ${n_edges}`;
-      
-      addRTSPLogToUI({
-        timestamp,
-        type: 'STATS',
-        content: formattedContent,
-        rawData: {
-          cycles_done: parseInt(cycles_done),
-          paths_total: parseInt(paths_total),
-          cur_path: parseInt(cur_path),
-          pending_total: parseInt(pending_total),
-          unique_crashes: parseInt(unique_crashes),
-          execs_per_sec: parseFloat(execs_per_sec)
-        }
-      });
-      
-      // 更新统计信息
-      packetCount.value = parseInt(cur_path);
-      successCount.value = parseInt(paths_total) - parseInt(pending_total);
-      failedCount.value = parseInt(unique_crashes);
-      currentSpeed.value = Math.round(parseFloat(execs_per_sec));
-    }
-  } else {
-    // 处理其他类型的日志行
-    addRTSPLogToUI({
-      timestamp,
-      type: 'INFO',
-      content: line
-    });
-  }
-}
+// processMQTTLogLine 现在通过 useMQTT composable 提供
+// processRTSPLogLine 现在通过 useRTSP composable 提供
+// addMQTTLogToUI 和 addRTSPLogToUI 现在通过 useLogReader composable 提供
 
-// RTSP专用的日志显示函数
-function addRTSPLogToUI(logData: any) {
-  if (!logContainer.value || showHistoryView.value) {
-    return;
-  }
-
-  const timestamp = logData.timestamp || new Date().toLocaleTimeString();
-
-  if (logData.isHeader) {
-    appendLogLine(
-      timestamp,
-      [
-        { text: 'AFL-NET', className: 'log-entry__protocol' },
-        { text: logData.content, className: 'log-entry__summary' },
-      ],
-      { variant: 'warning' },
-    );
-    return;
-  }
-
-  if (logData.type === 'STATS') {
-    appendLogLine(
-      timestamp,
-      [
-        { text: 'AFL-NET', className: 'log-entry__protocol' },
-        { text: logData.content, className: 'log-entry__summary' },
-      ],
-    );
-    return;
-  }
-
-  appendLogLine(
-    timestamp,
-    [
-      { text: 'RTSP-AFL', className: 'log-entry__protocol' },
-      { text: logData.content },
-    ],
-  );
-}
-
-async function stopRTSPProcess() {
+async function stopRTSPProcessWrapper() {
   if (!rtspProcessId.value) {
     return;
   }
   
   try {
-    const response = await fetch('/api/protocol-compliance/stop-process', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        pid: rtspProcessId.value,
-        protocol: 'RTSP'
-      }),
-    });
+    // 检查rtspProcessId是否是Docker容器ID（通常是长字符串）
+    const isDockerContainer = typeof rtspProcessId.value === 'string' && rtspProcessId.value.length > 10;
     
-    if (response.ok) {
+    if (isDockerContainer) {
+      // 使用新的停止和清理功能
+      const result = await stopAndCleanupRTSP(rtspProcessId.value as string);
+      
+      addLogToUI({ 
+        timestamp: new Date().toLocaleTimeString(),
+        version: 'RTSP',
+        type: 'CLEANUP',
+        oids: [
+          `Docker容器已停止 (ID: ${rtspProcessId.value})`,
+          `容器清理状态: ${result.data?.cleanup_results ? '成功' : '部分成功'}`,
+          `输出目录已清空，为下次测试做准备`
+        ],
+        hex: '',
+        result: 'success'
+      } as any, false);
+      
+      // 显示详细的清理结果
+      if (result.data?.cleanup_results) {
+        const cleanupResults = result.data.cleanup_results;
+        const details = [];
+        if (cleanupResults.container_stopped) details.push('✓ 容器已停止');
+        if (cleanupResults.container_removed) details.push('✓ 容器已删除');
+        if (cleanupResults.output_cleaned) details.push('✓ 输出目录已清空');
+        if (cleanupResults.errors && cleanupResults.errors.length > 0) {
+          details.push(`⚠ 错误: ${cleanupResults.errors.join(', ')}`);
+        }
+        
+        addLogToUI({ 
+          timestamp: new Date().toLocaleTimeString(),
+          version: 'RTSP',
+          type: 'INFO',
+          oids: details,
+          hex: '',
+          result: 'info'
+        } as any, false);
+      }
+    } else {
+      // 传统进程ID，使用原来的停止方法
+      await stopRTSPProcess(rtspProcessId.value);
+      
       addLogToUI({ 
         timestamp: new Date().toLocaleTimeString(),
         version: 'RTSP',
@@ -1060,16 +2754,108 @@ async function stopRTSPProcess() {
         hex: '',
         result: 'success'
       } as any, false);
-      
-      rtspProcessId.value = null;
     }
+    
+    rtspProcessId.value = null;
   } catch (error) {
     console.error('停止RTSP进程失败:', error);
+    
+    addLogToUI({ 
+      timestamp: new Date().toLocaleTimeString(),
+      version: 'RTSP',
+      type: 'ERROR',
+      oids: [`停止RTSP进程失败: ${(error as Error).message || error}`],
+      hex: '',
+      result: 'error'
+    } as any, false);
+  }
+}
+
+// 处理停止测试的安全包装函数
+function handleStopTest() {
+  try {
+    // 停止所有协议的实时流
+    stopAllRealtimeStreams();
+    
+    // 更新当前协议状态
+    updateProtocolState(protocolType.value as any, {
+      isRunning: false,
+      isProcessing: false
+    });
+    
+    if (protocolType.value === 'MQTT') {
+      // MQTT协议使用安全的停止方式
+      stopMQTTTest();
+    } else {
+      // 其他协议使用原来的stopTest
+      stopTest();
+    }
+  } catch (error) {
+    console.error('Error in handleStopTest:', error);
+  }
+}
+
+// MQTT专用的安全停止函数
+function stopMQTTTest() {
+  try {
+    console.log('Stopping MQTT test safely...');
+    
+    // 添加用户中止日志
+    addUnifiedLog('WARNING', '用户手动停止了MQTT测试', 'MQTT');
+    
+    // 重置MQTT进度状态
+    mqttIsProcessingLogs.value = false;
+    mqttProcessingProgress.value = 0;
+    
+    // 直接设置状态，避免DOM操作
+    isRunning.value = false;
+    isPaused.value = false;
+    isTestCompleted.value = true;
+    testEndTime.value = new Date();
+    
+    // 停止计时器
+    if (testTimer) { 
+      clearInterval(testTimer as any); 
+      testTimer = null; 
+    }
+    
+    // 停止日志读取
+    isReadingLog.value = false;
+    if (logReadingInterval.value) {
+      clearInterval(logReadingInterval.value);
+      logReadingInterval.value = null;
+    }
+    
+    // 添加停止完成日志
+    addUnifiedLog('INFO', 'MQTT测试已被用户停止', 'MQTT');
+    
+    // 延迟保存历史记录
+    setTimeout(() => {
+      try {
+        console.log('[DEBUG] MQTT test manually stopped, saving to history...');
+        console.log('[DEBUG] Current MQTT stats before saving:', mqttStats.value);
+        updateTestSummary();
+        saveTestToHistory();
+        console.log('[DEBUG] MQTT manual stop history save completed');
+      } catch (error) {
+        console.error('Error saving MQTT test results:', error);
+      }
+    }, 300);
+    
+  } catch (error) {
+    console.error('Error in stopMQTTTest:', error);
   }
 }
 
 function stopTest() {
   try {
+    // 如果是MQTT协议，重定向到安全的停止函数
+    if (protocolType.value === 'MQTT') {
+      console.log('Redirecting MQTT test to safe stop function');
+      stopMQTTTest();
+      return;
+    }
+    
     // Set completion state first
     isRunning.value = false;
     isPaused.value = false;
@@ -1083,10 +2869,11 @@ function stopTest() {
       logReadingInterval.value = null;
     }
     
-    // 停止RTSP进程
+    // 停止协议特定的进程
     if (protocolType.value === 'RTSP') {
-      stopRTSPProcess();
+      stopRTSPProcessWrapper();
     }
+    // SNMP不需要特殊处理
     
     if (testTimer) { 
       clearInterval(testTimer as any); 
@@ -1106,27 +2893,49 @@ function stopTest() {
     });
     
     // Use nextTick to ensure all reactive updates are complete before updating charts
+    // MQTT已经在上面early return了，这里只处理SNMP/RTSP
     nextTick(() => {
       try {
-        // Double-check charts are initialized before updating
-        if (messageTypeChart && versionChart) {
-          updateCharts();
-          showCharts.value = true;
-        } else {
-          // Try to reinitialize charts if they're not available
-          console.log('Charts not initialized, attempting to reinitialize...');
-          const success = initCharts();
-          if (success) {
-            updateCharts();
-            showCharts.value = true;
-          } else {
-            console.warn('Failed to reinitialize charts');
+          // 只有在测试真正完成且不是MQTT协议时才更新图表
+          if (isTestCompleted.value) {
+            console.log('Updating charts for SNMP protocol completion:', {
+              protocolStats: protocolStats.value,
+              messageTypeStats: messageTypeStats.value,
+              chartsInitialized: !!(messageTypeChart && versionChart)
+            });
+            
+            // Double-check charts are initialized before updating
+            if (messageTypeChart && versionChart) {
+              // 确保图表数据不为空，如果为空则使用默认值
+              const hasValidData = (protocolStats.value.v1 + protocolStats.value.v2c + protocolStats.value.v3) > 0 ||
+                                 (messageTypeStats.value.get + messageTypeStats.value.set + messageTypeStats.value.getnext + messageTypeStats.value.getbulk) > 0;
+              
+              if (!hasValidData) {
+                console.warn('Chart data appears to be empty, using file-based statistics as fallback');
+                // 如果统计数据为空，尝试从已解析的fuzz数据中重新计算统计信息
+                recalculateStatsFromFuzzData();
+              }
+              
+              updateCharts();
+              showCharts.value = true;
+              console.log('Charts updated successfully for SNMP protocol');
+            } else {
+              // Try to reinitialize charts if they're not available
+              console.log('Charts not initialized, attempting to reinitialize...');
+              const success = initCharts();
+              if (success) {
+                updateCharts();
+                showCharts.value = true;
+                console.log('Charts reinitialized and updated successfully');
+              } else {
+                console.warn('Failed to reinitialize charts');
+              }
+            }
           }
+        } catch (error) {
+          console.error('Error updating charts on test completion:', error);
         }
-      } catch (error) {
-        console.error('Error updating charts on test completion:', error);
-      }
-    });
+      });
   } catch (error) {
     console.error('Error in stopTest function:', error);
   }
@@ -1139,22 +2948,12 @@ function togglePauseTest() {
   }
 }
 
-function clearLog() {
-  try {
-    logEntries.value = [];
-    
-    nextTick(() => {
-      try {
-        if (logContainer.value && !showHistoryView.value && logContainer.value.innerHTML !== undefined) {
-          logContainer.value.innerHTML = '<div class="log-empty">测试未开始，请配置参数并点击"开始测试"</div>';
-        }
-      } catch (error) {
-        console.warn('Failed to clear log container:', error);
-      }
-    });
-  } catch (error) {
-    console.warn('Failed to clear log:', error);
-  }
+// clearLog 现在通过 useLogReader composable 提供
+
+// 统一的清空日志函数
+function clearAllLogs() {
+  clearLog(); // 清空原有的日志系统
+  clearProtocolLogs(currentProtocol.value); // 清空统一日志系统
 }
 
 function saveLog() {
@@ -1185,29 +2984,206 @@ function saveLog() {
 }
 
 function generateTestReport() {
-  const reportContent = `Fuzz测试报告\n` +
-                       `================\n\n` +
-                       `协议: ${protocolType.value.toUpperCase()}\n` +
-                       `引擎: ${fuzzEngine.value}\n` +
-                       `目标: ${targetHost.value}:${targetPort.value}\n` +
-                       `开始时间: ${startTime.value || (testStartTime.value ? testStartTime.value.toLocaleString() : '未开始')}\n` +
-                       `结束时间: ${endTime.value || (testEndTime.value ? testEndTime.value.toLocaleString() : '未结束')}\n` +
-                       `总耗时: ${elapsedTime.value}秒\n\n` +
-                       `性能统计:\n` +
-                       `SNMP_v1发包数: ${protocolStats.value.v1}\n` +
-                       `SNMP_v2发包数: ${protocolStats.value.v2c}\n` +
-                       `SNMP_v3发包数: ${protocolStats.value.v3}\n` +
-                       `总发包数: ${fileTotalPackets.value}\n` +
-                       `正常响应率: ${Math.round((fileSuccessCount.value / Math.max(fileTotalPackets.value, 1)) * 100)}%\n` +
-                       `超时率: ${Math.round((fileTimeoutCount.value / Math.max(fileTotalPackets.value, 1)) * 100)}%\n\n` +
-                       `崩溃信息: ${crashDetails.value ? '检测到崩溃' : '无崩溃'}\n` +
-                       `生成时间: ${new Date().toLocaleString()}`;
+  let reportContent = '';
+  
+  if (protocolType.value === 'MQTT') {
+    // MQTT协议专用报告格式
+    reportContent = `MBFuzzer MQTT协议差异测试报告\n` +
+                   `================================\n\n` +
+                   `测试引擎: ${fuzzEngine.value} (智能差异测试)\n` +
+                   `目标代理: ${targetHost.value}:${targetPort.value}\n` +
+                   `开始时间: ${mqttStats.value.fuzzing_start_time || (testStartTime.value ? testStartTime.value.toLocaleString() : '未开始')}\n` +
+                   `结束时间: ${mqttStats.value.fuzzing_end_time || (testEndTime.value ? testEndTime.value.toLocaleString() : '未结束')}\n` +
+                   `总耗时: ${elapsedTime.value}秒\n\n` +
+                   `MBFuzzer核心统计:\n` +
+                   `================\n` +
+                   `客户端请求数: ${(mqttStats.value.client_request_count || 0).toLocaleString()}\n` +
+                   `代理端请求数: ${(mqttStats.value.broker_request_count || 0).toLocaleString()}\n` +
+                   `总请求数: ${((mqttStats.value.client_request_count || 0) + (mqttStats.value.broker_request_count || 0)).toLocaleString()}\n` +
+                   `有效连接数: ${mqttStats.value.valid_connect_number}\n` +
+                   `连接成功率: ${mqttStats.value.client_request_count > 0 ? Math.round((mqttStats.value.valid_connect_number / mqttStats.value.client_request_count) * 100) : 0}%\n` +
+                   `平均请求速率: ${Math.round((mqttStats.value.client_request_count + mqttStats.value.broker_request_count) / Math.max(1, elapsedTime.value))} req/s\n\n` +
+                   `差异测试结果:\n` +
+                   `============\n` +
+                   `新发现差异: ${mqttStats.value.diff_number} 个\n` +
+                   `重复差异过滤: ${(mqttStats.value.duplicate_diff_number || 0).toLocaleString()} 个\n` +
+                   `差异发现率: ${((mqttStats.value.client_request_count || 0) + (mqttStats.value.broker_request_count || 0)) > 0 ? Math.round(((mqttStats.value.diff_number || 0) / ((mqttStats.value.client_request_count || 0) + (mqttStats.value.broker_request_count || 0))) * 10000) / 100 : 0}%\n\n` +
+                   `安全监控:\n` +
+                   `========\n` +
+                   `崩溃检测: ${mqttStats.value.crash_number > 0 ? `检测到 ${mqttStats.value.crash_number} 个崩溃` : '系统稳定运行'}\n` +
+                   `Q-Learning状态空间: ${Object.keys((mqttStats.value as any).q_learning_states || {}).length} 个协议状态\n\n` +
+                   `报告生成时间: ${new Date().toLocaleString()}\n` +
+                   `报告版本: MBFuzzer v1.0 - 智能MQTT协议差异测试引擎`;
+  } else {
+    // 其他协议的标准报告格式
+    reportContent = `Fuzz测试报告\n` +
+                   `================\n\n` +
+                   `协议: ${protocolType.value.toUpperCase()}\n` +
+                   `引擎: ${fuzzEngine.value}\n` +
+                   `目标: ${targetHost.value}:${targetPort.value}\n` +
+                   `开始时间: ${startTime.value || (testStartTime.value ? testStartTime.value.toLocaleString() : '未开始')}\n` +
+                   `结束时间: ${endTime.value || (testEndTime.value ? testEndTime.value.toLocaleString() : '未结束')}\n` +
+                   `总耗时: ${elapsedTime.value}秒\n\n` +
+                   `性能统计:\n` +
+                   `SNMP_v1发包数: ${protocolStats.value.v1}\n` +
+                   `SNMP_v2发包数: ${protocolStats.value.v2c}\n` +
+                   `SNMP_v3发包数: ${protocolStats.value.v3}\n` +
+                   `总发包数: ${fileTotalPackets.value}\n` +
+                   `正常响应率: ${Math.round((fileSuccessCount.value / Math.max(fileTotalPackets.value, 1)) * 100)}%\n` +
+                   `超时率: ${Math.round((fileTimeoutCount.value / Math.max(fileTotalPackets.value, 1)) * 100)}%\n\n` +
+                   `崩溃信息: ${crashDetails.value ? '检测到崩溃' : '无崩溃'}\n` +
+                   `生成时间: ${new Date().toLocaleString()}`;
+  }
   
   const blob = new Blob([reportContent], { type: 'text/plain;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `fuzz_report_${new Date().getTime()}.txt`;
+  const fileName = protocolType.value === 'MQTT' ? 
+    `mbfuzzer_report_${new Date().getTime()}.txt` : 
+    `fuzz_report_${new Date().getTime()}.txt`;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// 导出差异类型分布数据
+function exportDiffTypeData() {
+  if (protocolType.value !== 'MQTT') return;
+  
+  let diffTypeContent = `MBFuzzer 差异类型分布统计导出\n` +
+                       `==============================\n\n` +
+                       `导出时间: ${new Date().toLocaleString()}\n` +
+                       `总差异数量: ${mqttDiffTypeStats.value.total_differences}\n\n` +
+                       `差异类型分布:\n` +
+                       `============\n`;
+  
+  // 添加各类型的详细统计
+  diffTypeContent += `协议违规: ${mqttDiffTypeStats.value.protocol_violations} 个 (${mqttDiffTypeStats.value.distribution.protocol_violations}%)\n`;
+  diffTypeContent += `超时错误: ${mqttDiffTypeStats.value.timeout_errors} 个 (${mqttDiffTypeStats.value.distribution.timeout_errors}%)\n`;
+  diffTypeContent += `连接失败: ${mqttDiffTypeStats.value.connection_failures} 个 (${mqttDiffTypeStats.value.distribution.connection_failures}%)\n`;
+  diffTypeContent += `消息损坏: ${mqttDiffTypeStats.value.message_corruptions} 个 (${mqttDiffTypeStats.value.distribution.message_corruptions}%)\n`;
+  diffTypeContent += `状态不一致: ${mqttDiffTypeStats.value.state_inconsistencies} 个 (${mqttDiffTypeStats.value.distribution.state_inconsistencies}%)\n`;
+  diffTypeContent += `认证错误: ${mqttDiffTypeStats.value.authentication_errors} 个 (${mqttDiffTypeStats.value.distribution.authentication_errors}%)\n\n`;
+  
+  // 添加分析建议
+  diffTypeContent += `分析建议:\n`;
+  diffTypeContent += `========\n`;
+  
+  const maxType = Object.entries(mqttDiffTypeStats.value.distribution)
+    .reduce((max, [type, count]) => count > max.count ? {type, count} : max, {type: '', count: 0});
+  
+  if (maxType.count > 0) {
+    const typeNames = {
+      protocol_violations: '协议违规',
+      timeout_errors: '超时错误',
+      connection_failures: '连接失败',
+      message_corruptions: '消息损坏',
+      state_inconsistencies: '状态不一致',
+      authentication_errors: '认证错误'
+    };
+    diffTypeContent += `主要问题类型: ${typeNames[maxType.type as keyof typeof typeNames]} (${maxType.count}%)\n`;
+    diffTypeContent += `建议优先关注该类型的差异进行深入分析。\n`;
+  } else {
+    diffTypeContent += `暂无差异类型数据\n`;
+  }
+  
+  const blob = new Blob([diffTypeContent], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `mbfuzzer_diff_types_${new Date().getTime()}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// 导出差异测试结果
+function exportDifferentialResults() {
+  if (protocolType.value !== 'MQTT') return;
+  
+  let diffContent = `MBFuzzer差异测试结果导出\n` +
+                     `=======================\n\n` +
+                     `导出时间: ${new Date().toLocaleString()}\n` +
+                     `新发现差异: ${mqttStats.value.diff_number} 个\n` +
+                     `重复差异过滤: ${mqttStats.value.duplicate_diff_number} 个\n` +
+                     `差异发现率: ${(mqttStats.value.client_request_count + mqttStats.value.broker_request_count) > 0 ? Math.round((mqttStats.value.diff_number / (mqttStats.value.client_request_count + mqttStats.value.broker_request_count)) * 10000) / 100 : 0}%\n\n` +
+                     `差异类型分布:\n` +
+                     `============\n` +
+                     `CONNECT消息差异: ${mqttStats.value.duplicate_diffs.CONNECT || 0}\n` +
+                     `PUBLISH消息差异: ${mqttStats.value.duplicate_diffs.PUBLISH || 0}\n` +
+                     `SUBSCRIBE消息差异: ${mqttStats.value.duplicate_diffs.SUBSCRIBE || 0}\n` +
+                     `PINGREQ消息差异: ${mqttStats.value.duplicate_diffs.PINGREQ || 0}\n\n` +
+                     `详细差异记录:\n` +
+                     `============\n`;
+  
+  // 添加统一日志中的差异记录
+  const diffLogs = unifiedLogs.value.filter(log => 
+    log.protocol === 'MQTT' && (log.type === 'ERROR' || log.type === 'WARNING')
+  );
+  
+  if (diffLogs.length > 0) {
+    diffLogs.forEach((log, index) => {
+      diffContent += `${index + 1}. [${log.timestamp}] ${log.type}: ${log.content}\n`;
+    });
+  } else {
+    diffContent += `暂无详细差异记录\n`;
+  }
+  
+  const blob = new Blob([diffContent], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `mbfuzzer_differential_${new Date().getTime()}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// 导出Fuzz日志文件
+function exportFuzzLogs() {
+  if (protocolType.value !== 'MQTT') return;
+  
+  let fuzzLogContent = `MBFuzzer模糊测试日志\n` +
+                        `==================\n\n` +
+                        `导出时间: ${new Date().toLocaleString()}\n` +
+                        `测试引擎: MBFuzzer (智能差异测试)\n` +
+                        `协议类型: MQTT\n` +
+                        `目标地址: ${targetHost.value}:${targetPort.value}\n\n` +
+                        `测试统计:\n` +
+                        `========\n` +
+                        `客户端请求数: ${(mqttStats.value.client_request_count || 0).toLocaleString()}\n` +
+                        `代理端请求数: ${(mqttStats.value.broker_request_count || 0).toLocaleString()}\n` +
+                        `总请求数: ${((mqttStats.value.client_request_count || 0) + (mqttStats.value.broker_request_count || 0)).toLocaleString()}\n` +
+                        `协议差异发现: ${(mqttStats.value.diff_number || 0).toLocaleString()}\n` +
+                        `崩溃数量: ${mqttStats.value.crash_number || 0}\n\n` +
+                        `详细执行日志:\n` +
+                        `============\n`;
+  
+  // 添加统一日志中的所有MQTT相关记录
+  const mqttLogs = unifiedLogs.value.filter(log => 
+    log.protocol === 'MQTT' || (log as any).version === 'MQTT'
+  );
+  
+  mqttLogs.forEach((log, index) => {
+    fuzzLogContent += `[${index + 1}] ${log.timestamp} - ${log.type}: ${(log as any).result || log.content}\n`;
+    if ((log as any).failedReason) {
+      fuzzLogContent += `    错误详情: ${(log as any).failedReason}\n`;
+    }
+  });
+  
+  fuzzLogContent += `\n\n报告生成时间: ${new Date().toLocaleString()}\n`;
+  fuzzLogContent += `报告版本: MBFuzzer v1.0 - 智能MQTT协议模糊测试引擎`;
+  
+  const blob = new Blob([fuzzLogContent], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `mbfuzzer_fuzz_logs_${new Date().getTime()}.txt`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -1221,13 +3197,34 @@ function loop() {
       return;
     }
     
-    if (currentPacketIndex.value >= fuzzData.value.length) {
+    if (currentPacketIndex.value >= snmpFuzzData.value.length) {
       return stopTest();
     }
     
-    const packet = fuzzData.value[currentPacketIndex.value];
+    const packet = snmpFuzzData.value[currentPacketIndex.value];
     if (packet) {
-      processPacket(packet);
+      processSNMPPacket(packet, addLogToUI, (result: string) => {
+        // Update result counters based on packet result
+        switch (result) {
+          case 'success':
+            successCount.value++;
+            break;
+          case 'timeout':
+            timeoutCount.value++;
+            break;
+          case 'failed':
+            failedCount.value++;
+            break;
+          case 'crash':
+            crashCount.value++;
+            break;
+        }
+        
+        // Debug: Log every 100 packets to verify counting
+        if (packetCount.value % 100 === 0) {
+          console.log(`统计更新 [包#${packetCount.value}]: 成功=${successCount.value}, 超时=${timeoutCount.value}, 失败=${failedCount.value}, 崩溃=${crashCount.value}`);
+        }
+      });
     }
     
     // Batch update counters to prevent multiple reactive updates
@@ -1264,45 +3261,73 @@ function loop() {
   }
 }
 
-function processPacket(packet: FuzzPacket) {
-  try {
-    // Update statistics in a batch to prevent multiple reactive updates
-    const updates = {
-      success: packet.result === 'success' ? 1 : 0,
-      timeout: packet.result === 'timeout' ? 1 : 0,
-      failed: packet.result === 'failed' ? 1 : 0,
-      crash: packet.result === 'crash' ? 1 : 0
-    };
+// processPacket 现在通过 useSNMP composable 的 processSNMPPacket 提供
+
+// 格式化SNMP数据包日志
+function formatSNMPPacketLog(packet: FuzzPacket, isCrash: boolean): string {
+  if (isCrash) {
+    return `CRASH DETECTED ${packet.version?.toUpperCase() || 'UNKNOWN'} ${packet.type?.toUpperCase() || 'UNKNOWN'}`;
+  } else {
+    const protocol = packet.version?.toUpperCase() || 'UNKNOWN';
+    const op = packet.type?.toUpperCase() || 'UNKNOWN';
+    const content = packet.oids?.[0] || '';
+    const hex = (packet.hex || '').slice(0, 40);
+    const resultText = packet.result === 'success' ? `正常响应 (${packet.responseSize || 0}字节)` : 
+                      packet.result === 'timeout' ? '接收超时' : 
+                      packet.result === 'failed' ? '构造失败' : '未知状态';
     
-    // Batch update all counters at once
-    successCount.value += updates.success;
-    timeoutCount.value += updates.timeout;
-    failedCount.value += updates.failed;
-    crashCount.value += updates.crash;
+    return `SNMP${protocol} ${op} ${content} ${resultText} ${hex}...`;
+  }
+}
+
+// 格式化RTSP数据包日志
+function formatRTSPPacketLog(packet: FuzzPacket, isCrash: boolean): string {
+  if (isCrash) {
+    return `CRASH DETECTED ${packet.version?.toUpperCase() || 'RTSP'} ${packet.type?.toUpperCase() || 'UNKNOWN'}`;
+  } else {
+    const protocol = packet.version?.toUpperCase() || 'RTSP';
+    const op = packet.type?.toUpperCase() || 'UNKNOWN';
+    const content = packet.oids?.[0] || '';
+    const hex = (packet.hex || '').slice(0, 40);
+    const resultText = packet.result === 'success' ? `正常响应 (${packet.responseSize || 0}字节)` : 
+                      packet.result === 'timeout' ? '接收超时' : 
+                      packet.result === 'failed' ? '构造失败' : '未知状态';
     
-    // Add to log entries
-    const logEntry = {
-      time: packet.timestamp || new Date().toLocaleTimeString(),
-      protocol: packet.version,
-      operation: packet.type,
-      target: `${targetHost.value}:${targetPort.value}`,
-      content: packet.oids?.[0] || '',
-      result: packet.result,
-      hex: packet.hex,
-      packetId: packet.id
-    };
-    logEntries.value.push(logEntry);
+    return `${protocol} ${op} ${content} ${resultText} ${hex}...`;
+  }
+}
+
+// 格式化MQTT数据包日志
+function formatMQTTPacketLog(packet: FuzzPacket, isCrash: boolean): string {
+  if (isCrash) {
+    return `CRASH DETECTED ${packet.version?.toUpperCase() || 'MQTT'} ${packet.type?.toUpperCase() || 'UNKNOWN'}`;
+  } else {
+    const protocol = packet.version?.toUpperCase() || 'MQTT';
+    const op = packet.type?.toUpperCase() || 'UNKNOWN';
+    const content = packet.oids?.[0] || '';
+    const hex = (packet.hex || '').slice(0, 40);
+    const resultText = packet.result === 'success' ? `正常响应 (${packet.responseSize || 0}字节)` : 
+                      packet.result === 'timeout' ? '接收超时' : 
+                      packet.result === 'failed' ? '构造失败' : '未知状态';
     
-    // Update UI log with proper null checks (sparse updates for performance)
-    if (isRunning.value && !showHistoryView.value && logContainer.value && logContainer.value.appendChild) {
-      if (packet.result !== 'crash' && packetCount.value % 5 === 0) {
-        addLogToUI(packet, false);
-      } else if (packet.result === 'crash') {
-        addLogToUI(packet, true);
-      }
-    }
-  } catch (error) {
-    console.warn('Error processing packet:', error);
+    return `${protocol} ${op} ${content} ${resultText} ${hex}...`;
+  }
+}
+
+// 格式化通用数据包日志
+function formatGenericPacketLog(packet: FuzzPacket, isCrash: boolean): string {
+  if (isCrash) {
+    return `CRASH DETECTED ${packet.version?.toUpperCase() || 'UNKNOWN'} ${packet.type?.toUpperCase() || 'UNKNOWN'}`;
+  } else {
+    const protocol = packet.version?.toUpperCase() || 'UNKNOWN';
+    const op = packet.type?.toUpperCase() || 'UNKNOWN';
+    const content = packet.oids?.[0] || '';
+    const hex = (packet.hex || '').slice(0, 40);
+    const resultText = packet.result === 'success' ? `正常响应 (${packet.responseSize || 0}字节)` : 
+                      packet.result === 'timeout' ? '接收超时' : 
+                      packet.result === 'failed' ? '构造失败' : '未知状态';
+    
+    return `${protocol} ${op} ${content} ${resultText} ${hex}...`;
   }
 }
 
@@ -1574,6 +3599,14 @@ function updateTestSummary() {
 // 保存测试结果到历史记录
 function saveTestToHistory() {
   try {
+    console.log('[DEBUG] saveTestToHistory called for protocol:', protocolType.value);
+    console.log('[DEBUG] Current test state:', {
+      isRunning: isRunning.value,
+      isTestCompleted: isTestCompleted.value,
+      testStartTime: testStartTime.value,
+      testEndTime: testEndTime.value
+    });
+    
     // 计算实际的测试统计数据
     const actualTotalPackets = fileTotalPackets.value || packetCount.value;
     const actualSuccessCount = fileSuccessCount.value || successCount.value;
@@ -1581,10 +3614,20 @@ function saveTestToHistory() {
     const actualFailedCount = fileFailedCount.value || failedCount.value;
     const actualCrashCount = crashCount.value;
     
-    // 计算测试持续时间
-    const duration = testStartTime.value && testEndTime.value 
-      ? Math.round((testEndTime.value.getTime() - testStartTime.value.getTime()) / 1000)
-      : elapsedTime.value;
+    console.log('[DEBUG] Test statistics:', {
+      actualTotalPackets,
+      actualSuccessCount,
+      actualTimeoutCount,
+      actualFailedCount,
+      actualCrashCount
+    });
+    
+    // 获取有效连接数量（对于MQTT协议）或保持原有的测试持续时间（对于其他协议）
+    const duration = protocolType.value === 'MQTT' && mqttStats.value.valid_connect_number 
+      ? mqttStats.value.valid_connect_number
+      : (testStartTime.value && testEndTime.value 
+        ? Math.round((testEndTime.value.getTime() - testStartTime.value.getTime()) / 1000)
+        : elapsedTime.value);
     
     // 计算成功率
     const total = actualTotalPackets || (actualSuccessCount + actualTimeoutCount + actualFailedCount + actualCrashCount);
@@ -1619,6 +3662,57 @@ function saveTestToHistory() {
         getnext: messageTypeStats.value.getnext,
         getbulk: messageTypeStats.value.getbulk
       },
+      // 保存RTSP协议统计数据
+      rtspStats: protocolType.value === 'RTSP' ? {
+        cycles_done: rtspStats.value.cycles_done,
+        paths_total: rtspStats.value.paths_total,
+        cur_path: rtspStats.value.cur_path,
+        pending_total: rtspStats.value.pending_total,
+        pending_favs: rtspStats.value.pending_favs,
+        map_size: rtspStats.value.map_size,
+        unique_crashes: rtspStats.value.unique_crashes,
+        unique_hangs: rtspStats.value.unique_hangs,
+        max_depth: rtspStats.value.max_depth,
+        execs_per_sec: rtspStats.value.execs_per_sec,
+        n_nodes: rtspStats.value.n_nodes,
+        n_edges: rtspStats.value.n_edges
+      } : undefined,
+      // 保存MQTT协议统计数据
+      mqttStats: protocolType.value === 'MQTT' ? (() => {
+        console.log('[DEBUG] Saving MQTT stats:', mqttStats.value);
+        return {
+          fuzzing_start_time: mqttStats.value.fuzzing_start_time,
+          fuzzing_end_time: mqttStats.value.fuzzing_end_time,
+          client_request_count: mqttStats.value.client_request_count,
+          broker_request_count: mqttStats.value.broker_request_count,
+          crash_number: mqttStats.value.crash_number,
+          diff_number: mqttStats.value.diff_number,
+          duplicate_diff_number: mqttStats.value.duplicate_diff_number,
+          valid_connect_number: mqttStats.value.valid_connect_number,
+          duplicate_connect_diff: mqttStats.value.duplicate_connect_diff,
+          total_differences: mqttStats.value.total_differences
+        } as any;
+      })() : undefined,
+      // 保存协议特定的扩展数据
+      protocolSpecificData: protocolType.value === 'MQTT' ? {
+        clientRequestCount: mqttStats.value.client_request_count,
+        brokerRequestCount: mqttStats.value.broker_request_count,
+        diffNumber: mqttStats.value.diff_number,
+        duplicateDiffNumber: mqttStats.value.duplicate_diff_number,
+        validConnectNumber: mqttStats.value.valid_connect_number,
+        duplicateConnectDiff: mqttStats.value.duplicate_connect_diff,
+        fuzzingStartTime: mqttStats.value.fuzzing_start_time,
+        fuzzingEndTime: mqttStats.value.fuzzing_end_time
+      } : protocolType.value === 'RTSP' ? {
+        pathCoverage: rtspStats.value.cur_path / Math.max(rtspStats.value.paths_total, 1) * 100,
+        stateTransitions: rtspStats.value.n_edges,
+        maxDepth: rtspStats.value.max_depth,
+        uniqueHangs: rtspStats.value.unique_hangs
+      } : protocolType.value === 'SNMP' ? {
+        oidCoverage: Math.round((protocolStats.value.v1 + protocolStats.value.v2c + protocolStats.value.v3) / Math.max(total, 1) * 100),
+        communityStrings: ['public', 'private'], // 示例数据
+        targetDeviceInfo: `${targetHost.value}:${targetPort.value}`
+      } : undefined,
       hasCrash: actualCrashCount > 0,
       crashDetails: crashDetails.value ? {
         id: crashDetails.value.id,
@@ -1643,9 +3737,26 @@ function saveTestToHistory() {
     try {
       localStorage.setItem('fuzz_test_history', JSON.stringify(historyResults.value));
       console.log('Test results saved to history:', historyItem);
+      console.log('[DEBUG] History results length after save:', historyResults.value.length);
+      console.log('[DEBUG] Latest history item:', historyResults.value[0]);
       
-      // 显示保存成功的通知
-      showSaveNotification();
+      // 为MQTT协议添加详细的保存日志
+      if (protocolType.value === 'MQTT') {
+        console.log('MQTT test results saved to history successfully');
+        console.log('MQTT Stats saved:', {
+          mqttStats: historyItem.mqttStats,
+          protocolSpecificData: historyItem.protocolSpecificData
+        });
+        
+        // 强制触发响应式更新
+        nextTick(() => {
+          console.log('[DEBUG] Forcing reactive update for history');
+          // 触发一个小的变化来确保Vue检测到数组更新
+          historyResults.value = [...historyResults.value];
+        });
+      } else {
+        showSaveNotification();
+      }
     } catch (storageError) {
       console.warn('Failed to save history to localStorage:', storageError);
     }
@@ -1717,14 +3828,14 @@ function exportHistoryItem(item: HistoryResult) {
                        `失败: ${item.failedCount}\n` +
                        `崩溃: ${item.crashCount}\n\n` +
                        `协议版本分布:\n` +
-                       `SNMP v1: ${item.protocolStats.v1}\n` +
-                       `SNMP v2c: ${item.protocolStats.v2c}\n` +
-                       `SNMP v3: ${item.protocolStats.v3}\n\n` +
+                       `SNMP v1: ${item.protocolStats?.v1 || 0}\n` +
+                       `SNMP v2c: ${item.protocolStats?.v2c || 0}\n` +
+                       `SNMP v3: ${item.protocolStats?.v3 || 0}\n\n` +
                        `消息类型分布:\n` +
-                       `GET: ${item.messageTypeStats.get}\n` +
-                       `SET: ${item.messageTypeStats.set}\n` +
-                       `GETNEXT: ${item.messageTypeStats.getnext}\n` +
-                       `GETBULK: ${item.messageTypeStats.getbulk}\n\n` +
+                       `GET: ${item.messageTypeStats?.get || 0}\n` +
+                       `SET: ${item.messageTypeStats?.set || 0}\n` +
+                       `GETNEXT: ${item.messageTypeStats?.getnext || 0}\n` +
+                       `GETBULK: ${item.messageTypeStats?.getbulk || 0}\n\n` +
                        `崩溃信息: ${item.hasCrash ? '检测到崩溃' : '无崩溃'}\n` +
                        `生成时间: ${new Date().toLocaleString()}`;
   
@@ -1787,13 +3898,24 @@ function exportAllHistory() {
 
 // 显示保存成功通知
 function showSaveNotification() {
-  notificationMessage.value = '测试结果已保存到历史记录';
-  showNotification.value = true;
-  
-  // 3秒后自动隐藏通知
-  setTimeout(() => {
-    showNotification.value = false;
-  }, 3000);
+  try {
+    // 使用nextTick确保DOM更新完成
+    nextTick(() => {
+      notificationMessage.value = '测试结果已保存到历史记录';
+      showNotification.value = true;
+      
+      // 3秒后自动隐藏通知
+      setTimeout(() => {
+        try {
+          showNotification.value = false;
+        } catch (error) {
+          console.warn('Failed to hide notification:', error);
+        }
+      }, 3000);
+    });
+  } catch (error) {
+    console.warn('Failed to show notification:', error);
+  }
 }
 
 // 手动关闭通知
@@ -1916,8 +4038,12 @@ const historyColumns = computed<TableColumnType<HistoryResult>[]>(() => [
 
 // Computed properties for button states
 const canStartTest = computed(() => {
+  // MQTT协议不需要fuzzData
+  if (protocolType.value === 'MQTT') {
+    return !loading.value && !isRunning.value;
+  }
   return !loading.value && 
-         fuzzData.value.length > 0 && 
+         snmpFuzzData.value.length > 0 && 
          !isRunning.value;
 });
 
@@ -1940,6 +4066,11 @@ function loadHistoryFromStorage() {
       if (Array.isArray(parsedHistory)) {
         historyResults.value = parsedHistory;
         console.log(`Loaded ${parsedHistory.length} history items from localStorage`);
+        console.log('[DEBUG] Loaded history items:', parsedHistory.map(item => ({
+          id: item.id,
+          protocol: item.protocol,
+          timestamp: item.timestamp
+        })));
       }
     }
   } catch (error) {
@@ -1947,6 +4078,375 @@ function loadHistoryFromStorage() {
     // 如果加载失败，保持默认的模拟数据
   }
 }
+
+// 测试历史记录保存功能（调试用）
+function testHistorySave() {
+  console.log('[DEBUG] Testing history save functionality...');
+  console.log('[DEBUG] Current protocol:', protocolType.value);
+  console.log('[DEBUG] Current MQTT stats:', mqttStats.value);
+  
+  // 手动触发保存
+  try {
+    saveTestToHistory();
+    console.log('[DEBUG] Manual history save completed');
+  } catch (error) {
+    console.error('[DEBUG] Manual history save failed:', error);
+  }
+}
+
+// 将测试函数暴露到全局作用域（仅用于调试）
+if (typeof window !== 'undefined') {
+  (window as any).testHistorySave = testHistorySave;
+  (window as any).checkHistoryResults = () => {
+    console.log('[DEBUG] Current history results:', historyResults.value);
+    console.log('[DEBUG] History results length:', historyResults.value.length);
+  };
+  (window as any).testMQTTAnimation = () => {
+    console.log('[DEBUG] Manual MQTT animation test');
+    initMQTTAnimations();
+  };
+}
+
+// MQTT动画相关变量和函数
+let mqttAnimationIntervals: number[] = [];
+
+// 初始化MQTT动画
+function initMQTTAnimations() {
+  console.log('[MQTT Animation] Starting initialization...');
+  // 清理旧的动画
+  cleanupMQTTAnimations();
+  
+  // 等待DOM完全渲染后再初始化
+  setTimeout(() => {
+    // 批量初始化6个MQTT模块
+    for (let moduleId = 1; moduleId <= 6; moduleId++) {
+      console.log(`[MQTT Animation] Initializing module ${moduleId}`);
+      initMQTTModule(moduleId);
+    }
+  }, 100);
+}
+
+// 清理MQTT动画
+function cleanupMQTTAnimations() {
+  mqttAnimationIntervals.forEach(interval => clearInterval(interval));
+  mqttAnimationIntervals = [];
+}
+
+// 单个MQTT模块初始化函数
+function initMQTTModule(moduleId: number) {
+  const module = document.getElementById(`mqtt-viz-${moduleId}`);
+  if (!module) {
+    console.warn(`[MQTT Animation] Module mqtt-viz-${moduleId} not found`);
+    return;
+  }
+  
+  const broker = module.querySelector('.mqtt-node:nth-child(1)') as HTMLElement;
+  const client1 = module.querySelector('.mqtt-node:nth-child(2)') as HTMLElement;
+  const client2 = module.querySelector('.mqtt-node:nth-child(3)') as HTMLElement;
+  const connections = document.getElementById(`connections-viz-${moduleId}`) as unknown as SVGElement;
+  const particles = document.getElementById(`particles-viz-${moduleId}`) as HTMLElement;
+  
+  console.log(`[MQTT Animation] Module ${moduleId} elements:`, {
+    module: !!module,
+    broker: !!broker,
+    client1: !!client1,
+    client2: !!client2,
+    connections: !!connections,
+    particles: !!particles
+  });
+  
+  if (!broker || !client1 || !client2 || !connections || !particles) {
+    console.warn(`[MQTT Animation] Missing elements for module ${moduleId}`);
+    return;
+  }
+
+  // 获取元素位置（基于当前模块容器定位）
+  function getPosition(el: HTMLElement) {
+    // 使用相对于模块容器的固定位置，而不是getBoundingClientRect
+    const moduleRect = module?.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    
+    // 查找图标元素（SVG）而不是整个节点
+    const iconElement = el.querySelector('svg') as unknown as HTMLElement;
+    let iconRect = elRect;
+    
+    if (iconElement) {
+      iconRect = iconElement.getBoundingClientRect();
+    }
+    
+    // 计算图标相对于模块容器的位置
+    if (!moduleRect) return {
+      x: 0, y: 0, centerX: 0, centerY: 0,
+      leftBottom: { x: 0, y: 0 }, rightBottom: { x: 0, y: 0 },
+      topLeft: { x: 0, y: 0 }, topRight: { x: 0, y: 0 }
+    };
+    const iconCenterX = iconRect.left - moduleRect.left + iconRect.width / 2;
+    const iconCenterY = iconRect.top - moduleRect.top + iconRect.height / 2;
+    
+    console.log(`[MQTT Animation] Icon position:`, {
+      iconCenterX,
+      iconCenterY,
+      element: el.className,
+      hasIcon: !!iconElement
+    });
+    
+    return {
+      centerX: iconCenterX,
+      centerY: iconCenterY,
+      // 为broker添加左下角和右下角连接点（基于图标位置）
+      leftBottom: {
+        x: iconCenterX - iconRect.width / 3,
+        y: iconCenterY + iconRect.height / 2
+      },
+      rightBottom: {
+        x: iconCenterX + iconRect.width / 3,
+        y: iconCenterY + iconRect.height / 2
+      },
+      // 图标顶部边缘连接点（左上角和右上角）
+      topLeft: {
+        x: iconCenterX - iconRect.width / 2,
+        y: iconCenterY - iconRect.height / 2 - 2
+      },
+      topRight: {
+        x: iconCenterX + iconRect.width / 2,
+        y: iconCenterY - iconRect.height / 2 - 2
+      }
+    };
+  }
+
+  // 创建连接线
+  function createConnections() {
+    const bPos = getPosition(broker)!;
+    const c1Pos = getPosition(client1)!;
+    const c2Pos = getPosition(client2)!;
+    
+    // 清空之前的连接线，避免重复绘制
+    connections.innerHTML = '';
+    
+    console.log(`[MQTT Animation] Creating connections for module ${moduleId}:`, {
+      broker: bPos,
+      client1: c1Pos,
+      client2: c2Pos
+    });
+    
+    function createPath(from: {x: number, y: number}, to: {x: number, y: number}, id: string, color: string = '#3B82F6') {
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      
+      // 创建轻微弧度的优美曲线连接
+      const midX = (from.x + to.x) / 2;
+      const midY = (from.y + to.y) / 2;
+      
+      // 轻微的弧度控制点，符合大众审美
+      let controlX = midX;
+      let controlY = midY;
+      
+      // 根据连接方向添加轻微的弧度偏移
+      if (id.includes('broker-client1')) {
+        // Client1连接，轻微向左弯曲
+        controlX = midX - 15;
+        controlY = midY - 20;
+      }
+      else if (id.includes('broker-client2')) {
+        // Client2连接，轻微向右弯曲
+        controlX = midX + 15;
+        controlY = midY - 20;
+      }
+      
+      // 使用二次贝塞尔曲线创建轻微弧度
+      const d = `M ${from.x} ${from.y} Q ${controlX} ${controlY} ${to.x} ${to.y}`;
+      
+      path.setAttribute('d', d);
+      path.setAttribute('id', `${id}-${moduleId}`);
+      path.setAttribute('class', 'mqtt-connection');
+      path.setAttribute('stroke', color);
+      path.setAttribute('stroke-width', '2');
+      path.setAttribute('fill', 'none');
+      path.setAttribute('opacity', '0.8');
+      connections.appendChild(path);
+      console.log(`[MQTT Animation] Created curved path ${id}: ${d}`);
+      return path;
+    }
+    
+    // 创建两条对称的连接线：Client1连接右上角，Client2连接左上角
+    const path1 = createPath(bPos.leftBottom, c1Pos.topRight, 'broker-client1', '#3B82F6');
+    const path2 = createPath(bPos.rightBottom, c2Pos.topLeft, 'broker-client2', '#3B82F6');
+    
+    return { path1, path2 };
+  }
+
+  // 创建流动粒子
+  function createParticles(paths: any) {
+    console.log(`[MQTT Animation] Creating particles for module ${moduleId}`);
+    const particleSources = [
+      // 第一条线：Broker到Client1的粒子（深蓝色）
+      { path: paths.path1, start: 0, end: 1, interval: 1500, class: 'mqtt-particle-from-broker', speed: 80 },
+      // 第一条线：Client1到Broker的粒子（浅蓝色）
+      { path: paths.path1, start: 1, end: 0, interval: 2500, class: 'mqtt-particle-from-client', speed: 80 },
+      // 第二条线：Broker到Client2的粒子（深蓝色）
+      { path: paths.path2, start: 0, end: 1, interval: 2000, class: 'mqtt-particle-from-broker', speed: 80 },
+      // 第二条线：Client2到Broker的粒子（浅蓝色）
+      { path: paths.path2, start: 1, end: 0, interval: 3000, class: 'mqtt-particle-from-client', speed: 80 }
+    ];
+    
+    // 立即创建第一批粒子，然后设置定时器
+    particleSources.forEach((source, index) => {
+      // 立即创建一个粒子
+      setTimeout(() => {
+        createParticle(source.path, source.start, source.end, source.class, source.speed);
+      }, index * 200);
+      
+      // 设置定时器持续创建粒子
+      const interval = setInterval(() => {
+        console.log(`[MQTT Animation] Creating particle ${index} for module ${moduleId}`);
+        createParticle(source.path, source.start, source.end, source.class, source.speed);
+      }, source.interval) as unknown as number;
+      mqttAnimationIntervals.push(interval);
+    });
+    
+    console.log(`[MQTT Animation] Created ${particleSources.length} particle sources for module ${moduleId}`);
+  }
+
+  // 创建单个粒子
+  function createParticle(path: SVGPathElement, start: number, end: number, particleClass: string, speed: number) {
+    try {
+      const particle = document.createElement('div');
+      particle.className = `mqtt-particle ${particleClass}`;
+      // 根据粒子类型设置不同的样式
+      const isBrokerParticle = particleClass.includes('broker');
+      const backgroundColor = isBrokerParticle ? '#3B82F6' : '#60A5FA';
+      const shadowColor = isBrokerParticle ? 'rgba(59, 130, 246, 0.8)' : 'rgba(96, 165, 250, 0.8)';
+      
+      particle.style.cssText = `
+        position: absolute;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 10;
+        box-shadow: 0 0 6px ${shadowColor};
+        background: ${backgroundColor};
+        border: 1px solid rgba(255, 255, 255, 0.3);
+      `;
+      particles.appendChild(particle);
+      
+      const length = path.getTotalLength();
+      const duration = length / speed * 1000;
+      
+      console.log(`[MQTT Animation] Created particle with length: ${length}, duration: ${duration}ms`);
+      
+      let starttime: number | null = null;
+      let animationId: number;
+      
+      function animate(timestamp: number) {
+        if (!starttime) starttime = timestamp;
+        const progress = Math.min((timestamp - starttime) / duration, 1);
+        
+        if (progress < 1 && particles.contains(particle)) {
+          try {
+            const currentLength = start * length + progress * (end - start) * length;
+            const pos = path.getPointAtLength(currentLength);
+            
+            // 添加一些随机抖动使动画更生动
+            const jitterX = (Math.random() - 0.5) * 1;
+            const jitterY = (Math.random() - 0.5) * 1;
+            
+            particle.style.left = `${pos.x + jitterX}px`;
+            particle.style.top = `${pos.y + jitterY}px`;
+            
+            // 根据进度调整透明度
+            const opacity = Math.sin(progress * Math.PI);
+            particle.style.opacity = opacity.toString();
+            
+            animationId = requestAnimationFrame(animate);
+          } catch (pathError) {
+            console.warn(`[MQTT Animation] Path error:`, pathError);
+            particle.remove();
+          }
+        } else {
+          // 动画完成，移除粒子
+          if (animationId) {
+            cancelAnimationFrame(animationId);
+          }
+          setTimeout(() => {
+            if (particles.contains(particle)) {
+              particle.remove();
+            }
+          }, 50);
+        }
+      }
+      
+      // 开始动画
+      animationId = requestAnimationFrame(animate);
+      
+    } catch (error) {
+      console.error(`[MQTT Animation] Error creating particle:`, error);
+    }
+  }
+
+  // 初始化当前模块
+  function init() {
+    const paths = createConnections();
+    createParticles(paths);
+  }
+
+  // 执行当前模块初始化
+  init();
+}
+
+// 错误捕获处理
+onErrorCaptured((err, instance, info) => {
+  console.error('[Vue Error Captured]:', err);
+  console.error('[Component Instance]:', instance);
+  console.error('[Error Info]:', info);
+  
+  // 如果是MQTT相关的DOM错误，尝试恢复
+  if (err.message && err.message.includes('nextSibling') && protocolType.value === 'MQTT') {
+    console.warn('[MQTT DOM Error] 检测到DOM更新错误，尝试重置MQTT日志状态');
+    try {
+      nextTick(() => {
+        mqttDifferentialLogsData = [];
+        mqttLogsUpdateKey.value++;
+        console.log('[MQTT DOM Error] MQTT日志状态已重置');
+      });
+    } catch (resetError) {
+      console.error('[MQTT DOM Error] 重置失败:', resetError);
+    }
+  }
+  
+  // 返回false让错误继续传播，但不会导致应用崩溃
+  return false;
+});
+
+// 组件卸载时清理
+onUnmounted(() => {
+  console.log('[DEBUG] 组件卸载，清理MQTT相关资源');
+  
+  // 清理MQTT动画
+  cleanupMQTTAnimations();
+  
+  // 清理MQTT定时器和数据
+  if (mqttUpdateTimer) {
+    clearTimeout(mqttUpdateTimer);
+    mqttUpdateTimer = null;
+  }
+  mqttDifferentialLogsData = [];
+  mqttLogsPendingUpdate = false;
+  
+  // 清理其他定时器
+  if (testTimer) {
+    clearInterval(testTimer as any);
+    testTimer = null;
+  }
+  
+  if (logReadingInterval.value) {
+    clearInterval(logReadingInterval.value);
+    logReadingInterval.value = null;
+  }
+  
+  // 停止测试
+  isRunning.value = false;
+  mqttSimulationCancelled = true;
+});
 
 onMounted(async () => {
   // 加载历史记录
@@ -1964,6 +4464,18 @@ onMounted(async () => {
   const success = initCharts();
   if (success) {
     console.log('Charts initialized successfully on mount');
+    
+    // 如果已有fuzz数据但统计数据为空，重新计算统计数据
+    if (protocolType.value === 'SNMP' && snmpFuzzData.value.length > 0) {
+      const hasValidData = (protocolStats.value.v1 + protocolStats.value.v2c + protocolStats.value.v3) > 0 ||
+                          (messageTypeStats.value.get + messageTypeStats.value.set + messageTypeStats.value.getnext + messageTypeStats.value.getbulk) > 0;
+      
+      if (!hasValidData) {
+        console.log('Recalculating stats on mount due to empty statistics');
+        recalculateStatsFromFuzzData();
+      }
+    }
+    
     // Update charts with initial data but don't show them yet
     updateCharts();
     // 只有在有完整数据且测试已完成时才显示图表
@@ -1972,6 +4484,12 @@ onMounted(async () => {
     }
   } else {
     console.error('Failed to initialize charts');
+  }
+  
+  // MQTT协议不需要图表初始化，使用统计卡片显示
+  if (protocolType.value === 'MQTT') {
+    console.log('MQTT protocol uses statistical cards instead of charts');
+    // MQTT动画将在测试开始时初始化
   }
   
   // Set initial last update time
@@ -2139,7 +4657,7 @@ onMounted(async () => {
                   </Space>
                 </div>
                 <div ref="logContainer" class="log-panel">
-                  <div class="log-empty">测试未开始，请配置参数并点击"开始测试"</div>
+                  <div class="log-empty">测试未开始，请配置参数并点击“开始测试”</div>
                 </div>
               </Card>
             </div>

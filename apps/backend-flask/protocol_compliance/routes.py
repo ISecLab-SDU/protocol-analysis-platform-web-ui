@@ -7,9 +7,9 @@ import json
 import logging
 import os
 import re
+import sqlite3
 import subprocess
 import threading
-import sqlite3
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -1398,7 +1398,8 @@ def stop_and_cleanup():
         return make_response(error_response(f"清理过程失败: {str(e)}"), 500)
 
 
-# Detection Results Routes ---------------------------------------------------
+# Detection Results Routes ------------------------------------------------------
+
 
 @bp.route("/detection-results/<implementation_name>", methods=["GET"])
 def get_detection_results(implementation_name: str):
