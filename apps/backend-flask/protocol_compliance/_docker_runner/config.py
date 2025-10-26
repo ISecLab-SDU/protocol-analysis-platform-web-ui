@@ -249,8 +249,8 @@ class ProtocolGuardDockerSettings:
 
         env_passthrough = _split_env_list("PG_ENV_VARS", ("OPENAI_API_KEY",))
         artifacts = ArtifactLayout.from_env()
-        keep_artifacts = _env_bool("PG_KEEP_ARTIFACTS", default=True)
-        keep_builder_images = _env_bool("PG_KEEP_BUILDER_IMAGES", default=True)
+        keep_artifacts = _env_bool("PG_KEEP_ARTIFACTS", default=False)
+        keep_builder_images = _env_bool("PG_KEEP_BUILDER_IMAGES", default=False)
         analysis_timeout = _env_int("PG_ANALYSIS_TIMEOUT_SECONDS", None)
         network = os.environ.get("PG_DOCKER_NETWORK") or None
 
