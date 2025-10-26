@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { onMounted, ref, nextTick, computed, watch, h } from 'vue';
+import { onMounted, ref, nextTick, computed, watch, h, shallowRef, onErrorCaptured, onUnmounted } from 'vue';
 import { getFuzzText } from '#/api/custom';
+import { requestClient } from '#/api/request';
+import { useAccessStore } from '@vben/stores';
+import { IconifyIcon } from '@vben/icons';
 import Chart from 'chart.js/auto';
 import type { TableColumnType } from 'ant-design-vue';
 
 import { Page } from '@vben/common-ui';
-import { IconifyIcon } from '@vben/icons';
+import { IconifyIcon as IconIcon } from '@vben/icons';
 
 import {
   Alert,
@@ -29,32 +32,81 @@ import {
   Typography,
 } from 'ant-design-vue';
 
+// 导入协议专用的composables
+import { 
+  useSNMP, 
+  useRTSP, 
+  useMQTT, 
+  useLogReader,
+  type FuzzPacket,
+  type HistoryResult,
+  type ProtocolType,
+  type FuzzEngineType
+} from './composables';
+
+// 导入新的协议数据管理器和日志查看器
+import { useProtocolDataManager } from './composables/useProtocolDataManager';
+import ProtocolLogViewer from './components/ProtocolLogViewer.vue';
+
 // Data state
 const rawText = ref('');
 const loading = ref(true);
 const error = ref<string | null>(null);
 
-// Parsed data
-interface FuzzPacket {
-  id: number | 'crash_event';
-  version: string;
-  type: string;
-  oids: string[];
-  hex: string;
-  result: 'success' | 'timeout' | 'failed' | 'crash' | 'unknown';
-  responseSize?: number;
-  timestamp?: string;
-  failed?: boolean;
-  failedReason?: string;
-  crashEvent?: {
-    type: string;
-    message: string;
-    timestamp: string;
-    crashPacket: string;
-    crashLogPath: string;
-  };
-}
+// 使用composables中的协议专用逻辑
+const { 
+  protocolStats, 
+  messageTypeStats, 
+  fuzzData: snmpFuzzData,
+  totalPacketsInFile: snmpTotalPacketsInFile,
+  fileTotalPackets: snmpFileTotalPackets,
+  fileSuccessCount: snmpFileSuccessCount,
+  fileTimeoutCount: snmpFileTimeoutCount,
+  fileFailedCount: snmpFileFailedCount,
+  resetSNMPStats, 
+  generateDefaultFuzzData, 
+  parseSNMPText,
+  startSNMPTest,
+  processSNMPPacket,
+  addSNMPLogToUI
+} = useSNMP();
+const { rtspStats, resetRTSPStats, processRTSPLogLine, writeRTSPScript, executeRTSPCommand, stopRTSPProcess, stopAndCleanupRTSP } = useRTSP();
+const { mqttStats, resetMQTTStats, processMQTTLogLine } = useMQTT();
+const { 
+  logContainer, 
+  isReadingLog, 
+  logReadingInterval, 
+  logReadPosition,
+  startLogReading, 
+  stopLogReading, 
+  resetLogReader, 
+  addMQTTLogToUI, 
+  addRTSPLogToUI, 
+  clearLog 
+} = useLogReader();
 
+// 使用新的协议数据管理器
+const {
+  protocolStates,
+  currentProtocol,
+  currentState,
+  addLog,
+  addBatchLogs,
+  clearProtocolLogs,
+  updateProtocolState,
+  switchProtocol,
+  getProtocolStats,
+  startRealtimeStream,
+  addToRealtimeStream,
+  stopRealtimeStream,
+  stopAllRealtimeStreams
+} = useProtocolDataManager();
+
+const TypographyParagraph = Typography.Paragraph;
+const TypographyText = Typography.Text;
+const TypographyTitle = Typography.Title;
+
+// Parsed data - kept for backward compatibility
 const fuzzData = ref<FuzzPacket[]>([]);
 const totalPacketsInFile = ref(0);
 // File-level summary stats parsed from txt
@@ -62,14 +114,6 @@ const fileTotalPackets = ref(0);
 const fileSuccessCount = ref(0);
 const fileTimeoutCount = ref(0);
 const fileFailedCount = ref(0);
-
-const TypographyParagraph = Typography.Paragraph;
-const TypographyText = Typography.Text;
-const TypographyTitle = Typography.Title;
-
-// Aggregates
-const protocolStats = ref({ v1: 0, v2c: 0, v3: 0 });
-const messageTypeStats = ref({ get: 0, set: 0, getnext: 0, getbulk: 0 });
 
 // Runtime stats
 const packetCount = ref(0);
@@ -84,18 +128,21 @@ const isRunning = ref(false);
 const isTestCompleted = ref(false);
 let testTimer: number | null = null;
 
+// 添加异步操作取消标志
+let mqttSimulationCancelled = false;
+
 // UI configuration
-const protocolType = ref('SNMP');
-const fuzzEngine = ref('SNMP_Fuzz');
-const targetHost = ref('192.168.102.2');
+const protocolType = ref<ProtocolType>('SNMP');
+const fuzzEngine = ref<FuzzEngineType>('SNMP_Fuzz');
+const targetHost = ref('127.0.0.1');
 const targetPort = ref(161);
 const rtspCommandConfig = ref('afl-fuzz -d -i $AFLNET/tutorials/live555/in-rtsp -o out-live555 -N tcp://127.0.0.1/8554 -x $AFLNET/tutorials/live555/rtsp.dict -P RTSP -D 10000 -q 3 -s 3 -E -K -R ./testOnDemandRTSPServer 8554');
 
 // Real-time log reading
-const isReadingLog = ref(false);
-const logReadingInterval = ref<number | null>(null);
+const isReadingLogOld = ref(false);
+const logReadingIntervalOld = ref<number | null>(null);
 const rtspProcessId = ref<number | null>(null);
-const logReadPosition = ref(0);
+const logReadPositionOld = ref(0);
 
 // Watch for protocol changes to update port
 watch(protocolType, (newProtocol) => {
@@ -648,7 +695,7 @@ function resetTestState() {
     nextTick(() => {
       try {
         if (logContainer.value && !showHistoryView.value && logContainer.value.innerHTML !== undefined) {
-          logContainer.value.innerHTML = '<div class="log-empty">测试未开始，请配置参数并点击“开始测试”</div>';
+          logContainer.value.innerHTML = '<div class="log-empty">测试未开始，请配置参数并点击"开始测试"</div>';
         }
       } catch (error) {
         console.warn('Failed to reset log container:', error);
@@ -1099,7 +1146,7 @@ function clearLog() {
     nextTick(() => {
       try {
         if (logContainer.value && !showHistoryView.value && logContainer.value.innerHTML !== undefined) {
-          logContainer.value.innerHTML = '<div class="log-empty">测试未开始，请配置参数并点击“开始测试”</div>';
+          logContainer.value.innerHTML = '<div class="log-empty">测试未开始，请配置参数并点击"开始测试"</div>';
         }
       } catch (error) {
         console.warn('Failed to clear log container:', error);
@@ -2092,7 +2139,7 @@ onMounted(async () => {
                   </Space>
                 </div>
                 <div ref="logContainer" class="log-panel">
-                  <div class="log-empty">测试未开始，请配置参数并点击“开始测试”</div>
+                  <div class="log-empty">测试未开始，请配置参数并点击"开始测试"</div>
                 </div>
               </Card>
             </div>

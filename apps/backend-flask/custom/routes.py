@@ -18,9 +18,11 @@ bp = Blueprint("custom", __name__, url_prefix="/api/custom")
 @bp.get("/text")
 def get_fuzz_text():
     """Get fuzz testing text data."""
-    # Try to find the fuzz_output.txt file from the mock backend
+    # Try to find the fuzz_output.txt file from SNMP fuzzer logs
     candidates = [
-        # From the mock backend location
+        # From the SNMP fuzzer logs directory (primary location)
+        Path(__file__).parent.parent / "protocol_compliance" / "snmpfuzzer_logs" / "fuzz_output.txt",
+        # From the mock backend location (fallback)
         Path(__file__).parent.parent.parent / "backend-mock" / "api" / "custom" / "fuzz_output.txt",
         # From current directory
         Path("fuzz_output.txt"),

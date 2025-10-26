@@ -10,6 +10,7 @@ import re
 import subprocess
 import threading
 import sqlite3
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, cast
@@ -887,13 +888,27 @@ def _strip_extension(filename: str) -> str:
     return filename.rsplit(".", 1)[0]
 
 
-# RTSP Protocol Specific Routes ---------------------------------------------
+# Protocol Specific Routes -------------------------------------------------
 
 # RTSP协议配置 - 在这里修改路径和命令
 RTSP_CONFIG = {
     "script_path": "/home/hhh/下载/AFLNET/commands/run-aflnet.sh",  # 修改为你的脚本文件路径
     "shell_command": "cd /home/hhh/下载/AFLNET/ && docker run -d --privileged -v $(pwd)/output:/home/live555/testProgs/out-live555 -v $(pwd)/commands:/host-commands -p 8554:8554 aflnet-live555",  # 修改为你的启动命令
     "log_file_path": "/home/hhh/下载/AFLNET/output/plot_data"  # 修改为你的日志文件路径
+}
+
+# MQTT协议配置 - MBFuzzer相关路径
+MQTT_CONFIG = {
+    "log_file_path": os.path.join(os.path.dirname(__file__), "mbfuzzer_logs", "fuzzing_report.txt"),  # MBFuzzer日志文件路径
+    "shell_command": "python3 /path/to/mbfuzzer/fuzz.py",  # MBFuzzer启动命令（需要根据实际路径修改）
+    "output_dir": os.path.join(os.path.dirname(__file__), "mbfuzzer_logs")  # MBFuzzer输出目录
+}
+
+# SNMP协议配置 - SNMP Fuzzer相关路径
+SNMP_CONFIG = {
+    "log_file_path": os.path.join(os.path.dirname(__file__), "snmpfuzzer_logs", "fuzz_output.txt"),  # SNMP Fuzzer日志文件路径
+    "shell_command": "python3 /path/to/snmpfuzzer/fuzz.py",  # SNMP Fuzzer启动命令（需要根据实际路径修改）
+    "output_dir": os.path.join(os.path.dirname(__file__), "snmpfuzzer_logs")  # SNMP Fuzzer输出目录
 }
 
 @bp.route("/write-script", methods=["POST"])
@@ -916,6 +931,13 @@ def write_script():
     # 根据协议获取配置
     if protocol == "RTSP":
         file_path = RTSP_CONFIG["script_path"]
+    elif protocol == "MQTT":
+        # MQTT协议暂时不需要脚本文件，直接返回成功
+        return success_response({
+            "message": f"{protocol}协议不需要脚本文件",
+            "filePath": "N/A",
+            "size": 0
+        })
     else:
         return make_response(error_response(f"不支持的协议类型: {protocol}"), 400)
 
@@ -957,6 +979,8 @@ def execute_command():
     # 根据协议获取配置
     if protocol == "RTSP":
         command = RTSP_CONFIG["shell_command"]
+    elif protocol == "MQTT":
+        command = MQTT_CONFIG["shell_command"]
     else:
         return make_response(error_response(f"不支持的协议类型: {protocol}"), 400)
 
@@ -1020,17 +1044,47 @@ def read_log():
     # 根据协议获取配置
     if protocol == "RTSP":
         file_path = RTSP_CONFIG["log_file_path"]
+    elif protocol == "MQTT":
+        file_path = MQTT_CONFIG["log_file_path"]
+    elif protocol == "SNMP":
+        file_path = SNMP_CONFIG["log_file_path"]
     else:
         return make_response(error_response(f"不支持的协议类型: {protocol}"), 400)
 
     try:
-        if not os.path.exists(file_path):
+        print(f"[DEBUG] 尝试读取{protocol}日志文件: {file_path}")
+        print(f"[DEBUG] 上次读取位置: {last_position}")
+        
+        # 检查目录是否存在
+        log_dir = os.path.dirname(file_path)
+        if not os.path.exists(log_dir):
+            print(f"[DEBUG] 日志目录不存在: {log_dir}")
             return success_response({
                 "content": "",
                 "position": last_position,
-                "message": "日志文件尚未创建"
+                "message": f"日志目录不存在: {log_dir}"
             })
-
+        
+        # 列出目录中的文件
+        try:
+            files_in_dir = os.listdir(log_dir)
+            print(f"[DEBUG] 日志目录中的文件: {files_in_dir}")
+        except Exception as e:
+            print(f"[DEBUG] 无法列出目录文件: {e}")
+        
+        if not os.path.exists(file_path):
+            print(f"[DEBUG] 日志文件不存在: {file_path}")
+            return success_response({
+                "content": "",
+                "position": last_position,
+                "message": f"日志文件尚未创建: {file_path}"
+            })
+        
+        # 获取文件信息
+        file_stat = os.stat(file_path)
+        file_size = file_stat.st_size
+        print(f"[DEBUG] 日志文件大小: {file_size} 字节")
+        
         with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
             # 移动到上次读取的位置
             f.seek(last_position)
@@ -1040,16 +1094,100 @@ def read_log():
 
             # 获取当前位置
             current_position = f.tell()
-
+        
+        print(f"[DEBUG] 读取到新内容长度: {len(new_content)} 字符")
+        print(f"[DEBUG] 新的读取位置: {current_position}")
+        
+        if new_content:
+            print(f"[DEBUG] 新内容预览: {new_content[:200]}...")
+        
         return success_response({
             "content": new_content,
             "position": current_position,
             "protocol": protocol,
-            "message": f"成功读取{len(new_content)}字符"
+            "file_size": file_size,
+            "message": f"成功读取{len(new_content)}字符，文件大小{file_size}字节"
         })
 
     except Exception as e:
+        print(f"[DEBUG] 读取日志文件异常: {e}")
         return make_response(error_response(f"读取日志文件失败: {str(e)}"), 500)
+
+
+@bp.route("/check-status", methods=["POST"])
+def check_status():
+    """检查协议测试状态和文件系统"""
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+    
+    data = request.get_json()
+    if not data:
+        return make_response(error_response("请求数据不能为空"), 400)
+    
+    protocol = data.get("protocol", "UNKNOWN")
+    
+    try:
+        status_info = {
+            "protocol": protocol,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        if protocol == "RTSP":
+            # 检查RTSP相关状态
+            log_file_path = RTSP_CONFIG["log_file_path"]
+            log_dir = os.path.dirname(log_file_path)
+            
+            # 检查目录和文件状态
+            status_info.update({
+                "log_file_path": log_file_path,
+                "log_dir": log_dir,
+                "log_dir_exists": os.path.exists(log_dir),
+                "log_file_exists": os.path.exists(log_file_path)
+            })
+            
+            # 如果目录存在，列出文件
+            if os.path.exists(log_dir):
+                try:
+                    files = os.listdir(log_dir)
+                    status_info["files_in_log_dir"] = files
+                except Exception as e:
+                    status_info["files_in_log_dir"] = f"无法列出文件: {e}"
+            
+            # 如果日志文件存在，获取文件信息
+            if os.path.exists(log_file_path):
+                file_stat = os.stat(log_file_path)
+                status_info.update({
+                    "log_file_size": file_stat.st_size,
+                    "log_file_mtime": datetime.fromtimestamp(file_stat.st_mtime).isoformat()
+                })
+            
+            # 检查Docker容器状态
+            try:
+                result = subprocess.run(
+                    "docker ps --format 'table {{.ID}}\\t{{.Image}}\\t{{.Status}}\\t{{.Ports}}'",
+                    shell=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    timeout=10
+                )
+                
+                if result.returncode == 0:
+                    status_info["docker_containers"] = result.stdout
+                else:
+                    status_info["docker_error"] = result.stderr
+                    
+            except Exception as e:
+                status_info["docker_error"] = str(e)
+        
+        print(f"[DEBUG] 状态检查结果: {status_info}")
+        
+        return success_response(status_info)
+        
+    except Exception as e:
+        print(f"[DEBUG] 状态检查异常: {e}")
+        return make_response(error_response(f"状态检查失败: {str(e)}"), 500)
 
 
 @bp.route("/stop-process", methods=["POST"])
@@ -1085,12 +1223,182 @@ def stop_process():
     except Exception as e:
         return make_response(error_response(f"停止进程失败: {str(e)}"), 500)
 
-import os
-import sqlite3
-import uuid
-from datetime import datetime
 
-# 新增的路由端点
+@bp.route("/stop-and-cleanup", methods=["POST"])
+def stop_and_cleanup():
+    """停止Docker容器并清理输出文件"""
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+    
+    data = request.get_json()
+    if not data:
+        return make_response(error_response("请求数据不能为空"), 400)
+    
+    container_id = data.get("container_id")
+    protocol = data.get("protocol", "UNKNOWN")
+    
+    if not container_id:
+        return make_response(error_response("容器ID不能为空"), 400)
+    
+    cleanup_results = {
+        "container_stopped": False,
+        "container_removed": False,
+        "output_cleaned": False,
+        "errors": []
+    }
+    
+    try:
+        print(f"[DEBUG] 开始停止和清理{protocol}容器: {container_id}")
+        
+        # 1. 停止Docker容器
+        try:
+            stop_result = subprocess.run(
+                f"docker stop {container_id}",
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=30
+            )
+            
+            if stop_result.returncode == 0:
+                cleanup_results["container_stopped"] = True
+                print(f"[DEBUG] 容器停止成功: {container_id}")
+            else:
+                error_msg = stop_result.stderr.strip() or "停止容器失败"
+                cleanup_results["errors"].append(f"停止容器失败: {error_msg}")
+                print(f"[DEBUG] 停止容器失败: {error_msg}")
+                
+        except subprocess.TimeoutExpired:
+            cleanup_results["errors"].append("停止容器超时")
+            print(f"[DEBUG] 停止容器超时")
+        except Exception as e:
+            cleanup_results["errors"].append(f"停止容器异常: {str(e)}")
+            print(f"[DEBUG] 停止容器异常: {e}")
+        
+        # 2. 删除Docker容器
+        try:
+            remove_result = subprocess.run(
+                f"docker rm -f {container_id}",
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=30
+            )
+            
+            if remove_result.returncode == 0:
+                cleanup_results["container_removed"] = True
+                print(f"[DEBUG] 容器删除成功: {container_id}")
+            else:
+                error_msg = remove_result.stderr.strip() or "删除容器失败"
+                cleanup_results["errors"].append(f"删除容器失败: {error_msg}")
+                print(f"[DEBUG] 删除容器失败: {error_msg}")
+                
+        except subprocess.TimeoutExpired:
+            cleanup_results["errors"].append("删除容器超时")
+            print(f"[DEBUG] 删除容器超时")
+        except Exception as e:
+            cleanup_results["errors"].append(f"删除容器异常: {str(e)}")
+            print(f"[DEBUG] 删除容器异常: {e}")
+        
+        # 3. 清理输出文件夹
+        if protocol == "RTSP":
+            output_dir = os.path.dirname(RTSP_CONFIG["log_file_path"])  # 从RTSP_CONFIG获取路径
+            
+            # Linux安全检查：防止删除系统重要目录
+            dangerous_paths = ['/', '/home', '/usr', '/var', '/etc', '/bin', '/sbin', '/lib', '/opt']
+            if output_dir in dangerous_paths or len(output_dir.strip()) < 5:
+                cleanup_results["errors"].append(f"拒绝清理危险路径: {output_dir}")
+                print(f"[DEBUG] 安全检查失败，拒绝清理: {output_dir}")
+            else:
+                try:
+                    if os.path.exists(output_dir):
+                        import shutil
+                        import stat
+                        
+                        # 删除output目录下的所有文件和子目录，但保留目录本身
+                        cleaned_items = []
+                        failed_items = []
+                        
+                        for item in os.listdir(output_dir):
+                            item_path = os.path.join(output_dir, item)
+                            try:
+                                # 处理符号链接
+                                if os.path.islink(item_path):
+                                    os.unlink(item_path)
+                                    cleaned_items.append(f"符号链接: {item}")
+                                # 处理普通文件
+                                elif os.path.isfile(item_path):
+                                    # Linux下处理只读文件
+                                    if not os.access(item_path, os.W_OK):
+                                        os.chmod(item_path, stat.S_IWRITE | stat.S_IREAD)
+                                    os.remove(item_path)
+                                    cleaned_items.append(f"文件: {item}")
+                                # 处理目录
+                                elif os.path.isdir(item_path):
+                                    # 递归处理只读目录和文件
+                                    def handle_remove_readonly(func, path, exc):
+                                        if os.path.exists(path):
+                                            os.chmod(path, stat.S_IWRITE | stat.S_IREAD)
+                                            func(path)
+                                    
+                                    shutil.rmtree(item_path, onerror=handle_remove_readonly)
+                                    cleaned_items.append(f"目录: {item}")
+                            except PermissionError as pe:
+                                failed_items.append(f"{item} (权限不足: {pe})")
+                            except OSError as oe:
+                                failed_items.append(f"{item} (系统错误: {oe})")
+                            except Exception as ie:
+                                failed_items.append(f"{item} (未知错误: {ie})")
+                        
+                        # 设置清理结果
+                        if len(failed_items) == 0:
+                            cleanup_results["output_cleaned"] = True
+                            print(f"[DEBUG] 输出目录完全清理成功: {output_dir}")
+                            print(f"[DEBUG] 已清理项目: {cleaned_items}")
+                        else:
+                            cleanup_results["output_cleaned"] = len(cleaned_items) > 0
+                            cleanup_results["errors"].append(f"部分文件清理失败: {failed_items}")
+                            print(f"[DEBUG] 输出目录部分清理: 成功{len(cleaned_items)}项, 失败{len(failed_items)}项")
+                            print(f"[DEBUG] 清理成功: {cleaned_items}")
+                            print(f"[DEBUG] 清理失败: {failed_items}")
+                    else:
+                        cleanup_results["errors"].append(f"输出目录不存在: {output_dir}")
+                        print(f"[DEBUG] 输出目录不存在: {output_dir}")
+                        
+                except Exception as e:
+                    cleanup_results["errors"].append(f"清理输出目录失败: {str(e)}")
+                    print(f"[DEBUG] 清理输出目录异常: {e}")
+        
+        # 构建响应消息
+        success_count = sum([
+            cleanup_results["container_stopped"],
+            cleanup_results["container_removed"], 
+            cleanup_results["output_cleaned"]
+        ])
+        
+        if success_count == 3:
+            message = f"{protocol}容器已完全停止并清理"
+        elif success_count > 0:
+            message = f"{protocol}容器部分清理完成 ({success_count}/3)"
+        else:
+            message = f"{protocol}容器清理失败"
+        
+        return success_response({
+            "message": message,
+            "container_id": container_id,
+            "protocol": protocol,
+            "cleanup_results": cleanup_results
+        })
+        
+    except Exception as e:
+        print(f"[DEBUG] 清理过程异常: {e}")
+        return make_response(error_response(f"清理过程失败: {str(e)}"), 500)
+
+
+# Detection Results Routes ---------------------------------------------------
 
 @bp.route("/detection-results/<implementation_name>", methods=["GET"])
 def get_detection_results(implementation_name: str):
