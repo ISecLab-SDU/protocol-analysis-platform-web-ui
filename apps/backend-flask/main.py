@@ -1,6 +1,4 @@
-def main():
-    print("Hello from backend-flask!")
-
+from app import main
 
 if __name__ == "__main__":
     main()
