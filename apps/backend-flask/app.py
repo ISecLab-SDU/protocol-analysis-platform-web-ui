@@ -58,7 +58,7 @@ def create_app() -> Flask:
     app.register_blueprint(protocol_compliance_blueprint)
     app.register_blueprint(formal_gpt_bp)
 
-    @app.get("/healthz")
+    @app.get("/api/healthz")
     def healthcheck():
         return {"status": "ok"}
 
