@@ -125,6 +125,7 @@ const packetsPerSecond = ref(30);
 const testDuration = ref(60);
 const isRunning = ref(false);
 const isTestCompleted = ref(false);
+const hasUserStartedTest = ref(false); // Track if user has clicked "Start Test"
 let testTimer: number | null = null;
 
 // 添加异步操作取消标志
@@ -150,6 +151,7 @@ watch(protocolType, (newProtocol, oldProtocol) => {
     console.log('[DEBUG] 停止当前运行的测试');
     isRunning.value = false;
     isTestCompleted.value = false;
+    hasUserStartedTest.value = false; // Reset on protocol change
     
     // 取消MQTT模拟
     if (oldProtocol === 'MQTT') {
@@ -213,6 +215,45 @@ const crashDetails = ref<any>(null);
 const logEntries = ref<any[]>([]);
 const startTime = ref<string>('');
 const endTime = ref<string>('');
+
+// Watch for hasUserStartedTest to initialize charts when canvas becomes available
+watch(hasUserStartedTest, async (started) => {
+  if (started) {
+    // Wait for DOM to render the canvas elements
+    await nextTick();
+    // Initialize charts if not already initialized
+    if (!messageTypeChart || !versionChart) {
+      const success = initCharts();
+      if (success) {
+        console.log('Charts initialized after test started');
+        updateCharts();
+      }
+    }
+  }
+});
+
+// Watch for test completion to show charts
+watch(isTestCompleted, async (completed) => {
+  if (completed && hasUserStartedTest.value) {
+    // Wait a bit for all data to be processed
+    await nextTick();
+    
+    // Ensure charts are initialized
+    if (!messageTypeChart || !versionChart) {
+      const success = initCharts();
+      if (success) {
+        console.log('Charts initialized on test completion');
+      }
+    }
+    
+    // Update charts with final data
+    if (messageTypeChart && versionChart) {
+      updateCharts();
+      showCharts.value = true;
+      console.log('Charts displayed after test completion');
+    }
+  }
+});
 const lastUpdate = ref<string>('');
 const currentSpeed = ref(0);
 const isPaused = ref(false);
@@ -759,6 +800,7 @@ function resetTestState() {
     isPaused.value = false;
     showCrashDetails.value = false;
     logEntries.value = [];
+    hasUserStartedTest.value = false; // Reset user start flag
     
     // 重置协议专用的统计数据
     resetSNMPStats();
@@ -788,6 +830,7 @@ async function startTest() {
   if (protocolType.value !== 'MQTT' && !snmpFuzzData.value.length) return;
   
   resetTestState();
+  hasUserStartedTest.value = true; // Mark that user has started the test
   isRunning.value = true;
   isTestCompleted.value = false;
   showCharts.value = false; // 测试开始时隐藏图表
@@ -4631,9 +4674,7 @@ onMounted(async () => {
                         </Space>
                       </div>
                     </Form>
-                    <TypographyParagraph class="config-tip" type="secondary">
-                      上传的测试数据仅用于前端演示，可在后端替换为真实 AFLNET/AFL++ 运行结果。
-                    </TypographyParagraph>
+
                   </Space>
                 </Spin>
               </Card>
@@ -4670,7 +4711,10 @@ onMounted(async () => {
                     <span>运行状态</span>
                   </Space>
                 </template>
-                <Space direction="vertical" size="middle" class="status-content">
+                <template v-if="!hasUserStartedTest">
+                  <Empty description="点击开始测试以获取数据" />
+                </template>
+                <Space v-else direction="vertical" size="middle" class="status-content">
                   <Progress :show-info="false" :percent="progressWidth" />
                   <div class="status-metrics">
                     <div class="status-metric">
@@ -4741,41 +4785,42 @@ onMounted(async () => {
                     <span>结果分析</span>
                   </Space>
                 </template>
-                <div class="charts-grid">
-                  <div class="chart-panel">
-                    <TypographyText type="secondary" class="chart-title">消息类型分布</TypographyText>
-                    <div class="chart-container">
-                      <canvas ref="messageCanvas"></canvas>
-                      <div v-if="!showCharts" class="chart-overlay">
-                        <TypographyText type="secondary">等待测试完成以生成图表</TypographyText>
+                <template v-if="!hasUserStartedTest">
+                  <Empty description="点击开始测试以获取数据" />
+                </template>
+                <template v-else>
+                  <div class="charts-grid">
+                    <div class="chart-panel">
+                      <TypographyText type="secondary" class="chart-title">消息类型分布</TypographyText>
+                      <div class="chart-container">
+                        <canvas ref="messageCanvas"></canvas>
+                        <div v-if="!showCharts" class="chart-overlay">
+                          <TypographyText type="secondary">等待测试完成以生成图表</TypographyText>
+                        </div>
                       </div>
+                      <Space size="small" wrap class="chart-tags">
+                        <Tag>GET: {{ messageTypeStats.get || 0 }}</Tag>
+                        <Tag>SET: {{ messageTypeStats.set || 0 }}</Tag>
+                        <Tag>GETNEXT: {{ messageTypeStats.getnext || 0 }}</Tag>
+                        <Tag>GETBULK: {{ messageTypeStats.getbulk || 0 }}</Tag>
+                      </Space>
                     </div>
-                    <Space size="small" wrap class="chart-tags">
-                      <Tag>GET: {{ messageTypeStats.get || 0 }}</Tag>
-                      <Tag>SET: {{ messageTypeStats.set || 0 }}</Tag>
-                      <Tag>GETNEXT: {{ messageTypeStats.getnext || 0 }}</Tag>
-                      <Tag>GETBULK: {{ messageTypeStats.getbulk || 0 }}</Tag>
-                    </Space>
-                  </div>
-                  <div class="chart-panel">
-                    <TypographyText type="secondary" class="chart-title">协议版本分布</TypographyText>
-                    <div class="chart-container">
-                      <canvas ref="versionCanvas"></canvas>
-                      <div v-if="!showCharts" class="chart-overlay">
-                        <TypographyText type="secondary">等待测试完成以生成图表</TypographyText>
+                    <div class="chart-panel">
+                      <TypographyText type="secondary" class="chart-title">协议版本分布</TypographyText>
+                      <div class="chart-container">
+                        <canvas ref="versionCanvas"></canvas>
+                        <div v-if="!showCharts" class="chart-overlay">
+                          <TypographyText type="secondary">等待测试完成以生成图表</TypographyText>
+                        </div>
                       </div>
+                      <Space size="small" wrap class="chart-tags">
+                        <Tag>v1: {{ protocolStats.v1 || 0 }}</Tag>
+                        <Tag>v2c: {{ protocolStats.v2c || 0 }}</Tag>
+                        <Tag>v3: {{ protocolStats.v3 || 0 }}</Tag>
+                      </Space>
                     </div>
-                    <Space size="small" wrap class="chart-tags">
-                      <Tag>v1: {{ protocolStats.v1 || 0 }}</Tag>
-                      <Tag>v2c: {{ protocolStats.v2c || 0 }}</Tag>
-                      <Tag>v3: {{ protocolStats.v3 || 0 }}</Tag>
-                    </Space>
                   </div>
-                </div>
-                <TypographyParagraph type="secondary" class="chart-tip">
-                  文件统计：共 {{ fileTotalPackets }} 条 · 成功 {{ fileSuccessCount }} · 超时
-                  {{ fileTimeoutCount }} · 失败 {{ fileFailedCount }}
-                </TypographyParagraph>
+                </template>
               </Card>
 
               <Card class="crash-card">
@@ -4945,11 +4990,41 @@ onMounted(async () => {
 .card-icon {
   font-size: 18px;
   color: var(--ant-primary-color);
+  display: inline-flex;
+  align-items: center;
 }
 
 .inline-icon {
   margin-right: 4px;
   font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Only align horizontal Space components (not vertical ones used in forms) */
+:deep(.ant-space:not(.ant-space-vertical)) {
+  align-items: center;
+}
+
+:deep(.ant-space:not(.ant-space-vertical) .ant-space-item) {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Ensure card titles with icons are aligned */
+:deep(.ant-card-head-title .ant-space) {
+  align-items: center;
+}
+
+:deep(.ant-card-head-title .ant-space-item) {
+  display: inline-flex;
+  align-items: center;
+}
+
+:deep(.ant-btn) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .config-body {
@@ -5168,7 +5243,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.85));
+  background: #ffffff;
   border-radius: var(--ant-border-radius);
 }
 
@@ -5177,7 +5252,7 @@ onMounted(async () => {
 }
 
 .chart-tip {
-  margin: 0;
+  margin: 16px 0 0;
   font-size: 12px;
 }
 
