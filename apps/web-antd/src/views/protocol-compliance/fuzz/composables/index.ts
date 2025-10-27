@@ -13,3 +13,5 @@ export { useMQTT } from './useMQTT';
 
 // 共享工具composables
 export { useLogReader } from './useLogReader';
+export { useFuzzState } from './useFuzzState';
+export { useProtocolDataManager } from './useProtocolDataManager';
