@@ -11,7 +11,6 @@ import {
 import { getFuzzText } from '#/api/custom';
 import { requestClient } from '#/api/request';
 import { IconifyIcon } from '@vben/icons';
-import Chart from 'chart.js/auto';
 import type { TableColumnType } from 'ant-design-vue';
 
 import { Page } from '@vben/common-ui';
@@ -45,15 +44,13 @@ import {
   useMQTT,
   useLogReader,
   useFuzzState,
+  useCharts,
   type FuzzPacket,
   type HistoryResult,
-  type ProtocolType,
-  type FuzzEngineType,
 } from './composables';
 
 // 导入新的协议数据管理器和日志查看器
 import { useProtocolDataManager } from './composables/useProtocolDataManager';
-import ProtocolLogViewer from './components/ProtocolLogViewer.vue';
 
 // Initialize all reactive state from composables
 const {
@@ -104,13 +101,9 @@ const {
   historyResults,
   messageCanvas,
   versionCanvas,
-  mqttMessageCanvas,
   unifiedLogs,
-  mqttLogsContainer,
   mqttLogsUpdateKey,
   mqttIsProcessingLogs,
-  mqttTotalRecords,
-  mqttProcessedRecords,
   mqttProcessingProgress,
   mqttRealTimeStats,
   mqttDiffTypeStats,
@@ -132,7 +125,6 @@ const {
   parseSNMPText,
   startSNMPTest,
   processSNMPPacket,
-  addSNMPLogToUI,
 } = useSNMP();
 const {
   rtspStats,
@@ -143,36 +135,34 @@ const {
   stopRTSPProcess,
   stopAndCleanupRTSP,
 } = useRTSP();
-const { mqttStats, resetMQTTStats, processMQTTLogLine } = useMQTT();
+const { mqttStats, resetMQTTStats } = useMQTT();
 const {
   logContainer,
   isReadingLog,
   logReadingInterval,
   logReadPosition,
-  startLogReading,
   stopLogReading,
   resetLogReader,
-  addMQTTLogToUI,
-  addRTSPLogToUI,
   clearLog,
 } = useLogReader();
 
 // 使用新的协议数据管理器
 const {
-  protocolStates,
-  currentProtocol,
-  currentState,
-  addLog,
-  addBatchLogs,
   clearProtocolLogs,
   updateProtocolState,
-  switchProtocol,
-  getProtocolStats,
+
   startRealtimeStream,
   addToRealtimeStream,
-  stopRealtimeStream,
   stopAllRealtimeStreams,
 } = useProtocolDataManager();
+
+// Initialize charts composable
+const {
+  initCharts,
+  updateCharts,
+  messageCanvas: chartsMessageCanvas,
+  versionCanvas: chartsVersionCanvas,
+} = useCharts();
 
 const TypographyParagraph = Typography.Paragraph;
 const TypographyText = Typography.Text;
@@ -258,11 +248,11 @@ watch(hasUserStartedTest, async (started) => {
     // Wait for DOM to render the canvas elements
     await nextTick();
     // Initialize charts if not already initialized
-    if (!messageTypeChart || !versionChart) {
+    if (!chartsMessageCanvas.value || !chartsVersionCanvas.value) {
       const success = initCharts();
       if (success) {
         console.log('Charts initialized after test started');
-        updateCharts();
+        updateCharts(messageTypeStats.value, protocolStats.value);
       }
     }
   }
@@ -270,25 +260,27 @@ watch(hasUserStartedTest, async (started) => {
 
 // Watch for test completion to show charts
 watch(isTestCompleted, async (completed) => {
-  if (completed && hasUserStartedTest.value) {
-    // Wait a bit for all data to be processed
-    await nextTick();
+  if (!(completed && hasUserStartedTest.value)) {
+    return;
+  }
+  // Wait a bit for all data to be processed
+  await nextTick();
 
-    // Ensure charts are initialized
-    if (!messageTypeChart || !versionChart) {
-      const success = initCharts();
-      if (success) {
-        console.log('Charts initialized on test completion');
-      }
-    }
-
-    // Update charts with final data
-    if (messageTypeChart && versionChart) {
-      updateCharts();
-      showCharts.value = true;
-      console.log('Charts displayed after test completion');
+  // Ensure charts are initialized
+  if (!chartsMessageCanvas.value || !chartsVersionCanvas.value) {
+    const success = initCharts();
+    if (success) {
+      console.log('Charts initialized on test completion');
     }
   }
+
+  // Update charts with final data
+  if (!(chartsMessageCanvas.value && chartsVersionCanvas.value)) {
+    return;
+  }
+  updateCharts(messageTypeStats.value, protocolStats.value);
+  showCharts.value = true;
+  console.log('Charts displayed after test completion');
 });
 
 // Watch for activeTabKey changes
@@ -307,9 +299,8 @@ watch(historyDrawerOpen, (open) => {
 });
 
 // UI refs (logContainer现在通过useLogReader管理)
-let messageTypeChart: any = null;
-let versionChart: any = null;
-let mqttMessageChart: any = null;
+const messageTypeChart: any = null;
+const versionChart: any = null;
 
 // Computed properties
 const progressWidth = computed(() => {
@@ -377,128 +368,6 @@ async function fetchText() {
   }
 }
 
-function initCharts() {
-  if (!messageCanvas.value || !versionCanvas.value) {
-    console.warn('Canvas elements not ready');
-    return false;
-  }
-
-  try {
-    const messageCtx = messageCanvas.value.getContext('2d');
-    const versionCtx = versionCanvas.value.getContext('2d');
-    if (!messageCtx || !versionCtx) {
-      console.warn('Failed to get canvas contexts');
-      return false;
-    }
-
-    messageTypeChart = new Chart(messageCtx, {
-      type: 'doughnut',
-      data: {
-        labels: ['GET', 'SET', 'GETNEXT', 'GETBULK'],
-        datasets: [
-          {
-            data: [0, 0, 0, 0],
-            backgroundColor: ['#3B82F6', '#6366F1', '#EC4899', '#10B981'],
-            borderColor: '#FFFFFF',
-            borderWidth: 3,
-            hoverOffset: 8,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            position: 'bottom',
-            labels: {
-              color: '#1F2937',
-              padding: 15,
-              font: { size: 12, weight: 'bold' },
-              usePointStyle: true,
-            },
-          },
-          tooltip: {
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-            titleColor: 'white',
-            bodyColor: 'white',
-            borderColor: 'rgba(255, 255, 255, 0.1)',
-            borderWidth: 1,
-            callbacks: {
-              label: function (context: any) {
-                const total = context.dataset.data.reduce(
-                  (a: number, b: number) => a + b,
-                  0,
-                );
-                const percentage =
-                  total > 0 ? Math.round((context.parsed / total) * 100) : 0;
-                return `${context.label}: ${context.parsed} (${percentage}%)`;
-              },
-            },
-          },
-        },
-        cutout: '60%',
-      },
-    });
-
-    versionChart = new Chart(versionCtx, {
-      type: 'doughnut',
-      data: {
-        labels: ['SNMP v1', 'SNMP v2c', 'SNMP v3'],
-        datasets: [
-          {
-            data: [0, 0, 0],
-            backgroundColor: ['#F59E0B', '#8B5CF6', '#EF4444'],
-            borderColor: '#FFFFFF',
-            borderWidth: 3,
-            hoverOffset: 8,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            position: 'bottom',
-            labels: {
-              color: '#1F2937',
-              padding: 15,
-              font: { size: 12, weight: 'bold' },
-              usePointStyle: true,
-            },
-          },
-          tooltip: {
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-            titleColor: 'white',
-            bodyColor: 'white',
-            borderColor: 'rgba(255, 255, 255, 0.1)',
-            borderWidth: 1,
-            callbacks: {
-              label: function (context: any) {
-                const total = context.dataset.data.reduce(
-                  (a: number, b: number) => a + b,
-                  0,
-                );
-                const percentage =
-                  total > 0 ? Math.round((context.parsed / total) * 100) : 0;
-                return `${context.label}: ${context.parsed} (${percentage}%)`;
-              },
-            },
-          },
-        },
-        cutout: '60%',
-      },
-    });
-
-    console.log('Charts initialized successfully');
-    return true;
-  } catch (error) {
-    console.error('Failed to initialize charts:', error);
-    return false;
-  }
-}
-
 // 从fuzz数据重新计算统计信息的函数
 function recalculateStatsFromFuzzData() {
   try {
@@ -538,60 +407,6 @@ function recalculateStatsFromFuzzData() {
     });
   } catch (error) {
     console.error('Error recalculating stats from fuzz data:', error);
-  }
-}
-
-function updateCharts() {
-  try {
-    if (!messageTypeChart || !versionChart) {
-      console.warn('Charts not initialized, skipping update');
-      return;
-    }
-
-    // Update message type chart
-    if (
-      messageTypeChart.data &&
-      messageTypeChart.data.datasets &&
-      messageTypeChart.data.datasets[0]
-    ) {
-      messageTypeChart.data.datasets[0].data = [
-        messageTypeStats.value.get || 0,
-        messageTypeStats.value.set || 0,
-        messageTypeStats.value.getnext || 0,
-        messageTypeStats.value.getbulk || 0,
-      ];
-      messageTypeChart.update('none'); // Use 'none' animation mode for better performance
-    }
-
-    // Update version chart
-    if (
-      versionChart.data &&
-      versionChart.data.datasets &&
-      versionChart.data.datasets[0]
-    ) {
-      versionChart.data.datasets[0].data = [
-        protocolStats.value.v1 || 0,
-        protocolStats.value.v2c || 0,
-        protocolStats.value.v3 || 0,
-      ];
-      versionChart.update('none'); // Use 'none' animation mode for better performance
-    }
-
-    console.log('Charts updated successfully with data:', {
-      messageTypeData: [
-        messageTypeStats.value.get || 0,
-        messageTypeStats.value.set || 0,
-        messageTypeStats.value.getnext || 0,
-        messageTypeStats.value.getbulk || 0,
-      ],
-      versionData: [
-        protocolStats.value.v1 || 0,
-        protocolStats.value.v2c || 0,
-        protocolStats.value.v3 || 0,
-      ],
-    });
-  } catch (error) {
-    console.error('Error updating charts:', error);
   }
 }
 
@@ -747,34 +562,35 @@ async function startTest() {
     testTimer = null;
   }
   testTimer = window.setInterval(() => {
-    if (!isPaused.value) {
-      elapsedTime.value++;
-      currentSpeed.value =
-        elapsedTime.value > 0
-          ? Math.round(packetCount.value / elapsedTime.value)
-          : 0;
-
-      // 动态模拟目标发送速率 (基于实际速率with一些波动)
-      // 在实际速率附近波动 ±10%
-      const targetVariation = Math.random() * 0.2 - 0.1; // -10% to +10%
-      packetsPerSecond.value = Math.max(
-        1,
-        Math.round(currentSpeed.value * (1 + targetVariation)),
-      );
-
-      // 动态模拟计划运行时长 (基于当前进度估算剩余时间)
-      // 使用当前速率和剩余包数来估算
-      const estimatedTotalPackets = snmpFuzzData.value.length || 100;
-      const remainingPackets = Math.max(
-        0,
-        estimatedTotalPackets - packetCount.value,
-      );
-      const estimatedRemainingTime =
-        currentSpeed.value > 0
-          ? Math.round(remainingPackets / currentSpeed.value)
-          : 60;
-      testDuration.value = elapsedTime.value + estimatedRemainingTime;
+    if (isPaused.value) {
+      return;
     }
+    elapsedTime.value++;
+    currentSpeed.value =
+      elapsedTime.value > 0
+        ? Math.round(packetCount.value / elapsedTime.value)
+        : 0;
+
+    // 动态模拟目标发送速率 (基于实际速率with一些波动)
+    // 在实际速率附近波动 ±10%
+    const targetVariation = Math.random() * 0.2 - 0.1; // -10% to +10%
+    packetsPerSecond.value = Math.max(
+      1,
+      Math.round(currentSpeed.value * (1 + targetVariation)),
+    );
+
+    // 动态模拟计划运行时长 (基于当前进度估算剩余时间)
+    // 使用当前速率和剩余包数来估算
+    const estimatedTotalPackets = snmpFuzzData.value.length || 100;
+    const remainingPackets = Math.max(
+      0,
+      estimatedTotalPackets - packetCount.value,
+    );
+    const estimatedRemainingTime =
+      currentSpeed.value > 0
+        ? Math.round(remainingPackets / currentSpeed.value)
+        : 60;
+    testDuration.value = elapsedTime.value + estimatedRemainingTime;
   }, 1000);
 }
 
@@ -908,7 +724,6 @@ function resetMQTTDifferentialStats() {
 
 // resetMQTTStats 现在通过 useMQTT composable 提供
 
-
 // 统一的日志系统 - 替换分离的MQTT日志
 // MQTT协议差异报告日志 - 使用非响应式数据避免DOM冲突
 let mqttDifferentialLogsData: string[] = []; // 非响应式数据存储
@@ -930,21 +745,22 @@ function addUnifiedLog(
   });
 
   // 实时累加协议差异统计 - 逐个递增确保数据准确
-  if (protocol === 'MQTT' && isRunning.value) {
-    // 精确递增差异计数，每条差异记录+1
-    mqttRealTimeStats.value.diff_number++;
-    mqttStats.value.diff_number = mqttRealTimeStats.value.diff_number;
+  if (!(protocol === 'MQTT' && isRunning.value)) {
+    return;
+  }
+  // 精确递增差异计数，每条差异记录+1
+  mqttRealTimeStats.value.diff_number++;
+  mqttStats.value.diff_number = mqttRealTimeStats.value.diff_number;
 
-    // 同步更新总差异数
-    mqttDifferentialStats.value.total_differences =
-      mqttRealTimeStats.value.diff_number;
-    mqttDiffTypeStats.value.total_differences =
-      mqttRealTimeStats.value.diff_number;
+  // 同步更新总差异数
+  mqttDifferentialStats.value.total_differences =
+    mqttRealTimeStats.value.diff_number;
+  mqttDiffTypeStats.value.total_differences =
+    mqttRealTimeStats.value.diff_number;
 
-    // 确保历史记录与统计信息保持同步
-    if (mqttStats.value.total_differences !== undefined) {
-      mqttStats.value.total_differences = mqttRealTimeStats.value.diff_number;
-    }
+  // 确保历史记录与统计信息保持同步
+  if (mqttStats.value.total_differences !== undefined) {
+    mqttStats.value.total_differences = mqttRealTimeStats.value.diff_number;
   }
 }
 
@@ -1288,15 +1104,16 @@ async function simulateRealTimeFuzzing(differentialLines: string[]) {
 
       // 即使没有差异数据，也要显示测试开始信息
       setTimeout(() => {
-        if (isRunning.value) {
-          isRunning.value = false;
-          isTestCompleted.value = true;
-          testEndTime.value = new Date();
+        if (!isRunning.value) {
+          return;
+        }
+        isRunning.value = false;
+        isTestCompleted.value = true;
+        testEndTime.value = new Date();
 
-          if (testTimer) {
-            clearInterval(testTimer as any);
-            testTimer = null;
-          }
+        if (testTimer) {
+          clearInterval(testTimer as any);
+          testTimer = null;
         }
       }, 2000);
       return;
@@ -1419,38 +1236,39 @@ async function simulateRealTimeFuzzing(differentialLines: string[]) {
       '[DEBUG] simulateRealTimeFuzzing completed, scheduling test end...',
     );
     setTimeout(() => {
-      if (isRunning.value) {
-        console.log('[DEBUG] Ending MQTT test from simulateRealTimeFuzzing...');
-        isRunning.value = false;
-        isTestCompleted.value = true;
-        testEndTime.value = new Date();
-
-        if (testTimer) {
-          clearInterval(testTimer as any);
-          testTimer = null;
-        }
-
-        // 添加测试完成日志
-        addUnifiedLog('SUCCESS', 'MQTT模拟测试完成', 'MQTT');
-
-        // 保存历史记录
-        setTimeout(() => {
-          try {
-            console.log(
-              '[DEBUG] MQTT simulation completed, saving to history...',
-            );
-            console.log(
-              '[DEBUG] Current MQTT stats before saving:',
-              mqttStats.value,
-            );
-            updateTestSummary();
-            saveTestToHistory();
-            console.log('[DEBUG] MQTT simulation history save completed');
-          } catch (error) {
-            console.error('Error saving MQTT simulation results:', error);
-          }
-        }, 500);
+      if (!isRunning.value) {
+        return;
       }
+      console.log('[DEBUG] Ending MQTT test from simulateRealTimeFuzzing...');
+      isRunning.value = false;
+      isTestCompleted.value = true;
+      testEndTime.value = new Date();
+
+      if (testTimer) {
+        clearInterval(testTimer as any);
+        testTimer = null;
+      }
+
+      // 添加测试完成日志
+      addUnifiedLog('SUCCESS', 'MQTT模拟测试完成', 'MQTT');
+
+      // 保存历史记录
+      setTimeout(() => {
+        try {
+          console.log(
+            '[DEBUG] MQTT simulation completed, saving to history...',
+          );
+          console.log(
+            '[DEBUG] Current MQTT stats before saving:',
+            mqttStats.value,
+          );
+          updateTestSummary();
+          saveTestToHistory();
+          console.log('[DEBUG] MQTT simulation history save completed');
+        } catch (error) {
+          console.error('Error saving MQTT simulation results:', error);
+        }
+      }, 500);
     }, 1000);
   } catch (error) {
     console.error('simulateRealTimeFuzzing出错:', error);
@@ -1489,21 +1307,22 @@ function addToMQTTLogs(logs: string | string[]) {
     addToRealtimeStream('MQTT', logEntry);
 
     // 实时累加协议差异统计 - 只对差异报告行进行计数，逐个递增
-    if (isRunning.value && isDifferentialLogEntry(logEntry.content)) {
-      // 精确递增差异计数，每条差异记录+1
-      mqttRealTimeStats.value.diff_number++;
-      mqttStats.value.diff_number = mqttRealTimeStats.value.diff_number;
+    if (!(isRunning.value && isDifferentialLogEntry(logEntry.content))) {
+      return;
+    }
+    // 精确递增差异计数，每条差异记录+1
+    mqttRealTimeStats.value.diff_number++;
+    mqttStats.value.diff_number = mqttRealTimeStats.value.diff_number;
 
-      // 同步更新总差异数
-      mqttDifferentialStats.value.total_differences =
-        mqttRealTimeStats.value.diff_number;
-      mqttDiffTypeStats.value.total_differences =
-        mqttRealTimeStats.value.diff_number;
+    // 同步更新总差异数
+    mqttDifferentialStats.value.total_differences =
+      mqttRealTimeStats.value.diff_number;
+    mqttDiffTypeStats.value.total_differences =
+      mqttRealTimeStats.value.diff_number;
 
-      // 确保历史记录与统计信息保持同步
-      if (mqttStats.value.total_differences !== undefined) {
-        mqttStats.value.total_differences = mqttRealTimeStats.value.diff_number;
-      }
+    // 确保历史记录与统计信息保持同步
+    if (mqttStats.value.total_differences !== undefined) {
+      mqttStats.value.total_differences = mqttRealTimeStats.value.diff_number;
     }
   });
 }
@@ -1575,17 +1394,14 @@ function getLogTypeFromContent(content: string): string {
   return 'INFO';
 }
 
-
-
 // MQTT日志格式化（已移动到下方，避免重复定义）
 // 测试函数是否正常工作
 console.log('[DEBUG] formatMQTTLogLine函数已加载');
 
-
 // 根据差异处理进度同步更新client和broker发送数据
 function updateDataSendingProgress(processedCount: number, totalCount: number) {
-  const targetClientCount = 851051;
-  const targetBrokerCount = 523790;
+  const targetClientCount = 851_051;
+  const targetBrokerCount = 523_790;
 
   // 根据处理进度计算应该达到的数值
   const progress = Math.min(processedCount / totalCount, 1);
@@ -1754,7 +1570,6 @@ function updateDiffTypeDistribution(line: string) {
     };
   }
 }
-
 
 // MQTT日志读取函数现在通过 useLogReader 和 useMQTT composables 管理
 
@@ -1945,20 +1760,21 @@ async function readRTSPLogPeriodically() {
             crashCount,
             currentSpeed,
           );
-          if (logData) {
-            console.log('[DEBUG] 处理的日志数据:', logData);
-
-            // 使用协议数据管理器添加日志，而不是直接操作DOM
-            const logType =
-              logData.type === 'STATS' || logData.type === 'HEADER'
-                ? 'INFO'
-                : (logData.type as 'ERROR' | 'INFO' | 'WARNING' | 'SUCCESS');
-            addToRealtimeStream('RTSP', {
-              timestamp: logData.timestamp,
-              type: logType,
-              content: logData.content,
-            });
+          if (!logData) {
+            return;
           }
+          console.log('[DEBUG] 处理的日志数据:', logData);
+
+          // 使用协议数据管理器添加日志，而不是直接操作DOM
+          const logType =
+            logData.type === 'STATS' || logData.type === 'HEADER'
+              ? 'INFO'
+              : (logData.type as 'ERROR' | 'INFO' | 'WARNING' | 'SUCCESS');
+          addToRealtimeStream('RTSP', {
+            timestamp: logData.timestamp,
+            type: logType,
+            content: logData.content,
+          });
         });
       } else if (result && result.file_size !== undefined) {
         // 文件存在但没有新内容
@@ -2206,7 +2022,7 @@ function stopTest() {
               recalculateStatsFromFuzzData();
             }
 
-            updateCharts();
+            updateCharts(messageTypeStats.value, protocolStats.value);
             showCharts.value = true;
             console.log('Charts updated successfully for SNMP protocol');
           } else {
@@ -2216,7 +2032,7 @@ function stopTest() {
             );
             const success = initCharts();
             if (success) {
-              updateCharts();
+              updateCharts(messageTypeStats.value, protocolStats.value);
               showCharts.value = true;
               console.log('Charts reinitialized and updated successfully');
             } else {
@@ -2242,7 +2058,6 @@ function togglePauseTest() {
 
 // clearLog 现在通过 useLogReader composable 提供
 
-
 function saveLog() {
   if (logEntries.value.length === 0) {
     // Generate a test report even if no log entries
@@ -2252,11 +2067,9 @@ function saveLog() {
 
   let logText = `时间,类型,内容\n`;
   logEntries.value.forEach((entry) => {
-    if (entry.type) {
-      logText += `${entry.time},${entry.type},${entry.message}\n`;
-    } else {
-      logText += `${entry.time},${entry.result},${entry.protocol},${entry.operation},${entry.target},${entry.content},${entry.hex}\n`;
-    }
+    logText += entry.type
+      ? `${entry.time},${entry.type},${entry.message}\n`
+      : `${entry.time},${entry.result},${entry.protocol},${entry.operation},${entry.target},${entry.content},${entry.hex}\n`;
   });
 
   const blob = new Blob([logText], { type: 'text/csv' });
@@ -2273,56 +2086,51 @@ function saveLog() {
 function generateTestReport() {
   let reportContent = '';
 
-  if (protocolType.value === 'MQTT') {
-    // MQTT协议专用报告格式
-    reportContent =
-      `MBFuzzer MQTT协议差异测试报告\n` +
-      `================================\n\n` +
-      `测试引擎: ${fuzzEngine.value} (智能差异测试)\n` +
-      `目标代理: ${targetHost.value}:${targetPort.value}\n` +
-      `开始时间: ${mqttStats.value.fuzzing_start_time || (testStartTime.value ? testStartTime.value.toLocaleString() : '未开始')}\n` +
-      `结束时间: ${mqttStats.value.fuzzing_end_time || (testEndTime.value ? testEndTime.value.toLocaleString() : '未结束')}\n` +
-      `总耗时: ${elapsedTime.value}秒\n\n` +
-      `MBFuzzer核心统计:\n` +
-      `================\n` +
-      `客户端请求数: ${(mqttStats.value.client_request_count || 0).toLocaleString()}\n` +
-      `代理端请求数: ${(mqttStats.value.broker_request_count || 0).toLocaleString()}\n` +
-      `总请求数: ${((mqttStats.value.client_request_count || 0) + (mqttStats.value.broker_request_count || 0)).toLocaleString()}\n` +
-      `有效连接数: ${mqttStats.value.valid_connect_number}\n` +
-      `连接成功率: ${mqttStats.value.client_request_count > 0 ? Math.round((mqttStats.value.valid_connect_number / mqttStats.value.client_request_count) * 100) : 0}%\n` +
-      `平均请求速率: ${Math.round((mqttStats.value.client_request_count + mqttStats.value.broker_request_count) / Math.max(1, elapsedTime.value))} req/s\n\n` +
-      `差异测试结果:\n` +
-      `============\n` +
-      `新发现差异: ${mqttStats.value.diff_number} 个\n` +
-      `重复差异过滤: ${(mqttStats.value.duplicate_diff_number || 0).toLocaleString()} 个\n` +
-      `差异发现率: ${(mqttStats.value.client_request_count || 0) + (mqttStats.value.broker_request_count || 0) > 0 ? Math.round(((mqttStats.value.diff_number || 0) / ((mqttStats.value.client_request_count || 0) + (mqttStats.value.broker_request_count || 0))) * 10000) / 100 : 0}%\n\n` +
-      `安全监控:\n` +
-      `========\n` +
-      `崩溃检测: ${mqttStats.value.crash_number > 0 ? `检测到 ${mqttStats.value.crash_number} 个崩溃` : '系统稳定运行'}\n` +
-      `Q-Learning状态空间: ${Object.keys((mqttStats.value as any).q_learning_states || {}).length} 个协议状态\n\n` +
-      `报告生成时间: ${new Date().toLocaleString()}\n` +
-      `报告版本: MBFuzzer v1.0 - 智能MQTT协议差异测试引擎`;
-  } else {
-    // 其他协议的标准报告格式
-    reportContent =
-      `Fuzz测试报告\n` +
-      `================\n\n` +
-      `协议: ${protocolType.value.toUpperCase()}\n` +
-      `引擎: ${fuzzEngine.value}\n` +
-      `目标: ${targetHost.value}:${targetPort.value}\n` +
-      `开始时间: ${startTime.value || (testStartTime.value ? testStartTime.value.toLocaleString() : '未开始')}\n` +
-      `结束时间: ${endTime.value || (testEndTime.value ? testEndTime.value.toLocaleString() : '未结束')}\n` +
-      `总耗时: ${elapsedTime.value}秒\n\n` +
-      `性能统计:\n` +
-      `SNMP_v1发包数: ${protocolStats.value.v1}\n` +
-      `SNMP_v2发包数: ${protocolStats.value.v2c}\n` +
-      `SNMP_v3发包数: ${protocolStats.value.v3}\n` +
-      `总发包数: ${fileTotalPackets.value}\n` +
-      `正常响应率: ${Math.round((fileSuccessCount.value / Math.max(fileTotalPackets.value, 1)) * 100)}%\n` +
-      `超时率: ${Math.round((fileTimeoutCount.value / Math.max(fileTotalPackets.value, 1)) * 100)}%\n\n` +
-      `崩溃信息: ${crashDetails.value ? '检测到崩溃' : '无崩溃'}\n` +
-      `生成时间: ${new Date().toLocaleString()}`;
-  }
+  reportContent =
+    protocolType.value === 'MQTT'
+      ? `MBFuzzer MQTT协议差异测试报告\n` +
+        `================================\n\n` +
+        `测试引擎: ${fuzzEngine.value} (智能差异测试)\n` +
+        `目标代理: ${targetHost.value}:${targetPort.value}\n` +
+        `开始时间: ${mqttStats.value.fuzzing_start_time || (testStartTime.value ? testStartTime.value.toLocaleString() : '未开始')}\n` +
+        `结束时间: ${mqttStats.value.fuzzing_end_time || (testEndTime.value ? testEndTime.value.toLocaleString() : '未结束')}\n` +
+        `总耗时: ${elapsedTime.value}秒\n\n` +
+        `MBFuzzer核心统计:\n` +
+        `================\n` +
+        `客户端请求数: ${(mqttStats.value.client_request_count || 0).toLocaleString()}\n` +
+        `代理端请求数: ${(mqttStats.value.broker_request_count || 0).toLocaleString()}\n` +
+        `总请求数: ${((mqttStats.value.client_request_count || 0) + (mqttStats.value.broker_request_count || 0)).toLocaleString()}\n` +
+        `有效连接数: ${mqttStats.value.valid_connect_number}\n` +
+        `连接成功率: ${mqttStats.value.client_request_count > 0 ? Math.round((mqttStats.value.valid_connect_number / mqttStats.value.client_request_count) * 100) : 0}%\n` +
+        `平均请求速率: ${Math.round((mqttStats.value.client_request_count + mqttStats.value.broker_request_count) / Math.max(1, elapsedTime.value))} req/s\n\n` +
+        `差异测试结果:\n` +
+        `============\n` +
+        `新发现差异: ${mqttStats.value.diff_number} 个\n` +
+        `重复差异过滤: ${(mqttStats.value.duplicate_diff_number || 0).toLocaleString()} 个\n` +
+        `差异发现率: ${(mqttStats.value.client_request_count || 0) + (mqttStats.value.broker_request_count || 0) > 0 ? Math.round(((mqttStats.value.diff_number || 0) / ((mqttStats.value.client_request_count || 0) + (mqttStats.value.broker_request_count || 0))) * 10_000) / 100 : 0}%\n\n` +
+        `安全监控:\n` +
+        `========\n` +
+        `崩溃检测: ${mqttStats.value.crash_number > 0 ? `检测到 ${mqttStats.value.crash_number} 个崩溃` : '系统稳定运行'}\n` +
+        `Q-Learning状态空间: ${Object.keys((mqttStats.value as any).q_learning_states || {}).length} 个协议状态\n\n` +
+        `报告生成时间: ${new Date().toLocaleString()}\n` +
+        `报告版本: MBFuzzer v1.0 - 智能MQTT协议差异测试引擎`
+      : `Fuzz测试报告\n` +
+        `================\n\n` +
+        `协议: ${protocolType.value.toUpperCase()}\n` +
+        `引擎: ${fuzzEngine.value}\n` +
+        `目标: ${targetHost.value}:${targetPort.value}\n` +
+        `开始时间: ${startTime.value || (testStartTime.value ? testStartTime.value.toLocaleString() : '未开始')}\n` +
+        `结束时间: ${endTime.value || (testEndTime.value ? testEndTime.value.toLocaleString() : '未结束')}\n` +
+        `总耗时: ${elapsedTime.value}秒\n\n` +
+        `性能统计:\n` +
+        `SNMP_v1发包数: ${protocolStats.value.v1}\n` +
+        `SNMP_v2发包数: ${protocolStats.value.v2c}\n` +
+        `SNMP_v3发包数: ${protocolStats.value.v3}\n` +
+        `总发包数: ${fileTotalPackets.value}\n` +
+        `正常响应率: ${Math.round((fileSuccessCount.value / Math.max(fileTotalPackets.value, 1)) * 100)}%\n` +
+        `超时率: ${Math.round((fileTimeoutCount.value / Math.max(fileTotalPackets.value, 1)) * 100)}%\n\n` +
+        `崩溃信息: ${crashDetails.value ? '检测到崩溃' : '无崩溃'}\n` +
+        `生成时间: ${new Date().toLocaleString()}`;
 
   const blob = new Blob([reportContent], { type: 'text/plain;charset=utf-8' });
   const url = URL.createObjectURL(blob);
@@ -2338,7 +2146,6 @@ function generateTestReport() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
-
 
 function loop() {
   try {
@@ -2413,7 +2220,6 @@ function loop() {
     }
   }
 }
-
 
 function appendLogLine(
   timestamp: string,
@@ -2555,7 +2361,7 @@ function generateCrashDetails(
 
   const detailsText =
     `[${timestamp}] ${crashType}\n` +
-    `Process ID: ${Math.floor(Math.random() * 10000) + 1000}\n` +
+    `Process ID: ${Math.floor(Math.random() * 10_000) + 1000}\n` +
     `Fault Address: 0x${generateRandomHex(8)}\n` +
     `Registers:\n` +
     `  EAX: 0x${generateRandomHex(8)}  EBX: 0x${generateRandomHex(8)}\n` +
@@ -2571,8 +2377,8 @@ function generateCrashDetails(
     id: packetId,
     time: timestamp,
     type: crashType,
-    dumpFile: dumpFile,
-    logPath: logPath,
+    dumpFile,
+    logPath,
     details: detailsText,
     packetContent: content,
   };
@@ -2711,27 +2517,26 @@ function updateTestSummary() {
       timeoutCount.value +
       failedCount.value +
       crashCount.value;
-  const successBase = fileSuccessCount.value || successCount.value;
-  const timeoutBase = fileTimeoutCount.value || timeoutCount.value;
 
   lastUpdate.value = new Date().toLocaleString();
 
   // Update final statistics display
-  if (total > 0) {
-    // Use file-based statistics if available, otherwise use runtime statistics
-    const finalSuccessCount = fileSuccessCount.value || successCount.value;
-    const finalTimeoutCount = fileTimeoutCount.value || timeoutCount.value;
-    const finalFailedCount = fileFailedCount.value || failedCount.value;
-
-    console.log('Final test summary:', {
-      total: fileTotalPackets.value,
-      success: finalSuccessCount,
-      timeout: finalTimeoutCount,
-      failed: finalFailedCount,
-      successRate: Math.round((finalSuccessCount / total) * 100),
-      timeoutRate: Math.round((finalTimeoutCount / total) * 100),
-    });
+  if (!(total > 0)) {
+    return;
   }
+  // Use file-based statistics if available, otherwise use runtime statistics
+  const finalSuccessCount = fileSuccessCount.value || successCount.value;
+  const finalTimeoutCount = fileTimeoutCount.value || timeoutCount.value;
+  const finalFailedCount = fileFailedCount.value || failedCount.value;
+
+  console.log('Final test summary:', {
+    total: fileTotalPackets.value,
+    success: finalSuccessCount,
+    timeout: finalTimeoutCount,
+    failed: finalFailedCount,
+    successRate: Math.round((finalSuccessCount / total) * 100),
+    timeoutRate: Math.round((finalTimeoutCount / total) * 100),
+  });
 }
 
 // 保存测试结果到历史记录
@@ -2797,13 +2602,13 @@ function saveTestToHistory() {
       fuzzEngine: fuzzEngine.value,
       targetHost: targetHost.value,
       targetPort: targetPort.value,
-      duration: duration,
+      duration,
       totalPackets: total,
       successCount: actualSuccessCount,
       timeoutCount: actualTimeoutCount,
       failedCount: actualFailedCount,
       crashCount: actualCrashCount,
-      successRate: successRate,
+      successRate,
       protocolStats: {
         v1: protocolStats.value.v1,
         v2c: protocolStats.value.v2c,
@@ -2962,30 +2767,30 @@ function viewHistoryDetail(item: HistoryResult) {
   historyDrawerOpen.value = true;
 }
 
-
 function closeHistoryDrawer() {
   historyDrawerOpen.value = false;
 }
 
 function deleteHistoryItem(id: string) {
   const index = historyResults.value.findIndex((item) => item.id === id);
-  if (index > -1) {
-    historyResults.value.splice(index, 1);
-    if (selectedHistoryItem.value?.id === id) {
-      historyDrawerOpen.value = false;
-      selectedHistoryItem.value = null;
-    }
+  if (!(index > -1)) {
+    return;
+  }
+  historyResults.value.splice(index, 1);
+  if (selectedHistoryItem.value?.id === id) {
+    historyDrawerOpen.value = false;
+    selectedHistoryItem.value = null;
+  }
 
-    // 同步到本地存储
-    try {
-      localStorage.setItem(
-        'fuzz_test_history',
-        JSON.stringify(historyResults.value),
-      );
-      console.log('History item deleted and saved to localStorage');
-    } catch (error) {
-      console.warn('Failed to save updated history to localStorage:', error);
-    }
+  // 同步到本地存储
+  try {
+    localStorage.setItem(
+      'fuzz_test_history',
+      JSON.stringify(historyResults.value),
+    );
+    console.log('History item deleted and saved to localStorage');
+  } catch (error) {
+    console.warn('Failed to save updated history to localStorage:', error);
   }
 }
 
@@ -3030,18 +2835,19 @@ function exportHistoryItem(item: HistoryResult) {
 
 // 清空所有历史记录
 function clearAllHistory() {
-  if (confirm('确定要清空所有历史记录吗？此操作不可撤销。')) {
-    historyResults.value = [];
-    historyDrawerOpen.value = false;
-    selectedHistoryItem.value = null;
+  if (!confirm('确定要清空所有历史记录吗？此操作不可撤销。')) {
+    return;
+  }
+  historyResults.value = [];
+  historyDrawerOpen.value = false;
+  selectedHistoryItem.value = null;
 
-    // 同步到本地存储
-    try {
-      localStorage.removeItem('fuzz_test_history');
-      console.log('All history cleared');
-    } catch (error) {
-      console.warn('Failed to clear history from localStorage:', error);
-    }
+  // 同步到本地存储
+  try {
+    localStorage.removeItem('fuzz_test_history');
+    console.log('All history cleared');
+  } catch (error) {
+    console.warn('Failed to clear history from localStorage:', error);
   }
 }
 
@@ -3762,7 +3568,7 @@ onMounted(async () => {
     }
 
     // Update charts with initial data but don't show them yet
-    updateCharts();
+    updateCharts(messageTypeStats.value, protocolStats.value);
     // 只有在有完整数据且测试已完成时才显示图表
     if (isTestCompleted.value) {
       showCharts.value = true;

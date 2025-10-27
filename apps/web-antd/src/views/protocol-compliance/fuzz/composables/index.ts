@@ -15,3 +15,4 @@ export { useMQTT } from './useMQTT';
 export { useLogReader } from './useLogReader';
 export { useFuzzState } from './useFuzzState';
 export { useProtocolDataManager } from './useProtocolDataManager';
+export { useCharts } from './useCharts';
