@@ -558,6 +558,18 @@ class ProtocolGuardDockerRunner:
         )
 
         proxy_url = self._detect_builder_proxy()
+        if proxy_url:
+            self._log_step(
+                job_paths,
+                "proxy",
+                f"✓ Proxy detected and will be configured: {proxy_url}",
+            )
+        else:
+            self._log_step(
+                job_paths,
+                "proxy",
+                "✗ No proxy detected on port 63333 - building without proxy",
+            )
         try:
             return self._build_builder_image_with_cli(
                 job_paths=job_paths,
@@ -585,7 +597,11 @@ class ProtocolGuardDockerRunner:
         # Type 4: Proxy provided by the SHELL when Docker process runs
         # Set proxy environment variables if port 63333 is responsive
         if proxy_url:
-            self._log_step(job_paths, "builder", f"Setting shell proxy environment variables to {proxy_url}")
+            self._log_step(
+                job_paths,
+                "proxy",
+                f"[Type 4] Setting shell proxy environment (HTTP_PROXY, HTTPS_PROXY, http_proxy, https_proxy) = {proxy_url}",
+            )
             for proxy_var in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
                 env.setdefault(proxy_var, proxy_url)
         command = [
@@ -598,9 +614,19 @@ class ProtocolGuardDockerRunner:
             tag,
         ]
         if proxy_url:
+            self._log_step(
+                job_paths,
+                "proxy",
+                f"[Type 1] Setting Docker CLI build-args (HTTP_PROXY, HTTPS_PROXY, http_proxy, https_proxy) = {proxy_url}",
+            )
             command.append("--network=host")
             for key in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
                 command.extend(["--build-arg", f"{key}={proxy_url}"])
+        
+        # Log comprehensive proxy status summary
+        proxy_summary = self._build_proxy_summary(proxy_url)
+        self._log_step(job_paths, "proxy", f"Proxy Configuration Summary:\n{proxy_summary}")
+        
         command.append(".")
         self._log_step(job_paths, "builder", f"Retrying builder image {tag} using docker CLI with BuildKit enabled")
         try:
@@ -635,12 +661,48 @@ class ProtocolGuardDockerRunner:
 
     @staticmethod
     def _detect_builder_proxy(host: str = "127.0.0.1", port: int = 63333, timeout: float = 0.5) -> Optional[str]:
+        """
+        Detect if a proxy is available on the specified port.
+        This checks port 63333 by default for proxy availability.
+        """
+        LOGGER.info("🔍 Checking for proxy availability on %s:%s (timeout=%.1fs)", host, port, timeout)
         try:
             with contextlib.closing(socket.create_connection((host, port), timeout=timeout)):
-                return f"http://{host}:{port}"
-        except OSError:
-            LOGGER.debug("No proxy detected on %s:%s for builder builds.", host, port)
+                proxy_url = f"http://{host}:{port}"
+                LOGGER.info("✓ Proxy is RESPONSIVE on %s:%s → Will use: %s", host, port, proxy_url)
+                return proxy_url
+        except OSError as exc:
+            LOGGER.info("✗ Proxy is NOT responsive on %s:%s → Building WITHOUT proxy (reason: %s)", host, port, exc)
             return None
+
+    @staticmethod
+    def _build_proxy_summary(proxy_url: Optional[str]) -> str:
+        """
+        Build a human-readable summary of Docker proxy configuration status.
+        Explains which of the 4 proxy types are configured.
+        """
+        if proxy_url:
+            return textwrap.dedent(f"""\
+                ┌─────────────────────────────────────────────────────────────┐
+                │ Docker Proxy Configuration Status (Port 63333 RESPONSIVE)  │
+                ├─────────────────────────────────────────────────────────────┤
+                │ [Type 1] Docker CLI Build Args      : ✓ ENABLED ({proxy_url})
+                │ [Type 2] Docker Daemon Config       : ⊗ NOT CONFIGURABLE
+                │ [Type 3] Inside Container Proxy     : ⊗ NOT SET (Dockerfile only)
+                │ [Type 4] Shell Environment Proxy    : ✓ ENABLED ({proxy_url})
+                └─────────────────────────────────────────────────────────────┘
+                """).strip()
+        else:
+            return textwrap.dedent("""\
+                ┌─────────────────────────────────────────────────────────────┐
+                │ Docker Proxy Configuration Status (Port 63333 NOT DETECTED)│
+                ├─────────────────────────────────────────────────────────────┤
+                │ [Type 1] Docker CLI Build Args      : ✗ DISABLED
+                │ [Type 2] Docker Daemon Config       : ⊗ NOT CONFIGURABLE
+                │ [Type 3] Inside Container Proxy     : ⊗ NOT SET (Dockerfile only)
+                │ [Type 4] Shell Environment Proxy    : ✗ DISABLED
+                └─────────────────────────────────────────────────────────────┘
+                """).strip()
 
     def _remove_builder_image(self, tag: str) -> None:
         if not tag or docker is None:
