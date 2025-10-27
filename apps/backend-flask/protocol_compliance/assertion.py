@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import difflib
 import logging
+import re
 import threading
 import time
 import uuid
@@ -803,6 +805,251 @@ index a1b2c3d..e4f5g6h 100644
     }
 
 
+# ============================================================================
+# Patch File Reading & Matching
+# ============================================================================
+
+# Define the path to the assert-mock directory
+# From: /home/xinrui/GitHub/vue-vben-admin/apps/backend-flask/protocol_compliance/assertion.py
+# To:   /home/xinrui/GitHub/assert-mock
+ASSERT_MOCK_DIR = Path(__file__).parent.parent.parent.parent.parent / "assert-mock"
+
+# Available patch files
+AVAILABLE_PATCH_FILES = [
+    "wolfssl_assertion.patch",
+    "uftp_assertion.patch",
+    "tlse_assertion.patch",
+    "tinymqtt_assertion.patch",
+    "sol_assertion_changes.patch",
+    "pure_ftpd_assertion.patch",
+    "ndhs_assertion.patch",
+    "mosquitto_assertion.patch",
+    "libcoap_assertion.patch",
+    "freecoap_assertion.patch",
+]
+
+
+def extract_protocol_name_from_database(database_filename: str) -> str:
+    """
+    Extract protocol name from database filename.
+    Examples:
+        sqlite_wolfssl.db -> wolfssl
+        sqlite_mosquitto.db -> mosquitto
+        violations.db -> violations
+    """
+    # Remove .db extension
+    name = database_filename.replace(".db", "")
+    
+    # Remove sqlite_ prefix if present
+    if name.startswith("sqlite_"):
+        name = name[7:]  # len("sqlite_") = 7
+    
+    return name.lower()
+
+
+def find_best_matching_patch_file(protocol_name: str, available_files: List[str]) -> Optional[str]:
+    """
+    Find the best matching patch file using string similarity.
+    Returns the filename with the highest similarity score, or None if no good match.
+    """
+    if not protocol_name or not available_files:
+        return None
+    
+    protocol_name_lower = protocol_name.lower()
+    best_match = None
+    best_score = 0.0
+    
+    for filename in available_files:
+        # Extract the base name from the patch file (e.g., "wolfssl" from "wolfssl_assertion.patch")
+        base_name = filename.replace("_assertion.patch", "").replace("_assertion_changes.patch", "")
+        
+        # Calculate similarity using SequenceMatcher
+        similarity = difflib.SequenceMatcher(None, protocol_name_lower, base_name.lower()).ratio()
+        
+        if similarity > best_score:
+            best_score = similarity
+            best_match = filename
+    
+    # Only return a match if similarity is above 0.5 (50%)
+    if best_score >= 0.5:
+        LOGGER.info(
+            "Matched protocol '%s' to patch file '%s' with similarity %.2f",
+            protocol_name,
+            best_match,
+            best_score,
+        )
+        return best_match
+    
+    LOGGER.warning(
+        "No good match found for protocol '%s'. Best match was '%s' with similarity %.2f",
+        protocol_name,
+        best_match,
+        best_score,
+    )
+    return None
+
+
+def parse_unified_diff(patch_content: str) -> Dict[str, object]:
+    """
+    Parse a unified diff patch file into structured format.
+    Returns a dictionary with 'diffContent', 'files', and 'summary'.
+    """
+    files = []
+    current_file = None
+    current_hunk = None
+    
+    lines = patch_content.split('\n')
+    i = 0
+    
+    while i < len(lines):
+        line = lines[i]
+        
+        # Match file header: diff --git a/... b/...
+        if line.startswith('diff --git'):
+            # Save previous file if exists
+            if current_file and current_hunk:
+                current_file["hunks"].append(current_hunk)
+                files.append(current_file)
+            
+            # Extract filenames
+            match = re.search(r'a/(.*?)\s+b/(.*?)$', line)
+            if match:
+                current_file = {
+                    "from": match.group(1),
+                    "to": match.group(2),
+                    "additions": 0,
+                    "deletions": 0,
+                    "hunks": []
+                }
+            current_hunk = None
+        
+        # Match old file: --- a/...
+        elif line.startswith('---'):
+            if current_file is None:
+                match = re.search(r'---\s+a/(.*?)$', line)
+                if match:
+                    current_file = {
+                        "from": match.group(1),
+                        "to": "",
+                        "additions": 0,
+                        "deletions": 0,
+                        "hunks": []
+                    }
+        
+        # Match new file: +++ b/...
+        elif line.startswith('+++'):
+            if current_file:
+                match = re.search(r'\+\+\+\s+b/(.*?)$', line)
+                if match:
+                    current_file["to"] = match.group(1)
+        
+        # Match hunk header: @@ -old_start,old_lines +new_start,new_lines @@
+        elif line.startswith('@@'):
+            # Save previous hunk if exists
+            if current_hunk:
+                current_file["hunks"].append(current_hunk)
+            
+            match = re.search(r'@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@', line)
+            if match:
+                old_start = int(match.group(1))
+                old_lines = int(match.group(2)) if match.group(2) else 1
+                new_start = int(match.group(3))
+                new_lines = int(match.group(4)) if match.group(4) else 1
+                
+                current_hunk = {
+                    "oldStart": old_start,
+                    "oldLines": old_lines,
+                    "newStart": new_start,
+                    "newLines": new_lines,
+                    "lines": []
+                }
+        
+        # Match diff content lines
+        elif current_hunk is not None:
+            if line.startswith('+') and not line.startswith('+++'):
+                current_hunk["lines"].append({"type": "add", "content": line[1:]})
+                current_file["additions"] += 1
+            elif line.startswith('-') and not line.startswith('---'):
+                current_hunk["lines"].append({"type": "delete", "content": line[1:]})
+                current_file["deletions"] += 1
+            elif line.startswith(' '):
+                current_hunk["lines"].append({"type": "normal", "content": line[1:]})
+            elif line.startswith('\\'):
+                # Handle "\ No newline at end of file"
+                pass
+            else:
+                # Context line without leading space (treat as normal)
+                current_hunk["lines"].append({"type": "normal", "content": line})
+        
+        i += 1
+    
+    # Save last file and hunk
+    if current_file:
+        if current_hunk:
+            current_file["hunks"].append(current_hunk)
+        files.append(current_file)
+    
+    # Calculate summary
+    total_files = len(files)
+    total_insertions = sum(f["additions"] for f in files)
+    total_deletions = sum(f["deletions"] for f in files)
+    
+    return {
+        "diffContent": patch_content,
+        "files": files,
+        "summary": {
+            "filesChanged": total_files,
+            "insertions": total_insertions,
+            "deletions": total_deletions,
+        },
+    }
+
+
+def load_patch_from_database_name(database_filename: str) -> Optional[Dict[str, object]]:
+    """
+    Load and parse a patch file based on the database filename.
+    Returns parsed diff structure or None if no matching patch found.
+    """
+    # Extract protocol name from database filename
+    protocol_name = extract_protocol_name_from_database(database_filename)
+    LOGGER.info("Extracted protocol name '%s' from database '%s'", protocol_name, database_filename)
+    
+    # Find best matching patch file
+    patch_filename = find_best_matching_patch_file(protocol_name, AVAILABLE_PATCH_FILES)
+    if not patch_filename:
+        LOGGER.warning("No matching patch file found for protocol '%s'", protocol_name)
+        return None
+    
+    # Construct full path to patch file
+    patch_path = ASSERT_MOCK_DIR / patch_filename
+    
+    # Check if file exists
+    if not patch_path.exists():
+        LOGGER.error("Patch file not found at path: %s", patch_path)
+        return None
+    
+    # Read patch file
+    try:
+        with open(patch_path, 'r', encoding='utf-8') as f:
+            patch_content = f.read()
+        
+        LOGGER.info("Successfully read patch file: %s (%d bytes)", patch_filename, len(patch_content))
+        
+        # Parse the patch file
+        parsed_diff = parse_unified_diff(patch_content)
+        LOGGER.info(
+            "Parsed patch: %d files, %d insertions, %d deletions",
+            parsed_diff["summary"]["filesChanged"],
+            parsed_diff["summary"]["insertions"],
+            parsed_diff["summary"]["deletions"],
+        )
+        
+        return parsed_diff
+    except Exception as e:
+        LOGGER.exception("Error reading or parsing patch file %s: %s", patch_path, e)
+        return None
+
+
 def submit_diff_parsing_job(parent_job_id: str) -> Dict[str, object]:
     """Launch diff parsing asynchronously and return initial snapshot."""
 
@@ -811,26 +1058,69 @@ def submit_diff_parsing_job(parent_job_id: str) -> Dict[str, object]:
 
     def _run_job() -> None:
         try:
-            # Simulate parsing with progressive updates (~30 seconds total)
-            stages = [
-                (5, "init", "Initializing diff parser", 5),
-                (3, "load", "Loading assertion generation artifacts", 15),
-                (4, "extract", "Extracting code changes", 25),
-                (5, "parse", "Parsing diff hunks", 40),
-                (4, "analyze", "Analyzing file changes", 55),
-                (3, "struct", "Building diff structure", 70),
-                (3, "validate", "Validating diff format", 80),
-                (3, "finalize", "Finalizing results", 90),
-            ]
-
+            # Retrieve the parent assertion generation job to get database filename
             DIFF_PARSING_REGISTRY.mark_running(job_id, "init", "Starting diff parsing", 0)
-
-            for duration, stage, message, percentage in stages:
-                time.sleep(duration)
-                DIFF_PARSING_REGISTRY.append_event(job_id, stage, message, percentage)
-
-            # Generate the mock diff result
-            result = _generate_mock_diff()
+            time.sleep(1)
+            
+            DIFF_PARSING_REGISTRY.append_event(job_id, "load", "Loading assertion generation metadata", 10)
+            parent_snapshot = get_assert_generation_job(parent_job_id)
+            
+            database_filename = None
+            if parent_snapshot:
+                result = parent_snapshot.get("result")
+                if isinstance(result, dict):
+                    inputs = result.get("inputs")
+                    if isinstance(inputs, dict):
+                        database_filename = inputs.get("databaseFileName")
+            
+            if not database_filename:
+                LOGGER.warning(
+                    "Could not extract database filename from parent job %s, using fallback mock data",
+                    parent_job_id
+                )
+                database_filename = "violations.db"  # Fallback
+            
+            LOGGER.info("Diff parsing job %s: database filename = %s", job_id, database_filename)
+            
+            # Try to load patch file from assert-mock directory
+            DIFF_PARSING_REGISTRY.append_event(job_id, "match", "Matching database to patch file", 20)
+            time.sleep(1)
+            
+            parsed_diff = load_patch_from_database_name(database_filename)
+            
+            if parsed_diff:
+                LOGGER.info("Successfully loaded real patch file for database: %s", database_filename)
+                DIFF_PARSING_REGISTRY.append_event(job_id, "parse", "Parsing unified diff format", 40)
+                time.sleep(1)
+                DIFF_PARSING_REGISTRY.append_event(job_id, "struct", "Building diff structure", 60)
+                time.sleep(1)
+                DIFF_PARSING_REGISTRY.append_event(job_id, "validate", "Validating diff hunks", 80)
+                time.sleep(1)
+                DIFF_PARSING_REGISTRY.append_event(job_id, "finalize", "Finalizing results", 95)
+                time.sleep(0.5)
+                
+                # Add metadata to the result
+                result = parsed_diff.copy()
+                result["jobId"] = job_id
+                result["generatedAt"] = _now_iso()
+                result["metadata"] = {
+                    "databaseFileName": database_filename,
+                    "source": "patch_file"
+                }
+            else:
+                # Fallback to mock data if no patch file found
+                LOGGER.warning("No patch file found for database %s, using mock data", database_filename)
+                DIFF_PARSING_REGISTRY.append_event(job_id, "fallback", "Using mock diff data", 50)
+                time.sleep(2)
+                DIFF_PARSING_REGISTRY.append_event(job_id, "finalize", "Finalizing mock results", 90)
+                time.sleep(1)
+                
+                result = _generate_mock_diff()
+                result["metadata"] = {
+                    "databaseFileName": database_filename,
+                    "source": "mock_data"
+                }
+            
             DIFF_PARSING_REGISTRY.complete(job_id, result)
 
         except Exception as exc:  # pragma: no cover
