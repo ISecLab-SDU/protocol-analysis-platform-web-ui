@@ -581,6 +581,13 @@ class ProtocolGuardDockerRunner:
         env = {str(k): str(v) for k, v in os.environ.items()}
         env.setdefault("DOCKER_BUILDKIT", "1")
         env.setdefault("BUILDKIT_PROGRESS", "plain")
+        
+        # Type 4: Proxy provided by the SHELL when Docker process runs
+        # Set proxy environment variables if port 63333 is responsive
+        if proxy_url:
+            self._log_step(job_paths, "builder", f"Setting shell proxy environment variables to {proxy_url}")
+            for proxy_var in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
+                env.setdefault(proxy_var, proxy_url)
         command = [
             "docker",
             "build",
