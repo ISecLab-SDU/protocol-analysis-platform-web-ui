@@ -204,6 +204,57 @@ class AnalysisStateRepository:
         except sqlite3.DatabaseError as exc:
             LOGGER.warning("Failed to persist analysis job event for %s: %s", job_id, exc)
 
+    def fetch_events(
+        self,
+        *,
+        job_id: str,
+        from_event_id: Optional[int] = None,
+    ) -> List[dict[str, Any]]:
+        """Fetch events for a job, optionally from a specific event ID onwards."""
+        self._ensure_initialized()
+        if from_event_id is None:
+            query = """
+                SELECT id, timestamp, stage, message
+                FROM analysis_job_events
+                WHERE job_id = ?
+                ORDER BY id ASC
+            """
+            params = (job_id,)
+        else:
+            query = """
+                SELECT id, timestamp, stage, message
+                FROM analysis_job_events
+                WHERE job_id = ? AND id > ?
+                ORDER BY id ASC
+            """
+            params = (job_id, from_event_id)
+
+        connection: Optional[sqlite3.Connection] = None
+        try:
+            connection = sqlite3.connect(self._db_path)
+            connection.row_factory = sqlite3.Row
+            connection.execute("PRAGMA foreign_keys = ON;")
+            rows = connection.execute(query, params).fetchall()
+        except sqlite3.DatabaseError as exc:
+            LOGGER.warning("Failed to fetch events for job %s: %s", job_id, exc)
+            return []
+        finally:
+            if connection is not None:
+                with suppress(Exception):
+                    connection.close()
+
+        events: List[dict[str, Any]] = []
+        for row in rows:
+            events.append(
+                {
+                    "id": row["id"],
+                    "timestamp": row["timestamp"],
+                    "stage": row["stage"],
+                    "message": row["message"],
+                }
+            )
+        return events
+
     def fetch_jobs(self, *, limit: int = 50) -> List[dict[str, Any]]:
         self._ensure_initialized()
         query = (

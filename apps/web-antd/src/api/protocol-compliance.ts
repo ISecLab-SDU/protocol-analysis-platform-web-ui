@@ -118,6 +118,7 @@ export type ProtocolStaticAnalysisJobStatus =
   | 'failed';
 
 export interface ProtocolStaticAnalysisProgressEvent {
+  id?: number;
   message: string;
   stage: string;
   timestamp: string;
@@ -285,9 +286,15 @@ export function runProtocolStaticAnalysis(
   );
 }
 
-export function fetchProtocolStaticAnalysisProgress(jobId: string) {
+export function fetchProtocolStaticAnalysisProgress(
+  jobId: string,
+  fromEventId: number,
+) {
   return requestClient.get<ProtocolStaticAnalysisJob>(
     `/protocol-compliance/static-analysis/${jobId}/progress`,
+    {
+      params: { fromEventId },
+    },
   );
 }
 

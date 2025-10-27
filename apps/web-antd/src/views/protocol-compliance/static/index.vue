@@ -75,6 +75,7 @@ const activeJobId = ref<null | string>(null);
 const progressLogs = ref<string[]>([]);
 const progressError = ref<null | string>(null);
 const pollingTimer = ref<null | number>(null);
+const lastEventId = ref<number>(0);
 
 const PROGRESS_STATUS_META: Record<
   ProtocolStaticAnalysisJob['status'],
@@ -1064,14 +1065,24 @@ function applyProgressSnapshot(snapshot: ProtocolStaticAnalysisJob) {
   activeJob.value = snapshot;
   activeJobId.value = snapshot.jobId;
   progressError.value = snapshot.error ?? null;
-  
-  // Map events to log lines and enforce FIFO limit
+
+  // Map events to log lines
   const newLogs = snapshot.events?.length
     ? snapshot.events.map((event) => toProgressLine(event))
     : [];
-  
-  // Apply FIFO trimming to prevent memory issues
-  progressLogs.value = trimProgressLogs(newLogs);
+
+  // Always append new logs (incremental updates only)
+  if (newLogs.length > 0) {
+    progressLogs.value = trimProgressLogs([...progressLogs.value, ...newLogs]);
+  }
+
+  // Track the last event ID for next incremental request
+  if (snapshot.events?.length) {
+    const lastEvent = snapshot.events.at(-1);
+    if (lastEvent?.id !== undefined) {
+      lastEventId.value = lastEvent.id;
+    }
+  }
 }
 
 function stopPolling() {
@@ -1088,6 +1099,7 @@ function resetProgressState() {
   // Create new empty array to help garbage collection
   progressLogs.value = [];
   progressError.value = null;
+  lastEventId.value = 0;
 }
 
 async function handleStatusTransition(
@@ -1134,7 +1146,13 @@ async function handleStatusTransition(
 
 async function refreshProgress(jobId: string) {
   const previousStatus = activeJob.value?.status ?? null;
-  const snapshot = await fetchProtocolStaticAnalysisProgress(jobId);
+  
+  // Always use incremental updates (fromEventId)
+  const snapshot = await fetchProtocolStaticAnalysisProgress(
+    jobId,
+    lastEventId.value,
+  );
+  
   applyProgressSnapshot(snapshot);
   await handleStatusTransition(previousStatus, snapshot);
 }

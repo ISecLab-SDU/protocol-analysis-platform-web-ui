@@ -651,7 +651,21 @@ def static_analysis_progress(job_id: str):
     if error:
         return error
 
-    snapshot = get_static_analysis_job(job_id)
+    # Support incremental event fetching via fromEventId query parameter
+    from_event_id_raw = request.args.get("fromEventId")
+    from_event_id: Optional[int] = None
+    if from_event_id_raw is not None:
+        try:
+            from_event_id = int(from_event_id_raw)
+        except (TypeError, ValueError):
+            LOGGER.warning(
+                "Invalid fromEventId parameter: %s (job_id=%s)",
+                from_event_id_raw,
+                job_id,
+            )
+            # Continue with full snapshot if parameter is invalid
+
+    snapshot = get_static_analysis_job(job_id, from_event_id=from_event_id)
     if not snapshot:
         return make_response(error_response("未找到静态分析任务"), 404)
     return make_response(success_response(snapshot), 200)

@@ -38,6 +38,7 @@ class AnalysisProgressEvent:
     timestamp: str
     stage: str
     message: str
+    event_id: Optional[int] = None  # Event ID from database, None for in-memory events
 
 
 @dataclass
@@ -146,7 +147,18 @@ class AnalysisProgressRegistry:
                 details=state.details,
             )
 
-    def snapshot(self, job_id: str) -> Optional[Dict[str, object]]:
+    def snapshot(
+        self,
+        job_id: str,
+        from_event_id: Optional[int] = None,
+    ) -> Optional[Dict[str, object]]:
+        """
+        Return snapshot of job state with incremental events.
+        
+        Always fetches events from database (which have IDs).
+        If from_event_id is provided, only return events after that ID.
+        If from_event_id is None, return all events from database.
+        """
         with self._lock:
             state = self._states.get(job_id)
             if not state:
@@ -163,6 +175,22 @@ class AnalysisProgressRegistry:
                 error=state.error,
                 details=state.details.copy() if state.details else None,
             )
+
+        # Always fetch events from database (they have IDs)
+        db_events = self._repository.fetch_events(
+            job_id=job_id,
+            from_event_id=from_event_id,
+        )
+        events_list = [
+            {
+                "id": event["id"],
+                "timestamp": event["timestamp"],
+                "stage": event["stage"],
+                "message": event["message"],
+            }
+            for event in db_events
+        ]
+
         return {
             "jobId": state_copy.job_id,
             "status": state_copy.status,
@@ -170,10 +198,7 @@ class AnalysisProgressRegistry:
             "message": state_copy.message,
             "createdAt": state_copy.created_at,
             "updatedAt": state_copy.updated_at,
-            "events": [
-                {"timestamp": event.timestamp, "stage": event.stage, "message": event.message}
-                for event in state_copy.events
-            ],
+            "events": events_list,
             "result": state_copy.result,
             "error": state_copy.error,
             "details": state_copy.details,
@@ -548,9 +573,17 @@ def submit_static_analysis_job(
     return snapshot
 
 
-def get_static_analysis_job(job_id: str) -> Optional[Dict[str, object]]:
-    """Return the current snapshot for a running static analysis job."""
-    return PROGRESS_REGISTRY.snapshot(job_id)
+def get_static_analysis_job(
+    job_id: str,
+    from_event_id: Optional[int] = None,
+) -> Optional[Dict[str, object]]:
+    """
+    Return the current snapshot for a running static analysis job.
+    
+    If from_event_id is provided, only return events after that ID (incremental update).
+    Otherwise, return full snapshot with all events.
+    """
+    return PROGRESS_REGISTRY.snapshot(job_id, from_event_id=from_event_id)
 
 
 def get_static_analysis_result(job_id: str) -> Optional[Dict[str, object]]:
