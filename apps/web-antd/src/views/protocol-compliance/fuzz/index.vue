@@ -135,7 +135,7 @@ const {
   stopRTSPProcess,
   stopAndCleanupRTSP,
 } = useRTSP();
-const { mqttStats, resetMQTTStats } = useMQTT();
+const { mqttStats, resetMQTTStats, processMQTTLogLine } = useMQTT();
 const {
   logContainer,
   isReadingLog,
@@ -144,6 +144,7 @@ const {
   stopLogReading,
   resetLogReader,
   clearLog,
+  addMQTTLogToUI,
 } = useLogReader();
 
 // 使用新的协议数据管理器
@@ -1292,39 +1293,66 @@ function addToMQTTLogs(logs: string | string[]) {
   }
 
   const logsArray = Array.isArray(logs) ? logs : [logs];
-  const logEntries = logsArray.map((logContent) => ({
-    timestamp: new Date().toLocaleTimeString(),
-    type: getLogTypeFromContent(logContent) as
-      | 'INFO'
-      | 'ERROR'
-      | 'WARNING'
-      | 'SUCCESS',
-    content: logContent,
-  }));
+  const entries = logsArray.map((rawLog) => {
+    const content =
+      typeof rawLog === 'string' ? rawLog : String(rawLog ?? '');
+    return {
+      timestamp: new Date().toLocaleTimeString(),
+      type: getLogTypeFromContent(content) as
+        | 'INFO'
+        | 'ERROR'
+        | 'WARNING'
+        | 'SUCCESS',
+      content,
+    };
+  });
 
-  // 使用实时流添加日志
-  logEntries.forEach((logEntry) => {
-    addToRealtimeStream('MQTT', logEntry);
-
-    // 实时累加协议差异统计 - 只对差异报告行进行计数，逐个递增
-    if (!(isRunning.value && isDifferentialLogEntry(logEntry.content))) {
-      return;
+  for (const entry of entries) {
+    if (!entry.content?.trim()) {
+      continue;
     }
-    // 精确递增差异计数，每条差异记录+1
+
+    addToRealtimeStream('MQTT', entry);
+
+    const parsedLog = processMQTTLogLine(
+      entry.content,
+      packetCount,
+      successCount,
+      crashCount,
+    );
+
+    if (parsedLog) {
+      addMQTTLogToUI(parsedLog);
+    } else {
+      addMQTTLogToUI({
+        timestamp: entry.timestamp,
+        type: entry.type,
+        content: entry.content,
+      });
+    }
+
+    logEntries.value.push({
+      time: entry.timestamp,
+      type: entry.type,
+      message: entry.content,
+    });
+
+    if (!(isRunning.value && isDifferentialLogEntry(entry.content))) {
+      continue;
+    }
+
     mqttRealTimeStats.value.diff_number++;
     mqttStats.value.diff_number = mqttRealTimeStats.value.diff_number;
 
-    // 同步更新总差异数
     mqttDifferentialStats.value.total_differences =
       mqttRealTimeStats.value.diff_number;
     mqttDiffTypeStats.value.total_differences =
       mqttRealTimeStats.value.diff_number;
 
-    // 确保历史记录与统计信息保持同步
     if (mqttStats.value.total_differences !== undefined) {
       mqttStats.value.total_differences = mqttRealTimeStats.value.diff_number;
     }
-  });
+  }
 }
 
 // 判断是否为差异报告日志条目
