@@ -802,6 +802,10 @@ function resetTestState() {
     logEntries.value = [];
     hasUserStartedTest.value = false; // Reset user start flag
     
+    // 初始化动态指标的初始值
+    packetsPerSecond.value = 30; // 初始目标速率
+    testDuration.value = 60; // 初始预估时长
+    
     // 重置协议专用的统计数据
     resetSNMPStats();
     resetRTSPStats();
@@ -880,6 +884,20 @@ async function startTest() {
     if (!isPaused.value) {
       elapsedTime.value++;
       currentSpeed.value = elapsedTime.value > 0 ? Math.round(packetCount.value / elapsedTime.value) : 0;
+      
+      // 动态模拟目标发送速率 (基于实际速率with一些波动)
+      // 在实际速率附近波动 ±10%
+      const targetVariation = Math.random() * 0.2 - 0.1; // -10% to +10%
+      packetsPerSecond.value = Math.max(1, Math.round(currentSpeed.value * (1 + targetVariation)));
+      
+      // 动态模拟计划运行时长 (基于当前进度估算剩余时间)
+      // 使用当前速率和剩余包数来估算
+      const estimatedTotalPackets = snmpFuzzData.value.length || 100;
+      const remainingPackets = Math.max(0, estimatedTotalPackets - packetCount.value);
+      const estimatedRemainingTime = currentSpeed.value > 0 
+        ? Math.round(remainingPackets / currentSpeed.value) 
+        : 60;
+      testDuration.value = elapsedTime.value + estimatedRemainingTime;
     }
   }, 1000);
 }
@@ -4615,22 +4633,6 @@ onMounted(async () => {
                             style="width: 100%;"
                           />
                         </FormItem>
-                        <FormItem label="目标发送速率 (包/秒)">
-                          <InputNumber
-                            v-model:value="packetsPerSecond"
-                            :min="1"
-                            :step="1"
-                            style="width: 100%;"
-                          />
-                        </FormItem>
-                        <FormItem label="计划运行时长 (秒)">
-                          <InputNumber
-                            v-model:value="testDuration"
-                            :min="10"
-                            :step="10"
-                            style="width: 100%;"
-                          />
-                        </FormItem>
                       </div>
                       <FormItem v-if="protocolType === 'RTSP'" label="RTSP 指令配置">
                         <Input.TextArea
@@ -4753,7 +4755,8 @@ onMounted(async () => {
                     <Descriptions.Item label="结束时间">{{ endTime || '-' }}</Descriptions.Item>
                     <Descriptions.Item label="累计时长">{{ elapsedTime }} 秒</Descriptions.Item>
                     <Descriptions.Item label="当前速率">{{ currentSpeed }} 包/秒</Descriptions.Item>
-                    <Descriptions.Item label="计划时长">{{ testDuration }} 秒</Descriptions.Item>
+                    <Descriptions.Item label="目标发送速率">{{ packetsPerSecond }} 包/秒</Descriptions.Item>
+                    <Descriptions.Item label="预估运行时长">{{ testDuration }} 秒</Descriptions.Item>
                   </Descriptions>
                   <div class="status-rates">
                     <div>

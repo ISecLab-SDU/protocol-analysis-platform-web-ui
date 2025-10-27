@@ -13,7 +13,7 @@ const routes: RouteRecordRaw[] = [
     children: [
       {
         meta: {
-          title: '密码算法误用分析',
+          title: '密码算法安全分析',
         },
         name: 'CryptographicMisuseAnalysis',
         path: '/password-analysis/misuse',
