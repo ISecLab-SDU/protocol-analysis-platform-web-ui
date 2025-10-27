@@ -161,6 +161,7 @@ interface HistoryColumn {
 }
 
 const HISTORY_DEFAULT_LIMIT = 50;
+const PROGRESS_LOGS_MAX_LINES = 2000;
 
 const historyColumns: HistoryColumn[] = [
   { dataIndex: 'jobId', key: 'jobId', title: '任务 ID', width: 220 },
@@ -1046,13 +1047,31 @@ function toProgressLine(event: ProtocolStaticAnalysisProgressEvent) {
   return `[${timeLabel}] (${stage}) ${messageText}`;
 }
 
+/**
+ * Trim log array to enforce FIFO limit and facilitate garbage collection.
+ * Returns a new array with only the most recent lines.
+ */
+function trimProgressLogs(logs: string[]): string[] {
+  if (logs.length <= PROGRESS_LOGS_MAX_LINES) {
+    return logs;
+  }
+  // Keep only the most recent PROGRESS_LOGS_MAX_LINES lines
+  // Use slice to create a new array, allowing old references to be GC'd
+  return logs.slice(-PROGRESS_LOGS_MAX_LINES);
+}
+
 function applyProgressSnapshot(snapshot: ProtocolStaticAnalysisJob) {
   activeJob.value = snapshot;
   activeJobId.value = snapshot.jobId;
   progressError.value = snapshot.error ?? null;
-  progressLogs.value = snapshot.events?.length
+  
+  // Map events to log lines and enforce FIFO limit
+  const newLogs = snapshot.events?.length
     ? snapshot.events.map((event) => toProgressLine(event))
     : [];
+  
+  // Apply FIFO trimming to prevent memory issues
+  progressLogs.value = trimProgressLogs(newLogs);
 }
 
 function stopPolling() {
@@ -1066,6 +1085,7 @@ function resetProgressState() {
   stopPolling();
   activeJob.value = null;
   activeJobId.value = null;
+  // Create new empty array to help garbage collection
   progressLogs.value = [];
   progressError.value = null;
 }
