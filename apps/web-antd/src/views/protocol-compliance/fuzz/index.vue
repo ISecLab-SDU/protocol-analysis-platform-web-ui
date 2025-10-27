@@ -4943,7 +4943,7 @@ onMounted(async () => {
         <Tabs.TabPane key="test" tab="实时测试">
           <!-- 测试配置区 -->
           <div
-            class="border-primary/20 shadow-card mb-6 rounded-xl border bg-white/80 p-4 backdrop-blur-sm"
+            class="border-primary/20 mb-6 rounded-xl border bg-white/80 p-4 backdrop-blur-sm"
           >
             <h3 class="mb-4 text-lg font-semibold">测试配置</h3>
             <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -5073,7 +5073,7 @@ onMounted(async () => {
           <div class="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-4">
             <!-- 实时Fuzz过程窗口 -->
             <div
-              class="border-primary/20 shadow-card rounded-xl border bg-white/80 p-4 backdrop-blur-sm xl:col-span-3"
+              class="border-primary/20 rounded-xl border bg-white/80 p-4 backdrop-blur-sm xl:col-span-3"
             >
               <div class="mb-4 flex items-center justify-between">
                 <h3 class="text-lg font-semibold">Fuzz过程</h3>
@@ -5114,7 +5114,7 @@ onMounted(async () => {
             <!-- 运行监控 -->
             <div class="xl:col-span-1">
               <div
-                class="border-secondary/20 shadow-card h-full rounded-xl border bg-white/80 p-4 backdrop-blur-sm"
+                class="border-secondary/20 h-full rounded-xl border bg-white/80 p-4 backdrop-blur-sm"
               >
                 <div class="mb-4 flex items-center justify-between">
                   <h3 class="text-lg font-semibold">运行监控</h3>
@@ -5362,7 +5362,7 @@ onMounted(async () => {
           <div class="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-4">
             <!-- 消息类型分布和版本统计 / RTSP状态机统计 -->
             <div
-              class="border-secondary/20 shadow-card flex min-h-96 flex-col rounded-xl border bg-white/80 p-6 backdrop-blur-sm xl:col-span-3"
+              class="border-secondary/20 flex min-h-96 flex-col rounded-xl border bg-white/80 p-6 backdrop-blur-sm xl:col-span-3"
             >
               <div class="mb-6 flex items-center justify-between">
                 <h3 class="text-xl font-semibold">
@@ -5778,7 +5778,7 @@ onMounted(async () => {
 
             <!-- 实时统计 -->
             <div
-              class="border-primary/20 shadow-card rounded-xl border bg-white/80 p-6 backdrop-blur-sm xl:col-span-1"
+              class="border-primary/20 rounded-xl border bg-white/80 p-6 backdrop-blur-sm xl:col-span-1"
             >
               <h3 class="mb-4 text-lg font-semibold">实时统计</h3>
 
@@ -6063,7 +6063,7 @@ onMounted(async () => {
               (isTestCompleted ||
                 (!isRunning && (packetCount > 0 || elapsedTime > 0)))
             "
-            class="border-secondary/20 shadow-card rounded-xl border bg-white/80 p-4 backdrop-blur-sm"
+            class="border-secondary/20 rounded-xl border bg-white/80 p-4 backdrop-blur-sm"
           >
             <div class="mb-4 flex items-center justify-between">
               <h3 class="text-lg font-semibold">测试总结</h3>
@@ -6454,7 +6454,7 @@ onMounted(async () => {
             <!-- 历史记录列表 -->
             <div v-if="!selectedHistoryItem" class="space-y-6">
               <div
-                class="shadow-card rounded-xl border border-orange-200 bg-white/80 p-6 backdrop-blur-sm"
+                class="rounded-xl border border-orange-200 bg-white/80 p-6 backdrop-blur-sm"
               >
                 <div class="mb-6 flex items-center justify-between">
                   <div class="flex items-center space-x-3">
@@ -6759,7 +6759,7 @@ onMounted(async () => {
             <div v-else class="space-y-6">
               <!-- 返回按钮 -->
               <div
-                class="shadow-card rounded-xl border border-orange-200 bg-white/80 p-4 backdrop-blur-sm"
+                class="rounded-xl border border-orange-200 bg-white/80 p-4 backdrop-blur-sm"
               >
                 <div class="flex items-center justify-between">
                   <button
@@ -6781,7 +6781,7 @@ onMounted(async () => {
 
               <!-- 详情头部信息 -->
               <div
-                class="shadow-card rounded-xl border border-orange-200 bg-white/80 p-6 backdrop-blur-sm"
+                class="rounded-xl border border-orange-200 bg-white/80 p-6 backdrop-blur-sm"
               >
                 <div class="mb-4 flex items-center justify-between">
                   <div class="flex items-center space-x-4">
@@ -7061,7 +7061,7 @@ onMounted(async () => {
 
               <!-- 协议特定的详细统计 -->
               <div
-                class="shadow-card rounded-xl border border-orange-200 bg-white/80 p-6 backdrop-blur-sm"
+                class="rounded-xl border border-orange-200 bg-white/80 p-6 backdrop-blur-sm"
               >
                 <h3 class="mb-6 text-xl font-semibold">
                   {{
@@ -7790,7 +7790,7 @@ onMounted(async () => {
                   selectedHistoryItem.hasCrash &&
                   selectedHistoryItem.crashDetails
                 "
-                class="shadow-card rounded-xl border border-red-300 bg-white/80 p-6 backdrop-blur-sm"
+                class="rounded-xl border border-red-300 bg-white/80 p-6 backdrop-blur-sm"
               >
                 <div class="mb-6 flex items-center space-x-3">
                   <div class="rounded-lg bg-red-100 p-3">
@@ -7966,18 +7966,11 @@ onMounted(async () => {
   background: #94a3b8;
 }
 
-/* 阴影效果 */
-.shadow-card {
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-}
 .shadow-crash {
   box-shadow: 0 0 15px rgba(239, 68, 68, 0.3);
 }
 
-/* 文字阴影 */
-.text-shadow {
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
+
 
 /* MQTT动画样式 */
 .mqtt-module {
@@ -8091,7 +8084,7 @@ onMounted(async () => {
 
 /* 卡片样式增强 */
 .card {
-  @apply shadow-card rounded-xl border border-gray-200 bg-white/80 p-4 backdrop-blur-sm;
+  @apply rounded-xl border border-gray-200 bg-white/80 p-4 backdrop-blur-sm;
 }
 .card-danger {
   @apply shadow-crash rounded-xl border border-red-300 bg-white/80 p-4 backdrop-blur-sm;
