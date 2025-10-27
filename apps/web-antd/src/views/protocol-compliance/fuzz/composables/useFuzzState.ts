@@ -45,7 +45,7 @@ export function useFuzzState() {
   const targetHost = ref<string>('127.0.0.1');
   const targetPort = ref<number>(161);
   const rtspCommandConfig = ref<string>(
-    'afl-fuzz -d -i $AFLNET/tutorials/live555/in-rtsp -o out-live555 -N tcp://127.0.0.1/8554 -x $AFLNET/tutorials/live555/rtsp.dict -P RTSP -D 10000 -q 3 -s 3 -E -K -R ./testOnDemandRTSPServer 8554'
+    'afl-fuzz -d -i $AFLNET/tutorials/live555/in-rtsp -o out-live555 -N tcp://127.0.0.1/8554 -x $AFLNET/tutorials/live555/rtsp.dict -P RTSP -D 10000 -q 3 -s 3 -E -K -R ./testOnDemandRTSPServer 8554',
   );
 
   // ============================================================
@@ -96,7 +96,7 @@ export function useFuzzState() {
       successRate: 76,
       protocolStats: { v1: 1203, v2c: 892, v3: 752 },
       messageTypeStats: { get: 1124, set: 678, getnext: 589, getbulk: 456 },
-      hasCrash: false
+      hasCrash: false,
     },
     {
       id: 'hist_002',
@@ -120,10 +120,13 @@ export function useFuzzState() {
         time: '11:16:23',
         type: 'Segmentation Fault (SIGSEGV)',
         dumpFile: '/var/crash/SNMP_crash_1737360983.dmp',
-        logPath: '/home/hhh/下载/snmp_fuzz/snmp_github/snmp_fuzz/scan_result/crash_logs/20250120-111623',
-        details: '[11:16:23] Segmentation Fault (SIGSEGV)\nProcess ID: 8472\nFault Address: 0x7F8B2C40\nRegisters:\n  EAX: 0x00000000  EBX: 0x7F8B2C40\n  ECX: 0x12345678  EDX: 0xDEADBEEF\n  ESI: 0x87654321  EDI: 0xCAFEBABE\n  EBP: 0x7FFF1234  ESP: 0x7FFF1200\nBacktrace:\n  #0  0x08048567 in get_handler()\n  #1  0x08048234 in packet_processor()\n  #2  0x08047890 in main_loop()',
-        packetContent: '302902010004067075626C6963A01C02040E8F83C502010002010030'
-      }
+        logPath:
+          '/home/hhh/下载/snmp_fuzz/snmp_github/snmp_fuzz/scan_result/crash_logs/20250120-111623',
+        details:
+          '[11:16:23] Segmentation Fault (SIGSEGV)\nProcess ID: 8472\nFault Address: 0x7F8B2C40\nRegisters:\n  EAX: 0x00000000  EBX: 0x7F8B2C40\n  ECX: 0x12345678  EDX: 0xDEADBEEF\n  ESI: 0x87654321  EDI: 0xCAFEBABE\n  EBP: 0x7FFF1234  ESP: 0x7FFF1200\nBacktrace:\n  #0  0x08048567 in get_handler()\n  #1  0x08048234 in packet_processor()\n  #2  0x08047890 in main_loop()',
+        packetContent:
+          '302902010004067075626C6963A01C02040E8F83C502010002010030',
+      },
     },
     {
       id: 'hist_003',
@@ -141,7 +144,7 @@ export function useFuzzState() {
       successRate: 86,
       protocolStats: { v1: 1789, v2c: 1456, v3: 1276 },
       messageTypeStats: { get: 1823, set: 1124, getnext: 892, getbulk: 682 },
-      hasCrash: false
+      hasCrash: false,
     },
     {
       id: 'hist_004',
@@ -184,7 +187,7 @@ export function useFuzzState() {
           PINGREQ: 21051,
           PINGRESP: 0,
           DISCONNECT: 0,
-          AUTH: 0
+          AUTH: 0,
         },
         broker_messages: {
           CONNECT: 0,
@@ -201,7 +204,7 @@ export function useFuzzState() {
           PINGREQ: 0,
           PINGRESP: 21000,
           DISCONNECT: 0,
-          AUTH: 0
+          AUTH: 0,
         },
         duplicate_diffs: {
           CONNECT: 1507,
@@ -218,7 +221,7 @@ export function useFuzzState() {
           PINGREQ: 0,
           PINGRESP: 0,
           DISCONNECT: 0,
-          AUTH: 0
+          AUTH: 0,
         },
         differential_reports: [],
         q_table_states: [],
@@ -228,8 +231,8 @@ export function useFuzzState() {
           emqx: 0,
           flashmq: 0,
           nanomq: 0,
-          mosquitto: 0
-        }
+          mosquitto: 0,
+        },
       },
       protocolSpecificData: {
         clientRequestCount: 851051,
@@ -239,10 +242,10 @@ export function useFuzzState() {
         validConnectNumber: 1362,
         duplicateConnectDiff: 1507,
         fuzzingStartTime: '2024-07-06 00:39:14',
-        fuzzingEndTime: '2024-07-07 10:15:23'
+        fuzzingEndTime: '2024-07-07 10:15:23',
       },
-      hasCrash: false
-    }
+      hasCrash: false,
+    },
   ]);
 
   // ============================================================
@@ -289,11 +292,11 @@ export function useFuzzState() {
       emqx: 0,
       flashmq: 0,
       nanomq: 0,
-      mosquitto: 0
+      mosquitto: 0,
     },
     // 新增client和broker发送数据统计
     client_sent_count: 0,
-    broker_sent_count: 0
+    broker_sent_count: 0,
   });
 
   // MQTT 差异类型分布统计数据
@@ -311,8 +314,8 @@ export function useFuzzState() {
       connection_failures: 0,
       message_corruptions: 0,
       state_inconsistencies: 0,
-      authentication_errors: 0
-    }
+      authentication_errors: 0,
+    },
   });
 
   // MQTT差异报告统计
@@ -323,33 +326,33 @@ export function useFuzzState() {
       'Message Unexpected': 892,
       'Field Missing': 2156,
       'Field Unexpected': 1634,
-      'Field Different': 628
+      'Field Different': 628,
     },
     // 按协议版本统计
     version_stats: {
       '3': 2341,
       '4': 2789,
-      '5': 1427
+      '5': 1427,
     },
     // 按消息类型统计
     msg_type_stats: {
-      'CONNECT': 456,
-      'CONNACK': 234,
-      'PUBLISH': 1234,
-      'PUBACK': 567,
-      'PUBREC': 123,
-      'PUBREL': 89,
-      'PUBCOMP': 67,
-      'SUBSCRIBE': 345,
-      'SUBACK': 234,
-      'UNSUBSCRIBE': 123,
-      'UNSUBACK': 89,
-      'PINGREQ': 456,
-      'PINGRESP': 445,
-      'DISCONNECT': 234,
-      'AUTH': 67
+      CONNECT: 456,
+      CONNACK: 234,
+      PUBLISH: 1234,
+      PUBACK: 567,
+      PUBREC: 123,
+      PUBREL: 89,
+      PUBCOMP: 67,
+      SUBSCRIBE: 345,
+      SUBACK: 234,
+      UNSUBSCRIBE: 123,
+      UNSUBACK: 89,
+      PINGREQ: 456,
+      PINGRESP: 445,
+      DISCONNECT: 234,
+      AUTH: 67,
     },
-    total_differences: 0
+    total_differences: 0,
   });
 
   return {
@@ -427,6 +430,6 @@ export function useFuzzState() {
     mqttProcessingProgress,
     mqttRealTimeStats,
     mqttDiffTypeStats,
-    mqttDifferentialStats
+    mqttDifferentialStats,
   };
 }
