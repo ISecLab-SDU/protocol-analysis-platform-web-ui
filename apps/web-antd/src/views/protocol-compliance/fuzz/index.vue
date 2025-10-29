@@ -4918,7 +4918,6 @@ onMounted(async () => {
 
 <template>
   <Page
-    description="选择协议类型与模糊测试引擎，配置目标主机和端口，启动测试以实时监控数据包、崩溃检测与协议分析。"
     title="协议模糊测试"
   >
     <!-- 加载状态 -->
@@ -7877,6 +7876,11 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+/* Scale Page title to 200% */
+:deep(.mb-2.flex.text-lg.font-semibold) {
+  font-size: 2.25rem;
+}
+
 /* Tabs styling to match Ant Design Vue */
 .fuzz-tabs {
   background: transparent;

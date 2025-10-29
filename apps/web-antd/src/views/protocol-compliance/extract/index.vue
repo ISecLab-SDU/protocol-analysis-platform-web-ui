@@ -357,7 +357,6 @@ onMounted(() => {
 
 <template>
   <Page
-    description="上传协议类型与 RFC 文件，生成结构化的协议规则供静态分析与后续验证。"
     title="协议规则提取"
   >
     <div class="protocol-extract">
@@ -544,6 +543,11 @@ onMounted(() => {
 
 
 <style scoped>
+/* Scale Page title to 200% */
+:deep(.mb-2.flex.text-lg.font-semibold) {
+  font-size: 2.25rem;
+}
+
 .protocol-extract {
   display: flex;
   flex-direction: column;

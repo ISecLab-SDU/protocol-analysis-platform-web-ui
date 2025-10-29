@@ -1351,7 +1351,6 @@ async function handleSubmit() {
 
 <template>
   <Page
-    description="上传源码压缩包、Builder Dockerfile、协议规则 JSON 与分析配置，一键调度 ProtocolGuard Docker 流水线。"
     title="协议静态分析"
   >
     <div class="static-analysis">
@@ -1933,6 +1932,11 @@ async function handleSubmit() {
 </template>
 
 <style scoped>
+/* Scale Page title to 200% */
+:deep(.mb-2.flex.text-lg.font-semibold) {
+  font-size: 2.25rem;
+}
+
 .static-analysis {
   display: flex;
   flex-direction: column;

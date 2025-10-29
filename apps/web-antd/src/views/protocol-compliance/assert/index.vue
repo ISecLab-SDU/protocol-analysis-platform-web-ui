@@ -611,7 +611,6 @@ async function handleSubmit() {
 
 <template>
   <Page
-    description="上传源码压缩包、SQLite 数据库文件，并提供编译指令，自动生成测试断言以验证协议实现的正确性。"
     title="断言生成"
   >
     <div class="assert-generation">
@@ -903,6 +902,11 @@ async function handleSubmit() {
 </template>
 
 <style scoped>
+/* Scale Page title to 200% */
+:deep(.mb-2.flex.text-lg.font-semibold) {
+  font-size: 2.25rem;
+}
+
 .assert-generation {
   display: flex;
   flex-direction: column;
