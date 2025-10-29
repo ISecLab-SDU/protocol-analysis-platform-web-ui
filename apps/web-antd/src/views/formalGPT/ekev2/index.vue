@@ -110,7 +110,7 @@ export default {
     const stepPositions = computed(() => {
       const positions = [];
       let currentY = 0;
-      const minSpacing = 30;
+      const minSpacing = 5;
       
       protocolIR.value.forEach((step, index) => {
         positions.push({
@@ -127,7 +127,7 @@ export default {
           estimatedHeight = 50;
         }
         
-        currentY += Math.max(estimatedHeight, 40) + minSpacing;
+        currentY += Math.max(estimatedHeight, 30) + minSpacing;
       });
       
       return positions;
@@ -757,16 +757,6 @@ export default {
 
       <!-- Step 2: Sequence Diagram -->
       <section v-if="currentStep === 1" class="p-8">
-        <h2
-          class="mb-6 border-b-2 border-blue-500 pb-3 text-2xl font-semibold text-gray-900"
-        >
-          协议时序图
-        </h2>
-
-        <p class="mb-6 leading-relaxed text-gray-600">
-          可视化展示协议双方的交互过程，包括消息传递、计算和验证步骤。点击元素可查看详细信息。
-        </p>
-
         <!-- 统计数据 -->
         <div class="mb-6 grid grid-cols-4 gap-4">
           <div class="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
@@ -1160,14 +1150,6 @@ export default {
 
       <!-- 合并后的步骤：安全验证（包含安全属性选择和ProVerif验证） -->
       <section v-if="currentStep === 2" class="p-8">
-        <h2
-          class="mb-6 border-b-2 border-blue-500 pb-3 text-2xl font-semibold text-gray-900"
-        >
-          安全验证
-        </h2>
-        <p class="mb-6 leading-relaxed text-gray-600">
-          请选择您希望验证的安全属性，然后点击"开始验证"按钮。系统将生成ProVerif形式化模型并执行验证。
-        </p>
 
         <!-- 安全属性选择（缩小尺寸） -->
         <div class="mb-8">
@@ -1408,13 +1390,6 @@ export default {
 
       <!-- Step 4: History Records (原步骤5) -->
       <section v-if="currentStep === 3" class="p-8">
-        <h2 class="mb-6 border-b-2 border-blue-500 pb-3 text-2xl font-semibold text-gray-900">
-          历史记录
-        </h2>
-        <p class="mb-6 leading-relaxed text-gray-600">
-          查看所有历史验证记录，点击任意记录可查看详细信息。
-        </p>
-
         <!-- 加载状态 -->
         <div v-if="isLoadingHistory" class="flex items-center justify-center py-12">
           <div class="h-12 w-12 animate-spin rounded-full border-b-2 border-blue-600"></div>
