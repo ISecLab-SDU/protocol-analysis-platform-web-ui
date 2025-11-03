@@ -577,7 +577,7 @@ export default {
     <header class="border-b border-gray-200 bg-white shadow-sm">
       <div class="px-8 py-6">
         <h1 class="mb-2 text-3xl font-semibold text-gray-900">
-          Protocol Formal Verification System
+          协议设计形式化验证
         </h1>
         <p class="text-gray-600">基于中间表示的协议形式化验证平台</p>
       </div>
@@ -620,14 +620,6 @@ export default {
     <main class="flex-1 overflow-y-auto bg-white">
       <!-- Step 1: Upload -->
       <section v-if="currentStep === 0" class="p-8">
-        <h2
-          class="mb-6 border-b-2 border-blue-500 pb-3 text-2xl font-semibold text-gray-900"
-        >
-          文档上传
-        </h2>
-        <p class="mb-6 leading-relaxed text-gray-600">
-          请上传RFC格式的协议规范文档。系统将自动解析文档内容，提取协议的关键信息和交互流程。
-        </p>
         <div class="my-8">
           <input
             type="file"
@@ -757,15 +749,6 @@ export default {
 
       <!-- Step 2: Sequence Diagram -->
       <section v-if="currentStep === 1" class="p-8">
-        <h2
-          class="mb-6 border-b-2 border-blue-500 pb-3 text-2xl font-semibold text-gray-900"
-        >
-          协议时序图
-        </h2>
-
-        <p class="mb-6 leading-relaxed text-gray-600">
-          可视化展示协议双方的交互过程，包括消息传递、计算和验证步骤。点击元素可查看详细信息。
-        </p>
 
         <!-- 统计数据 -->
         <div class="mb-6 grid grid-cols-4 gap-4">
@@ -1160,15 +1143,6 @@ export default {
 
       <!-- 合并后的步骤：安全验证（包含安全属性选择和ProVerif验证） -->
       <section v-if="currentStep === 2" class="p-8">
-        <h2
-          class="mb-6 border-b-2 border-blue-500 pb-3 text-2xl font-semibold text-gray-900"
-        >
-          安全验证
-        </h2>
-        <p class="mb-6 leading-relaxed text-gray-600">
-          请选择您希望验证的安全属性，然后点击"开始验证"按钮。系统将生成ProVerif形式化模型并执行验证。
-        </p>
-
         <!-- 安全属性选择（缩小尺寸） -->
         <div class="mb-8">
           <h3 class="mb-4 text-lg font-semibold">选择安全属性</h3>
@@ -1408,13 +1382,6 @@ export default {
 
       <!-- Step 4: History Records (原步骤5) -->
       <section v-if="currentStep === 3" class="p-8">
-        <h2 class="mb-6 border-b-2 border-blue-500 pb-3 text-2xl font-semibold text-gray-900">
-          历史记录
-        </h2>
-        <p class="mb-6 leading-relaxed text-gray-600">
-          查看所有历史验证记录，点击任意记录可查看详细信息。
-        </p>
-
         <!-- 加载状态 -->
         <div v-if="isLoadingHistory" class="flex items-center justify-center py-12">
           <div class="h-12 w-12 animate-spin rounded-full border-b-2 border-blue-600"></div>
