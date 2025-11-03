@@ -104,30 +104,42 @@ export default {
     const verificationStatus = ref('准备验证安全属性...');
 
     // 固定的message宽度常量
-    const MESSAGE_WIDTH = 250;
+    const MESSAGE_WIDTH = 500;
     const ARROW_WIDTH = 250;
 
     const stepPositions = computed(() => {
       const positions = [];
-      let currentY = 0;
-      const minSpacing = 30;
+      let currentY = 40; // Start with some padding from top
+      const verticalGap = 15; // Gap between rows
+      const operationHeight = 48; // Estimated height of operation boxes
+      const messageSpacing = 35; // Vertical space for message (compact)
       
       protocolIR.value.forEach((step, index) => {
-        positions.push({
-          id: step.id,
-          top: currentY,
-          index: index
-        });
+        const isMessage = getOperationType(step.id) === 'message';
         
-        let estimatedHeight = 0;
-        
-        if (getOperationType(step.id) === 'message') {
-          estimatedHeight = 35;
+        if (isMessage) {
+          // Messages get minimal vertical space but are positioned separately
+          const centerY = currentY + messageSpacing / 2;
+          
+          positions.push({
+            id: step.id,
+            top: centerY,
+            index: index
+          });
+          
+          currentY += messageSpacing + verticalGap;
         } else {
-          estimatedHeight = 50;
+          // Operations get their own vertical space
+          const centerY = currentY + operationHeight / 2;
+          
+          positions.push({
+            id: step.id,
+            top: centerY,
+            index: index
+          });
+          
+          currentY += operationHeight + verticalGap;
         }
-        
-        currentY += Math.max(estimatedHeight, 40) + minSpacing;
       });
       
       return positions;
@@ -136,7 +148,8 @@ export default {
     const totalHeight = computed(() => {
       if (stepPositions.value.length === 0) return 300;
       const lastPosition = stepPositions.value[stepPositions.value.length - 1];
-      return lastPosition.top + 100;
+      // Add minimal padding at bottom for the last element
+      return lastPosition.top + 60;
     });
 
     const getStepPosition = (stepId) => {
@@ -579,7 +592,6 @@ export default {
         <h1 class="mb-2 text-3xl font-semibold text-gray-900">
           协议设计形式化验证
         </h1>
-        <p class="text-gray-600">基于中间表示的协议形式化验证平台</p>
       </div>
     </header>
 
@@ -750,36 +762,10 @@ export default {
       <!-- Step 2: Sequence Diagram -->
       <section v-if="currentStep === 1" class="p-8">
 
-        <!-- 统计数据 -->
-        <div class="mb-6 grid grid-cols-4 gap-4">
-          <div class="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
-            <span
-              class="h-6 w-6 rounded border border-gray-300 bg-blue-500"
-            ></span>
-            <span class="text-sm">消息传递 <span class="font-semibold text-blue-600">({{ irStatistics[1] }})</span></span>
-          </div>
-          <div class="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
-            <span
-              class="h-6 w-6 rounded border border-gray-300 bg-purple-500"
-            ></span>
-            <span class="text-sm">计算操作 <span class="font-semibold text-purple-600">({{ irStatistics[2] }})</span></span>
-          </div>
-          <div class="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
-            <span
-              class="h-6 w-6 rounded border border-gray-300 bg-green-500"
-            ></span>
-            <span class="text-sm">验证操作 <span class="font-semibold text-green-600">({{ irStatistics[3] }})</span></span>
-          </div>
-          <div class="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
-            <span
-              class="h-6 w-6 rounded border border-gray-300 bg-gray-500"
-            ></span>
-            <span class="text-sm">总操作数 <span class="font-semibold text-gray-600">({{ irStatistics[0] }})</span></span>
-          </div>
-        </div>
-
-        <!-- 时序图区域 -->
-        <div class="overflow-x-auto rounded-lg border border-gray-200 bg-white p-6">
+        <!-- 主要内容区域：时序图（左）+ 图例（右） -->
+        <div class="flex gap-4">
+          <!-- 时序图区域 -->
+          <div class="flex-1 overflow-x-auto rounded-lg border border-gray-200 bg-white p-6">
           <div class="flex min-w-[1400px] justify-between px-6">
             <!-- Party A Column -->
             <div class="flex w-1/3 flex-col items-center">
@@ -879,7 +865,7 @@ export default {
                       getOperationType(step.id) !== 'message'
                     "
                     @click="handleStepClick(step)"
-                    class="absolute cursor-pointer rounded-lg border-l-4 px-4 py-2 text-xs shadow-sm transition-transform hover:scale-105"
+                    class="absolute cursor-pointer rounded-lg border-l-4 px-4 py-2 text-xs shadow-sm transition-transform hover:scale-105 whitespace-nowrap"
                     :class="[
                       getOperationType(step.id) === 'calculate'
                         ? 'border-purple-500 bg-purple-50'
@@ -889,8 +875,9 @@ export default {
                     :style="{ 
                       left: 'calc(50% + 15px)',
                       top: getStepPosition(step.id) + 'px',
-                      width: '400px',
-                      minWidth: '400px'
+                      transform: 'translateY(-50%)',
+                      maxWidth: '500px',
+                      minWidth: '300px'
                     }"
                   >
                     <div class="flex items-start gap-2">
@@ -906,8 +893,8 @@ export default {
                           getOperationType(step.id) === 'calculate' ? 'C' : 'V'
                         }}
                       </span>
-                      <div style="flex: 1; min-width: 0">
-                        <div v-if="step.expr" class="font-mono text-xs text-blue-600 break-all">
+                      <div class="flex-1 whitespace-nowrap overflow-hidden">
+                        <div v-if="step.expr" class="font-mono text-xs text-blue-600">
                           {{ step.expr }}
                         </div>
                       </div>
@@ -933,19 +920,19 @@ export default {
                       top: getStepPosition(step.id) + 'px',
                       width: MESSAGE_WIDTH + 'px',
                       left: '50%',
-                      transform: 'translateX(-50%)'
+                      transform: 'translate(-50%, -50%)'
                     }"
                   >
                     <!-- Message Header -->
                     <div
                       @click="handleStepClick(step)"
-                      class="mb-1 cursor-pointer rounded-lg border-l-4 border-blue-500 bg-gradient-to-r from-blue-50 to-blue-100 px-3 py-1.5 text-xs shadow-md transition-transform hover:scale-105"
-                      :style="{ width: MESSAGE_WIDTH + 'px' }"
+                      class="mb-1 cursor-pointer rounded-lg border-l-4 border-blue-500 bg-gradient-to-r from-blue-50 to-blue-100 px-3 py-1.5 text-xs shadow-md transition-transform hover:scale-105 whitespace-nowrap"
+                      :style="{ maxWidth: MESSAGE_WIDTH + 'px', minWidth: '200px' }"
                       :class="[selectedStep && selectedStep.id === step.id ? 'ring-2 ring-blue-500' : '']"
                     >
-                      <div class="flex items-center">
+                      <div class="flex items-center whitespace-nowrap">
                         <span class="font-mono text-xs font-semibold text-gray-700">{{ step.id }}</span>
-                        <span v-if="step.expr" class="ml-1 font-mono text-xs text-blue-600 truncate">（{{ step.expr }}）</span>
+                        <span v-if="step.expr" class="ml-1 font-mono text-xs text-blue-600">（{{ step.expr }}）</span>
                       </div>
                     </div>
 
@@ -1084,7 +1071,7 @@ export default {
                       getOperationType(step.id) !== 'message'
                     "
                     @click="handleStepClick(step)"
-                    class="absolute cursor-pointer rounded-lg border-l-4 px-4 py-2 text-xs shadow-sm transition-transform hover:scale-105"
+                    class="absolute cursor-pointer rounded-lg border-l-4 px-4 py-2 text-xs shadow-sm transition-transform hover:scale-105 whitespace-nowrap"
                     :class="[
                       getOperationType(step.id) === 'calculate'
                         ? 'border-purple-500 bg-purple-50'
@@ -1094,8 +1081,9 @@ export default {
                     :style="{ 
                       right: 'calc(50% + 10px)',
                       top: getStepPosition(step.id) + 'px',
-                      width: '400px',
-                      minWidth: '400px'
+                      transform: 'translateY(-50%)',
+                      maxWidth: '500px',
+                      minWidth: '300px'
                     }"
                   >
                     <div class="flex items-start gap-2">
@@ -1111,14 +1099,47 @@ export default {
                           getOperationType(step.id) === 'calculate' ? 'C' : 'V'
                         }}
                       </span>
-                      <div style="flex: 1; min-width: 0">
-                        <div v-if="step.expr" class="font-mono text-xs text-blue-600 break-all">
+                      <div class="flex-1 whitespace-nowrap overflow-hidden">
+                        <div v-if="step.expr" class="font-mono text-xs text-blue-600">
                           {{ step.expr }}
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+          <!-- 统计图例（右侧边栏） -->
+          <div class="flex w-48 flex-shrink-0 flex-col gap-3">
+            <div class="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <span class="h-4 w-4 flex-shrink-0 rounded border border-gray-300 bg-blue-500"></span>
+              <div class="flex-1 min-w-0">
+                <div class="text-xs text-gray-600">消息传递</div>
+                <div class="text-sm font-semibold text-blue-600">({{ irStatistics[1] }})</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <span class="h-4 w-4 flex-shrink-0 rounded border border-gray-300 bg-purple-500"></span>
+              <div class="flex-1 min-w-0">
+                <div class="text-xs text-gray-600">计算操作</div>
+                <div class="text-sm font-semibold text-purple-600">({{ irStatistics[2] }})</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <span class="h-4 w-4 flex-shrink-0 rounded border border-gray-300 bg-green-500"></span>
+              <div class="flex-1 min-w-0">
+                <div class="text-xs text-gray-600">验证操作</div>
+                <div class="text-sm font-semibold text-green-600">({{ irStatistics[3] }})</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <span class="h-4 w-4 flex-shrink-0 rounded border border-gray-300 bg-gray-500"></span>
+              <div class="flex-1 min-w-0">
+                <div class="text-xs text-gray-600">总操作数</div>
+                <div class="text-sm font-semibold text-gray-600">({{ irStatistics[0] }})</div>
               </div>
             </div>
           </div>
