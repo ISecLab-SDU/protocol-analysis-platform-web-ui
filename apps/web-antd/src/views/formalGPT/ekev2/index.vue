@@ -110,7 +110,7 @@ export default {
     const stepPositions = computed(() => {
       const positions = [];
       let currentY = 40; // Start with some padding from top
-      const verticalGap = 15; // Gap between rows
+      const verticalGap = 1; // Gap between rows
       const operationHeight = 48; // Estimated height of operation boxes
       const messageSpacing = 35; // Vertical space for message (compact)
       
@@ -206,7 +206,33 @@ export default {
       selectedStep.value = step;
     };
 
-    // 修改handleFileUpload方法，添加解析进度模拟
+    // 修正 matchProtocolByFileName 函数
+    const matchProtocolByFileName = (fileName) => {
+      // 提取文件名中的关键词（去除扩展名和特殊字符）
+      const nameWithoutExt = fileName.toLowerCase().replace(/\.(pdf|doc|docx|txt)$/i, '');
+      
+      // 🔴 修正协议关键词映射 - 每个协议对应自己的名称
+      const protocolKeywords = {
+        'ssh': ['ssh', 'secure shell'],
+        'edhoc': ['edhoc'],
+        'ekev1': ['ekev1', 'ikev1', 'ike v1'],
+        'ekev2': ['ekev2', 'ikev2', 'ike v2'],
+        'bt-ssp-jw': ['bt-ssp-jw', 'bt', 'bluetooth', 'ssp', 'jw'],
+      };
+      
+      // 匹配协议名称
+      for (const [protocol, keywords] of Object.entries(protocolKeywords)) {
+        if (keywords.some(keyword => nameWithoutExt.includes(keyword))) {
+          console.log(`✅ 文件名 "${fileName}" 匹配到协议: ${protocol}`);
+          return protocol;
+        }
+      }
+      
+      console.log(`⚠️ 文件名 "${fileName}" 未匹配到任何协议`);
+      return null;
+    };
+
+    // 修改handleFileUpload方法
     const handleFileUpload = async (e) => {
       const file = e.target.files[0];
       
@@ -220,7 +246,6 @@ export default {
       parsingProgress.value = 0;
       uploadedFile.value = file;
       
-      // 模拟解析进度状态文本
       const parsingStates = [
         "正在读取文件内容...",
         "提取协议结构信息...",
@@ -237,7 +262,6 @@ export default {
         console.log('✅ 文件上传成功:', uploadResult);
         
         currentFileId.value = uploadResult.fileId;
-        // 使用实际文件大小或生成随机大小
         const fileSize = file.size || generateRandomFileSize();
         uploadedFile.value = {
           name: uploadResult.fileName,
@@ -246,31 +270,76 @@ export default {
         
         // 2. 模拟解析进度
         const totalSteps = 5;
-        const intervalTime = 600; // 每步之间的时间间隔
+        const intervalTime = 600;
         
         for (let i = 0; i < totalSteps; i++) {
-          // 更新状态文本
           parsingStatus.value = parsingStates[i];
-          // 更新进度
           parsingProgress.value = (i + 1) * (100 / totalSteps);
-          // 等待一段时间再进行下一步
           await new Promise(resolve => setTimeout(resolve, intervalTime));
         }
         
-        // 3. 获取历史记录中的第一个协议数据作为演示数据
-        console.log('📥 加载演示协议数据...');
+        // 3. 根据文件名匹配协议数据
+        console.log('📥 匹配协议数据...');
+        const protocolName = matchProtocolByFileName(file.name);
+        console.log('🔍 识别到协议:', protocolName);
+        
         const historyData = await fetchFormalGptHistory();
+        
         if (historyData && historyData.length > 0) {
-          // 取第一条历史记录的协议数据
-          const demoProtocol = historyData[0];
+          // 尝试根据协议名称匹配
+          let matchedProtocol = null;
+          
+          if (protocolName) {
+            matchedProtocol = historyData.find(item => 
+              item.fileName.toLowerCase().includes(protocolName) ||
+              item.id.toLowerCase() === protocolName ||
+              (item.protocolName && item.protocolName.toLowerCase() === protocolName)
+            );
+          }
+          
+          // 如果没有匹配到，使用第一条记录作为默认
+          const demoProtocol = matchedProtocol || historyData[0];
+          
+          console.log('✅ 使用协议数据:', demoProtocol.fileName);
+          
+          // 🔴 更新 currentFileId 为匹配到的协议ID
+          currentFileId.value = demoProtocol.id;
           
           // 加载协议IR数据
           protocolIR.value = demoProtocol.protocolIR || [];
           
+          // 只加载 ProVerif 代码，不加载验证结果
+          if (demoProtocol.proverifCode) {
+            proverifCode.value = demoProtocol.proverifCode;
+          }
+          
+          // 清空验证结果，等待用户点击"开始验证"
+          verificationResults.value = null;
+          selectedProperties.value = [];
+          
+          // 🔴 创建临时历史记录（使用匹配到的协议数据）
+          const tempRecord = {
+            id: `temp-${Date.now()}`, // 生成临时ID
+            fileName: uploadResult.fileName,
+            fileSize: fileSize,
+            uploadTime: new Date().toLocaleString(),
+            protocolIR: demoProtocol.protocolIR || [],
+            proverifCode: demoProtocol.proverifCode || '',
+            verificationResults: null, // 初始没有验证结果
+            selectedProperties: [],
+            isTemporary: true, // 标记为临时记录
+            originalProtocolId: demoProtocol.id // 保存原始协议ID，用于后续加载验证结果
+          };
+          
+          // 🔴 将临时记录添加到历史记录列表顶部
+          uploadHistory.value = [tempRecord, ...uploadHistory.value];
+          
+          console.log('✅ 临时历史记录已创建:', tempRecord);
+          
           // 跳转到时序图步骤
           currentStep.value = 1;
         } else {
-          alert('文件上传成功，但未获取到协议数据');
+          alert('文件上传成功,但未获取到协议数据');
         }
         
       } catch (error) {
@@ -296,9 +365,7 @@ export default {
         
         // 处理历史记录数据，补充缺失的文件大小和时间
         const processedData = data.map((item, index) => {
-          // 如果没有文件大小，生成一个随机大小
           const fileSize = item.fileSize || generateRandomFileSize();
-          // 如果没有上传时间，使用生成的历史时间
           const uploadTime = item.uploadTime 
             ? item.uploadTime 
             : historicalDates[index].toLocaleString();
@@ -310,35 +377,25 @@ export default {
           };
         });
         
-        // 如果当前有已上传的文件且不在历史记录中，添加到历史记录
-        if (currentFileId.value && uploadedFile.value) {
-          const exists = processedData.some(item => item.id === currentFileId.value);
-          if (!exists) {
-            // 创建临时历史记录条目
-            const tempRecord = {
-              id: currentFileId.value,
-              fileName: uploadedFile.value.name,
-              fileSize: uploadedFile.value.size,
-              uploadTime: new Date().toLocaleString(),
-              protocolIR: protocolIR.value,
-              proverifCode: proverifCode.value,
-              verificationResults: verificationResults.value,
-              selectedProperties: selectedProperties.value
-            };
-            uploadHistory.value = [tempRecord, ...processedData];
-            return;
-          }
-        }
+        // 🔴 保留已存在的临时记录
+        const tempRecords = uploadHistory.value.filter(record => record.isTemporary);
         
-        uploadHistory.value = processedData;
+        // 🔴 合并临时记录和后端记录（临时记录在前）
+        uploadHistory.value = [...tempRecords, ...processedData];
+        
+        console.log('✅ 历史记录已更新，包含临时记录:', uploadHistory.value.length);
+        
       } catch (error) {
         console.error('❌ 加载历史记录失败:', error);
-        uploadHistory.value = [];
+        // 🔴 加载失败时，仍然保留临时记录
+        const tempRecords = uploadHistory.value.filter(record => record.isTemporary);
+        uploadHistory.value = tempRecords;
       } finally {
         isLoadingHistory.value = false;
       }
     };
 
+    // 修改loadHistoryRecord方法
     const loadHistoryRecord = async (record: HistoryRecord) => {
       console.log('========================================');
       console.log('📄 开始加载协议:', record.id);
@@ -356,14 +413,21 @@ export default {
       
       proverifCode.value = record.proverifCode || '';
       
-      verificationResults.value = record.verificationResults;
+      // 🔴 直接加载验证结果
+      verificationResults.value = record.verificationResults || null;
       
+      // 🔴 自动提取已验证的属性
       if (record.verificationResults && record.verificationResults.security_properties) {
-        selectedProperties.value = record.verificationResults.security_properties.map(p => p.property);
+        selectedProperties.value = record.verificationResults.security_properties.map(
+          p => p.property
+        );
       } else {
         selectedProperties.value = record.selectedProperties || [];
       }
       
+      console.log('✅ 验证结果:', verificationResults.value);
+      
+      // 跳转到时序图步骤
       currentStep.value = 1;
       
       console.log('📄 跳转到步骤:', currentStep.value);
@@ -441,85 +505,65 @@ export default {
       return property ? property.name : '';
     };
 
-    // 修改为生成代码并直接开始验证，添加验证动画
+    // 修改 runVerification 方法 - 验证后更新临时历史记录
     const runVerification = async () => {
-      if (selectedProperties.value.length === 0) {
-        alert('请至少选择一个安全属性进行验证');
-        return;
-      }
-      
       isVerifying.value = true;
-      proverifCode.value = '';
       verificationResults.value = null;
       
-      // 模拟验证进度状态文本
       const verificationStates = [
-        "正在生成ProVerif模型...",
-        `验证${getPropertyName(selectedProperties.value[0])}...`,
-        selectedProperties.value.length > 1 ? `验证${getPropertyName(selectedProperties.value[1])}...` : "整理验证结果...",
-        "生成验证报告..."
+        "正在读取验证结果...",
+        "解析验证数据...",
+        "生成验证报告...",
+        "验证完成..."
       ];
       
       try {
-        // 模拟验证进度
+        console.log('📥 开始读取验证结果，协议ID:', currentFileId.value);
+        
+        // 模拟加载进度
         const totalSteps = 4;
-        const intervalTime = 800; // 每步之间的时间间隔
+        const intervalTime = 500;
         
         for (let i = 0; i < totalSteps; i++) {
-          // 更新状态文本
           verificationStatus.value = verificationStates[i];
-          // 等待一段时间再进行下一步
           await new Promise(resolve => setTimeout(resolve, intervalTime));
         }
         
-        // 1. 从历史记录中获取一个有验证结果的协议数据
-        const historyData = await fetchFormalGptHistory();
-        if (historyData && historyData.length > 0) {
-          // 找到第一个有验证结果的记录
-          const demoResult = historyData.find(item => item.verificationResults);
+        // 🔴 查找当前记录是否为临时记录
+        const tempRecord = uploadHistory.value.find(
+          record => record.isTemporary && record.fileName === uploadedFile.value?.name
+        );
+        
+        // 🔴 如果是临时记录，使用原始协议ID读取验证结果
+        const protocolIdToFetch = tempRecord?.originalProtocolId || currentFileId.value;
+        
+        // 从后端读取当前协议的详细信息（包含验证结果）
+        const protocolDetail = await fetchFormalGptProtocolDetail(protocolIdToFetch);
+        
+        if (protocolDetail && protocolDetail.verificationResults) {
+          verificationResults.value = protocolDetail.verificationResults;
           
-          if (demoResult) {
-            // 使用演示数据的ProVerif代码
-            proverifCode.value = demoResult.proverifCode || '';
-            
-            // 构建验证结果，只包含用户选择的属性
-            verificationResults.value = {
-              protocol: uploadedFile.value?.name || "未知协议",
-              security_properties: selectedProperties.value.map(prop => {
-                // 从演示结果中找到对应属性，找不到则随机生成
-                const demoProp = demoResult.verificationResults?.security_properties?.find(p => p.property === prop);
-                return demoProp || {
-                  property: prop,
-                  result: Math.random() > 0.3, // 70%概率验证通过
-                  query: `协议满足${getPropertyName(prop)}`
-                };
-              })
-            };
-            
-            // 2. 将当前验证结果添加到历史记录
-            const newHistoryRecord = {
-              id: currentFileId.value,
-              fileName: uploadedFile.value.name,
-              fileSize: uploadedFile.value.size,
-              uploadTime: new Date().toLocaleString(),
-              protocolIR: protocolIR.value,
-              proverifCode: proverifCode.value,
-              verificationResults: verificationResults.value,
-              selectedProperties: selectedProperties.value
-            };
-            
-            // 添加到历史记录数组
-            uploadHistory.value.unshift(newHistoryRecord);
-            
-          } else {
-            throw new Error('未找到演示验证结果数据');
+          // 自动提取已验证的属性
+          if (protocolDetail.verificationResults.security_properties) {
+            selectedProperties.value = protocolDetail.verificationResults.security_properties.map(
+              p => p.property
+            );
           }
+          
+          // 🔴 更新临时历史记录的验证结果
+          if (tempRecord) {
+            tempRecord.verificationResults = protocolDetail.verificationResults;
+            tempRecord.selectedProperties = selectedProperties.value;
+            console.log('✅ 临时历史记录已更新验证结果');
+          }
+          
+          console.log('✅ 验证结果加载成功:', verificationResults.value);
         } else {
-          throw new Error('未获取到历史记录数据');
+          throw new Error('未找到验证结果数据');
         }
       } catch (error) {
-        console.error('❌ 验证失败:', error);
-        alert(`验证失败: ${error.message || '未知错误'}`);
+        console.error('❌ 读取验证结果失败:', error);
+        alert(`读取验证结果失败: ${error.message || '未知错误'}`);
       } finally {
         isVerifying.value = false;
       }
@@ -536,6 +580,24 @@ export default {
       console.log('🚀 组件已挂载');
       currentStep.value = 3; // 默认显示历史记录
     });
+
+    // 添加删除历史记录的方法
+    const deleteHistoryRecord = (recordId, event) => {
+      // 阻止事件冒泡，防止触发loadHistoryRecord
+      event.stopPropagation();
+      
+      // 确认删除
+      if (confirm('确定要删除这条历史记录吗？')) {
+        uploadHistory.value = uploadHistory.value.filter(
+          (record) => record.id !== recordId
+        );
+        
+        // 如果删除的是当前选中的记录，重置状态
+        if (currentFileId.value === recordId) {
+          resetAllStates();
+        }
+      }
+    };
 
     return {
       steps,
@@ -578,7 +640,8 @@ export default {
       selectedStep,
       handleStepClick,
       MESSAGE_WIDTH,
-      ARROW_WIDTH
+      ARROW_WIDTH,
+      deleteHistoryRecord,
     };
   },
 };
@@ -732,21 +795,21 @@ export default {
             </div>
             <div class="flex flex-col items-center">
               <div class="mb-1 h-3 w-3 rounded-full" :class="parsingProgress >= 40 ? 'bg-blue-500' : 'bg-gray-300'"></div>
-              <span class="text-xs text-gray-500">提取信息</span>
+              <span class="text-xs text-gray-500">解析流程</span>
             </div>
             <div class="h-0.5 flex-1 bg-gray-200">
               <div class="h-full bg-blue-500" :style="{ width: parsingProgress >= 40 ? '100%' : '0%' }"></div>
             </div>
             <div class="flex flex-col items-center">
               <div class="mb-1 h-3 w-3 rounded-full" :class="parsingProgress >= 60 ? 'bg-blue-500' : 'bg-gray-300'"></div>
-              <span class="text-xs text-gray-500">解析流程</span>
+              <span class="text-xs text-gray-500">生成IR</span>
             </div>
             <div class="h-0.5 flex-1 bg-gray-200">
               <div class="h-full bg-blue-500" :style="{ width: parsingProgress >= 60 ? '100%' : '0%' }"></div>
             </div>
             <div class="flex flex-col items-center">
               <div class="mb-1 h-3 w-3 rounded-full" :class="parsingProgress >= 80 ? 'bg-blue-500' : 'bg-gray-300'"></div>
-              <span class="text-xs text-gray-500">生成IR</span>
+              <span class="text-xs text-gray-500">验证IR数据完整性</span>
             </div>
             <div class="h-0.5 flex-1 bg-gray-200">
               <div class="h-full bg-blue-500" :style="{ width: parsingProgress >= 80 ? '100%' : '0%' }"></div>
@@ -1156,92 +1219,47 @@ export default {
 
       <!-- 合并后的步骤：安全验证（包含安全属性选择和ProVerif验证） -->
       <section v-if="currentStep === 2" class="p-8">
-        <!-- 安全属性选择（缩小尺寸） -->
-        <div class="mb-8">
-          <h3 class="mb-4 text-lg font-semibold">选择安全属性</h3>
-          <!-- 增加列数使卡片变小 -->
-          <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-            <div
-              v-for="property in securityProperties"
-              :key="property.id"
-              @click="toggleProperty(property.id)"
-              class="cursor-pointer rounded-lg border-2 p-4 transition-all"
-              :class="[
-                selectedProperties.includes(property.id)
-                  ? '-translate-y-1 transform border-blue-500 bg-blue-50 shadow-md'
-                  : 'border-gray-200 bg-white hover:border-blue-500 hover:shadow',
-              ]"
-            >
-              <div
-                class="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100"
+        <!-- ProVerif代码展示 -->
+        <div class="mb-8 overflow-hidden rounded-lg border border-gray-200">
+          <div class="flex items-center justify-between border-b border-gray-200 bg-gray-50 p-4">
+            <h3 class="font-semibold">ProVerif 代码</h3>
+            <div class="flex gap-2">
+              <button
+                @click="copyCode"
+                class="rounded border border-blue-600 px-4 py-2 text-blue-600 transition-colors hover:bg-blue-50"
               >
-                <svg
-                  class="h-4 w-4 text-blue-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    :d="property.icon"
-                  />
-                </svg>
-              </div>
-              <h3 class="text-sm font-semibold text-gray-900">
-                {{ property.name }}
-              </h3>
-              <p class="mt-1 text-xs text-gray-600">
-                {{ property.description.substring(0, 30) }}{{ property.description.length > 30 ? '...' : '' }}
-              </p>
+                复制代码
+              </button>
+              <button
+                @click="downloadCode"
+                class="rounded border border-blue-600 px-4 py-2 text-blue-600 transition-colors hover:bg-blue-50"
+              >
+                下载代码
+              </button>
             </div>
           </div>
+          <pre class="max-h-96 overflow-auto bg-gray-50 p-6 font-mono text-sm text-blue-600">{{ proverifCode || '加载协议数据后将显示ProVerif代码...' }}</pre>
         </div>
 
-        <!-- 已选择的安全属性 -->
-        <div
-          v-if="selectedProperties.length > 0"
-          class="mb-8 rounded-lg border border-gray-200 bg-gray-50 p-4"
-        >
-          <h3 class="mb-3 text-base font-semibold">已选择的安全属性</h3>
-          <div class="flex flex-wrap gap-2">
-            <span
-              v-for="propertyId in selectedProperties"
-              :key="propertyId"
-              class="flex items-center gap-2 rounded-full bg-blue-600 px-3 py-1 text-sm font-medium text-white"
-            >
-              {{ getPropertyName(propertyId) }}
-              <button
-                @click.stop="removeProperty(propertyId)"
-                class="text-sm leading-none hover:text-gray-200"
-              >
-                ×
-              </button>
-            </span>
-          </div>
-        </div>
-
-        <!-- 开始验证按钮 -->
+        <!-- 🔴 如果没有验证结果，显示"开始验证"按钮 -->
         <button
+          v-if="!verificationResults"
           @click="runVerification"
-          :disabled="selectedProperties.length === 0 || isVerifying"
+          :disabled="!proverifCode || isVerifying"
           class="mb-8 rounded-lg px-6 py-3 font-medium transition-colors"
           :class="[
-            (selectedProperties.length === 0 || isVerifying)
+            (!proverifCode || isVerifying)
               ? 'cursor-not-allowed bg-gray-400 text-white'
               : 'bg-blue-600 text-white hover:bg-blue-700',
           ]"
         >
-          {{ isVerifying ? '验证中...' : '开始验证' }}
+          {{ isVerifying ? '正在验证...' : '开始验证' }}
         </button>
 
-        <!-- 验证动画区域 -->
+        <!-- 验证加载动画 -->
         <div v-if="isVerifying" class="mb-8 flex flex-col items-center justify-center rounded-lg border border-gray-200 bg-gray-50 p-8">
-          <!-- 验证动画 -->
           <div class="mb-6 flex items-center justify-center">
             <div class="h-16 w-16 animate-spin rounded-full border-4 border-purple-200 border-t-purple-600"></div>
-            <!-- 旋转的盾牌图标 -->
             <div class="absolute flex h-8 w-8 items-center justify-center text-purple-600">
               <svg 
                 class="h-8 w-8" 
@@ -1258,138 +1276,80 @@ export default {
               </svg>
             </div>
           </div>
-          
-          <!-- 进度条 -->
-          <div class="mb-4 w-full max-w-md">
-            <div class="h-2 w-full overflow-hidden rounded-full bg-gray-200">
-              <div
-                class="h-full bg-purple-500 transition-all duration-300 ease-out"
-                :style="{ width: `${Math.min(100, (selectedProperties.value.length * 25) + 25)}%` }"
-              ></div>
-            </div>
-          </div>
-          
-          <!-- 状态文本 -->
-          <p class="text-center text-gray-700">
-            {{ verificationStatus }}
-          </p>
-          
-          <!-- 验证步骤指示器 -->
-          <div class="mt-8 flex w-full max-w-md items-center justify-between">
-            <div class="flex flex-col items-center">
-              <div class="mb-1 h-3 w-3 rounded-full bg-purple-500"></div>
-              <span class="text-xs text-gray-500">生成模型</span>
-            </div>
-            <div class="h-0.5 flex-1 bg-gray-200">
-              <div class="h-full bg-purple-500" :style="{ width: selectedProperties.value.length >= 1 ? '100%' : '0%' }"></div>
-            </div>
-            <div class="flex flex-col items-center">
-              <div class="mb-1 h-3 w-3 rounded-full" :class="selectedProperties.value.length >= 1 ? 'bg-purple-500' : 'bg-gray-300'"></div>
-              <span class="text-xs text-gray-500">验证属性</span>
-            </div>
-            <div class="h-0.5 flex-1 bg-gray-200">
-              <div class="h-full bg-purple-500" :style="{ width: selectedProperties.value.length >= 2 ? '100%' : '0%' }"></div>
-            </div>
-            <div class="flex flex-col items-center">
-              <div class="mb-1 h-3 w-3 rounded-full" :class="selectedProperties.value.length >= 2 ? 'bg-purple-500' : 'bg-gray-300'"></div>
-              <span class="text-xs text-gray-500">整理结果</span>
-            </div>
-            <div class="h-0.5 flex-1 bg-gray-200">
-              <div class="h-full bg-purple-500" :style="{ width: selectedProperties.value.length >= 3 ? '100%' : '0%' }"></div>
-            </div>
-            <div class="flex flex-col items-center">
-              <div class="mb-1 h-3 w-3 rounded-full" :class="selectedProperties.value.length >= 3 ? 'bg-purple-500' : 'bg-gray-300'"></div>
-              <span class="text-xs text-gray-500">完成</span>
-            </div>
-          </div>
+          <p class="text-center text-gray-700">{{ verificationStatus }}</p>
         </div>
 
-        <!-- ProVerif代码和验证结果区域 -->
-        <div v-if="proverifCode || verificationResults" class="space-y-8">
-          <!-- ProVerif Code -->
-          <div class="overflow-hidden rounded-lg border border-gray-200">
+        <!-- 🔴 直接显示验证结果（如果存在） -->
+        <div v-if="verificationResults && !isVerifying" class="rounded-lg border border-gray-200 bg-gray-50 p-6">
+          <h3 class="mb-6 text-xl font-semibold">验证结果</h3>
+          
+          <!-- 验证结果列表 -->
+          <div v-if="verificationResults.security_properties && verificationResults.security_properties.length > 0" class="space-y-4">
             <div
-              class="flex items-center justify-between border-b border-gray-200 bg-gray-50 p-4"
+              v-for="(prop, index) in verificationResults.security_properties"
+              :key="index"
+              class="rounded-lg border p-4 transition-shadow hover:shadow-md"
+              :class="[
+                prop.result
+                  ? 'border-green-300 bg-green-50'
+                  : 'border-red-300 bg-red-50',
+              ]"
             >
-              <h3 class="font-semibold">ProVerif 代码</h3>
-              <div class="flex gap-2">
-                <button
-                  @click="copyCode"
-                  class="rounded border border-blue-600 px-4 py-2 text-blue-600 transition-colors hover:bg-blue-50"
-                >
-                  复制代码
-                </button>
-                <button
-                  @click="downloadCode"
-                  class="rounded border border-blue-600 px-4 py-2 text-blue-600 transition-colors hover:bg-blue-50"
-                >
-                  下载代码
-                </button>
-              </div>
-            </div>
-            <pre
-              class="max-h-96 overflow-auto bg-gray-50 p-6 font-mono text-sm text-blue-600"
-            >
-              {{ proverifCode || '验证完成后将显示自动生成的ProVerif代码...' }}
-            </pre>
-          </div>
-
-          <!-- Verification Results -->
-          <div class="rounded-lg border border-gray-200 bg-gray-50 p-6">
-            <h3 class="mb-6 text-xl font-semibold">验证结果</h3>
-
-            <div v-if="verificationResults">
-              <div
-                class="mb-6 rounded border-l-4 p-4"
-                :class="[
-                  verificationResults.security_properties.every(p => p.result)
-                    ? 'border-green-500 bg-green-50 text-green-900'
-                    : 'border-yellow-500 bg-yellow-50 text-yellow-900',
-                ]"
-              >
-                <strong>协议: </strong> {{ verificationResults.protocol }}
-                <span class="ml-5 text-sm">
-                  <strong>状态: </strong>
-                  {{
-                    verificationResults.security_properties.every(p => p.result)
-                      ? '✓ 全部通过'
-                      : '⚠ 部分通过'
-                  }}
-                </span>
-              </div>
-
-              <div class="space-y-4">
-                <div
-                  v-for="prop in verificationResults.security_properties"
-                  :key="prop.property"
-                  class="rounded-lg border border-gray-200 bg-white p-4"
-                >
-                  <div class="mb-2 flex items-center justify-between">
-                    <span class="text-lg font-semibold capitalize">{{ getPropertyName(prop.property) }}</span>
+              <div class="flex items-start justify-between">
+                <div class="flex-1">
+                  <div class="mb-2 flex items-center gap-3">
                     <span
-                      class="rounded-full px-3 py-1 text-sm font-semibold"
+                      class="flex h-8 w-8 items-center justify-center rounded-full text-lg font-bold"
                       :class="[
                         prop.result
                           ? 'bg-green-500 text-white'
                           : 'bg-red-500 text-white',
                       ]"
                     >
-                      {{ prop.result ? 'VERIFIED' : 'FAILED' }}
+                      {{ prop.result ? '✓' : '✗' }}
                     </span>
+                    <h4 class="text-lg font-semibold capitalize" :class="[prop.result ? 'text-green-800' : 'text-red-800']">
+                      {{ getPropertyName(prop.property) }}
+                    </h4>
                   </div>
-                  <div class="font-mono text-sm text-gray-600">{{ prop.query }}</div>
+                  <p class="ml-11 text-sm text-gray-700">
+                    {{ prop.query }}
+                  </p>
                 </div>
+                <span
+                  class="rounded px-3 py-1 text-xs font-medium"
+                  :class="[
+                    prop.result
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-red-100 text-red-800',
+                  ]"
+                >
+                  {{ prop.result ? '验证通过' : '验证失败' }}
+                </span>
               </div>
             </div>
-            <div v-else class="py-12 text-center text-gray-500">
-              <p>验证完成后将显示验证结果...</p>
-            </div>
+          </div>
+          
+          <!-- 无验证结果提示 -->
+          <div v-else class="py-8 text-center text-gray-500">
+            暂无验证结果数据
           </div>
         </div>
 
-        <!-- 无内容时的提示 -->
-        <div v-else class="py-12 text-center text-gray-500">
-          <p>请选择安全属性并点击"开始验证"按钮</p>
+        <!-- 导航按钮 -->
+        <div class="mt-8 flex items-center justify-between">
+          <button
+            @click="currentStep = 1"
+            class="rounded-lg bg-gray-600 px-6 py-3 font-medium text-white shadow-md transition-colors hover:bg-gray-700 hover:shadow-lg"
+          >
+            返回：时序图
+          </button>
+          <button
+            @click="currentStep = 3"
+            class="rounded-lg bg-blue-600 px-6 py-3 font-medium text-white shadow-md transition-colors hover:bg-blue-700 hover:shadow-lg"
+          >
+            查看：历史记录
+          </button>
         </div>
       </section>
 
@@ -1511,6 +1471,29 @@ export default {
                   <span class="text-xs text-gray-500">- {{ prop.query }}</span>
                 </div>
               </div>
+            </div>
+
+            <!-- 删除按钮 -->
+            <div class="flex-shrink-0">
+              <button
+                @click.stop="deleteHistoryRecord(record.id, $event)"
+                class="flex h-8 w-8 items-center justify-center rounded-full bg-red-500 p-1 text-white transition-all hover:bg-red-600"
+                title="删除历史记录"
+              >
+                <svg
+                  class="h-5 w-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
             </div>
           </div>
         </div>

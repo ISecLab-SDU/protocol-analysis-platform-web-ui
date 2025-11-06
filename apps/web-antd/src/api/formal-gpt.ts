@@ -246,3 +246,34 @@ export async function fetchFormalGptProtocolDetail(protocolId: string) {
     throw error;
   }
 }
+
+/**
+ * 执行协议安全验证
+ */
+export async function runProtocolVerification(
+  protocolId: string,
+  selectedProperties: string[]
+): Promise<VerificationResults> {
+  const response = await fetch(`${BASE_PATH}/verify`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      protocolId,
+      selectedProperties,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  const result: ApiResponse<VerificationResults> = await response.json();
+
+  if (result.code === 0 && result.data) {
+    return result.data;
+  }
+
+  throw new Error(result.error || '验证失败');
+}

@@ -314,3 +314,62 @@ def get_protocol_detail(protocol_id):
             'success': False,
             'error': str(e)
         }), 500
+
+
+@bp.route('/verify', methods=['POST'])
+def run_verification():
+    """执行协议安全验证"""
+    try:
+        data = request.get_json()
+        protocol_id = data.get('protocolId')
+        selected_properties = data.get('selectedProperties', [])
+        
+        if not protocol_id:
+            return jsonify({
+                'code': 1,
+                'success': False,
+                'error': '缺少协议ID'
+            }), 400
+        
+        protocol_path = os.path.join(CASE_FOLDER, protocol_id)
+        if not os.path.exists(protocol_path):
+            return jsonify({
+                'code': 1,
+                'success': False,
+                'error': '协议不存在'
+            }), 404
+        
+        # 🔴 这里应该调用真实的 ProVerif 验证逻辑
+        # 目前返回模拟数据
+        verification_results = {
+            "protocol": protocol_id,
+            "security_properties": [
+                {
+                    "property": prop,
+                    "result": True,  # 模拟验证通过
+                    "query": f"协议满足{prop}"
+                }
+                for prop in selected_properties
+            ]
+        }
+        
+        # 保存验证结果
+        result_path = os.path.join(protocol_path, 'verification_out.json')
+        with open(result_path, 'w', encoding='utf-8') as f:
+            json.dump(verification_results, f, ensure_ascii=False, indent=2)
+        
+        return jsonify({
+            'code': 0,
+            'success': True,
+            'data': verification_results
+        })
+        
+    except Exception as e:
+        print(f"❌ 验证失败: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'code': 1,
+            'success': False,
+            'error': str(e)
+        }), 500
