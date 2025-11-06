@@ -761,11 +761,36 @@ export default {
 
       <!-- Step 2: Sequence Diagram -->
       <section v-if="currentStep === 1" class="p-8">
+        <!-- 统计数据 -->
+        <div class="mb-6 grid grid-cols-4 gap-4">
+          <div class="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <span
+              class="h-6 w-6 rounded border border-gray-300 bg-blue-500"
+            ></span>
+            <span class="text-sm">消息传递 <span class="font-semibold text-blue-600">({{ irStatistics[1] }})</span></span>
+          </div>
+          <div class="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <span
+              class="h-6 w-6 rounded border border-gray-300 bg-purple-500"
+            ></span>
+            <span class="text-sm">计算操作 <span class="font-semibold text-purple-600">({{ irStatistics[2] }})</span></span>
+          </div>
+          <div class="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <span
+              class="h-6 w-6 rounded border border-gray-300 bg-green-500"
+            ></span>
+            <span class="text-sm">验证操作 <span class="font-semibold text-green-600">({{ irStatistics[3] }})</span></span>
+          </div>
+          <div class="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <span
+              class="h-6 w-6 rounded border border-gray-300 bg-gray-500"
+            ></span>
+            <span class="text-sm">总操作数 <span class="font-semibold text-gray-600">({{ irStatistics[0] }})</span></span>
+          </div>
+        </div>
 
-        <!-- 主要内容区域：时序图（左）+ 图例（右） -->
-        <div class="flex gap-4">
-          <!-- 时序图区域 -->
-          <div class="flex-1 overflow-x-auto rounded-lg border border-gray-200 bg-white p-6">
+        <!-- 时序图区域 -->
+        <div class="overflow-x-auto rounded-lg border border-gray-200 bg-white p-6">
           <div class="flex min-w-[1400px] justify-between px-6">
             <!-- Party A Column -->
             <div class="flex w-1/3 flex-col items-center">
@@ -1107,39 +1132,6 @@ export default {
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-          <!-- 统计图例（右侧边栏） -->
-          <div class="flex w-48 flex-shrink-0 flex-col gap-3">
-            <div class="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
-              <span class="h-4 w-4 flex-shrink-0 rounded border border-gray-300 bg-blue-500"></span>
-              <div class="flex-1 min-w-0">
-                <div class="text-xs text-gray-600">消息传递</div>
-                <div class="text-sm font-semibold text-blue-600">({{ irStatistics[1] }})</div>
-              </div>
-            </div>
-            <div class="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
-              <span class="h-4 w-4 flex-shrink-0 rounded border border-gray-300 bg-purple-500"></span>
-              <div class="flex-1 min-w-0">
-                <div class="text-xs text-gray-600">计算操作</div>
-                <div class="text-sm font-semibold text-purple-600">({{ irStatistics[2] }})</div>
-              </div>
-            </div>
-            <div class="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
-              <span class="h-4 w-4 flex-shrink-0 rounded border border-gray-300 bg-green-500"></span>
-              <div class="flex-1 min-w-0">
-                <div class="text-xs text-gray-600">验证操作</div>
-                <div class="text-sm font-semibold text-green-600">({{ irStatistics[3] }})</div>
-              </div>
-            </div>
-            <div class="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
-              <span class="h-4 w-4 flex-shrink-0 rounded border border-gray-300 bg-gray-500"></span>
-              <div class="flex-1 min-w-0">
-                <div class="text-xs text-gray-600">总操作数</div>
-                <div class="text-sm font-semibold text-gray-600">({{ irStatistics[0] }})</div>
               </div>
             </div>
           </div>
