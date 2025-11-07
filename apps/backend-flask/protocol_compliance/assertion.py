@@ -1,7 +1,12 @@
-"""Assertion generation helpers and Docker orchestration glue."""
+"""Assertion generation helpers and Docker orchestration glue.
+
+Adds a follow-up Instrumentation operation after successful Assert generation.
+Also validates required environment variables for the instrumentation step.
+"""
 
 from __future__ import annotations
 
+import os
 import difflib
 import logging
 import re
@@ -205,6 +210,58 @@ class AssertGenerationProgressRegistry:
 PROGRESS_REGISTRY = AssertGenerationProgressRegistry()
 
 
+# ----------------------------------------------------------------------------
+# Environment setup for instrumentation
+# ----------------------------------------------------------------------------
+
+REQUIRED_INSTRUMENTATION_ENVS = ("ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL")
+INSTRUMENTATION_DIFF_FILENAME = "instrumentation.diff"
+INSTRUMENTATION_DIFF_MAX_PREVIEW_BYTES = 512 * 1024  # 512 KiB safety cap
+
+
+def _ensure_env_passthrough_for_instrumentation() -> None:
+    """Ensure ANTHROPIC_* vars are forwarded into analysis containers.
+
+    The Docker runner forwards variables listed in PG_ENV_VARS. Update it to
+    include the required ANTHROPIC_* keys before settings are materialized.
+    """
+    existing = os.environ.get("PG_ENV_VARS", "")
+    parts = [p.strip() for p in existing.split(",") if p.strip()]
+    changed = False
+    for key in REQUIRED_INSTRUMENTATION_ENVS:
+        if key not in parts:
+            parts.append(key)
+            changed = True
+    if changed:
+        os.environ["PG_ENV_VARS"] = ",".join(parts)
+
+
+def _ensure_keep_artifacts_enabled() -> None:
+    """Keep artefacts so the follow-up instrumentation can reuse /workspace.
+
+    Assert emits state under /workspace which instrumentation consumes.
+    """
+    os.environ.setdefault("PG_KEEP_ARTIFACTS", "1")
+
+
+def _assert_required_instrumentation_env() -> None:
+    """Validate ANTHROPIC envs exist; raise if missing.
+
+    This check protects the instrumentation step. We do not eagerly exit the
+    whole service on import; instead, fail fast when instrumentation runs.
+    """
+    missing = [name for name in REQUIRED_INSTRUMENTATION_ENVS if not os.environ.get(name)]
+    if missing:
+        raise AssertGenerationNotReadyError(
+            "Missing required environment variables for instrumentation: " + ", ".join(missing)
+        )
+
+
+# Apply environment adjustments before docker settings are cached
+_ensure_env_passthrough_for_instrumentation()
+_ensure_keep_artifacts_enabled()
+
+
 @lru_cache(maxsize=1)
 def _docker_settings() -> ProtocolGuardDockerSettings:
     return ProtocolGuardDockerSettings.from_env()
@@ -221,7 +278,12 @@ def run_assert_generation(
     job_id: Optional[str] = None,
     progress_callback: Optional[Callable[[str, str, str], None]] = None,
 ) -> Dict[str, object]:
-    """Dispatch assertion generation via Docker."""
+    """Dispatch assertion generation via Docker followed by instrumentation.
+
+    On success, triggers an instrumentation container using the same workspace
+    and merges its artefacts into the returned result under the "instrumentation"
+    key.
+    """
 
     job_identifier = job_id or str(uuid.uuid4())
     settings = _docker_settings()
@@ -234,7 +296,7 @@ def run_assert_generation(
         raise AssertGenerationNotReadyError(str(exc)) from exc
 
     try:
-        return runner.run_assert_generation(
+        base_result = runner.run_assert_generation(
             code_stream=code_stream,
             code_filename=code_file_name,
             database_stream=database_stream,
@@ -244,6 +306,45 @@ def run_assert_generation(
             job_id=job_identifier,
             progress_callback=progress_callback,
         )
+        # Follow-up: run instrumentation using the prepared workspace/output.
+        try:
+            if progress_callback:
+                progress_callback(job_identifier, "instrumentation", "Preparing instrumentation environment")
+            _assert_required_instrumentation_env()
+
+            # Resolve workspace and output mounts from assertion result
+            artifacts = base_result.get("artifacts") if isinstance(base_result, dict) else None
+            workspace_dir = Path(artifacts.get("workspace")) if isinstance(artifacts, dict) else None
+            output_dir = Path(artifacts.get("output")) if isinstance(artifacts, dict) else None
+
+            if not workspace_dir or not output_dir:
+                raise AssertGenerationError("Assertion step did not return workspace/output artefacts")
+            if not workspace_dir.exists() or not output_dir.exists():
+                raise AssertGenerationError("Workspace or output directory missing before instrumentation")
+
+            if progress_callback:
+                progress_callback(job_identifier, "instrumentation", "Launching instrumentation container")
+
+            instr_details = _run_instrumentation_container(
+                image=_docker_settings().analysis_image,
+                network=_docker_settings().network,
+                workspace=workspace_dir,
+                output=output_dir,
+                extra_args=(["--limit", str(limit_env)] if (limit_env := os.environ.get("PG_INSTRUMENTATION_LIMIT")) else None),
+                job_id=job_identifier,
+                progress_callback=progress_callback,
+            )
+
+            # Merge instrumentation details into the base result
+            if isinstance(base_result, dict):
+                base_result["instrumentation"] = instr_details
+            if progress_callback:
+                progress_callback(job_identifier, "instrumentation", "Instrumentation completed successfully")
+        except AssertGenerationError:
+            raise
+        except Exception as exc:
+            raise AssertGenerationError(f"Instrumentation step failed: {exc}") from exc
+        return base_result
     except ProtocolGuardExecutionError as exc:
         details: Dict[str, object] = {
             "image": getattr(exc, "image", None),
@@ -258,6 +359,214 @@ def run_assert_generation(
         ) from exc
     except ProtocolGuardDockerError as exc:
         raise AssertGenerationError(str(exc)) from exc
+
+
+def _run_instrumentation_container(
+    *,
+    image: str,
+    network: Optional[str],
+    workspace: Path,
+    output: Path,
+    extra_args: Optional[List[str]] = None,
+    job_id: Optional[str] = None,
+    progress_callback: Optional[Callable[[str, str, str], None]] = None,
+) -> Dict[str, object]:
+    """Run the ProtocolGuard instrumentation container and collect results.
+
+    Uses the same image as assertion generation. Mounts the given workspace as
+    /workspace and the output dir as /out. Requires ANTHROPIC_* env variables.
+    """
+    start_ts = time.time()
+    command: List[str] = [
+        "instrumentation",
+        "--target-dir",
+        "/workspace",
+    ]
+    args = list(extra_args or [])
+
+    def _find_flag_value(tokens: List[str], flag: str) -> Optional[str]:
+        for idx, token in enumerate(tokens):
+            if token == flag and idx + 1 < len(tokens):
+                return tokens[idx + 1]
+        return None
+
+    def _resolve_diff_output_path(value: Optional[str]) -> Optional[Path]:
+        if not value:
+            return None
+        diff_path = Path(value)
+        if diff_path.is_absolute():
+            try:
+                relative = diff_path.relative_to("/out")
+            except ValueError:
+                LOGGER.warning(
+                    "Diff output path %s is outside /out; using file name within host output directory",
+                    diff_path,
+                )
+                return (output / diff_path.name).resolve()
+            return (output / relative).resolve()
+        return (output / diff_path).resolve()
+
+    # Always enforce a default limit for testing if not provided explicitly.
+    has_limit = False
+    for idx, token in enumerate(args):
+        if token == "--limit":
+            has_limit = True
+            break
+    if not has_limit:
+        args.extend(["--limit", "1"])
+
+    diff_output_arg = _find_flag_value(args, "--diff-output")
+    if not diff_output_arg:
+        diff_output_arg = f"/out/{INSTRUMENTATION_DIFF_FILENAME}"
+        args.extend(["--diff-output", diff_output_arg])
+
+    command.extend(args)
+    diff_host_path = _resolve_diff_output_path(diff_output_arg)
+
+    def _emit(stage: str, message: str) -> None:
+        LOGGER.info("[job %s][%s] %s", job_id or "-", stage, message)
+        if progress_callback:
+            try:
+                progress_callback(job_id or "", stage, message)
+            except Exception:  # pragma: no cover - defensive
+                LOGGER.debug("Progress callback failed during instrumentation for job %s", job_id, exc_info=True)
+
+    # Build environment forwarded to the container
+    env = {
+        "ANTHROPIC_API_KEY": os.environ.get("ANTHROPIC_API_KEY", ""),
+        "ANTHROPIC_BASE_URL": os.environ.get("ANTHROPIC_BASE_URL", ""),
+    }
+
+    # Prefer Docker SDK; fall back to CLI if unavailable
+    try:
+        import docker  # type: ignore
+        from docker.errors import DockerException  # type: ignore
+
+        client = docker.from_env()
+        _emit("instrumentation", f"Starting instrumentation container (image={image}, command={' '.join(command)})")
+        container = client.containers.run(
+            image=image,
+            command=command,
+            volumes={
+                str(workspace.resolve()): {"bind": "/workspace", "mode": "rw"},
+                str(output.resolve()): {"bind": "/out", "mode": "rw"},
+            },
+            environment=env,
+            detach=True,
+            remove=True,
+            stdout=True,
+            stderr=True,
+            network=network,
+        )
+
+        logs: List[str] = []
+        for chunk in container.logs(stream=True, follow=True):
+            line = chunk.decode("utf-8", errors="replace").rstrip()
+            logs.append(line)
+            if line:
+                display = line if len(line) <= 2000 else f"{line[:2000]}..."
+                _emit("instrumentation-log", display)
+
+        result = container.wait()
+        status = int(result.get("StatusCode", 1))
+        if status != 0:
+            excerpt = "\n".join(logs[-40:]) if logs else None
+            raise AssertGenerationExecutionError(
+                f"Instrumentation container exited with status {status}",
+                logs=logs,
+                details={"logExcerpt": excerpt, "image": image, "status": status},
+            )
+    except ModuleNotFoundError:
+        # Use docker CLI as a fallback
+        _emit("instrumentation", "Docker SDK not available; falling back to docker CLI for instrumentation")
+        import subprocess
+
+        cli_cmd = [
+            "docker",
+            "run",
+            "--rm",
+            "-e",
+            f"ANTHROPIC_API_KEY={env['ANTHROPIC_API_KEY']}",
+            "-e",
+            f"ANTHROPIC_BASE_URL={env['ANTHROPIC_BASE_URL']}",
+            "-v",
+            f"{str(workspace.resolve())}:/workspace",
+            "-v",
+            f"{str(output.resolve())}:/out",
+        ]
+        if network:
+            cli_cmd.extend(["--network", network])
+        cli_cmd.append(image)
+        cli_cmd.extend(command)
+
+        _emit("instrumentation", f"Running via docker CLI: {' '.join(cli_cmd)}")
+        process = subprocess.Popen(cli_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        logs = []  # type: ignore[redeclared]
+        assert process.stdout is not None
+        for line in process.stdout:
+            line = line.rstrip()
+            logs.append(line)
+            if line:
+                display = line if len(line) <= 2000 else f"{line[:2000]}..."
+                _emit("instrumentation-log", display)
+        status = process.wait()
+        if status != 0:
+            excerpt = "\n".join(logs[-40:]) if logs else None
+            raise AssertGenerationExecutionError(
+                f"Instrumentation container exited with status {status}",
+                logs=logs,
+                details={"logExcerpt": excerpt, "image": image, "status": status},
+            )
+    except Exception as exc:
+        # Normalize docker-related errors
+        raise AssertGenerationError(f"Failed to run instrumentation container: {exc}") from exc
+
+    duration_ms = int((time.time() - start_ts) * 1000)
+
+    # Gather artefacts from /out
+    instrumented_code = output / "instrumented_code"
+    diff_files = sorted([str(p) for p in output.glob("*.diff") if p.is_file()])
+    diff_output_info: Dict[str, object] = {
+        "path": str(diff_host_path) if diff_host_path else None,
+        "available": False,
+    }
+    if diff_host_path and diff_host_path.exists():
+        diff_size = diff_host_path.stat().st_size
+        diff_preview: Optional[str] = None
+        truncated = False
+        try:
+            diff_preview = diff_host_path.read_text(encoding="utf-8", errors="replace")
+        except Exception as exc:  # pragma: no cover - best effort
+            LOGGER.warning("Failed to read instrumentation diff file %s: %s", diff_host_path, exc)
+        else:
+            if len(diff_preview) > INSTRUMENTATION_DIFF_MAX_PREVIEW_BYTES:
+                diff_preview = diff_preview[:INSTRUMENTATION_DIFF_MAX_PREVIEW_BYTES]
+                truncated = True
+        diff_output_info.update(
+            {
+                "available": True,
+                "size": diff_size,
+                "content": diff_preview,
+                "truncated": truncated,
+            }
+        )
+
+    details: Dict[str, object] = {
+        "docker": {
+            "image": image,
+            "command": list(command),
+            "durationMs": duration_ms,
+        },
+        "artifacts": {
+            "instrumentedCodePath": str(instrumented_code) if instrumented_code.exists() else None,
+            "diffFiles": diff_files or [],
+            "diffOutput": diff_output_info,
+        },
+        "logs": logs,
+        "completedAt": _now_iso(),
+    }
+
+    return details
 
 
 def submit_assert_generation_job(

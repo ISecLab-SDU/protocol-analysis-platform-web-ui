@@ -239,9 +239,10 @@ class ProtocolGuardDockerRunner:
 
         self._log_step(job_paths, "init", "Starting ProtocolGuard assertion generation job")
 
-        command_env = os.environ.get("PG_ASSERT_COMMAND")
-        parsed_command = shlex.split(command_env) if command_env else ["assert"]
-        command = tuple(parsed_command or ["assert"])
+        if not build_instructions or not build_instructions.strip():
+            raise ProtocolGuardDockerError("Build instructions are required for assertion generation")
+
+        command = ["assert", "--compile-command", build_instructions.strip()]
 
         try:
             self._log_step(job_paths, "workspace", "Preparing workspace directories")
@@ -297,25 +298,25 @@ class ProtocolGuardDockerRunner:
             logs = self._run_analysis(job_paths, command=command)
             self._log_step(job_paths, "analysis", "Assertion generation container completed successfully")
 
-            cursorkleosr_dir = self._find_cursorkleosr_directory(job_paths.workspace)
-            if cursorkleosr_dir is None:
+            assert_tasks_dir = job_paths.output / "assert_tasks"
+            if not assert_tasks_dir.exists() or not assert_tasks_dir.is_dir():
                 raise ProtocolGuardExecutionError(
-                    "Assertion generation completed but cursorkleosr directory was not found in the workspace.",
+                    "Assertion generation completed but assert_tasks directory was not found in /out.",
                     logs=logs,
                     image=self._settings.analysis_image,
                     status=0,
                 )
 
-            zip_destination = job_paths.output / "cursorkleosr.zip"
-            self._log_step(job_paths, "results", "Packaging cursorkleosr artefacts into ZIP archive")
-            self._zip_directory(cursorkleosr_dir, zip_destination)
+            zip_destination = job_paths.output / "assert_tasks.zip"
+            self._log_step(job_paths, "results", "Packaging assert_tasks artefacts into ZIP archive")
+            self._zip_directory(assert_tasks_dir, zip_destination)
 
             self._snapshot_workspace(job_paths, stage="post-run")
 
             workspace_snapshots = [dict(snapshot) for snapshot in self._current_workspace_snapshots]
             duration_ms = int((time.time() - start) * 1000)
             now_iso = datetime.now(timezone.utc).isoformat()
-            assertion_count = self._count_files(cursorkleosr_dir)
+            assertion_count = self._count_files(assert_tasks_dir)
             protocol_name = self._settings.default_protocol_name
 
             result: Dict[str, object] = {
@@ -845,23 +846,39 @@ class ProtocolGuardDockerRunner:
             )
             return
 
-        image_reference = image_details.id or self._settings.analysis_image
-        try:
-            output = self._client.containers.run(
-                image=image_reference,
-                command=["/bin/sh", "-c", preview_command],
-                volumes=volumes,
-                environment=environment,
-                stdout=True,
-                stderr=True,
-                remove=True,
-                network=self._settings.network,
-            )
-        except DockerException as exc:  # pragma: no cover - requires docker engine
+        # Prefer the tagged reference for readability; fall back to image ID.
+        image_reference = self._settings.analysis_image or image_details.id
+        # Some Docker SDK versions are finicky about entrypoint types; try robust fallbacks.
+        run_attempts = [
+            {"entrypoint": ["/bin/sh", "-lc"], "command": [preview_command]},
+            {"entrypoint": ["bash", "-lc"], "command": [preview_command]},
+            {"entrypoint": "/bin/sh", "command": ["-c", preview_command]},
+        ]
+
+        last_error: Optional[Exception] = None
+        for attempt in run_attempts:
+            try:
+                output = self._client.containers.run(
+                    image=image_reference,
+                    entrypoint=attempt["entrypoint"],
+                    command=attempt["command"],
+                    volumes=volumes,
+                    environment=environment,
+                    stdout=True,
+                    stderr=True,
+                    remove=True,
+                    network=self._settings.network,
+                )
+                break
+            except DockerException as exc:  # pragma: no cover - requires docker engine
+                last_error = exc
+                continue
+        else:
+            # All attempts failed; log the last error and continue without inspection.
             self._log_step(
                 job_paths,
                 "analysis-debug",
-                f"Failed to inspect /workspace mount before analysis: {exc}",
+                f"Failed to inspect /workspace mount before analysis: {last_error}",
                 level=logging.WARNING,
             )
             return
@@ -1112,12 +1129,6 @@ class ProtocolGuardDockerRunner:
         if not candidates:
             return None
         return candidates[0]
-
-    def _find_cursorkleosr_directory(self, workspace: Path) -> Optional[Path]:
-        for candidate in workspace.rglob("cursorkleosr"):
-            if candidate.is_dir():
-                return candidate
-        return None
 
     def _zip_directory(self, source: Path, destination: Path) -> Path:
         destination.parent.mkdir(parents=True, exist_ok=True)

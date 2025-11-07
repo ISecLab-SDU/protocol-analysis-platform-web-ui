@@ -7,8 +7,8 @@ import type {
   ProtocolAssertGenerationProgressEvent,
   ProtocolAssertGenerationResult,
   ProtocolDiffParsingJob,
-  ProtocolDiffParsingProgressEvent,
   ProtocolDiffParsingResult,
+  ProtocolInstrumentationDiffResponse,
 } from '#/api/protocol-compliance';
 
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue';
@@ -19,10 +19,12 @@ import '@git-diff-view/vue/styles/diff-view.css';
 import { DiffView, DiffModeEnum } from '@git-diff-view/vue';
 
 import {
+  Alert,
   Button,
   Card,
   Collapse,
   Descriptions,
+  Empty,
   Form,
   FormItem,
   Input,
@@ -38,11 +40,9 @@ import {
 import {
   fetchProtocolAssertGenerationProgress,
   fetchProtocolAssertGenerationResult,
+  fetchProtocolInstrumentationDiff,
   runProtocolAssertGeneration,
   downloadProtocolAssertGenerationResult,
-  startProtocolDiffParsing,
-  fetchProtocolDiffParsingProgress,
-  fetchProtocolDiffParsingResult,
 } from '#/api/protocol-compliance';
 
 const formRef = ref<FormInstance>();
@@ -71,6 +71,11 @@ const diffPollingTimer = ref<null | number>(null);
 const diffProgressLogs = ref<string[]>([]);
 const diffProgressError = ref<null | string>(null);
 const activeDiffFileKeys = ref<number[]>([]);
+
+// Instrumentation diff state
+const instrumentationDiff = ref<null | ProtocolInstrumentationDiffResponse>(null);
+const instrumentationDiffLoading = ref(false);
+const instrumentationDiffError = ref<null | string>(null);
 
 const PROGRESS_STATUS_META: Record<
   ProtocolAssertGenerationJob['status'],
@@ -182,6 +187,78 @@ const diffProgressPercentage = computed(
   () => activeDiffJob.value?.percentage ?? 0,
 );
 
+const instrumentationResult = computed(
+  () => analysisResult.value?.instrumentation ?? null,
+);
+
+const canRequestInstrumentationDiff = computed(
+  () => progressStatus.value === 'completed' && !!activeJobId.value,
+);
+
+const instrumentationDiffStatusLabel = computed(() => {
+  if (!instrumentationResult.value) {
+    return '未执行';
+  }
+  if (instrumentationDiff.value?.content) {
+    return '已加载';
+  }
+  if (instrumentationDiff.value?.available) {
+    return '可下载';
+  }
+  return '待生成';
+});
+
+const instrumentationDiffStatusColor = computed(() => {
+  if (!instrumentationResult.value) {
+    return 'default';
+  }
+  if (instrumentationDiff.value?.content) {
+    return 'success';
+  }
+  if (instrumentationDiff.value?.available) {
+    return 'processing';
+  }
+  return 'default';
+});
+
+const instrumentationDiffFilename = computed(() => {
+  const path = instrumentationDiff.value?.path;
+  if (!path) {
+    return 'instrumentation.diff';
+  }
+  const segments = path.split('/').filter(Boolean);
+  return segments.length ? segments[segments.length - 1] : path;
+});
+
+const instrumentationDiffSizeLabel = computed(() => {
+  const size = instrumentationDiff.value?.size;
+  if (!size || Number.isNaN(size)) {
+    return null;
+  }
+  return formatBytes(size);
+});
+
+const instrumentationDiffViewData = computed(() => {
+  const diffContent = instrumentationDiff.value?.content;
+  if (!diffContent) {
+    return null;
+  }
+  const trimmed = extractUnifiedDiffBody(diffContent);
+  if (!trimmed) {
+    return null;
+  }
+  const label = instrumentationDiffFilename.value;
+  return {
+    oldFile: {
+      fileName: label,
+    },
+    newFile: {
+      fileName: label,
+    },
+    hunks: [trimmed],
+  };
+});
+
 // Transform diff data for @git-diff-view/vue
 const transformedDiffFiles = computed(() => {
   if (!diffResult.value) return [];
@@ -207,16 +284,43 @@ const transformedDiffFiles = computed(() => {
     return {
       oldFile: {
         fileName: file.from,
-        content: '',
       },
       newFile: {
         fileName: file.to,
-        content: '',
       },
-      hunks: [completeDiff],
+      hunks: [completeDiff.trim()],
     };
   });
 });
+
+function formatBytes(input: number, fractionDigits = 1) {
+  if (!Number.isFinite(input) || input <= 0) {
+    return `${input || 0} B`;
+  }
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const base = Math.floor(Math.log(input) / Math.log(1024));
+  const unit = units[Math.min(base, units.length - 1)];
+  const value = input / 1024 ** Math.min(base, units.length - 1);
+  return `${value.toFixed(fractionDigits)} ${unit}`;
+}
+
+function extractUnifiedDiffBody(diffText: string): string | null {
+  const normalized = diffText.replace(/\r\n/g, '\n');
+  const lines = normalized.split('\n');
+  const startIndex = lines.findIndex((line) => {
+    const trimmed = line.trimStart();
+    return (
+      trimmed.startsWith('diff --git') ||
+      trimmed.startsWith('--- ') ||
+      trimmed.startsWith('+++ ') ||
+      trimmed.startsWith('@@ ')
+    );
+  });
+
+  const diffLines = startIndex >= 0 ? lines.slice(startIndex) : lines;
+  const body = diffLines.join('\n').trim();
+  return body.length ? body : null;
+}
 
 const progressTextRef = ref<HTMLDivElement>();
 
@@ -227,6 +331,20 @@ watch(progressText, () => {
     }
   });
 });
+
+watch(
+  () => analysisResult.value?.instrumentation?.artifacts?.diffOutput,
+  (diffOutput) => {
+    if (!diffOutput) {
+      instrumentationDiff.value = null;
+      instrumentationDiffError.value = null;
+      return;
+    }
+    instrumentationDiff.value = diffOutput;
+    instrumentationDiffError.value = null;
+  },
+  { immediate: true },
+);
 
 function toProgressLine(event: ProtocolAssertGenerationProgressEvent) {
   const timeLabel = (() => {
@@ -264,12 +382,39 @@ function stopDiffPolling() {
   }
 }
 
+async function handleFetchInstrumentationDiff() {
+  if (!activeJobId.value) {
+    return;
+  }
+  instrumentationDiffLoading.value = true;
+  instrumentationDiffError.value = null;
+  try {
+    const diffPayload = await fetchProtocolInstrumentationDiff(
+      activeJobId.value,
+    );
+    instrumentationDiff.value = diffPayload;
+    if (!diffPayload?.content) {
+      instrumentationDiffError.value = '后端未返回 diff 内容';
+    } else {
+      message.success('已获取最新 Instrumentation diff');
+    }
+  } catch (error) {
+    const messageText =
+      error instanceof Error ? error.message : String(error ?? '');
+    instrumentationDiffError.value = messageText || '无法获取 diff 文件';
+    message.error(`获取 Instrumentation diff 失败：${messageText}`);
+  } finally {
+    instrumentationDiffLoading.value = false;
+  }
+}
+
 function resetProgressState() {
   stopPolling();
   activeJob.value = null;
   activeJobId.value = null;
   progressLogs.value = [];
   progressError.value = null;
+  resetInstrumentationDiffState();
 }
 
 function resetDiffProgressState() {
@@ -279,6 +424,12 @@ function resetDiffProgressState() {
   diffResult.value = null;
   diffProgressLogs.value = [];
   diffProgressError.value = null;
+}
+
+function resetInstrumentationDiffState() {
+  instrumentationDiff.value = null;
+  instrumentationDiffError.value = null;
+  instrumentationDiffLoading.value = false;
 }
 
 async function handleStatusTransition(
@@ -295,8 +446,6 @@ async function handleStatusTransition(
       analysisResult.value = result;
       if (previousStatus !== 'completed') {
         message.success('断言生成完成');
-        // Automatically start diff parsing
-        await startDiffParsingWorkflow(snapshot.jobId);
       }
     } catch (error) {
       const messageText =
@@ -313,6 +462,7 @@ async function handleStatusTransition(
     stopPolling();
     isSubmitting.value = false;
     analysisResult.value = null;
+    resetInstrumentationDiffState();
     const failure =
       snapshot.error ?? snapshot.message ?? '断言生成失败，请查看后台日志';
     if (previousStatus !== 'failed') {
@@ -447,109 +597,6 @@ const handleDatabaseRemove: UploadProps['onRemove'] = () => {
   formRef.value?.validateFields?.(['database']);
   return true;
 };
-
-function toDiffProgressLine(event: ProtocolDiffParsingProgressEvent) {
-  const timeLabel = (() => {
-    try {
-      return logFormatter.format(new Date(event.timestamp));
-    } catch {
-      return event.timestamp ?? '';
-    }
-  })();
-  const stage = event.stage || 'unknown';
-  const messageText = event.message || '';
-  const percentage = event.percentage || 0;
-  return `[${timeLabel}] (${stage}) ${messageText} [${percentage}%]`;
-}
-
-function applyDiffProgressSnapshot(snapshot: ProtocolDiffParsingJob) {
-  activeDiffJob.value = snapshot;
-  activeDiffJobId.value = snapshot.jobId;
-  diffProgressError.value = snapshot.error ?? null;
-  diffProgressLogs.value = snapshot.events?.length
-    ? snapshot.events.map((event) => toDiffProgressLine(event))
-    : [];
-}
-
-async function handleDiffStatusTransition(
-  previousStatus: null | ProtocolDiffParsingJob['status'],
-  snapshot: ProtocolDiffParsingJob,
-) {
-  if (snapshot.status === 'completed') {
-    stopDiffPolling();
-    try {
-      const result =
-        snapshot.result ??
-        (await fetchProtocolDiffParsingResult(
-          snapshot.parentJobId,
-          snapshot.jobId,
-        ));
-      diffResult.value = result;
-      // Auto-expand first file in diff
-      if (result.files.length > 0) {
-        activeDiffFileKeys.value = [0];
-      }
-      if (previousStatus !== 'completed') {
-        message.success('差异解析完成');
-      }
-    } catch (error) {
-      const messageText =
-        error instanceof Error ? error.message : String(error ?? '');
-      diffProgressError.value = messageText || '无法获取解析结果';
-      if (previousStatus !== 'completed') {
-        message.error(`获取差异解析结果失败：${messageText}`);
-      }
-    }
-    return;
-  }
-
-  if (snapshot.status === 'failed') {
-    stopDiffPolling();
-    diffResult.value = null;
-    const failure =
-      snapshot.error ?? snapshot.message ?? '差异解析失败，请查看后台日志';
-    if (previousStatus !== 'failed') {
-      message.error(failure);
-    }
-  }
-}
-
-async function refreshDiffProgress(assertJobId: string, diffJobId: string) {
-  const previousStatus = activeDiffJob.value?.status ?? null;
-  const snapshot = await fetchProtocolDiffParsingProgress(
-    assertJobId,
-    diffJobId,
-  );
-  applyDiffProgressSnapshot(snapshot);
-  await handleDiffStatusTransition(previousStatus, snapshot);
-}
-
-function scheduleDiffPolling(assertJobId: string, diffJobId: string) {
-  stopDiffPolling();
-  diffPollingTimer.value = window.setInterval(() => {
-    refreshDiffProgress(assertJobId, diffJobId).catch((error) => {
-      diffProgressError.value =
-        error instanceof Error ? error.message : String(error ?? '');
-    });
-  }, 1500);
-}
-
-async function startDiffParsingWorkflow(assertJobId: string) {
-  try {
-    resetDiffProgressState();
-    const snapshot = await startProtocolDiffParsing(assertJobId);
-    applyDiffProgressSnapshot(snapshot);
-    await handleDiffStatusTransition(null, snapshot);
-    if (snapshot.status === 'queued' || snapshot.status === 'running') {
-      scheduleDiffPolling(assertJobId, snapshot.jobId);
-    }
-  } catch (error) {
-    const messageText =
-      error instanceof Error ? error.message : String(error ?? '');
-    diffProgressError.value = messageText || '差异解析启动失败';
-    message.error(`启动差异解析失败：${messageText}`);
-  }
-}
 
 function handleReset() {
   formRef.value?.resetFields();
@@ -787,6 +834,89 @@ async function handleSubmit() {
             {{ analysisResult.generatedAt || '未知' }}
           </Descriptions.Item>
         </Descriptions>
+      </Card>
+
+      <Card
+        v-if="analysisResult"
+        class="instrumentation-card"
+      >
+        <template #title>
+          <Space>
+            <IconifyIcon icon="ant-design:diff-outlined" class="text-lg" />
+            <span>Instrumentation 变更</span>
+          </Space>
+        </template>
+        <template #extra>
+          <Space>
+            <Tag :color="instrumentationDiffStatusColor">
+              {{ instrumentationDiffStatusLabel }}
+            </Tag>
+            <Button
+              :disabled="!canRequestInstrumentationDiff"
+              :loading="instrumentationDiffLoading"
+              size="small"
+              type="link"
+              @click="handleFetchInstrumentationDiff"
+            >
+              <IconifyIcon icon="ant-design:reload-outlined" class="mr-1" />
+              获取最新 Diff
+            </Button>
+          </Space>
+        </template>
+        <div class="instrumentation-meta">
+          <Space direction="vertical" size="small">
+            <Typography.Text type="secondary">
+              完成时间：{{ instrumentationResult?.completedAt || '未知' }}
+            </Typography.Text>
+            <Typography.Text>
+              <span>文件： </span>
+              <Typography.Text code>
+                {{ instrumentationDiff?.path || 'instrumentation.diff' }}
+              </Typography.Text>
+              <span v-if="instrumentationDiffSizeLabel" class="ml-2 text-xs">
+                ({{ instrumentationDiffSizeLabel }})
+              </span>
+            </Typography.Text>
+            <Typography.Text
+              v-if="instrumentationDiff?.truncated"
+              type="warning"
+            >
+              Diff 内容较大，当前展示已截断
+            </Typography.Text>
+          </Space>
+        </div>
+        <Alert
+          v-if="instrumentationDiffError"
+          class="mb-3"
+          show-icon
+          type="error"
+          :message="instrumentationDiffError"
+        />
+        <div class="instrumentation-diff-wrapper">
+          <div
+            v-if="instrumentationDiffLoading"
+            class="instrumentation-diff-placeholder"
+          >
+            正在拉取 diff 内容...
+          </div>
+          <div
+            v-else-if="instrumentationDiffViewData"
+            class="instrumentation-diff-view"
+          >
+            <DiffView
+              :data="instrumentationDiffViewData"
+              :diff-view-mode="DiffModeEnum.Unified"
+              :diff-view-highlight="true"
+              :diff-view-theme="'light'"
+              :diff-view-font-size="13"
+            />
+          </div>
+          <Empty
+            v-else
+            description="暂未获取 Instrumentation diff"
+            :image="Empty.PRESENTED_IMAGE_SIMPLE"
+          />
+        </div>
       </Card>
 
       <!-- 差异解析进度 -->
@@ -1125,6 +1255,31 @@ async function handleSubmit() {
 
 .diff-collapse {
   background-color: transparent;
+}
+
+.instrumentation-card {
+  margin-top: 8px;
+}
+
+.instrumentation-meta {
+  padding: 8px 0 12px;
+}
+
+.instrumentation-diff-wrapper {
+  min-height: 160px;
+  border: 1px solid var(--ant-color-border);
+  border-radius: var(--ant-border-radius);
+  padding: 12px;
+  background-color: var(--ant-color-fill-quaternary);
+}
+
+.instrumentation-diff-placeholder {
+  font-size: 13px;
+  color: var(--ant-text-color-secondary);
+}
+
+.instrumentation-diff-view {
+  overflow-x: auto;
 }
 
 .diff-collapse :deep(.ant-collapse-item) {

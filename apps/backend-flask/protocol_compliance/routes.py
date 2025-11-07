@@ -497,7 +497,7 @@ def static_analysis_database_insights():
             "warnings": warnings or None,
         }
         LOGGER.warning(
-            "Unable to resolve SQLite database for static analysis insights",
+            f"Unable to resolve SQLite database for static analysis insights: databasePath={database_path_raw!r}, workspacePath={workspace_path_raw!r}",
             extra=detail,
         )
         return make_response(
@@ -803,6 +803,40 @@ def assertion_generation_download(job_id: str):
         download_name=download_name,
         max_age=0,
     )
+
+
+@bp.route("/assertion-generation/<job_id>/instrumentation-diff", methods=["GET"])
+def assertion_generation_instrumentation_diff(job_id: str):
+    """Fetch the instrumentation diff for a completed assertion generation job."""
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+
+    result = get_assert_generation_result(job_id)
+    if result is None:
+        snapshot = get_assert_generation_job(job_id)
+        if not snapshot:
+            return make_response(error_response("未找到断言生成任务"), 404)
+        status = snapshot.get("status")
+        return make_response(
+            error_response("断言生成任务尚未完成", {"status": status}),
+            409,
+        )
+    
+    # Extract instrumentation diff from result
+    instrumentation = result.get("instrumentation")
+    if not instrumentation or not isinstance(instrumentation, dict):
+        return make_response(error_response("未找到 instrumentation 数据"), 404)
+    
+    artifacts = instrumentation.get("artifacts")
+    if not artifacts or not isinstance(artifacts, dict):
+        return make_response(error_response("未找到 instrumentation artifacts"), 404)
+    
+    diff_output = artifacts.get("diffOutput")
+    if not diff_output or not isinstance(diff_output, dict):
+        return make_response(error_response("未找到 instrumentation diff 输出"), 404)
+    
+    return make_response(success_response(diff_output), 200)
 
 
 # Diff Parsing Routes -----------------------------------------------------------

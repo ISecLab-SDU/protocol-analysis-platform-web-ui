@@ -341,9 +341,63 @@ export interface ProtocolAssertGenerationProgressEvent {
   timestamp: string;
 }
 
+export interface ProtocolAssertGenerationInputInfo {
+  buildInstructions?: null | string;
+  codeFileName?: string;
+  databaseFileName?: string;
+  notes?: null | string;
+}
+
+export interface ProtocolAssertGenerationArtifactInfo {
+  database?: string;
+  logs?: string;
+  output?: string;
+  workspace?: string;
+  workspaceSnapshots?: Array<{ stage?: string; path?: string }>;
+  zipPath?: string;
+}
+
+export interface ProtocolAssertGenerationDockerInfo {
+  command?: string[];
+  durationMs?: number;
+  image?: string;
+  logs?: string[];
+}
+
+export interface ProtocolInstrumentationDiffOutput {
+  available: boolean;
+  content?: string | null;
+  path?: string | null;
+  size?: number;
+  truncated?: boolean;
+}
+
+export interface ProtocolInstrumentationArtifacts {
+  diffFiles?: string[];
+  diffOutput?: ProtocolInstrumentationDiffOutput;
+  instrumentedCodePath?: string | null;
+}
+
+export interface ProtocolInstrumentationDockerInfo {
+  command?: string[];
+  durationMs?: number;
+  image?: string;
+}
+
+export interface ProtocolInstrumentationResult {
+  artifacts?: ProtocolInstrumentationArtifacts;
+  completedAt?: string;
+  docker?: ProtocolInstrumentationDockerInfo;
+  logs?: string[];
+}
+
 export interface ProtocolAssertGenerationResult {
   assertionCount: number;
+  artifacts?: ProtocolAssertGenerationArtifactInfo;
+  docker?: ProtocolAssertGenerationDockerInfo;
   generatedAt: string;
+  inputs?: ProtocolAssertGenerationInputInfo;
+  instrumentation?: ProtocolInstrumentationResult;
   jobId: string;
   protocolName: string;
 }
@@ -399,6 +453,14 @@ export function fetchProtocolAssertGenerationProgress(jobId: string) {
 export function fetchProtocolAssertGenerationResult(jobId: string) {
   return requestClient.get<ProtocolAssertGenerationResult>(
     `/protocol-compliance/assertion-generation/${jobId}/result`,
+  );
+}
+
+export type ProtocolInstrumentationDiffResponse = ProtocolInstrumentationDiffOutput;
+
+export function fetchProtocolInstrumentationDiff(jobId: string) {
+  return requestClient.get<ProtocolInstrumentationDiffResponse>(
+    `/protocol-compliance/assertion-generation/${jobId}/instrumentation-diff`,
   );
 }
 
