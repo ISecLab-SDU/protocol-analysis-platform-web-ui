@@ -5,7 +5,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       icon: 'lucide:shield-check',
       order: 1,
-      title: '协议合规性分析',
+      title: '协议合规与安全性分析',
     },
     name: 'ProtocolCompliance',
     path: '/protocol-compliance',
@@ -16,7 +16,7 @@ const routes: RouteRecordRaw[] = [
         component: () =>
           import('#/views/protocol-compliance/extract/index.vue'),
         meta: {
-          title: '协议规则提取',
+          title: '协议代码提取',
         },
       },
       {
@@ -24,7 +24,7 @@ const routes: RouteRecordRaw[] = [
         path: '/protocol-compliance/static',
         component: () => import('#/views/protocol-compliance/static/index.vue'),
         meta: {
-          title: '静态分析',
+          title: '协议合规生成',
         },
       },
       {
@@ -33,7 +33,7 @@ const routes: RouteRecordRaw[] = [
         component: () =>
           import('#/views/protocol-compliance/assert/index.vue'),
         meta: {
-          title: '断言生成',
+          title: '合规断言生成',
         },
       },
       {

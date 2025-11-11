@@ -430,7 +430,9 @@ $namespace: vben;
 }
 
 @mixin menu-title {
-  max-width: var(--menu-title-width);
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: var(--menu-title-width, 100%);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -443,7 +445,7 @@ $namespace: vben;
 
 .#{$namespace}-menu__popup-container,
 .#{$namespace}-menu {
-  --menu-title-width: 140px;
+  --menu-title-width: 100%;
   --menu-item-icon-size: 16px;
   --menu-item-height: 38px;
   --menu-item-padding-y: 21px;
@@ -458,7 +460,7 @@ $namespace: vben;
   --menu-item-collapse-margin-x: 0px;
   --menu-item-radius: 0px;
   --menu-item-indent: 16px;
-  --menu-font-size: 14px;
+  --menu-font-size: 16px;
 
   &.is-dark {
     --menu-background-color: hsl(var(--menu));
@@ -511,6 +513,7 @@ $namespace: vben;
 
   // .vben-menu__popup,
   &.is-horizontal {
+    --menu-title-width: 140px;
     --menu-item-padding-y: 0px;
     --menu-item-padding-x: 10px;
     --menu-item-margin-y: 0px;

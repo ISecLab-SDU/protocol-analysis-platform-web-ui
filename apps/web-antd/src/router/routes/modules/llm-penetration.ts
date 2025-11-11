@@ -3,9 +3,10 @@ import type { RouteRecordRaw } from 'vue-router';
 const routes: RouteRecordRaw[] = [
   {
     meta: {
+      hideInMenu: true,
       icon: 'mdi:robot',
       order: 3,
-      title: 'LLM 自动化渗透',
+      title: 'LLM 驱动远程渗透测试',
     },
     name: 'LlmAutomation',
     path: '/llm-penetration',

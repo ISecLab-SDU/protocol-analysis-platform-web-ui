@@ -6,14 +6,14 @@ const routes: RouteRecordRaw[] = [
       icon: 'mdi:key-outline',
       keepAlive: true,
       order: 2,
-      title: '密码分析',
+      title: '融密协议安全分析',
     },
     name: 'PasswordAnalysis',
     path: '/password-analysis',
     children: [
       {
         meta: {
-          title: '密码算法安全分析',
+          title: '密码算法应用安全分析',
         },
         name: 'CryptographicMisuseAnalysis',
         path: '/password-analysis/misuse',
@@ -21,7 +21,7 @@ const routes: RouteRecordRaw[] = [
       },
       {
         meta: {
-          title: '协议设计形式化验证', // 保持原标题（或根据需要修改）
+          title: '融密协议安全验证', // 保持原标题（或根据需要修改）
         },
         name: 'CryptographicFormalVerification', // 保持原路由名称（如需保持历史路由兼容性）
         path: '/password-analysis/verification', // 保持原访问路径
