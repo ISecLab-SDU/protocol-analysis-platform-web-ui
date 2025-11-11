@@ -24,7 +24,7 @@ const routes: RouteRecordRaw[] = [
         path: '/protocol-compliance/static',
         component: () => import('#/views/protocol-compliance/static/index.vue'),
         meta: {
-          title: '协议合规生成',
+          title: '协议代码提取',
         },
       },
       {
