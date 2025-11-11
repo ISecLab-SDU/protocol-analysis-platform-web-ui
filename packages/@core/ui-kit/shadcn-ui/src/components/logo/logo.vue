@@ -30,16 +30,16 @@ withDefaults(defineProps<Props>(), {
 </script>
 
 <template>
-  <div :class="theme" class="flex h-full items-center justify-center text-lg">
+  <div :class="theme" class="flex h-full items-center justify-center text-xl">
     <a
       :class="$attrs.class"
       :href="href"
-      class="flex h-full items-center justify-center overflow-hidden px-3 text-lg leading-normal transition-all duration-500"
+      class="flex h-full items-center justify-center overflow-hidden px-3 text-xl leading-normal transition-all duration-500"
     >
       <template v-if="!collapsed">
         <slot name="text">
           <span
-            class="text-foreground truncate text-nowrap text-center font-semibold"
+            class="text-foreground truncate text-nowrap text-center text-xl font-semibold"
           >
             {{ text }}
           </span>

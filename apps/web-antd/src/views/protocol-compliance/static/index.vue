@@ -1934,7 +1934,7 @@ async function handleSubmit() {
 <style scoped>
 /* Scale Page title to 200% */
 :deep(.mb-2.flex.text-lg.font-semibold) {
-  font-size: 2.25rem;
+  font-size: 2rem;
 }
 
 .static-analysis {
