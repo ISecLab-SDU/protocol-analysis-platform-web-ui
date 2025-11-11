@@ -16,7 +16,7 @@ const routes: RouteRecordRaw[] = [
         component: () =>
           import('#/views/protocol-compliance/extract/index.vue'),
         meta: {
-          title: '协议代码提取',
+          title: '协议规则提取',
         },
       },
       {
