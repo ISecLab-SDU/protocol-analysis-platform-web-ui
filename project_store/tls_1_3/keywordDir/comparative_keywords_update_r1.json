@@ -1,0 +1,1141 @@
+{
+  "4. Handshake Protocol -> 4.1. Key Exchange Messages": {},
+  "3. Presentation Language -> 3.8. Variants": {},
+  "3. Presentation Language -> 3.2. Miscellaneous": {},
+  "1. Introduction -> 1.3. Updates Affecting TLS 1.2": {},
+  "3. Presentation Language -> 3.6. Constructed Types": {},
+  "3. Presentation Language -> 3.7. Constants": {},
+  "1. Introduction -> 1.1. Conventions and Terminology": {},
+  "4. Handshake Protocol": {},
+  "3. Presentation Language -> 3.1. Basic Block Size": {},
+  "3. Presentation Language": {},
+  "3. Presentation Language -> 3.3. Numbers": {
+    "is equal to": [
+      "equivalent to"
+    ]
+  },
+  "2. Protocol Overview -> 2.1. Incorrect DHE Share": {
+    "matches": [
+      "acceptable to"
+    ],
+    "does not match": [
+      "unacceptable to"
+    ],
+    "is not equal to": [
+      "mismatch"
+    ],
+    "implies": [
+      "needs to"
+    ],
+    "is consistent with": [
+      "incorporates"
+    ]
+  },
+  "3. Presentation Language -> 3.5. Enumerateds": {
+    "error": "无效的JSON响应"
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.4. Certificate Authorities": {},
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.6. Post-Handshake Client Authentication": {},
+  "4. Handshake Protocol -> 4.1. Key Exchange Messages -> 4.1.1. Cryptographic Negotiation": {
+    "error": "无效的JSON响应"
+  },
+  "1. Introduction": {},
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.2. Cookie": {},
+  "2. Protocol Overview -> 2.3. 0-RTT Data": {
+    "is dependent on": [
+      "depend on"
+    ],
+    "is not equal to": [
+      "weaker than"
+    ]
+  },
+  "2. Protocol Overview": {
+    "error": "无效的JSON响应"
+  },
+  "2. Protocol Overview -> 2.2. Resumption and Pre-Shared Key (PSK)": {
+    "is equal to": [
+      "corresponds to"
+    ],
+    "is identical to": [
+      "corresponds to"
+    ],
+    "is different from": [
+      "instead of"
+    ],
+    "is not equal to": [
+      "instead of"
+    ],
+    "is dependent on": [
+      "derived from"
+    ],
+    "follows": [
+      "derived from"
+    ],
+    "is consistent with": [
+      "in combination with"
+    ]
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.5. OID Filters": {
+    "matches": [
+      "matches"
+    ]
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.8. Key Share -> 4.2.8.1. Diffie-Hellman Parameters": {
+    "is between X and Y": [
+      "1 < Y < p-1"
+    ]
+  },
+  "4. Handshake Protocol -> 4.3. Server Parameters": {},
+  "1. Introduction -> 1.2. Major Differences from TLS 1.2": {
+    "is different from": [
+      "have been replaced"
+    ]
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.7. Supported Groups": {
+    "error": "无效的JSON响应"
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.11. Pre-Shared Key Extension -> 4.2.11.3. Processing Order": {},
+  "3. Presentation Language -> 3.4. Vectors": {
+    "is between X and Y": [
+      "between 0 and 800"
+    ],
+    "is greater than": [
+      "is more likely than"
+    ],
+    "is less than": [
+      "occurs more frequently than"
+    ],
+    "is equal to": [
+      "matches"
+    ],
+    "is identical to": [
+      "is consistent with"
+    ],
+    "is different from": [
+      "contradicts"
+    ],
+    "is not equal to": [
+      "does not match"
+    ],
+    "is proportional to": [
+      "is correlated with"
+    ]
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.11. Pre-Shared Key Extension -> 4.2.11.1. Ticket Age": {
+    "is greater than": [
+      "greater than"
+    ],
+    "is less than": [
+      "less than"
+    ]
+  },
+  "4. Handshake Protocol -> 4.1. Key Exchange Messages -> 4.1.3. Server Hello": {},
+  "4. Handshake Protocol -> 4.2. Extensions": {},
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.11. Pre-Shared Key Extension -> 4.2.11.2. PSK Binder": {
+    "is equal to": [
+      "set as if"
+    ],
+    "is identical to": [
+      "computed in the same way as"
+    ],
+    "is consistent with": [
+      "forms a binding between"
+    ],
+    "is dependent on": [
+      "derived via"
+    ]
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.1. Supported Versions": {
+    "is equal to": [
+      "is"
+    ],
+    "is identical to": [
+      "is"
+    ],
+    "is different from": [
+      "not"
+    ],
+    "does not match": [
+      "not"
+    ],
+    "is not equal to": [
+      "not"
+    ],
+    "is greater than": [
+      "prior to"
+    ],
+    "is less than": [
+      "prior to"
+    ],
+    "precedes": [
+      "prior to"
+    ],
+    "occur before": [
+      "prior to"
+    ],
+    "is more likely than": [
+      "preference order"
+    ],
+    "occurs more frequently than": [
+      "preference order"
+    ],
+    "has a higher probability than": [
+      "preference order"
+    ],
+    "is dependent on": [
+      "determine"
+    ],
+    "implies": [
+      "MUST"
+    ],
+    "is consistent with": [
+      "MUST"
+    ],
+    "contradicts": [
+      "MUST NOT"
+    ]
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.9. Pre-Shared Key Exchange Modes": {
+    "is dependent on": [
+      "restricts"
+    ],
+    "implies": [
+      "MUST also send",
+      "MUST abort",
+      "MUST NOT select",
+      "MUST NOT supply",
+      "MUST supply"
+    ],
+    "is consistent with": [
+      "compatible with"
+    ],
+    "contradicts": [
+      "fail"
+    ]
+  },
+  "4. Handshake Protocol -> 4.4. Authentication Messages -> 4.4.1. The Transcript Hash": {
+    "error": "无效的JSON响应"
+  },
+  "4. Handshake Protocol -> 4.4. Authentication Messages -> 4.4.2. Certificate -> 4.4.2.1. OCSP Status and SCT Extensions": {},
+  "4. Handshake Protocol -> 4.6. Post-Handshake Messages": {},
+  "4. Handshake Protocol -> 4.4. Authentication Messages": {},
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.8. Key Share": {
+    "is equal to": [
+      "correspond to",
+      "is the same as"
+    ],
+    "matches": [
+      "correspond to"
+    ],
+    "is identical to": [
+      "is the same as"
+    ],
+    "is different from": [
+      "does not correspond to"
+    ],
+    "does not match": [
+      "does not correspond to"
+    ],
+    "is not equal to": [
+      "does not correspond to"
+    ],
+    "is dependent on": [
+      "is determined by"
+    ],
+    "follows": [
+      "appear in the same order"
+    ],
+    "precedes": [
+      "in descending order"
+    ],
+    "occur before": [
+      "in descending order"
+    ]
+  },
+  "4. Handshake Protocol -> 4.4. Authentication Messages -> 4.4.2. Certificate -> 4.4.2.4. Receiving a Certificate Message": {},
+  "4. Handshake Protocol -> 4.4. Authentication Messages -> 4.4.2. Certificate -> 4.4.2.3. Client Certificate Selection": {
+    "matches": [
+      "match"
+    ],
+    "is equal to": [
+      "MUST"
+    ],
+    "is different from": [
+      "unless explicitly negotiated otherwise"
+    ],
+    "is consistent with": [
+      "as described in"
+    ]
+  },
+  "4. Handshake Protocol -> 4.5. End of Early Data": {},
+  "4. Handshake Protocol -> 4.1. Key Exchange Messages -> 4.1.2. Client Hello": {
+    "is equal to": [
+      "set to"
+    ],
+    "is identical to": [
+      "same"
+    ],
+    "is different from": [
+      "other"
+    ],
+    "is not equal to": [
+      "not"
+    ],
+    "is greater than": [
+      "higher"
+    ],
+    "is less than": [
+      "less"
+    ],
+    "exceeds": [
+      "higher"
+    ],
+    "is between X and Y": [
+      "between"
+    ],
+    "is dependent on": [
+      "depending"
+    ],
+    "follows": [
+      "follow"
+    ],
+    "precedes": [
+      "before"
+    ],
+    "occur before": [
+      "before"
+    ],
+    "implies": [
+      "indicates"
+    ],
+    "is consistent with": [
+      "compatibility"
+    ],
+    "contradicts": [
+      "forbids"
+    ],
+    "is more likely than": [
+      "more"
+    ],
+    "occurs more frequently than": [
+      "more"
+    ],
+    "has a higher probability than": [
+      "more"
+    ]
+  },
+  "4. Handshake Protocol -> 4.3. Server Parameters -> 4.3.2. Certificate Request": {
+    "is equal to": [
+      "MUST be unique"
+    ],
+    "is identical to": [
+      "MUST be unique"
+    ],
+    "is different from": [
+      "MUST be unique"
+    ],
+    "does not match": [
+      "MUST be unique"
+    ],
+    "is not equal to": [
+      "MUST be unique"
+    ],
+    "is greater than": [
+      "exceeds"
+    ],
+    "exceeds": [
+      "exceeds"
+    ],
+    "is less than": [
+      "falls within"
+    ],
+    "falls within": [
+      "falls within"
+    ],
+    "is between X and Y": [
+      "falls within"
+    ],
+    "is out of bounds": [
+      "falls within"
+    ],
+    "is dependent on": [
+      "provided that"
+    ],
+    "implies": [
+      "provided that"
+    ],
+    "is consistent with": [
+      "provided that"
+    ],
+    "contradicts": [
+      "MUST NOT"
+    ],
+    "is more likely than": [
+      "SHOULD"
+    ],
+    "occurs more frequently than": [
+      "SHOULD"
+    ],
+    "has a higher probability than": [
+      "SHOULD"
+    ]
+  },
+  "4. Handshake Protocol -> 4.3. Server Parameters -> 4.3.1. Encrypted Extensions": {
+    "is equal to": [
+      "matches"
+    ],
+    "matches": [
+      "is equal to"
+    ],
+    "is identical to": [
+      "matches"
+    ],
+    "is different from": [
+      "does not match"
+    ],
+    "does not match": [
+      "is different from"
+    ],
+    "is not equal to": [
+      "does not match"
+    ],
+    "is greater than": [
+      "exceeds"
+    ],
+    "exceeds": [
+      "is greater than"
+    ],
+    "is less than": [
+      "falls within"
+    ],
+    "falls within": [
+      "is less than"
+    ],
+    "is between X and Y": [
+      "falls within"
+    ],
+    "is out of bounds": [
+      "does not match"
+    ],
+    "is dependent on": [
+      "is correlated with"
+    ],
+    "is proportional to": [
+      "is correlated with"
+    ],
+    "is correlated with": [
+      "is dependent on"
+    ],
+    "follows": [
+      "occurs after"
+    ],
+    "precedes": [
+      "occurs before"
+    ],
+    "occur before": [
+      "precedes"
+    ],
+    "implies": [
+      "is consistent with"
+    ],
+    "is consistent with": [
+      "implies"
+    ],
+    "contradicts": [
+      "does not match"
+    ],
+    "is more likely than": [
+      "has a higher probability than"
+    ],
+    "occurs more frequently than": [
+      "has a higher probability than"
+    ],
+    "has a higher probability than": [
+      "is more likely than"
+    ]
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.3. Signature Algorithms": {
+    "is equal to": [
+      "MUST be equal to"
+    ],
+    "is identical to": [
+      "MUST be identical to"
+    ]
+  },
+  "5. Record Protocol -> 5.5. Limits on Key Usage": {},
+  "4. Handshake Protocol -> 4.6. Post-Handshake Messages -> 4.6.2. Post-Handshake Authentication": {
+    "is dependent on": [
+      "requires"
+    ],
+    "implies": [
+      "MUST"
+    ],
+    "is consistent with": [
+      "MAY"
+    ],
+    "contradicts": [
+      "MUST NOT"
+    ],
+    "is more likely than": [
+      "MAY"
+    ],
+    "has a higher probability than": [
+      "MAY"
+    ]
+  },
+  "4. Handshake Protocol -> 4.4. Authentication Messages -> 4.4.4. Finished": {
+    "is equal to": [
+      "is the size of"
+    ],
+    "matches": [
+      "is computed from",
+      "is computed as"
+    ],
+    "is identical to": [
+      "is the same as"
+    ],
+    "is different from": [
+      "is not yet complete"
+    ],
+    "is not equal to": [
+      "is not yet complete"
+    ],
+    "follows": [
+      "following"
+    ],
+    "precedes": [
+      "prior to"
+    ],
+    "occur before": [
+      "prior to"
+    ],
+    "implies": [
+      "indicates"
+    ]
+  },
+  "7. Cryptographic Computations": {},
+  "4. Handshake Protocol -> 4.4. Authentication Messages -> 4.4.2. Certificate -> 4.4.2.2. Server Certificate Selection": {
+    "is equal to": [
+      "MUST be"
+    ],
+    "is identical to": [
+      "MUST be"
+    ],
+    "is not equal to": [
+      "unless explicitly negotiated otherwise"
+    ],
+    "is different from": [
+      "unless explicitly negotiated otherwise"
+    ],
+    "is dependent on": [
+      "compatible with",
+      "indicated in",
+      "advertised by",
+      "based on"
+    ],
+    "is consistent with": [
+      "compatible with",
+      "indicated in",
+      "advertised by",
+      "based on"
+    ],
+    "implies": [
+      "MUST be",
+      "SHOULD send",
+      "SHOULD continue",
+      "SHOULD NOT use",
+      "MAY use",
+      "MUST NOT use",
+      "MUST abort"
+    ]
+  },
+  "4. Handshake Protocol -> 4.4. Authentication Messages -> 4.4.2. Certificate": {
+    "is equal to": [
+      "correspond to"
+    ],
+    "matches": [
+      "correspond to"
+    ],
+    "is identical to": [
+      "correspond to"
+    ],
+    "is different from": [
+      "except"
+    ],
+    "does not match": [
+      "except"
+    ],
+    "is not equal to": [
+      "except"
+    ],
+    "is dependent on": [
+      "if and only if"
+    ],
+    "implies": [
+      "if and only if"
+    ],
+    "is consistent with": [
+      "correspond to"
+    ]
+  },
+  "5. Record Protocol -> 5.3. Per-Record Nonce": {
+    "is different from": [
+      "different from"
+    ]
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.11. Pre-Shared Key Extension": {
+    "is equal to": [
+      "matches"
+    ],
+    "matches": [
+      "matches"
+    ],
+    "is identical to": [
+      "matches"
+    ],
+    "is different from": [
+      "does not match"
+    ],
+    "does not match": [
+      "does not match"
+    ],
+    "is not equal to": [
+      "does not match"
+    ],
+    "is greater than": [
+      "exceeds"
+    ],
+    "exceeds": [
+      "exceeds"
+    ],
+    "is less than": [
+      "falls within"
+    ],
+    "falls within": [
+      "falls within"
+    ],
+    "is between X and Y": [
+      "falls within"
+    ],
+    "is out of bounds": [
+      "falls within"
+    ],
+    "is dependent on": [
+      "associated with"
+    ],
+    "is proportional to": [
+      "associated with"
+    ],
+    "is correlated with": [
+      "associated with"
+    ],
+    "follows": [
+      "in the same order"
+    ],
+    "precedes": [
+      "in the same order"
+    ],
+    "occur before": [
+      "in the same order"
+    ],
+    "implies": [
+      "influence"
+    ],
+    "is consistent with": [
+      "compatible"
+    ],
+    "contradicts": [
+      "incompatible"
+    ],
+    "is more likely than": [
+      "SHOULD"
+    ],
+    "occurs more frequently than": [
+      "SHOULD"
+    ],
+    "has a higher probability than": [
+      "SHOULD"
+    ]
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.10. Early Data Indication": {
+    "is equal to": [
+      "are those associated",
+      "are those provisioned",
+      "are those which were negotiated",
+      "are those provisioned",
+      "are those negotiated"
+    ],
+    "matches": [
+      "is the same as"
+    ],
+    "is identical to": [
+      "is the same as"
+    ],
+    "is different from": [
+      "is not within tolerance"
+    ],
+    "does not match": [
+      "is not within tolerance"
+    ],
+    "is not equal to": [
+      "is not within tolerance"
+    ],
+    "falls within": [
+      "is within a small tolerance"
+    ],
+    "is between X and Y": [
+      "is within a small tolerance"
+    ],
+    "is out of bounds": [
+      "is not within tolerance"
+    ],
+    "is consistent with": [
+      "is within a small tolerance"
+    ],
+    "contradicts": [
+      "is not within tolerance"
+    ]
+  },
+  "5. Record Protocol": {
+    "is equal to": [
+      "consisting of"
+    ],
+    "matches": [
+      "is"
+    ],
+    "is identical to": [
+      "is"
+    ],
+    "is different from": [
+      "not"
+    ],
+    "does not match": [
+      "not"
+    ],
+    "is not equal to": [
+      "not"
+    ]
+  },
+  "5. Record Protocol -> 5.4. Record Padding": {},
+  "7. Cryptographic Computations -> 7.2. Updating Traffic Secrets": {},
+  "4. Handshake Protocol -> 4.6. Post-Handshake Messages -> 4.6.3. Key and Initialization Vector Update": {
+    "is equal to": [
+      "set to"
+    ],
+    "is different from": [
+      "any other"
+    ],
+    "is not equal to": [
+      "any other"
+    ],
+    "is greater than": [
+      "more than"
+    ],
+    "is less than": [
+      "prior to",
+      "before"
+    ],
+    "precedes": [
+      "prior to",
+      "before"
+    ],
+    "occur before": [
+      "prior to",
+      "before"
+    ]
+  },
+  "7. Cryptographic Computations -> 7.4. (EC)DHE Shared Secret Calculation -> 7.4.1. Finite Field Diffie-Hellman": {
+    "is different from": [
+      "differs from"
+    ]
+  },
+  "7. Cryptographic Computations -> 7.3. Traffic Key Calculation": {
+    "is dependent on": [
+      "generated from"
+    ],
+    "follows": [
+      "whenever"
+    ]
+  },
+  "10. Security Considerations": {},
+  "9. Compliance Requirements -> 9.1. Mandatory-to-Implement Cipher Suites": {},
+  "6. Alert Protocol -> 6.1. Closure Alerts": {
+    "is equal to": [
+      "must share"
+    ],
+    "is identical to": [
+      "must share"
+    ],
+    "is not equal to": [
+      "is a change from"
+    ],
+    "is different from": [
+      "is a change from"
+    ],
+    "is more likely than": [
+      "is more appropriate"
+    ],
+    "has a higher probability than": [
+      "is more appropriate"
+    ]
+  },
+  "8. 0-RTT and Anti-Replay -> 8.1. Single-Use Tickets": {
+    "is dependent on": [
+      "requires"
+    ],
+    "is more likely than": [
+      "may be hard to achieve high rates of successful PSK 0-RTT connections when compared to"
+    ]
+  },
+  "7. Cryptographic Computations -> 7.4. (EC)DHE Shared Secret Calculation -> 7.4.2. Elliptic Curve Diffie-Hellman": {
+    "is consistent with": [
+      "according to"
+    ],
+    "follows": [
+      "according to"
+    ]
+  },
+  "7. Cryptographic Computations -> 7.5. Exporters": {
+    "is equal to": [
+      "computes the same value as"
+    ],
+    "is identical to": [
+      "computes the same value as"
+    ],
+    "is different from": [
+      "a change from"
+    ]
+  },
+  "4. Handshake Protocol -> 4.4. Authentication Messages -> 4.4.3. Certificate Verify": {
+    "is equal to": [
+      "corresponding"
+    ],
+    "matches": [
+      "corresponding"
+    ],
+    "is identical to": [
+      "corresponding"
+    ],
+    "is different from": [
+      "non-empty"
+    ],
+    "does not match": [
+      "non-empty"
+    ],
+    "is not equal to": [
+      "non-empty"
+    ],
+    "is greater than": [
+      "exceeds"
+    ],
+    "exceeds": [
+      "exceeds"
+    ],
+    "is less than": [
+      "less than"
+    ],
+    "is between X and Y": [
+      "between"
+    ],
+    "follows": [
+      "after"
+    ],
+    "precedes": [
+      "prior to"
+    ],
+    "occur before": [
+      "prior to"
+    ],
+    "implies": [
+      "intended to"
+    ],
+    "is consistent with": [
+      "compatible with"
+    ],
+    "contradicts": [
+      "not valid for"
+    ],
+    "is more likely than": [
+      "more likely than"
+    ],
+    "occurs more frequently than": [
+      "more frequently than"
+    ],
+    "has a higher probability than": [
+      "higher probability than"
+    ]
+  },
+  "4. Handshake Protocol -> 4.6. Post-Handshake Messages -> 4.6.1. New Session Ticket Message": {
+    "matches": [
+      "matches"
+    ],
+    "is equal to": [
+      "same"
+    ],
+    "is different from": [
+      "different"
+    ],
+    "is greater than": [
+      "greater than"
+    ],
+    "is less than": [
+      "shorter"
+    ]
+  },
+  "5. Record Protocol -> 5.1. Record Layer": {
+    "is equal to": [
+      "reflects"
+    ],
+    "is identical to": [
+      "reflects"
+    ],
+    "is different from": [
+      "other than"
+    ],
+    "does not match": [
+      "other than"
+    ],
+    "is not equal to": [
+      "other than"
+    ],
+    "exceeds": [
+      "exceeds"
+    ],
+    "is greater than": [
+      "exceeds"
+    ],
+    "is less than": [
+      "less"
+    ],
+    "is between X and Y": [
+      "or less"
+    ],
+    "is out of bounds": [
+      "exceeds"
+    ],
+    "follows": [
+      "follow"
+    ],
+    "precedes": [
+      "preceding"
+    ],
+    "occur before": [
+      "preceding"
+    ]
+  },
+  "6. Alert Protocol -> 6.2. Error Alerts": {
+    "is greater than": [
+      "more than"
+    ],
+    "exceeds": [
+      "more than"
+    ],
+    "is less than": [
+      "fewer than"
+    ]
+  },
+  "8. 0-RTT and Anti-Replay": {
+    "is equal to": [
+      "matches"
+    ],
+    "is identical to": [
+      "matches"
+    ],
+    "is different from": [
+      "does not match"
+    ],
+    "is not equal to": [
+      "does not match"
+    ],
+    "is more likely than": [
+      "has a higher probability than"
+    ]
+  },
+  "5. Record Protocol -> 5.2. Record Payload Protection": {
+    "is equal to": [
+      "is always set to"
+    ],
+    "is identical to": [
+      "is always set to"
+    ],
+    "is greater than": [
+      "is greater than"
+    ],
+    "exceeds": [
+      "exceeds"
+    ],
+    "is between X and Y": [
+      "is between"
+    ]
+  },
+  "7. Cryptographic Computations -> 7.1. Key Schedule": {},
+  "8. 0-RTT and Anti-Replay -> 8.3. Freshness Checks": {
+    "is equal to": [
+      "equals"
+    ],
+    "is greater than": [
+      "exceeds"
+    ],
+    "is less than": [
+      "differs by more than"
+    ],
+    "falls within": [
+      "on the order of"
+    ],
+    "is between X and Y": [
+      "on the order of"
+    ],
+    "is dependent on": [
+      "depends on"
+    ],
+    "is more likely than": [
+      "most likely"
+    ],
+    "has a higher probability than": [
+      "most likely"
+    ]
+  },
+  "11. IANA Considerations": {},
+  "6. Alert Protocol": {
+    "is equal to": [
+      "consists of"
+    ],
+    "is identical to": [
+      "consists of"
+    ],
+    "matches": [
+      "consists of"
+    ],
+    "is different from": [
+      "ignored"
+    ],
+    "does not match": [
+      "ignored"
+    ],
+    "is not equal to": [
+      "ignored"
+    ],
+    "is dependent on": [
+      "specified by"
+    ],
+    "follows": [
+      "specified by"
+    ],
+    "is consistent with": [
+      "specified by"
+    ]
+  },
+  "9. Compliance Requirements -> 9.2. Mandatory-to-Implement Extensions": {
+    "is equal to": [
+      "is considered to be"
+    ],
+    "is identical to": [
+      "is considered to be"
+    ],
+    "matches": [
+      "is considered to be"
+    ],
+    "implies": [
+      "MUST",
+      "REQUIRED",
+      "SHOULD",
+      "MAY"
+    ],
+    "is consistent with": [
+      "MUST",
+      "REQUIRED",
+      "SHOULD",
+      "MAY"
+    ],
+    "is dependent on": [
+      "in the absence of",
+      "when offering applicable features",
+      "If not containing",
+      "If containing",
+      "using",
+      "capable of using"
+    ],
+    "is proportional to": [
+      "in the absence of",
+      "when offering applicable features",
+      "If not containing",
+      "If containing",
+      "using",
+      "capable of using"
+    ]
+  },
+  "8. 0-RTT and Anti-Replay -> 8.2. Client Hello Recording": {
+    "is equal to": [
+      "matches"
+    ],
+    "is identical to": [
+      "matching"
+    ],
+    "is different from": [
+      "different"
+    ],
+    "does not match": [
+      "does not appear as a duplicate"
+    ],
+    "is greater than": [
+      "higher"
+    ],
+    "is less than": [
+      "less"
+    ],
+    "exceeds": [
+      "outside"
+    ],
+    "falls within": [
+      "inside"
+    ],
+    "is between X and Y": [
+      "within"
+    ],
+    "is out of bounds": [
+      "outside"
+    ],
+    "is dependent on": [
+      "derived from"
+    ],
+    "is proportional to": [
+      "as long as"
+    ],
+    "follows": [
+      "described in"
+    ],
+    "precedes": [
+      "before"
+    ],
+    "occur before": [
+      "before"
+    ],
+    "implies": [
+      "causes"
+    ],
+    "is consistent with": [
+      "as described in"
+    ],
+    "contradicts": [
+      "but"
+    ],
+    "is more likely than": [
+      "more"
+    ],
+    "occurs more frequently than": [
+      "higher rates"
+    ],
+    "has a higher probability than": [
+      "more likely"
+    ]
+  },
+  "4. Handshake Protocol -> 4.1. Key Exchange Messages -> 4.1.4. Hello Retry Request": {
+    "error": "无效的JSON响应"
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.8. Key Share -> 4.2.8.2. ECDHE Parameters": {
+    "error": "无效的JSON响应"
+  },
+  "9. Compliance Requirements -> 9.3. Protocol Invariants": {
+    "error": "无效的JSON响应"
+  }
+}

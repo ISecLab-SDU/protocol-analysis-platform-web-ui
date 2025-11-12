@@ -1,0 +1,318 @@
+[prompt_separate_sentences]
+user = '''
+# Instruction
+1.You are a precise language analysis assistant. I will provide a series of sentences grouped by chapter. For each sentence:
+(1)Check if it is complete.
+(2)If it contains pronouns (e.g., "it", "they", "this", "that"), verify that the referent is clear.
+2.Pronoun handling:
+(1)If the referent is clear → no change.
+(2)If unclear → replace with explicit referent from the current chapter context and adjust sentence structure.
+3.Remove unrelated characters (e.g., TABLE, FIGURE, garbled text).
+4.If the sentence contains non-natural language characters, rewrite it into natural language.
+5.Output format: strict JSON only, no extra text or comments.
+Format:
+{{
+    "Chapter Title": [
+        {{"Original": "sentence1", "Adjusted": "corrected sentence1"}},
+        {{"Original": "sentence2", "Adjusted": "No change"}}
+    ]
+}}
+6.Requirements:
+(1)All strings must use double quotes.
+(2)Each key must have a value.
+(3)Do not output anything outside the JSON structure.
+----------------------------------------
+7.Input:
+Chapter Title: 
+{heading}
+Sentence List: 
+{sentence}
+'''
+
+[prompt_table_process]
+user = '''
+# Instruction
+1. You are a rigorous technical specification information extraction assistant. I will provide a chapter title and content. Detect whether the content contains one or more chart/diagram information, including:
+   (1) Tables (<table> tags, ASCII tables)
+   (2) Bitfield/byte layouts (Bit 7..0, byte n)
+   (3) Flowcharts / network diagrams / ASCII art
+   (4) Key:value structured field examples
+2. Caption rules:
+   (1) If an explicit caption exists (e.g., Figure X: ..., Table X: ..., 图 X: ..., 表 X: ...), keep it exactly as in the text.
+   (2) If no caption exists, create one in format: Derived: short description (without “Figure”/“Table” prefix).
+3. Output format:
+   (1) If no chart → output nothing.
+   (2) If chart exists → for each chart found, output one code block using plaintext as language:
+   Format:
+   ```
+    <caption text>
+    <exact chart/diagram text as it appears in content>
+   ```
+   (3) Multiple charts in the same chapter → output multiple code blocks in sequence, separated by one blank line.
+   (4) Preserve all spacing, alignment, and special characters exactly as in the original chart.
+4.Do not output any JSON, explanations, or extra text.
+----------------------------------------
+Chapter Title:
+{title}
+Content:
+{content}
+'''
+
+[prompt_specify_keywords]
+user = """
+Please list all message types defined in {protocol} {version}, and enumerate every field defined in each message type according to the corresponding RFC specification.
+
+#Output Requirements:
+1. Output the result strictly in JSON format as shown below. Include only field and subfield names — omit any type information (e.g., "string", "uint8"):
+{{
+  "MessageName1": {{
+    "field1": {{}},
+    "field2": {{
+      "sub_field1": {{}},
+      "sub_field2": {{}},
+      ...
+    }},
+    ...
+  }},
+  "MessageName2": {{
+    ...
+  }}
+}}
+
+2. For any composite, structured, or sequence-type fields (e.g., SEQUENCE, CHOICE, VarBindList, NetworkAddress):
+   (1) Fully expand and list all subfield names recursively, according to the ASN.1 definition in the RFC.
+   (2) If a field has enumerated values (e.g., INTEGER {{ coldStart(0), ...}}), list the enumeration identifiers as subfields.
+
+3. For optional fields, list only the commonly used or required subfields.
+
+4. Do not omit fields defined in the RFC, even if they are less commonly used.
+
+5. Output only the pure JSON structure, with no explanations, comments, or prefixes/suffixes.
+"""
+
+[prompt_specify_keywords_update]
+user = """
+You are given a description extracted from the {protocol} {version} specification:
+\"\"\"
+{content}
+\"\"\"
+
+Your task is to analyze this description and check for any synonyms, aliases, abbreviations, or variant expressions of the following {protocol} {version} protocol-related target keywords:
+{keywords}
+
+If you identify any synonyms, aliases, abbreviations, or variant expressions of these keywords in the description, output them in the following JSON format:
+{{
+    "original_keyword": ["new_keyword1"]
+}}
+
+If no synonyms, aliases, abbreviations, or variants are found, return an empty JSON object:
+{{}}
+
+Please omit all explanatory content.
+"""
+
+[prompt_comparative_keywords_update]
+user = """
+# Description
+You are given a description extracted from the {protocol} {version} specification:
+{content}
+
+# Comparitive Keyword
+You are given a set of original comparitive keywords:
+- is equal to  
+- matches  
+- is identical to  
+- is different from  
+- does not match  
+- is not equal to  
+- is greater than  
+- is less than  
+- exceeds  
+- falls within  
+- is between X and Y  
+- is out of bounds  
+- is dependent on  
+- is proportional to  
+- is correlated with  
+- follows  
+- precedes  
+- occur before  
+- implies  
+- is consistent with  
+- contradicts  
+- is more likely than  
+- occurs more frequently than  
+- has a higher probability than
+
+#Instruction
+Your task is to analyze each sentence in the provided description (#Description) to determine if they are synonymous keywords with the keywords provided in #Comparitive Keyword.
+
+You must follow the analysis process below step by step to analyze each sentence:
+1. Some words of each sentence in "#Description" can be directly replaced by "#Comparitive Keyword" without changing the original meaning of the sentence.
+2. The words that can be replaced by "#Comparitive Keyword" that are not part of or a subset of "#Comparitive Keyword".
+
+If 1 and 2 hold simultaneously, output them in the following JSON format:
+{{
+    "#Comparitive Keyword": ["new_keyword in #Description"]
+}}
+
+Otherwise, return an empty JSON object:
+{{}}
+
+Please omit all explanatory content.
+"""
+
+[prompt_modal_keywords_update]
+user = """
+# Instruction
+1.You are an expert in network protocol analysis. The following is a protocol document excerpt:
+   \"\"\"  
+   {content}  
+   \"\"\"
+2.Target modality keywords(exclude any MAY-level expressions):
+(1)Mandatory: MUST, SHALL, REQUIRED
+(2)Prohibited: MUST NOT, SHALL NOT, PROHIBITED
+(3)Recommended: SHOULD, RECOMMENDED
+(4)Not Recommended: SHOULD NOT, NOT RECOMMENDED
+3.Extract all phrases in the document that express the same meaning as the above keywords, including:
+(1)Passive forms (e.g., "is required to")
+(2)Verb variations (e.g., "cannot" ≡ "must not")
+(3)Legal terms (e.g., "shall be deemed to")
+(4)Technical prohibitions (e.g., "is an error")
+(5)Conditional constraints (e.g., "when X, Y shall")
+(6)Implicit expressions (e.g., "failure to do X will result in Y")
+4.Ignore any expressions corresponding to MAY or OPTIONAL, or any equivalent optional/permission-level wording.
+5.Output format (JSON only, keep original wording):
+{{
+    "# Modality Keyword": ["new_keyword in #Description"]
+}}
+If none found, return{{}}.
+Return only a valid JSON object. Do not include any explanation or extra text.
+"""
+
+[prompt_classify_keywords_specify]
+user = """
+You are an expert in network protocol analysis.
+
+Check each keyword below and keep only those that describe message names, field names, parameters, data formats, or other technical elements **of the {protocol} protocol**.
+
+Remove all unrelated or generic words.
+
+Keywords: {keywords}
+
+Return in JSON format:
+{{
+    "specify": [...]
+}}
+"""
+
+[prompt_classify_keywords_modal]
+user = """
+You are an expert in RFC 2119 modal verbs and their equivalent expressions.
+
+From the list of sentences below, extract all **mandatory modal expressions** that either:
+1. Match exactly one of the core RFC 2119 / RFC 8174 modal terms for mandatory/recommended actions:
+   {core_modals}
+   (Exclude MAY, OPTIONAL, or any synonyms/expressions of possibility)
+2. Are synonyms or equivalent expressions of these core mandatory/recommended modal terms appearing in the sentences.
+
+Do NOT include:
+- MAY, OPTIONAL, or any words/phrases that indicate possibility or optionality
+- Full sentences
+- Words unrelated to the mandatory modal meaning
+- Generic phrases that do not carry the same mandatory sense
+
+Return only the unique extracted modal terms or short phrases, normalized as follows:
+- Core mandatory RFC modal terms should be uppercase (e.g., MUST, SHOULD NOT)
+- Synonyms / equivalent expressions should be kept as they appear in the sentences
+
+Sentences:
+{keywords}
+
+Return in JSON format:
+{{
+    "modal": [...]
+}}
+"""
+
+[prompt_classify_keywords_comparative]
+user = """
+You are an expert in comparative expressions.
+
+Check each keyword below and keep only those that indicate comparison, difference, efficiency, probability, correlation, frequency, or relative evaluation — equivalent to the following concepts: 
+{core_comparatives}
+
+Remove unrelated words.
+
+Keywords: {keywords}
+
+Return in JSON format:
+{{
+    "comparative": [...]
+}}
+"""
+
+[prompt_second_rule]
+user = """
+You are provided with a set of descriptions extracted from the {protocol} {version} protocol specification:
+{sentence}
+
+Your task is to analyze the meaning of each rule in these descriptions and determine whether it falls within our scope of interest.
+
+Follow this analysis process step-by-step for each rule:
+(1)The rule describes a specific {protocol} {version} protocol message type or its internal fields, and this message type can be sent or received by an implementation of the protocol.
+(2)The rule explicitly describes or implies, through field value ranges, format definitions, or construction/processing procedures, the logic that the protocol program should apply when generating (sending) or processing (receiving) such a message.
+This logic must be detailed enough to directly guide a developer’s implementation.
+(3)The described message logic pertains to handling a single message instance — including atomic or transactional operations for constructing or validating its variable bindings or fields — or verifying their consistency against previous messages in the same protocol exchange.
+Logic involving concurrency with other messages or external events is excluded.
+
+For each rule:
+
+1.If all three criteria (1), (2), and (3) are satisfied, respond with "Conforms."
+2.If any criterion is not met, respond with "Does not conform."
+
+Please omit all explanatory content.
+"""
+
+[prompt_enhance_rule]
+user = """
+You are analyzing a rule from the {protocol} {version} protocol specification.
+        
+Context: This rule appears under the section "{heading}"
+Rule: {sentence}
+        
+Your task is to enhance this rule by providing additional context that would help developers understand:
+1. What specific protocol behavior this rule governs
+2. When this rule applies in the protocol flow
+3. What the expected outcome should be when this rule is followed
+4. Any prerequisites or conditions that must be met
+        
+Please provide an enhanced version of this rule that includes necessary context while maintaining technical accuracy. Keep the enhancement concise but comprehensive.
+        
+Format your response as:
+Enhanced Rule: [your enhanced version here]
+"""
+
+[prompt_third_rule]
+user = """
+Given a rule description extracted from the {protocol} {version} specification and the subheading in which it is located：
+{heading}
+{sentence}
+
+Your task is to analyze the message types and their fields involved in this rule description, as well as the corresponding response message types or fields. Follow these steps for the analysis:
+1. Identify the request message type (req_type) mentioned in the rule.
+2. Extract the fields involved in the request message (req_fields).
+3. Determine the response message type (res_type) mentioned in the rule. If no response message is involved, use an empty string.
+4. Extract the fields involved in the response message (res_fields). If no fields are explicitly mentioned or no response message exists, use an empty array.
+
+5. Present the analysis results in the following JSON format:
+```json
+{{
+    "rule": "{sentence}",
+    "req_type": "",
+    "req_fields": [],
+    "res_type": "",
+    "res_fields": []
+}}
+```
+"""

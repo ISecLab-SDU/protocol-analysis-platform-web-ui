@@ -1,0 +1,258 @@
+{
+  "2. Overview -> 2.1. Roles of Protocol Entities": {},
+  "2. Overview -> 2.2. Management Information": {},
+  "5. Security Considerations": {},
+  "1.1. A Note on Terminology": {},
+  "2. Overview -> 2.6. Transport Mappings": {
+    "Mandatory": [
+      "requires"
+    ],
+    "Recommended": [
+      "preferred"
+    ]
+  },
+  "6. Editor's Address": {},
+  "4. Protocol Specification -> 4.1. Common Constructs": {
+    "Mandatory": [
+      "takes the value of",
+      "needs to use",
+      "is used to indicate"
+    ],
+    "Prohibited": [],
+    "Recommended": [
+      "is recommended for use"
+    ],
+    "Not Recommended": []
+  },
+  "2. Overview -> 2.4. Retransmission of Requests": {
+    "is required to": [
+      "the receiver is required under normal circumstances, to generate and transmit a response to the originator of the request"
+    ],
+    "needs to": [
+      "the application originating the request needs to act responsibly in respect to the frequency and duration of re-transmissions"
+    ]
+  },
+  "7. Acknowledgements": {},
+  "2. Overview -> 2.5. Message Sizes": {
+    "Mandatory": [
+      "must be able to produce or consume",
+      "must never generate messages larger than allowed by the receiving SNMPv2 entity"
+    ],
+    "Recommended": [
+      "are encouraged to support larger values whenever possible",
+      "must take care to set its parameters accordingly, so as to reduce the risk of fragmentation"
+    ]
+  },
+  "3. Definitions": {
+    "warning": "JSON parsed but format unexpected",
+    "data": "{\n    \"must be identical in structure to PDU\": \"must be identical in structure to PDU\"\n}"
+  },
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.3. The GetBulkRequest-PDU -> 4.2.3.1. Another Example of Table Traversal": {},
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.6. The SNMPv2-Trap-PDU": {
+    "Mandatory": [
+      "are",
+      "is determined",
+      "are",
+      "is present",
+      "is copied",
+      "is copied"
+    ],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.2. The GetNextRequest-PDU -> 4.2.2.1. Example of Table Traversal": {},
+  "2. Overview -> 2.3. Access to Management Information": {
+    "is used to": [
+      "retrieve or modify management information associated with the managed device",
+      "notify a SNMPv2 entity, acting in a manager role, of management information associated with another SNMPv2 entity, also acting in a manager role",
+      "notify a SNMPv2 entity, acting in a manager role, of an exceptional situation, which has resulted in changes to management information associated with the managed device"
+    ],
+    "no response is returned": [
+      "to a SNMPv2 entity, acting in a manager role"
+    ]
+  },
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.4. The Response-PDU": {
+    "Mandatory": [
+      "must be able to properly receive and handle"
+    ],
+    "Prohibited": [
+      "are ignored"
+    ],
+    "Conditional constraints": [
+      "If the error-status field of the Response-PDU is non-zero, the value fields of the variable bindings in the variable binding list are ignored",
+      "If both the error-status field and the error-index field of the Response-PDU are non-zero, then the value of the error-index field is the index of the variable binding (in the variable-binding list of the corresponding request) for which the request failed"
+    ]
+  },
+  "4. Protocol Specification -> 4.2. PDU Processing": {
+    "mandatory": [
+      "It is mandatory that all SNMPv2 entities acting in an agent role be able to generate the following PDU types",
+      "all such implementations must be able to receive the following PDU types",
+      "It is mandatory that all SNMPv2 entities acting in a manager role be able to generate the following PDU types",
+      "all such implementations must be able to receive the following PDU types",
+      "all components of a PDU, including those whose values are ignored by the receiving SNMPv2 entity, must have valid ASN.1 syntax and encoding"
+    ]
+  },
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.7. The InformRequest-PDU": {
+    "Mandatory": [
+      "is generated and transmitted at the request of",
+      "is specified by",
+      "are sysUpTime.0 and snmpTrapOID.0 respectively",
+      "is copied",
+      "determines the size",
+      "is greater than either a local constraint or the maximum message size",
+      "is generated, transmitted",
+      "terminates immediately thereafter",
+      "is formatted with",
+      "is set to",
+      "is set to zero",
+      "is then encapsulated",
+      "is less than or equal to both a local constraint and the maximum message size",
+      "is transmitted",
+      "is incremented",
+      "is discarded",
+      "terminates",
+      "presents the InformRequest-PDU contents",
+      "generates a Response-PDU",
+      "transmits the generated Response-PDU"
+    ],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.1. The GetRequest-PDU": {
+    "Mandatory": [
+      "is generated and transmitted at the request of",
+      "Upon receipt of a GetRequest-PDU, the receiving SNMPv2 entity processes each variable binding",
+      "All fields of the Response-PDU have the same values as the corresponding fields of the received request except as indicated below",
+      "Each variable binding is processed as follows",
+      "then the variable binding's value field is set to the value of the named variable",
+      "then its value field is set to `noSuchObject'",
+      "the variable binding's value field is set to `noSuchInstance'",
+      "then the Response-PDU is re-formatted with the same values in its request-id and variable-bindings fields as the received GetRequest-PDU",
+      "with the value of its error-status field set to `genErr'",
+      "the value of its error-index field is set to the index of the failed variable binding",
+      "the value of the Response-PDU's error-status field is set to `noError'",
+      "the value of its error-index field is zero",
+      "The generated Response-PDU is then encapsulated into a message",
+      "the message is transmitted to the originator of the GetRequest-PDU",
+      "an alternate Response-PDU is generated",
+      "This alternate Response-PDU is formatted with the same value in its request-id field as the received GetRequest-PDU",
+      "with the value of its error-status field set to `tooBig'",
+      "the value of its error-index field set to zero",
+      "an empty variable-bindings field",
+      "This alternate Response-PDU is then encapsulated into a message",
+      "the message is transmitted to the originator of the GetRequest-PDU",
+      "the snmpSilentDrops counter is incremented",
+      "the resultant message is discarded"
+    ]
+  },
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.2. The GetNextRequest-PDU": {
+    "Mandatory": [
+      "is generated and transmitted at the request of",
+      "Upon receipt of a GetNextRequest-PDU, the receiving SNMPv2 entity processes each variable binding",
+      "All fields of the Response-PDU have the same values as the corresponding fields of the received request except as indicated below",
+      "Each variable binding is processed as follows",
+      "The corresponding variable binding's name and value fields in the Response-PDU are set to the name and value of the located variable",
+      "the corresponding variable binding produced in the Response-PDU has its value field set to `endOfMibView'",
+      "its name field set to the variable binding's name in the request",
+      "the Response-PDU is re-formatted with the same values in its request-id and variable-bindings fields as the received GetNextRequest-PDU",
+      "the value of its error-status field set to `genErr'",
+      "the value of its error-index field is set to the index of the failed variable binding",
+      "the value of the Response-PDU's error-status field is set to `noError'",
+      "the value of its error-index field is zero",
+      "The generated Response-PDU is then encapsulated into a message",
+      "the message is transmitted to the originator of the GetNextRequest-PDU",
+      "an alternate Response-PDU is generated",
+      "This alternate Response-PDU is formatted with the same values in its request-id field as the received GetNextRequest-PDU",
+      "the value of its error-status field set to `tooBig'",
+      "the value of its error-index field set to zero",
+      "an empty variable-bindings field",
+      "This alternate Response-PDU is then encapsulated into a message",
+      "the message is transmitted to the originator of the GetNextRequest-PDU",
+      "the snmpSilentDrops counter is incremented and the resultant message is discarded"
+    ]
+  },
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.3. The GetBulkRequest-PDU": {
+    "Mandatory": [
+      "shall have the same value",
+      "is set to zero",
+      "is set to zero",
+      "shall have the same value",
+      "is set to `endOfMibView'",
+      "is set to the variable binding's name",
+      "is set to `endOfMibView'",
+      "is set to either the last lexicographic successor",
+      "is set to the (N + r)-th variable binding's name",
+      "is re-formatted",
+      "is set to `genErr'",
+      "is set to the index",
+      "is set to `noError'",
+      "is set to zero"
+    ],
+    "Prohibited": [
+      "does not apply"
+    ],
+    "Conditional constraints": [
+      "If the value in the non-repeaters field is less than zero, then the value of the field is set to zero",
+      "if the value in the max-repetitions field is less than zero, then the value of the field is set to zero",
+      "If N is greater than zero",
+      "If the requested variable binding's name does not lexicographically precede the name of any variable accessible by this request",
+      "If M and R are non-zero",
+      "if there is no (i)-th lexicographic successor",
+      "if the size of the message encapsulating the Response-PDU containing the requested number of variable bindings would be greater than either a local constraint or the maximum message size of the originator, then the response is generated with a lesser number of variable bindings",
+      "if for some value of iteration i, such that i is greater than zero and less than or equal to M, that all of the generated variable bindings have the value field set to the `endOfMibView'",
+      "If the processing of any variable binding fails for a reason other than listed above, then the Response-PDU is re-formatted",
+      "If the size of the resultant message is less than or equal to both a local constraint and the maximum message size of the originator, it is transmitted to the originator",
+      "Otherwise, the snmpSilentDrops counter is incremented and the resultant message is discarded"
+    ]
+  },
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.5. The SetRequest-PDU": {
+    "Mandatory": [
+      "is generated and transmitted at the request of",
+      "determines the size of a message encapsulating a Response-PDU having the same values",
+      "then an alternate Response-PDU is generated, transmitted to the originator",
+      "processing of the SetRequest-PDU terminates immediately thereafter",
+      "is formatted with the same values",
+      "the value of its error-status field set to `tooBig'",
+      "the value of its error-index field set to zero",
+      "an empty variable-bindings field",
+      "is then encapsulated into a message",
+      "the message is transmitted to the originator",
+      "the snmpSilentDrops counter is incremented",
+      "the resultant message is discarded",
+      "processing of the SetRequest-PDU terminates",
+      "processes each variable binding in the variable-binding list to produce a Response-PDU",
+      "All fields of the Response-PDU have the same values as the corresponding fields of the received request except as indicated below",
+      "the variable bindings are conceptually processed as a two phase operation",
+      "the following validations are performed in the first phase on each variable binding until they are all successful, or until one fails",
+      "then the value of the Response-PDU's error-status field is set to",
+      "the value of its error-index field is set to the index of the failed variable binding",
+      "At the end of the first phase, if the validation of all variable bindings succeeded, then the value of the Response-PDU's error-status field is set to `noError' and the value of its error-index field is zero",
+      "processing continues as follows",
+      "For each variable binding in the request, the named variable is created if necessary, and the specified value is assigned to it",
+      "Each of these variable assignments occurs as if simultaneously with respect to all other assignments specified in the same request",
+      "then all other assignments are undone",
+      "the Response-PDU is modified to have the value of its error-status field set to `commitFailed'",
+      "the value of its error-index field set to the index of the failed variable binding",
+      "then the Response-PDU is modified to have the value of its error-status field set to `undoFailed'",
+      "the value of its error-index field is set to zero",
+      "the generated Response-PDU is encapsulated into a message, and transmitted to the originator"
+    ],
+    "Prohibited": [
+      "is/would be denied access",
+      "could under no circumstances be assigned",
+      "does not exist and could not ever be created",
+      "can not be created under the present circumstances",
+      "can not be modified no matter what new value is specified",
+      "is presently inconsistent or otherwise unable to be assigned",
+      "requires the allocation of a resource which is presently unavailable",
+      "fails for a reason other than listed above",
+      "it is not possible to undo all the assignments"
+    ],
+    "Recommended": [
+      "implementors are at liberty to implement either the first, or second, or both, of these conceptual phases as multiple implementation phases",
+      "implementations are strongly encouraged to take all possible measures to avoid use of either `commitFailed' or `undoFailed'"
+    ]
+  }
+}

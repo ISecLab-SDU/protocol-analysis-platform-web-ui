@@ -1,0 +1,124 @@
+{
+  "1.1. A Note on Terminology": {},
+  "2. Overview -> 2.4. Retransmission of Requests": {},
+  "2. Overview -> 2.1. Roles of Protocol Entities": {},
+  "2. Overview -> 2.3. Access to Management Information": {},
+  "2. Overview -> 2.6. Transport Mappings": {},
+  "5. Security Considerations": {},
+  "4. Protocol Specification -> 4.2. PDU Processing": {},
+  "2. Overview -> 2.2. Management Information": {},
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.4. The Response-PDU": {
+    "is equal to": [
+      "equal to"
+    ],
+    "is not equal to": [
+      "non-zero"
+    ]
+  },
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.3. The GetBulkRequest-PDU -> 4.2.3.1. Another Example of Table Traversal": {},
+  "7. Acknowledgements": {},
+  "6. Editor's Address": {},
+  "3. Definitions": {},
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.2. The GetNextRequest-PDU -> 4.2.2.1. Example of Table Traversal": {},
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.7. The InformRequest-PDU": {},
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.1. The GetRequest-PDU": {
+    "matches": [
+      "exactly matches"
+    ],
+    "does not match": [
+      "does not have an OBJECT IDENTIFIER prefix which exactly matches"
+    ]
+  },
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.6. The SNMPv2-Trap-PDU": {
+    "is dependent on": [
+      "determined in an implementation-dependent fashion by"
+    ]
+  },
+  "4. Protocol Specification -> 4.1. Common Constructs": {
+    "is equal to": [
+      "takes the value of"
+    ],
+    "is identical to": [
+      "takes the value of"
+    ],
+    "is different from": [
+      "different"
+    ],
+    "is not equal to": [
+      "different"
+    ],
+    "is between X and Y": [
+      "between"
+    ],
+    "is greater than": [
+      "exceeds"
+    ],
+    "exceeds": [
+      "exceeds"
+    ]
+  },
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.2. The GetNextRequest-PDU": {
+    "is equal to": [
+      "same as"
+    ],
+    "is identical to": [
+      "same as"
+    ],
+    "is different from": [
+      "except as indicated below"
+    ],
+    "is greater than": [
+      "exceeds"
+    ],
+    "is less than": [
+      "less than or equal to"
+    ],
+    "follows": [
+      "Upon receipt of"
+    ],
+    "precedes": [
+      "precede"
+    ]
+  },
+  "2. Overview -> 2.5. Message Sizes": {
+    "is equal to": [
+      "matches"
+    ],
+    "is identical to": [
+      "matches"
+    ],
+    "is different from": [
+      "does not match"
+    ],
+    "is not equal to": [
+      "does not match"
+    ],
+    "is greater than": [
+      "exceeds"
+    ],
+    "is less than": [
+      "falls within"
+    ],
+    "is between X and Y": [
+      "falls within"
+    ],
+    "is dependent on": [
+      "is proportional to"
+    ],
+    "is correlated with": [
+      "is proportional to"
+    ],
+    "follows": [
+      "precedes"
+    ],
+    "occurs more frequently than": [
+      "has a higher probability than"
+    ]
+  },
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.3. The GetBulkRequest-PDU": {
+    "error": "无效的JSON响应"
+  },
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.5. The SetRequest-PDU": {
+    "error": "无效的JSON响应"
+  }
+}

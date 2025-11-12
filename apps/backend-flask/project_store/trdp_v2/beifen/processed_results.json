@@ -1,0 +1,319 @@
+[
+    {
+        "rule": "Shall be used only in a PD request.",
+        "req_type": "PD request",
+        "req_fields": [],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "The ComId shall be set to zero (ComId = 0) in the following cases: for PDUs with unspecified user dataset.",
+        "req_type": "PDU",
+        "req_fields": [
+            "ComId"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "Here, one dedicated subscriber is requesting one or multiple unknown publishers to send their PD-PDU data.",
+        "req_type": "",
+        "req_fields": [],
+        "res_type": "PD-PDU",
+        "res_fields": []
+    },
+    {
+        "rule": "Timeout supervision at subscriber TRDP layer shall be restarted after receiving the related process data.",
+        "req_type": "PD Push Message",
+        "req_fields": [
+            "process_data"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "PolledOperation: [pattern == PULL] PD.putData / restartTimer(txTime).",
+        "req_type": "PD",
+        "req_fields": [
+            "pattern"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "Shall be the primary information about the user data.",
+        "req_type": "PD-PDU",
+        "req_fields": [
+            "user data"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "If the reply is 0, the reply shall be sent as an unspecified PDU.",
+        "req_type": "",
+        "req_fields": [],
+        "res_type": "unspecified PDU",
+        "res_fields": []
+    },
+    {
+        "rule": "Time equals rxTime, which is the timeout value given in the PD.subscribe service primitive.",
+        "req_type": "PD.subscribe",
+        "req_fields": [
+            "rxTime"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "The structure of a PD-PDU is defined in Figure A.11 and in ASN.1 notation, with additional IEC subscriber, publisher, and requester roles for PD-PDU request and reply messages.",
+        "req_type": "PD-PDU request",
+        "req_fields": [],
+        "res_type": "PD-PDU reply",
+        "res_fields": []
+    },
+    {
+        "rule": "All TRDP communication uses a so called ComId transmitted in the header of each PDU.",
+        "req_type": "",
+        "req_fields": [
+            "ComId"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "sequenceCounter The sequence counter: Shall be managed for sending process telegrams, shall be managed (stored) for received process telegrams, shall be incremented with each sending of the process telegram, and can be used for communication layer surveillance to verify that the application is still updating its process data.",
+        "req_type": "PD-PDU",
+        "req_fields": [
+            "sequenceCounter"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "replyIpAddress The reply IP address for PD: shall be used for the reply.",
+        "req_type": "PD-PDU",
+        "req_fields": [
+            "replyIpAddress"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "MD_PDU is defined as a record containing request",
+        "req_type": "MD_PDU",
+        "req_fields": [],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "dataset The user data.",
+        "req_type": "PD-PDU",
+        "req_fields": [
+            "dataset"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "Triggers Description: MD.request User called MD.request service primitive change of topography counters.",
+        "req_type": "MD.request",
+        "req_fields": [
+            "topography counters"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "Also, a request for already cyclically published PDU shall be possible.",
+        "req_type": "PD Pull Request",
+        "req_fields": [],
+        "res_type": "PD Pull Response",
+        "res_fields": []
+    },
+    {
+        "rule": "a) An empty destinationUri in MD telegrams shall be received by a listener regardless of any defined destinationUri.",
+        "req_type": "MD telegram",
+        "req_fields": [
+            "destinationUri"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "The ComId has a one-to-one relation with the data set structure.",
+        "req_type": "",
+        "req_fields": [],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "f) MD telegrams with empty destinationUri may be received by several listeners with different filter parameters.",
+        "req_type": "MD telegram",
+        "req_fields": [
+            "destinationUri"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "The guards description defines the sendType parameter of the MD request telegram as requested by the user in the MD.request service primitive.",
+        "req_type": "MD request telegram",
+        "req_fields": [
+            "sendType"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "The composite state caller processes MD.request through mdCallSession when sendType equals Mr, enters StateWaitForReply when sendType equals Mn, and leaves when missingReplies equals 0 AND missingConfirms equals 0.",
+        "req_type": "MD.request",
+        "req_fields": [
+            "sendType"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "comId: Identifier of the user dataset.",
+        "req_type": "MD-PDU",
+        "req_fields": [
+            "comId"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "sequenceCounter: The sequence counter shall be incremented with each repetition and shall be returned with the reply message.",
+        "req_type": "MD-PDU",
+        "req_fields": [
+            "sequenceCounter"
+        ],
+        "res_type": "reply message",
+        "res_fields": [
+            "sequenceCounter"
+        ]
+    },
+    {
+        "rule": "Before sending a telegram, the topography counters of the telegram shall be checked against the expected values After reception of a telegram, the topography counter values shall be checked to ensure that they match the expected values The TRDP protocol involves a caller and replier (listener) using message types including MD.request, MD.addListener for request messages, MD.reply for reply messages, MD.indicate, MD.confirm for confirm messages, and MD.release as defined in IEC CD 61375-2-3",
+        "req_type": "",
+        "req_fields": [],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "dataset: The user data.",
+        "req_type": "MD-PDU",
+        "req_fields": [
+            "dataset"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "MD.indicate service primitive parameters include: userReference which was submitted with MD.request for reception of a query message (Mq), comId as defined in Table A.18 (set to 0 if unknown for error return), and userStatus for user status or error code.",
+        "req_type": "MD.request",
+        "req_fields": [
+            "userReference"
+        ],
+        "res_type": "MD.indicate",
+        "res_fields": [
+            "userReference",
+            "comId",
+            "userStatus"
+        ]
+    },
+    {
+        "rule": "The IEC CompositeStateReceiver processes mdMessageReceived and mdHandleReceived when exists equals TRUE.",
+        "req_type": "",
+        "req_fields": [
+            "exists"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "datasetLength: Length of the user data set in number of octets from 0 to 65388.",
+        "req_type": "MD-PDU",
+        "req_fields": [
+            "datasetLength"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "Set to 0 reserved as defined in Table A.3 sourceIpAddress Source IP Address of the PD.",
+        "req_type": "",
+        "req_fields": [
+            "reserved",
+            "sourceIpAddress"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "Triggers Description: mdMessageReceived - An MD telegram has been received",
+        "req_type": "MD telegram",
+        "req_fields": [],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "Set to 0 for application triggered Process Data datasetLength Actual user data length to be sent dataset Buffer with user data to be sent as redId Redundancy group ID.",
+        "req_type": "Process Data",
+        "req_fields": [
+            "datasetLength",
+            "dataset",
+            "redId"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "A confirmation message shall not contain user data and shall be sent only as unicast.",
+        "req_type": "confirmation message",
+        "req_fields": [
+            "user data"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "After receiving the MD.reply from the TRDP user (listener), the TRDP layer shall send the reply message.",
+        "req_type": "MD.reply",
+        "req_fields": [],
+        "res_type": "reply message",
+        "res_fields": []
+    },
+    {
+        "rule": "Set to 0 if PD.rePublish: TRDP user to TRDP layer handle Handle which has been given by the etbTopoCnt as defined in Table A.3 opTrnTopoCnt as defined in Table A.3 sourceIpAddress Source IP Address of the Process Data.",
+        "req_type": "PD",
+        "req_fields": [
+            "rePublish",
+            "etbTopoCnt",
+            "opTrnTopoCnt",
+            "sourceIpAddress"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "The topography counter values obtained in an MD.addListener service primitive shall be used for checking incoming messages.",
+        "req_type": "MD.addListener service primitive",
+        "req_fields": [
+            "topography counter values"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "The MD.reply of a listener shall use as source IP address the IP address of the listener and as source URI the URI of the listener.",
+        "req_type": "",
+        "req_fields": [],
+        "res_type": "MD.reply",
+        "res_fields": [
+            "source IP address",
+            "source URI"
+        ]
+    }
+]

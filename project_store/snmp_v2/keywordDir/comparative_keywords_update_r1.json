@@ -1,0 +1,174 @@
+{
+  "5. Security Considerations": {},
+  "2. Overview -> 2.4. Retransmission of Requests": {},
+  "2. Overview -> 2.3. Access to Management Information": {},
+  "2. Overview -> 2.1. Roles of Protocol Entities": {},
+  "2. Overview -> 2.2. Management Information": {},
+  "2. Overview -> 2.6. Transport Mappings": {},
+  "1.1. A Note on Terminology": {},
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.4. The Response-PDU": {
+    "is equal to": [
+      "is equal to"
+    ],
+    "is not equal to": [
+      "non-zero"
+    ]
+  },
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.1. The GetRequest-PDU": {
+    "matches": [
+      "exactly matches"
+    ],
+    "does not match": [
+      "does not have an OBJECT IDENTIFIER prefix which exactly matches"
+    ]
+  },
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.3. The GetBulkRequest-PDU -> 4.2.3.1. Another Example of Table Traversal": {},
+  "6. Editor's Address": {},
+  "7. Acknowledgements": {},
+  "3. Definitions": {},
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.6. The SNMPv2-Trap-PDU": {},
+  "4. Protocol Specification -> 4.1. Common Constructs": {
+    "is equal to": [
+      "takes the value of"
+    ],
+    "is identical to": [
+      "takes the value of"
+    ],
+    "is different from": [
+      "different"
+    ],
+    "is between X and Y": [
+      "between"
+    ],
+    "is out of bounds": [
+      "exceeds",
+      "maximum"
+    ]
+  },
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.2. The GetNextRequest-PDU -> 4.2.2.1. Example of Table Traversal": {},
+  "2. Overview -> 2.5. Message Sizes": {
+    "is less than": [
+      "is limited to the minimum of"
+    ],
+    "is greater than": [
+      "larger than"
+    ],
+    "is dependent on": [
+      "may be known on a per-recipient basis",
+      "is imposed by implementation-specific local constraints",
+      "must take care to set its parameters accordingly"
+    ]
+  },
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.7. The InformRequest-PDU": {
+    "is equal to": [
+      "same values"
+    ],
+    "is greater than": [
+      "greater than"
+    ],
+    "is less than": [
+      "less than"
+    ]
+  },
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.5. The SetRequest-PDU": {
+    "is equal to": [
+      "same"
+    ],
+    "is greater than": [
+      "greater than"
+    ]
+  },
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.2. The GetNextRequest-PDU": {
+    "is equal to": [
+      "same as"
+    ],
+    "is identical to": [
+      "same as"
+    ],
+    "is not equal to": [
+      "other than"
+    ],
+    "is greater than": [
+      "exceeds"
+    ],
+    "exceeds": [
+      "exceeds"
+    ],
+    "is less than": [
+      "less than"
+    ],
+    "follows": [
+      "succeeds"
+    ],
+    "precedes": [
+      "precedes"
+    ]
+  },
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.3. The GetBulkRequest-PDU": {
+    "is less than": [
+      "less than or equal to"
+    ],
+    "is greater than": [
+      "greater than or equal to"
+    ]
+  },
+  "4. Protocol Specification -> 4.2. PDU Processing": {
+    "is equal to": [
+      "mandatory"
+    ],
+    "is identical to": [
+      "mandatory"
+    ],
+    "is not equal to": [
+      "not"
+    ],
+    "is different from": [
+      "not"
+    ],
+    "does not match": [
+      "not"
+    ],
+    "is greater than": [
+      "upper-bound"
+    ],
+    "exceeds": [
+      "upper-bound"
+    ],
+    "is less than": [
+      "limited"
+    ],
+    "falls within": [
+      "within"
+    ],
+    "is between X and Y": [
+      "between"
+    ],
+    "is out of bounds": [
+      "bounds"
+    ],
+    "is dependent on": [
+      "dependent"
+    ],
+    "follows": [
+      "following"
+    ],
+    "precedes": [
+      "before"
+    ],
+    "occur before": [
+      "before"
+    ],
+    "is consistent with": [
+      "consistent"
+    ],
+    "is more likely than": [
+      "more"
+    ],
+    "occurs more frequently than": [
+      "more"
+    ],
+    "has a higher probability than": [
+      "higher"
+    ]
+  }
+}
