@@ -281,7 +281,6 @@ export function useLogReader() {
     });
   }
   */
-  }
 
   // SOL专用的日志显示函数
   function addSOLLogToUI(logData: LogUIData) {
