@@ -27,6 +27,8 @@ import {
   type HistoryResult,
   type ProtocolType,
   type FuzzEngineType,
+  type ProtocolImplementationType,
+  type ProtocolImplementationConfig,
 } from './composables';
 
 // 导入新的协议数据管理器和日志查看器
@@ -130,6 +132,28 @@ const rtspCommandConfig = ref(
   'afl-fuzz -d -i $AFLNET/tutorials/live555/in-rtsp -o out-live555 -N tcp://127.0.0.1/8554 -x $AFLNET/tutorials/live555/rtsp.dict -P RTSP -D 10000 -q 3 -s 3 -E -K -R ./testOnDemandRTSPServer 8554',
 );
 
+// 协议实现配置
+const protocolImplementations = ref<ProtocolImplementationType[]>(['系统固件']);
+
+// 协议实现配置映射
+const protocolImplementationConfigs: Record<FuzzEngineType, ProtocolImplementationConfig> = {
+  'SNMP_Fuzz': {
+    fuzzEngine: 'SNMP_Fuzz',
+    defaultImplementations: ['系统固件'],
+    isMultiSelect: false
+  },
+  'MBFuzzer': {
+    fuzzEngine: 'MBFuzzer',
+    defaultImplementations: ['HiveMQ', 'VerneMQ', 'EMQX', 'FlashMQ', 'NanoMQ', 'Mosquitto'],
+    isMultiSelect: true
+  },
+  'AFLNET': {
+    fuzzEngine: 'AFLNET',
+    defaultImplementations: ['SOL'],
+    isMultiSelect: false
+  }
+};
+
 // Real-time log reading (现在通过useLogReader管理)
 const rtspProcessId = ref<number | null>(null);
 
@@ -199,6 +223,16 @@ watch(protocolType, (newProtocol, oldProtocol) => {
     resetTestState();
     console.log('[DEBUG] 协议切换完成，状态已重置');
   });
+});
+
+// Watch for fuzz engine changes to update protocol implementations
+watch(fuzzEngine, (newEngine) => {
+  console.log(`[DEBUG] Fuzz引擎切换: ${newEngine}`);
+  const config = protocolImplementationConfigs[newEngine];
+  if (config) {
+    protocolImplementations.value = [...config.defaultImplementations];
+    console.log(`[DEBUG] 协议实现已更新为: ${protocolImplementations.value.join(', ')}`);
+  }
 });
 const showCharts = ref(false);
 const crashDetails = ref<any>(null);
@@ -2798,7 +2832,7 @@ async function writeRTSPScriptWrapper() {
   const scriptContent = rtspCommandConfig.value;
 
   try {
-    const result = await writeRTSPScript(scriptContent);
+    const result = await writeRTSPScript(scriptContent, protocolImplementations.value);
 
     addLogToUI(
       {
@@ -2819,7 +2853,7 @@ async function writeRTSPScriptWrapper() {
 
 async function executeRTSPCommandWrapper() {
   try {
-    const result = await executeRTSPCommand();
+    const result = await executeRTSPCommand(protocolImplementations.value);
 
     // 保存容器ID用于后续停止
     if (result.data && (result.data.container_id || result.data.pid)) {
@@ -5017,6 +5051,59 @@ onMounted(async () => {
                   <i
                     class="fa fa-plug text-dark/50 absolute right-3 top-2.5"
                   ></i>
+                </div>
+              </div>
+            </div>
+
+            <!-- 协议实现选择 -->
+            <div class="mt-4">
+              <label class="text-dark/70 mb-2 block text-sm">协议实现</label>
+              
+              <!-- 单选模式 (SNMP_Fuzz, AFLNET) -->
+              <div 
+                v-if="!protocolImplementationConfigs[fuzzEngine].isMultiSelect"
+                class="relative"
+              >
+                <select
+                  v-model="protocolImplementations[0]"
+                  class="border-primary/20 focus:ring-primary w-full appearance-none rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1"
+                >
+                  <option 
+                    v-for="impl in protocolImplementationConfigs[fuzzEngine].defaultImplementations"
+                    :key="impl"
+                    :value="impl"
+                  >
+                    {{ impl }}
+                  </option>
+                </select>
+                <i
+                  class="fa fa-chevron-down text-dark/50 pointer-events-none absolute right-3 top-2.5"
+                ></i>
+              </div>
+
+              <!-- 多选模式 (MBFuzzer) -->
+              <div 
+                v-else
+                class="space-y-2"
+              >
+                <div 
+                  v-for="impl in protocolImplementationConfigs[fuzzEngine].defaultImplementations"
+                  :key="impl"
+                  class="flex items-center"
+                >
+                  <input
+                    :id="`impl-${impl}`"
+                    type="checkbox"
+                    :value="impl"
+                    v-model="protocolImplementations"
+                    class="border-primary/20 focus:ring-primary h-4 w-4 rounded border text-primary focus:ring-1"
+                  />
+                  <label 
+                    :for="`impl-${impl}`"
+                    class="text-dark/70 ml-2 text-sm"
+                  >
+                    {{ impl }}
+                  </label>
                 </div>
               </div>
             </div>

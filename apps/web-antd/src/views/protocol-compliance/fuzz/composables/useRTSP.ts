@@ -118,7 +118,7 @@ export function useRTSP() {
   }
 
   // 写入RTSP脚本文件
-  async function writeRTSPScript(scriptContent: string) {
+  async function writeRTSPScript(scriptContent: string, protocolImplementations?: string[]) {
     try {
       const response = await fetch('/api/protocol-compliance/write-script', {
         method: 'POST',
@@ -127,7 +127,8 @@ export function useRTSP() {
         },
         body: JSON.stringify({
           content: scriptContent,
-          protocol: 'RTSP'
+          protocol: 'RTSP',
+          protocolImplementations: protocolImplementations || []
         }),
       });
       
@@ -145,7 +146,7 @@ export function useRTSP() {
   }
 
   // 执行RTSP命令
-  async function executeRTSPCommand() {
+  async function executeRTSPCommand(protocolImplementations?: string[]) {
     try {
       const response = await fetch('/api/protocol-compliance/execute-command', {
         method: 'POST',
@@ -153,7 +154,8 @@ export function useRTSP() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          protocol: 'RTSP'
+          protocol: 'RTSP',
+          protocolImplementations: protocolImplementations || []
         }),
       });
       

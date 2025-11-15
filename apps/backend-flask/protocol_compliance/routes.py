@@ -972,6 +972,7 @@ def write_script():
 
     content = data.get("content")
     protocol = data.get("protocol", "UNKNOWN")
+    protocol_implementations = data.get("protocolImplementations", [])
 
     if not content:
         return make_response(error_response("脚本内容不能为空"), 400)
@@ -1028,12 +1029,29 @@ def execute_command():
         return make_response(error_response("请求数据不能为空"), 400)
 
     protocol = data.get("protocol", "UNKNOWN")
+    protocol_implementations = data.get("protocolImplementations", [])
 
     # 根据协议获取配置
     if protocol == "RTSP":
         command = RTSP_CONFIG["shell_command"]
+        # RTSP协议实现信息记录到日志
+        if protocol_implementations:
+            print(f"[DEBUG] RTSP协议实现: {protocol_implementations}")
     elif protocol == "MQTT":
         command = MQTT_CONFIG["shell_command"]
+        # MQTT协议根据选择的实现调整命令
+        if protocol_implementations:
+            print(f"[DEBUG] MQTT协议实现: {protocol_implementations}")
+            # 这里可以根据选择的broker实现来调整MBFuzzer的配置
+            # 例如：为不同的broker设置不同的测试参数
+            implementations_str = ",".join(protocol_implementations)
+            # 可以将实现信息传递给MBFuzzer作为参数
+            command = f"{command} --brokers={implementations_str}"
+    elif protocol == "SNMP":
+        command = SNMP_CONFIG["shell_command"]
+        # SNMP协议实现信息记录到日志
+        if protocol_implementations:
+            print(f"[DEBUG] SNMP协议实现: {protocol_implementations}")
     else:
         return make_response(error_response(f"不支持的协议类型: {protocol}"), 400)
 

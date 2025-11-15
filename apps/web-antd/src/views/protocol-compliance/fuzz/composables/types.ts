@@ -192,3 +192,21 @@ export type ProtocolType = 'SNMP' | 'RTSP' | 'MQTT';
 
 // Fuzz引擎类型
 export type FuzzEngineType = 'SNMP_Fuzz' | 'AFLNET' | 'MBFuzzer';
+
+// 协议实现类型
+export type ProtocolImplementationType = 
+  | '系统固件'  // SNMP_Fuzz 默认
+  | 'HiveMQ'    // MBFuzzer 选项
+  | 'VerneMQ'   // MBFuzzer 选项
+  | 'EMQX'      // MBFuzzer 选项
+  | 'FlashMQ'   // MBFuzzer 选项
+  | 'NanoMQ'    // MBFuzzer 选项
+  | 'Mosquitto' // MBFuzzer 选项
+  | 'SOL';      // AFLNET 默认
+
+// 协议实现配置接口
+export interface ProtocolImplementationConfig {
+  fuzzEngine: FuzzEngineType;
+  defaultImplementations: ProtocolImplementationType[];
+  isMultiSelect: boolean;
+}
