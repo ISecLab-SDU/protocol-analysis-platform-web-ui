@@ -134,6 +134,7 @@ const rtspCommandConfig = ref(
 
 // 协议实现配置
 const protocolImplementations = ref<ProtocolImplementationType[]>(['系统固件']);
+const selectedProtocolImplementation = ref<ProtocolImplementationType>('系统固件');
 
 // 协议实现配置映射
 const protocolImplementationConfigs: Record<FuzzEngineType, ProtocolImplementationConfig> = {
@@ -145,7 +146,7 @@ const protocolImplementationConfigs: Record<FuzzEngineType, ProtocolImplementati
   'MBFuzzer': {
     fuzzEngine: 'MBFuzzer',
     defaultImplementations: ['HiveMQ', 'VerneMQ', 'EMQX', 'FlashMQ', 'NanoMQ', 'Mosquitto'],
-    isMultiSelect: true
+    isMultiSelect: false  // 改为单选模式，统一风格
   },
   'AFLNET': {
     fuzzEngine: 'AFLNET',
@@ -230,9 +231,18 @@ watch(fuzzEngine, (newEngine) => {
   console.log(`[DEBUG] Fuzz引擎切换: ${newEngine}`);
   const config = protocolImplementationConfigs[newEngine];
   if (config) {
+    // 更新多选数组（保持向后兼容）
     protocolImplementations.value = [...config.defaultImplementations];
-    console.log(`[DEBUG] 协议实现已更新为: ${protocolImplementations.value.join(', ')}`);
+    // 更新单选值（新的统一风格）
+    selectedProtocolImplementation.value = config.defaultImplementations[0];
+    console.log(`[DEBUG] 协议实现已更新为: ${selectedProtocolImplementation.value}`);
   }
+});
+
+// Watch for selected protocol implementation changes to sync with array
+watch(selectedProtocolImplementation, (newImpl) => {
+  // 同步单选值到多选数组，保持向后兼容
+  protocolImplementations.value = [newImpl];
 });
 const showCharts = ref(false);
 const crashDetails = ref<any>(null);
@@ -2832,7 +2842,7 @@ async function writeRTSPScriptWrapper() {
   const scriptContent = rtspCommandConfig.value;
 
   try {
-    const result = await writeRTSPScript(scriptContent, protocolImplementations.value);
+    const result = await writeRTSPScript(scriptContent, [selectedProtocolImplementation.value]);
 
     addLogToUI(
       {
@@ -2853,7 +2863,7 @@ async function writeRTSPScriptWrapper() {
 
 async function executeRTSPCommandWrapper() {
   try {
-    const result = await executeRTSPCommand(protocolImplementations.value);
+    const result = await executeRTSPCommand([selectedProtocolImplementation.value]);
 
     // 保存容器ID用于后续停止
     if (result.data && (result.data.container_id || result.data.pid)) {
@@ -4979,7 +4989,7 @@ onMounted(async () => {
             class="border-primary/20 mb-6 rounded-xl border bg-white/80 p-4 backdrop-blur-sm"
           >
             <h3 class="mb-4 text-lg font-semibold">测试配置</h3>
-            <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-5">
               <!-- 协议选择 -->
               <div>
                 <label class="text-dark/70 mb-2 block text-sm">协议类型</label>
@@ -4991,6 +5001,28 @@ onMounted(async () => {
                     <option value="SNMP">SNMP</option>
                     <option value="RTSP">RTSP</option>
                     <option value="MQTT">MQTT</option>
+                  </select>
+                  <i
+                    class="fa fa-chevron-down text-dark/50 pointer-events-none absolute right-3 top-2.5"
+                  ></i>
+                </div>
+              </div>
+
+              <!-- 协议实现选择 -->
+              <div>
+                <label class="text-dark/70 mb-2 block text-sm">协议实现</label>
+                <div class="relative">
+                  <select
+                    v-model="selectedProtocolImplementation"
+                    class="border-primary/20 focus:ring-primary w-full appearance-none rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1"
+                  >
+                    <option 
+                      v-for="impl in protocolImplementationConfigs[fuzzEngine].defaultImplementations"
+                      :key="impl"
+                      :value="impl"
+                    >
+                      {{ impl }}
+                    </option>
                   </select>
                   <i
                     class="fa fa-chevron-down text-dark/50 pointer-events-none absolute right-3 top-2.5"
@@ -5051,59 +5083,6 @@ onMounted(async () => {
                   <i
                     class="fa fa-plug text-dark/50 absolute right-3 top-2.5"
                   ></i>
-                </div>
-              </div>
-            </div>
-
-            <!-- 协议实现选择 -->
-            <div class="mt-4">
-              <label class="text-dark/70 mb-2 block text-sm">协议实现</label>
-              
-              <!-- 单选模式 (SNMP_Fuzz, AFLNET) -->
-              <div 
-                v-if="!protocolImplementationConfigs[fuzzEngine].isMultiSelect"
-                class="relative"
-              >
-                <select
-                  v-model="protocolImplementations[0]"
-                  class="border-primary/20 focus:ring-primary w-full appearance-none rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1"
-                >
-                  <option 
-                    v-for="impl in protocolImplementationConfigs[fuzzEngine].defaultImplementations"
-                    :key="impl"
-                    :value="impl"
-                  >
-                    {{ impl }}
-                  </option>
-                </select>
-                <i
-                  class="fa fa-chevron-down text-dark/50 pointer-events-none absolute right-3 top-2.5"
-                ></i>
-              </div>
-
-              <!-- 多选模式 (MBFuzzer) -->
-              <div 
-                v-else
-                class="space-y-2"
-              >
-                <div 
-                  v-for="impl in protocolImplementationConfigs[fuzzEngine].defaultImplementations"
-                  :key="impl"
-                  class="flex items-center"
-                >
-                  <input
-                    :id="`impl-${impl}`"
-                    type="checkbox"
-                    :value="impl"
-                    v-model="protocolImplementations"
-                    class="border-primary/20 focus:ring-primary h-4 w-4 rounded border text-primary focus:ring-1"
-                  />
-                  <label 
-                    :for="`impl-${impl}`"
-                    class="text-dark/70 ml-2 text-sm"
-                  >
-                    {{ impl }}
-                  </label>
                 </div>
               </div>
             </div>
