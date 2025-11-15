@@ -5,6 +5,7 @@
 
 import { ref, type Ref } from 'vue';
 import type { RTSPStats, LogUIData } from './types';
+import { requestClient } from '@/api/request';
 
 export function useSOL() {
   // SOL统计数据
@@ -120,23 +121,11 @@ export function useSOL() {
   // 写入SOL脚本文件
   async function writeSOLScript(scriptContent: string, protocolImplementations?: string[]) {
     try {
-      const response = await fetch('/api/protocol-compliance/write-script', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          content: scriptContent,
-          protocol: 'MQTT',  // SOL协议现在通过MQTT协议实现选择
-          protocolImplementations: protocolImplementations || []
-        }),
+      const result = await requestClient.post('/protocol-compliance/write-script', {
+        content: scriptContent,
+        protocol: 'MQTT',  // SOL协议现在通过MQTT协议实现选择
+        protocolImplementations: protocolImplementations || []
       });
-      
-      if (!response.ok) {
-        throw new Error(`写入脚本文件失败: ${response.statusText}`);
-      }
-      
-      const result = await response.json();
       return result;
       
     } catch (error: any) {
@@ -148,22 +137,10 @@ export function useSOL() {
   // 执行SOL命令
   async function executeSOLCommand(protocolImplementations?: string[]) {
     try {
-      const response = await fetch('/api/protocol-compliance/execute-command', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          protocol: 'MQTT',  // SOL协议现在通过MQTT协议实现选择
-          protocolImplementations: protocolImplementations || []
-        }),
+      const result = await requestClient.post('/protocol-compliance/execute-command', {
+        protocol: 'MQTT',  // SOL协议现在通过MQTT协议实现选择
+        protocolImplementations: protocolImplementations || []
       });
-      
-      if (!response.ok) {
-        throw new Error(`执行命令失败: ${response.statusText}`);
-      }
-      
-      const result = await response.json();
       return result;
       
     } catch (error: any) {
@@ -179,20 +156,11 @@ export function useSOL() {
     }
     
     try {
-      const response = await fetch('/api/protocol-compliance/stop-process', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          pid: processId,
-          protocol: 'RTSP'  // 保持协议标识符为RTSP
-        }),
+      const result = await requestClient.post('/protocol-compliance/stop-process', {
+        pid: processId,
+        protocol: 'RTSP'  // 保持协议标识符为RTSP
       });
-      
-      if (response.ok) {
-        return await response.json();
-      }
+      return result;
     } catch (error) {
       console.error('停止SOL进程失败:', error);
       throw error;
@@ -206,23 +174,11 @@ export function useSOL() {
     }
     
     try {
-      const response = await fetch('/api/protocol-compliance/stop-and-cleanup', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          container_id: containerId,
-          protocol: 'RTSP'  // 保持协议标识符为RTSP
-        }),
+      const result = await requestClient.post('/protocol-compliance/stop-and-cleanup', {
+        container_id: containerId,
+        protocol: 'RTSP'  // 保持协议标识符为RTSP
       });
-      
-      if (response.ok) {
-        return await response.json();
-      } else {
-        const errorData = await response.json();
-        throw new Error(errorData.message || '停止和清理容器失败');
-      }
+      return result;
     } catch (error) {
       console.error('停止和清理SOL容器失败:', error);
       throw error;
