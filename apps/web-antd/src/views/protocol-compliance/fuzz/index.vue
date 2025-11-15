@@ -2946,7 +2946,7 @@ async function checkSOLStatus() {
       // 显示状态信息到UI
       const statusMessage = `状态检查: 日志目录${result.log_dir_exists ? '存在' : '不存在'}, 日志文件${result.log_file_exists ? '存在' : '不存在'}`;
 
-      addToRealtimeStream('SOL', {
+      addToRealtimeStream('RTSP', {
         timestamp: new Date().toLocaleTimeString(),
         type: 'INFO',
         content: statusMessage,
@@ -2954,7 +2954,7 @@ async function checkSOLStatus() {
 
       // 如果有Docker容器信息，显示
       if (result.docker_containers) {
-        addToRealtimeStream('SOL', {
+        addToRealtimeStream('RTSP', {
           timestamp: new Date().toLocaleTimeString(),
           type: 'INFO',
           content: `Docker容器状态: ${result.docker_containers.split('\n').length - 1}个容器运行中`,
@@ -2963,7 +2963,7 @@ async function checkSOLStatus() {
 
       // 如果有文件列表，显示
       if (result.files_in_log_dir && Array.isArray(result.files_in_log_dir)) {
-        addToRealtimeStream('SOL', {
+        addToRealtimeStream('RTSP', {
           timestamp: new Date().toLocaleTimeString(),
           type: 'INFO',
           content: `输出目录文件: ${result.files_in_log_dir.join(', ')}`,
@@ -2973,7 +2973,7 @@ async function checkSOLStatus() {
   } catch (error) {
     console.error('检查SOL状态失败:', error);
 
-    addToRealtimeStream('SOL', {
+    addToRealtimeStream('RTSP', {
       timestamp: new Date().toLocaleTimeString(),
       type: 'ERROR',
       content: `状态检查失败: ${error.message || error}`,
@@ -3013,7 +3013,7 @@ async function readSOLLogPeriodically() {
           result.message.includes('日志文件尚未创建') ||
           result.message.includes('日志目录不存在')
         ) {
-          addToRealtimeStream('SOL', {
+          addToRealtimeStream('RTSP', {
             timestamp: new Date().toLocaleTimeString(),
             type: 'WARNING',
             content: result.message,
@@ -3047,7 +3047,7 @@ async function readSOLLogPeriodically() {
             console.log('[DEBUG] 处理的日志数据:', logData);
 
             // 使用协议数据管理器添加日志，而不是直接操作DOM
-            addToRealtimeStream('SOL', {
+            addToRealtimeStream('RTSP', {
               timestamp: logData.timestamp,
               type: logData.type === 'STATS' ? 'INFO' : logData.type,
               content: logData.content,
@@ -3065,7 +3065,7 @@ async function readSOLLogPeriodically() {
       console.error('读取SOL日志失败:', error);
 
       // 显示错误信息到UI
-      addToRealtimeStream('SOL', {
+      addToRealtimeStream('RTSP', {
         timestamp: new Date().toLocaleTimeString(),
         type: 'ERROR',
         content: `读取日志失败: ${error.message || error}`,
