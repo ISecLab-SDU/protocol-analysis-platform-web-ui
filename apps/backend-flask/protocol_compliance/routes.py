@@ -938,11 +938,11 @@ def _strip_extension(filename: str) -> str:
 
 # Protocol Specific Routes -------------------------------------------------
 
-# RTSP协议配置 - 在这里修改路径和命令
+# RTSP协议配置 - ProtocolGuard配置
 RTSP_CONFIG = {
-    "script_path": "/home/hhh/下载/AFLNET/commands/run-aflnet.sh",  # 修改为你的脚本文件路径
-    "shell_command": "cd /home/hhh/下载/AFLNET/ && docker run -d --privileged -v $(pwd)/output:/home/live555/testProgs/out-live555 -v $(pwd)/commands:/host-commands -p 8554:8554 aflnet-live555",  # 修改为你的启动命令
-    "log_file_path": "/home/hhh/下载/AFLNET/output/plot_data"  # 修改为你的日志文件路径
+    "script_path": None,  # 不再需要脚本文件
+    "shell_command": "docker run --rm -it --privileged -v /home/hhh/下载/ProtocolGuardOutPut:/out/fuzz-output protocolguard:latest fuzz",  # ProtocolGuard启动命令
+    "log_file_path": "/home/hhh/下载/ProtocolGuardOutPut/plot_data"  # ProtocolGuard日志文件路径
 }
 
 # MQTT协议配置 - MBFuzzer相关路径
@@ -978,7 +978,12 @@ def write_script():
 
     # 根据协议获取配置
     if protocol == "RTSP":
-        file_path = RTSP_CONFIG["script_path"]
+        # RTSP协议使用ProtocolGuard，不需要脚本文件，直接返回成功
+        return success_response({
+            "message": f"{protocol}协议不需要脚本文件，直接启动docker即可生成日志",
+            "filePath": "N/A",
+            "size": 0
+        })
     elif protocol == "MQTT":
         # MQTT协议暂时不需要脚本文件，直接返回成功
         return success_response({
@@ -1035,37 +1040,68 @@ def execute_command():
     try:
         print(f"[DEBUG] 执行命令: {command}")  # 调试日志
 
-        # 使用subprocess.run等待命令完成，而不是Popen
-        result = subprocess.run(
-            command,
-            shell=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=30  # 30秒超时
-        )
-
-        print(f"[DEBUG] 命令返回码: {result.returncode}")  # 调试日志
-
-        if result.returncode == 0:
-            # 命令执行成功
-            print(f"[DEBUG] 命令执行成功")
-            print(f"[DEBUG] stdout: {result.stdout}")
-
-            # 对于docker run -d，成功的话stdout通常包含容器ID
-            container_id = result.stdout.strip() if result.stdout.strip() else "unknown"
-
-            return success_response({
-                "message": f"{protocol}命令执行成功",
-                "command": command,
-                "container_id": container_id,
-                "pid": "docker_container"  # Docker容器没有传统意义的PID
-            })
+        # 对于RTSP协议的ProtocolGuard，使用后台运行方式
+        if protocol == "RTSP":
+            # ProtocolGuard需要在后台运行，因为它是长时间运行的fuzzing任务
+            process = subprocess.Popen(
+                command,
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            
+            # 给进程一点时间启动
+            import time
+            time.sleep(2)
+            
+            # 检查进程是否还在运行
+            if process.poll() is None:
+                # 进程仍在运行，说明启动成功
+                return success_response({
+                    "message": f"{protocol} ProtocolGuard启动成功，正在后台运行fuzzing任务",
+                    "command": command,
+                    "pid": process.pid,
+                    "container_id": "protocolguard_container"
+                })
+            else:
+                # 进程已经结束，可能是启动失败
+                stdout, stderr = process.communicate()
+                error_msg = stderr.strip() if stderr.strip() else "进程意外结束"
+                print(f"[DEBUG] ProtocolGuard启动失败: {error_msg}")
+                return make_response(error_response(f"ProtocolGuard启动失败: {error_msg}"), 500)
         else:
-            # 命令执行失败
-            error_msg = result.stderr.strip() if result.stderr.strip() else "未知错误"
-            print(f"[DEBUG] 命令执行失败: {error_msg}")
-            return make_response(error_response(f"命令执行失败: {error_msg}"), 500)
+            # 其他协议使用原来的方式
+            result = subprocess.run(
+                command,
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=30  # 30秒超时
+            )
+
+            print(f"[DEBUG] 命令返回码: {result.returncode}")  # 调试日志
+
+            if result.returncode == 0:
+                # 命令执行成功
+                print(f"[DEBUG] 命令执行成功")
+                print(f"[DEBUG] stdout: {result.stdout}")
+
+                # 对于docker run -d，成功的话stdout通常包含容器ID
+                container_id = result.stdout.strip() if result.stdout.strip() else "unknown"
+
+                return success_response({
+                    "message": f"{protocol}命令执行成功",
+                    "command": command,
+                    "container_id": container_id,
+                    "pid": "docker_container"  # Docker容器没有传统意义的PID
+                })
+            else:
+                # 命令执行失败
+                error_msg = result.stderr.strip() if result.stderr.strip() else "未知错误"
+                print(f"[DEBUG] 命令执行失败: {error_msg}")
+                return make_response(error_response(f"命令执行失败: {error_msg}"), 500)
 
     except subprocess.TimeoutExpired:
         print(f"[DEBUG] 命令执行超时")
