@@ -27,7 +27,7 @@ export interface FuzzPacket {
 export interface HistoryResult {
   id: string;
   timestamp: string;
-  protocol: 'SNMP' | 'RTSP' | 'MQTT';
+  protocol: 'SNMP' | 'MQTT';
   fuzzEngine: string;
   targetHost: string;
   targetPort: number;
@@ -188,7 +188,7 @@ export interface LogUIData {
 }
 
 // 协议类型
-export type ProtocolType = 'SNMP' | 'RTSP' | 'MQTT';
+export type ProtocolType = 'SNMP' | 'MQTT';
 
 // Fuzz引擎类型
 export type FuzzEngineType = 'SNMP_Fuzz' | 'AFLNET' | 'MBFuzzer';
@@ -196,13 +196,13 @@ export type FuzzEngineType = 'SNMP_Fuzz' | 'AFLNET' | 'MBFuzzer';
 // 协议实现类型
 export type ProtocolImplementationType = 
   | '系统固件'  // SNMP_Fuzz 默认
-  | 'HiveMQ'    // MBFuzzer 选项
-  | 'VerneMQ'   // MBFuzzer 选项
-  | 'EMQX'      // MBFuzzer 选项
-  | 'FlashMQ'   // MBFuzzer 选项
-  | 'NanoMQ'    // MBFuzzer 选项
-  | 'Mosquitto' // MBFuzzer 选项
-  | 'SOL';      // AFLNET 默认
+  | 'SOL协议'   // MQTT + AFLNET 选项 (SOL协议实现)
+  | 'HiveMQ'    // MQTT + MBFuzzer 选项
+  | 'VerneMQ'   // MQTT + MBFuzzer 选项
+  | 'EMQX'      // MQTT + MBFuzzer 选项
+  | 'FlashMQ'   // MQTT + MBFuzzer 选项
+  | 'NanoMQ'    // MQTT + MBFuzzer 选项
+  | 'Mosquitto'; // MQTT + MBFuzzer 选项
 
 // 协议实现配置接口
 export interface ProtocolImplementationConfig {

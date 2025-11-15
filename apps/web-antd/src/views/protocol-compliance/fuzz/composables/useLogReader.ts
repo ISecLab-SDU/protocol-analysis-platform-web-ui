@@ -57,8 +57,6 @@ export function useLogReader() {
                 // 根据协议类型使用不同的UI显示函数
                 if (protocol === 'MQTT') {
                   addMQTTLogToUI(logData);
-                } else if (protocol === 'RTSP') {
-                  addSOLLogToUI(logData);  // 使用SOL显示函数
                 } else {
                   addLogToUI(logData);
                 }
@@ -231,7 +229,8 @@ export function useLogReader() {
     });
   }
 
-  // RTSP专用的日志显示函数（保留用于兼容性）
+  // RTSP专用的日志显示函数已移除，SOL协议现在通过addSOLLogToUI处理
+  /*
   function addRTSPLogToUI(logData: LogUIData) {
     if (!logContainer.value) return;
     
@@ -280,6 +279,8 @@ export function useLogReader() {
         console.warn('添加RTSP日志到UI失败:', error);
       }
     });
+  }
+  */
   }
 
   // SOL专用的日志显示函数
@@ -360,7 +361,7 @@ export function useLogReader() {
     resetLogReader,
     addLogToUI,
     addMQTTLogToUI,
-    addRTSPLogToUI,
+    // addRTSPLogToUI, // 已移除
     addSOLLogToUI,
     clearLog
   };

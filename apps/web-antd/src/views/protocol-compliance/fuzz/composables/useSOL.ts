@@ -127,7 +127,7 @@ export function useSOL() {
         },
         body: JSON.stringify({
           content: scriptContent,
-          protocol: 'RTSP',  // 保持协议标识符为RTSP
+          protocol: 'MQTT',  // SOL协议现在通过MQTT协议实现选择
           protocolImplementations: protocolImplementations || []
         }),
       });
@@ -154,7 +154,7 @@ export function useSOL() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          protocol: 'RTSP',  // 保持协议标识符为RTSP
+          protocol: 'MQTT',  // SOL协议现在通过MQTT协议实现选择
           protocolImplementations: protocolImplementations || []
         }),
       });

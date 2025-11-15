@@ -1032,21 +1032,22 @@ def execute_command():
     protocol_implementations = data.get("protocolImplementations", [])
 
     # 根据协议获取配置
-    if protocol == "RTSP":
-        command = RTSP_CONFIG["shell_command"]
-        # SOL协议实现信息记录到日志
-        if protocol_implementations:
-            print(f"[DEBUG] SOL协议实现: {protocol_implementations}")
-    elif protocol == "MQTT":
-        command = MQTT_CONFIG["shell_command"]
-        # MQTT协议根据选择的实现调整命令
-        if protocol_implementations:
-            print(f"[DEBUG] MQTT协议实现: {protocol_implementations}")
+    if protocol == "MQTT":
+        # MQTT协议支持双引擎配置
+        if protocol_implementations and "SOL协议" in protocol_implementations:
+            # SOL协议使用AFLNET引擎 (原RTSP配置)
+            command = RTSP_CONFIG["shell_command"]
+            print(f"[DEBUG] MQTT协议使用SOL实现(AFLNET引擎): {protocol_implementations}")
+        else:
+            # 传统MQTT broker使用MBFuzzer引擎
+            command = MQTT_CONFIG["shell_command"]
+            print(f"[DEBUG] MQTT协议使用传统broker实现(MBFuzzer引擎): {protocol_implementations}")
             # 这里可以根据选择的broker实现来调整MBFuzzer的配置
             # 例如：为不同的broker设置不同的测试参数
-            implementations_str = ",".join(protocol_implementations)
-            # 可以将实现信息传递给MBFuzzer作为参数
-            command = f"{command} --brokers={implementations_str}"
+            if protocol_implementations:
+                implementations_str = ",".join(protocol_implementations)
+                # 可以将实现信息传递给MBFuzzer作为参数
+                command = f"{command} --brokers={implementations_str}"
     elif protocol == "SNMP":
         command = SNMP_CONFIG["shell_command"]
         # SNMP协议实现信息记录到日志
@@ -1144,10 +1145,18 @@ def read_log():
     last_position = data.get("lastPosition", 0)
 
     # 根据协议获取配置
-    if protocol == "RTSP":
-        file_path = RTSP_CONFIG["log_file_path"]
-    elif protocol == "MQTT":
-        file_path = MQTT_CONFIG["log_file_path"]
+    protocol_implementations = data.get("protocolImplementations", [])
+    
+    if protocol == "MQTT":
+        # MQTT协议支持双引擎配置
+        if protocol_implementations and "SOL协议" in protocol_implementations:
+            # SOL协议使用AFLNET引擎日志路径 (原RTSP配置)
+            file_path = RTSP_CONFIG["log_file_path"]
+            print(f"[DEBUG] MQTT协议使用SOL实现，读取AFLNET日志: {file_path}")
+        else:
+            # 传统MQTT broker使用MBFuzzer引擎日志路径
+            file_path = MQTT_CONFIG["log_file_path"]
+            print(f"[DEBUG] MQTT协议使用传统broker实现，读取MBFuzzer日志: {file_path}")
     elif protocol == "SNMP":
         file_path = SNMP_CONFIG["log_file_path"]
     else:
@@ -1235,9 +1244,21 @@ def check_status():
             "timestamp": datetime.now().isoformat()
         }
         
-        if protocol == "RTSP":
-            # 检查SOL相关状态
-            log_file_path = RTSP_CONFIG["log_file_path"]
+        if protocol == "MQTT":
+            # MQTT协议支持双引擎配置，需要检查协议实现
+            protocol_implementations = data.get("protocolImplementations", [])
+            
+            if protocol_implementations and "SOL协议" in protocol_implementations:
+                # 检查SOL相关状态 (使用AFLNET引擎)
+                log_file_path = RTSP_CONFIG["log_file_path"]
+                status_info["engine"] = "AFLNET"
+                status_info["implementation"] = "SOL协议"
+            else:
+                # 检查传统MQTT broker状态 (使用MBFuzzer引擎)
+                log_file_path = MQTT_CONFIG["log_file_path"]
+                status_info["engine"] = "MBFuzzer"
+                status_info["implementation"] = protocol_implementations
+            
             log_dir = os.path.dirname(log_file_path)
             
             # 检查目录和文件状态
