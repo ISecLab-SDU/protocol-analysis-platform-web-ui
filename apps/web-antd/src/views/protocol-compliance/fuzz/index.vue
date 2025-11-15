@@ -3035,7 +3035,7 @@ async function readSOLLogPeriodically() {
         console.log('[DEBUG] 处理日志行数:', logLines.length);
 
         logLines.forEach((line: string) => {
-          const logData = processSOLLogLine(
+          const logData = processRTSPLogLine(
             line,
             packetCount,
             successCount,
