@@ -5,7 +5,7 @@
 
 import { ref, type Ref } from 'vue';
 import type { RTSPStats, LogUIData } from './types';
-import { requestClient } from '@/api/request';
+import { requestClient } from '#/api/request';
 
 export function useSOL() {
   // SOL统计数据
