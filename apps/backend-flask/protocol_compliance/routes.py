@@ -1060,7 +1060,10 @@ def execute_command():
         print(f"[DEBUG] 执行命令: {command}")  # 调试日志
 
         # 对于SOL协议的ProtocolGuard，使用后台运行方式
-        if protocol == "RTSP":
+        # 检查是否是SOL协议实现（MQTT协议 + SOL协议实现 或者 原RTSP协议）
+        is_sol_protocol = (protocol == "RTSP") or (protocol == "MQTT" and protocol_implementations and "SOL协议" in protocol_implementations)
+        
+        if is_sol_protocol:
             # ProtocolGuard需要在后台运行，因为它是长时间运行的fuzzing任务
             process = subprocess.Popen(
                 command,
@@ -1077,8 +1080,9 @@ def execute_command():
             # 检查进程是否还在运行
             if process.poll() is None:
                 # 进程仍在运行，说明启动成功
+                protocol_name = "SOL协议" if protocol == "MQTT" else protocol
                 return success_response({
-                    "message": f"{protocol} ProtocolGuard启动成功，正在后台运行fuzzing任务",
+                    "message": f"{protocol_name} ProtocolGuard启动成功，正在后台运行fuzzing任务",
                     "command": command,
                     "pid": process.pid,
                     "container_id": "protocolguard_container"
