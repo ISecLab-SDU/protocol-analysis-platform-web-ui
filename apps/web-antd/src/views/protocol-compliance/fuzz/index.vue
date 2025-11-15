@@ -21,6 +21,7 @@ import { Tabs } from 'ant-design-vue';
 import {
   useSNMP,
   useRTSP,
+  useSOL,
   useMQTT,
   useLogReader,
   type FuzzPacket,
@@ -66,6 +67,15 @@ const {
   stopRTSPProcess,
   stopAndCleanupRTSP,
 } = useRTSP();
+const {
+  solStats,
+  resetSOLStats,
+  processSOLLogLine,
+  writeSOLScript,
+  executeSOLCommand,
+  stopSOLProcess,
+  stopAndCleanupSOL,
+} = useSOL();
 const { mqttStats, resetMQTTStats, processMQTTLogLine } = useMQTT();
 const {
   logContainer,
@@ -77,6 +87,7 @@ const {
   resetLogReader,
   addMQTTLogToUI,
   addRTSPLogToUI,
+  addSOLLogToUI,
   clearLog,
 } = useLogReader();
 
@@ -929,7 +940,7 @@ async function startTest() {
   // 根据协议类型执行不同的启动逻辑
   try {
     if (protocolType.value === 'RTSP') {
-      await startRTSPTest();
+      await startSOLTest();
     } else if (protocolType.value === 'SNMP') {
       // 初始化SNMP协议数据管理器
       clearProtocolLogs('SNMP');
@@ -984,30 +995,30 @@ async function startTest() {
 }
 
 // Protocol-specific test functions
-async function startRTSPTest() {
+async function startSOLTest() {
   try {
     // 1. 写入脚本文件
-    await writeRTSPScriptWrapper();
+    await writeSOLScriptWrapper();
 
     // 2. 执行shell命令启动程序
-    await executeRTSPCommandWrapper();
+    await executeSOLCommandWrapper();
 
     // 3. 开始实时读取日志
-    startRTSPLogReading();
+    startSOLLogReading();
 
     addLogToUI(
       {
         timestamp: new Date().toLocaleTimeString(),
-        version: 'RTSP',
+        version: 'SOL',
         type: 'START',
-        oids: ['RTSP测试已启动'],
+        oids: ['SOL测试已启动'],
         hex: '',
         result: 'success',
       } as any,
       false,
     );
   } catch (error: any) {
-    console.error('RTSP测试启动失败:', error);
+    console.error('SOL测试启动失败:', error);
     throw error;
   }
 }
@@ -2036,7 +2047,7 @@ function getLogFormatter(protocol: ProtocolType) {
     case 'MQTT':
       return formatMQTTLogLine;
     case 'RTSP':
-      return formatRTSPLogLine;
+      return formatSOLLogLine;  // 使用SOL格式化函数显示
     case 'SNMP':
       return formatSNMPLogLine;
     default:
@@ -2048,12 +2059,20 @@ function getLogFormatter(protocol: ProtocolType) {
 // 测试函数是否正常工作
 console.log('[DEBUG] formatMQTTLogLine函数已加载');
 
-// RTSP日志格式化
+// RTSP日志格式化（保留原函数用于兼容性）
 function formatRTSPLogLine(log: any): string {
   if (typeof log === 'string') {
     return log;
   }
   return `[${log.timestamp}] [RTSP] ${log.content}`;
+}
+
+// SOL日志格式化
+function formatSOLLogLine(log: any): string {
+  if (typeof log === 'string') {
+    return log;
+  }
+  return `[${log.timestamp}] [SOL] ${log.content}`;
 }
 
 // SNMP日志格式化
@@ -2837,17 +2856,17 @@ async function startMQTTLogReading() {
 
 // MQTT日志读取函数现在通过 useLogReader 和 useMQTT composables 管理
 
-// RTSP specific functions (现在通过 useRTSP composable 管理)
-async function writeRTSPScriptWrapper() {
+// SOL specific functions (现在通过 useSOL composable 管理)
+async function writeSOLScriptWrapper() {
   const scriptContent = rtspCommandConfig.value;
 
   try {
-    const result = await writeRTSPScript(scriptContent, [selectedProtocolImplementation.value]);
+    const result = await writeSOLScript(scriptContent, [selectedProtocolImplementation.value]);
 
     addLogToUI(
       {
         timestamp: new Date().toLocaleTimeString(),
-        version: 'RTSP',
+        version: 'SOL',
         type: 'SCRIPT',
         oids: [`脚本已写入: ${result.data?.filePath || '脚本文件'}`],
         hex: '',
@@ -2856,14 +2875,14 @@ async function writeRTSPScriptWrapper() {
       false,
     );
   } catch (error: any) {
-    console.error('写入RTSP脚本失败:', error);
+    console.error('写入SOL脚本失败:', error);
     throw new Error(`写入脚本文件失败: ${error.message}`);
   }
 }
 
-async function executeRTSPCommandWrapper() {
+async function executeSOLCommandWrapper() {
   try {
-    const result = await executeRTSPCommand([selectedProtocolImplementation.value]);
+    const result = await executeSOLCommand([selectedProtocolImplementation.value]);
 
     // 保存容器ID用于后续停止
     if (result.data && (result.data.container_id || result.data.pid)) {
@@ -2873,7 +2892,7 @@ async function executeRTSPCommandWrapper() {
     addLogToUI(
       {
         timestamp: new Date().toLocaleTimeString(),
-        version: 'RTSP',
+        version: 'SOL',
         type: 'COMMAND',
         oids: [
           `Docker容器已启动 (ID: ${result.data?.container_id || result.data?.pid || 'unknown'})`,
@@ -2884,24 +2903,24 @@ async function executeRTSPCommandWrapper() {
       false,
     );
   } catch (error: any) {
-    console.error('执行RTSP命令失败:', error);
+    console.error('执行SOL命令失败:', error);
     throw new Error(`执行启动命令失败: ${error.message}`);
   }
 }
 
-function startRTSPLogReading() {
+function startSOLLogReading() {
   isReadingLog.value = true;
 
   // 先检查状态
-  checkRTSPStatus();
+  checkSOLStatus();
 
   // 开始实时日志读取
-  readRTSPLogPeriodically();
+  readSOLLogPeriodically();
 
   addLogToUI(
     {
       timestamp: new Date().toLocaleTimeString(),
-      version: 'RTSP',
+      version: 'SOL',
       type: 'LOG',
       oids: [`开始读取日志`],
       hex: '',
@@ -2911,23 +2930,23 @@ function startRTSPLogReading() {
   );
 }
 
-// 检查RTSP状态
-async function checkRTSPStatus() {
+// 检查SOL状态
+async function checkSOLStatus() {
   try {
     const result = await requestClient.post(
       '/protocol-compliance/check-status',
       {
-        protocol: 'RTSP',
+        protocol: 'RTSP',  // 保持协议标识符为RTSP
       },
     );
 
-    console.log('[DEBUG] RTSP状态检查结果:', result);
+    console.log('[DEBUG] SOL状态检查结果:', result);
 
     if (result) {
       // 显示状态信息到UI
       const statusMessage = `状态检查: 日志目录${result.log_dir_exists ? '存在' : '不存在'}, 日志文件${result.log_file_exists ? '存在' : '不存在'}`;
 
-      addToRealtimeStream('RTSP', {
+      addToRealtimeStream('SOL', {
         timestamp: new Date().toLocaleTimeString(),
         type: 'INFO',
         content: statusMessage,
@@ -2935,7 +2954,7 @@ async function checkRTSPStatus() {
 
       // 如果有Docker容器信息，显示
       if (result.docker_containers) {
-        addToRealtimeStream('RTSP', {
+        addToRealtimeStream('SOL', {
           timestamp: new Date().toLocaleTimeString(),
           type: 'INFO',
           content: `Docker容器状态: ${result.docker_containers.split('\n').length - 1}个容器运行中`,
@@ -2944,7 +2963,7 @@ async function checkRTSPStatus() {
 
       // 如果有文件列表，显示
       if (result.files_in_log_dir && Array.isArray(result.files_in_log_dir)) {
-        addToRealtimeStream('RTSP', {
+        addToRealtimeStream('SOL', {
           timestamp: new Date().toLocaleTimeString(),
           type: 'INFO',
           content: `输出目录文件: ${result.files_in_log_dir.join(', ')}`,
@@ -2952,9 +2971,9 @@ async function checkRTSPStatus() {
       }
     }
   } catch (error) {
-    console.error('检查RTSP状态失败:', error);
+    console.error('检查SOL状态失败:', error);
 
-    addToRealtimeStream('RTSP', {
+    addToRealtimeStream('SOL', {
       timestamp: new Date().toLocaleTimeString(),
       type: 'ERROR',
       content: `状态检查失败: ${error.message || error}`,
@@ -2962,7 +2981,7 @@ async function checkRTSPStatus() {
   }
 }
 
-async function readRTSPLogPeriodically() {
+async function readSOLLogPeriodically() {
   if (logReadingInterval.value) {
     clearInterval(logReadingInterval.value);
   }
@@ -2979,11 +2998,11 @@ async function readRTSPLogPeriodically() {
     try {
       // 调用后端API读取日志文件
       const result = await requestClient.post('/protocol-compliance/read-log', {
-        protocol: 'RTSP',
+        protocol: 'RTSP',  // 保持协议标识符为RTSP
         lastPosition: logReadPosition.value, // 使用实际的读取位置，实现增量读取
       });
 
-      console.log('[DEBUG] RTSP日志读取结果:', result);
+      console.log('[DEBUG] SOL日志读取结果:', result);
 
       if (result && result.message) {
         // 显示后端返回的状态信息
@@ -2994,7 +3013,7 @@ async function readRTSPLogPeriodically() {
           result.message.includes('日志文件尚未创建') ||
           result.message.includes('日志目录不存在')
         ) {
-          addToRealtimeStream('RTSP', {
+          addToRealtimeStream('SOL', {
             timestamp: new Date().toLocaleTimeString(),
             type: 'WARNING',
             content: result.message,
@@ -3006,7 +3025,7 @@ async function readRTSPLogPeriodically() {
         // 更新读取位置
         logReadPosition.value = result.position || logReadPosition.value;
 
-        console.log('[DEBUG] 读取到RTSP日志内容，长度:', result.content.length);
+        console.log('[DEBUG] 读取到SOL日志内容，长度:', result.content.length);
         console.log('[DEBUG] 日志内容预览:', result.content.substring(0, 200));
 
         // 处理AFL-NET的plot_data格式
@@ -3016,7 +3035,7 @@ async function readRTSPLogPeriodically() {
         console.log('[DEBUG] 处理日志行数:', logLines.length);
 
         logLines.forEach((line: string) => {
-          const logData = processRTSPLogLine(
+          const logData = processSOLLogLine(
             line,
             packetCount,
             successCount,
@@ -3028,7 +3047,7 @@ async function readRTSPLogPeriodically() {
             console.log('[DEBUG] 处理的日志数据:', logData);
 
             // 使用协议数据管理器添加日志，而不是直接操作DOM
-            addToRealtimeStream('RTSP', {
+            addToRealtimeStream('SOL', {
               timestamp: logData.timestamp,
               type: logData.type === 'STATS' ? 'INFO' : logData.type,
               content: logData.content,
@@ -3043,10 +3062,10 @@ async function readRTSPLogPeriodically() {
         );
       }
     } catch (error) {
-      console.error('读取RTSP日志失败:', error);
+      console.error('读取SOL日志失败:', error);
 
       // 显示错误信息到UI
-      addToRealtimeStream('RTSP', {
+      addToRealtimeStream('SOL', {
         timestamp: new Date().toLocaleTimeString(),
         type: 'ERROR',
         content: `读取日志失败: ${error.message || error}`,
@@ -3061,7 +3080,7 @@ async function readRTSPLogPeriodically() {
 
 // addMQTTLogToUI 和 addRTSPLogToUI 现在通过 useLogReader composable 提供
 
-async function stopRTSPProcessWrapper() {
+async function stopSOLProcessWrapper() {
   if (!rtspProcessId.value) {
     return;
   }
@@ -3074,12 +3093,12 @@ async function stopRTSPProcessWrapper() {
 
     if (isDockerContainer) {
       // 使用新的停止和清理功能
-      const result = await stopAndCleanupRTSP(rtspProcessId.value as string);
+      const result = await stopAndCleanupSOL(rtspProcessId.value as string);
 
       addLogToUI(
         {
           timestamp: new Date().toLocaleTimeString(),
-          version: 'RTSP',
+          version: 'SOL',
           type: 'CLEANUP',
           oids: [
             `Docker容器已停止 (ID: ${rtspProcessId.value})`,
@@ -3106,7 +3125,7 @@ async function stopRTSPProcessWrapper() {
         addLogToUI(
           {
             timestamp: new Date().toLocaleTimeString(),
-            version: 'RTSP',
+            version: 'SOL',
             type: 'INFO',
             oids: details,
             hex: '',
@@ -3117,14 +3136,14 @@ async function stopRTSPProcessWrapper() {
       }
     } else {
       // 传统进程ID，使用原来的停止方法
-      await stopRTSPProcess(rtspProcessId.value);
+      await stopSOLProcess(rtspProcessId.value);
 
       addLogToUI(
         {
           timestamp: new Date().toLocaleTimeString(),
-          version: 'RTSP',
+          version: 'SOL',
           type: 'STOP',
-          oids: [`RTSP进程已停止 (PID: ${rtspProcessId.value})`],
+          oids: [`SOL进程已停止 (PID: ${rtspProcessId.value})`],
           hex: '',
           result: 'success',
         } as any,
@@ -3134,14 +3153,14 @@ async function stopRTSPProcessWrapper() {
 
     rtspProcessId.value = null;
   } catch (error) {
-    console.error('停止RTSP进程失败:', error);
+    console.error('停止SOL进程失败:', error);
 
     addLogToUI(
       {
         timestamp: new Date().toLocaleTimeString(),
-        version: 'RTSP',
+        version: 'SOL',
         type: 'ERROR',
-        oids: [`停止RTSP进程失败: ${error.message || error}`],
+        oids: [`停止SOL进程失败: ${error.message || error}`],
         hex: '',
         result: 'error',
       } as any,
@@ -3252,7 +3271,7 @@ function stopTest() {
 
     // 停止协议特定的进程
     if (protocolType.value === 'RTSP') {
-      stopRTSPProcessWrapper();
+      stopSOLProcessWrapper();
     } else if (protocolType.value === 'MQTT') {
       // MQTT协议的清理工作通过 useLogReader 管理
       stopLogReading();
@@ -3697,8 +3716,8 @@ function addLogToUI(packet: FuzzPacket, isCrash: boolean) {
     logContent = formatSNMPPacketLog(packet, isCrash);
     console.log('[DEBUG] 添加SNMP日志:', { logType, logContent, packet });
   } else if (currentProtocolType === 'RTSP') {
-    logContent = formatRTSPPacketLog(packet, isCrash);
-    console.log('[DEBUG] 添加RTSP日志:', { logType, logContent, packet });
+    logContent = formatSOLPacketLog(packet, isCrash);
+    console.log('[DEBUG] 添加SOL日志:', { logType, logContent, packet });
   } else if (currentProtocolType === 'MQTT') {
     logContent = formatMQTTPacketLog(packet, isCrash);
     console.log('[DEBUG] 添加MQTT日志:', { logType, logContent, packet });
@@ -3736,12 +3755,12 @@ function formatSNMPPacketLog(packet: FuzzPacket, isCrash: boolean): string {
   }
 }
 
-// 格式化RTSP数据包日志
-function formatRTSPPacketLog(packet: FuzzPacket, isCrash: boolean): string {
+// 格式化SOL数据包日志
+function formatSOLPacketLog(packet: FuzzPacket, isCrash: boolean): string {
   if (isCrash) {
-    return `CRASH DETECTED ${packet.version?.toUpperCase() || 'RTSP'} ${packet.type?.toUpperCase() || 'UNKNOWN'}`;
+    return `CRASH DETECTED ${packet.version?.toUpperCase() || 'SOL'} ${packet.type?.toUpperCase() || 'UNKNOWN'}`;
   } else {
-    const protocol = packet.version?.toUpperCase() || 'RTSP';
+    const protocol = packet.version?.toUpperCase() || 'SOL';
     const op = packet.type?.toUpperCase() || 'UNKNOWN';
     const content = packet.oids?.[0] || '';
     const hex = (packet.hex || '').slice(0, 40);
@@ -4096,7 +4115,7 @@ function saveTestToHistory() {
         getnext: messageTypeStats.value.getnext,
         getbulk: messageTypeStats.value.getbulk,
       },
-      // 保存RTSP协议统计数据
+      // 保存SOL协议统计数据
       rtspStats:
         protocolType.value === 'RTSP'
           ? {
@@ -5087,7 +5106,7 @@ onMounted(async () => {
               </div>
             </div>
 
-            <!-- RTSP协议指令配置 -->
+            <!-- SOL协议指令配置 -->
             <div v-if="protocolType === 'RTSP'" class="mt-4">
               <label class="text-dark/70 mb-2 block text-sm">指令配置</label>
               <div class="relative">
@@ -5095,7 +5114,7 @@ onMounted(async () => {
                   v-model="rtspCommandConfig"
                   rows="3"
                   class="border-primary/20 focus:ring-primary w-full resize-none rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1"
-                  placeholder="请输入RTSP协议的指令配置..."
+                  placeholder="请输入SOL协议的指令配置..."
                 ></textarea>
                 <i
                   class="fa fa-terminal text-dark/50 absolute right-3 top-2.5"
@@ -5309,7 +5328,7 @@ onMounted(async () => {
                   </div>
                 </div>
 
-                <!-- RTSP协议崩溃统计 -->
+                <!-- SOL协议崩溃统计 -->
                 <div v-else-if="protocolType === 'RTSP'" class="space-y-4">
                   <div class="grid grid-cols-2 gap-4">
                     <div
@@ -5433,7 +5452,7 @@ onMounted(async () => {
                 <h3 class="text-xl font-semibold">
                   {{
                     protocolType === 'RTSP'
-                      ? 'RTSP协议状态机统计'
+                      ? 'SOL协议状态机统计'
                       : protocolType === 'MQTT'
                         ? 'MQTT多方模糊测试'
                         : '消息类型分布与版本统计'
@@ -5710,7 +5729,7 @@ onMounted(async () => {
                 </div>
               </div>
 
-              <!-- RTSP协议统计 -->
+              <!-- SOL协议统计 -->
               <div v-else class="grid h-72 grid-cols-1 gap-8 md:grid-cols-2">
                 <!-- 路径发现趋势 -->
                 <div>
@@ -6026,7 +6045,7 @@ onMounted(async () => {
                 </div>
               </div>
 
-              <!-- RTSP协议统计 -->
+              <!-- SOL协议统计 -->
               <div v-else class="space-y-4">
                 <div>
                   <div class="mb-1 flex items-center justify-between">
@@ -6320,7 +6339,7 @@ onMounted(async () => {
                       >
                     </p>
                   </template>
-                  <!-- RTSP协议统计 -->
+                  <!-- SOL协议统计 -->
                   <template v-else>
                     <p>
                       <span class="text-dark/60">执行速度:</span>
@@ -6663,7 +6682,7 @@ onMounted(async () => {
                             </div>
                           </div>
 
-                          <!-- RTSP协议特定信息 -->
+                          <!-- SOL协议特定信息 -->
                           <div
                             v-else-if="item.protocol === 'RTSP'"
                             class="space-y-2"
@@ -6940,7 +6959,7 @@ onMounted(async () => {
                           }}</span>
                         </p>
                       </template>
-                      <!-- RTSP协议统计 -->
+                      <!-- SOL协议统计 -->
                       <template
                         v-else-if="selectedHistoryItem.protocol === 'RTSP'"
                       >
@@ -7021,7 +7040,7 @@ onMounted(async () => {
                         selectedHistoryItem.protocol === 'SNMP'
                           ? '协议版本'
                           : selectedHistoryItem.protocol === 'RTSP'
-                            ? 'AFL-NET统计'
+                            ? 'SOL AFL-NET统计'
                             : 'MBFuzzer分析报告'
                       }}
                     </h4>
@@ -7047,7 +7066,7 @@ onMounted(async () => {
                           }}</span>
                         </p>
                       </template>
-                      <!-- RTSP协议AFL-NET统计 -->
+                      <!-- SOL协议AFL-NET统计 -->
                       <template
                         v-else-if="selectedHistoryItem.protocol === 'RTSP'"
                       >
@@ -7133,7 +7152,7 @@ onMounted(async () => {
                     selectedHistoryItem.protocol === 'SNMP'
                       ? 'SNMP协议详细统计'
                       : selectedHistoryItem.protocol === 'RTSP'
-                        ? 'RTSP协议状态机统计'
+                        ? 'SOL协议状态机统计'
                         : 'MQTT协议差异分析统计'
                   }}
                 </h3>
@@ -7348,7 +7367,7 @@ onMounted(async () => {
                   </div>
                 </div>
 
-                <!-- RTSP协议统计 -->
+                <!-- SOL协议统计 -->
                 <div
                   v-else-if="selectedHistoryItem.protocol === 'RTSP'"
                   class="grid grid-cols-1 gap-8 md:grid-cols-2"
@@ -8212,7 +8231,7 @@ onMounted(async () => {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-/* RTSP协议专用样式 */
+/* SOL协议专用样式 */
 .rtsp-header-line {
   @apply mb-1 rounded border-l-4 border-blue-400 bg-blue-50 p-2;
 }

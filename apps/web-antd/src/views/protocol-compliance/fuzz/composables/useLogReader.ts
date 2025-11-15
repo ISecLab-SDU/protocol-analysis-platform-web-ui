@@ -58,7 +58,7 @@ export function useLogReader() {
                 if (protocol === 'MQTT') {
                   addMQTTLogToUI(logData);
                 } else if (protocol === 'RTSP') {
-                  addRTSPLogToUI(logData);
+                  addSOLLogToUI(logData);  // 使用SOL显示函数
                 } else {
                   addLogToUI(logData);
                 }
@@ -231,8 +231,8 @@ export function useLogReader() {
     });
   }
 
-  // RTSP专用的日志显示函数
-  function addRTSPLogToUI(logData: LogUIData) {
+  // SOL专用的日志显示函数
+  function addSOLLogToUI(logData: LogUIData) {
     if (!logContainer.value) return;
     
     // 使用 nextTick 确保 DOM 稳定后再操作
@@ -256,7 +256,7 @@ export function useLogReader() {
         } else {
           // 普通信息行
           div.className = 'rtsp-info-line';
-          div.innerHTML = `<span class="text-dark/50">[${logData.timestamp}]</span> <span class="text-primary">RTSP-AFL:</span> <span class="text-dark/70">${logData.content}</span>`;
+          div.innerHTML = `<span class="text-dark/50">[${logData.timestamp}]</span> <span class="text-primary">SOL-AFL:</span> <span class="text-dark/70">${logData.content}</span>`;
         }
         
         // 再次检查容器是否存在再添加元素
@@ -277,7 +277,7 @@ export function useLogReader() {
           }
         }
       } catch (error) {
-        console.warn('添加RTSP日志到UI失败:', error);
+        console.warn('添加SOL日志到UI失败:', error);
       }
     });
   }
@@ -310,6 +310,7 @@ export function useLogReader() {
     addLogToUI,
     addMQTTLogToUI,
     addRTSPLogToUI,
+    addSOLLogToUI,
     clearLog
   };
 }

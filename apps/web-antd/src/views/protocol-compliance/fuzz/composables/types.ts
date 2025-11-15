@@ -52,7 +52,7 @@ export interface HistoryResult {
     getbulk: number;
   };
   
-  // RTSP协议专用统计
+  // SOL协议专用统计
   rtspStats?: RTSPStats;
   
   // MQTT协议专用统计
@@ -68,7 +68,7 @@ export interface HistoryResult {
     communityStrings?: string[];
     targetDeviceInfo?: string;
     
-    // RTSP特定数据
+    // SOL特定数据
     pathCoverage?: number;
     stateTransitions?: number;
     maxDepth?: number;
@@ -100,7 +100,7 @@ export interface SNMPMessageStats {
   getbulk: number;
 }
 
-// RTSP协议统计
+// SOL协议统计（基于RTSP协议）
 export interface RTSPStats {
   cycles_done: number;
   paths_total: number;

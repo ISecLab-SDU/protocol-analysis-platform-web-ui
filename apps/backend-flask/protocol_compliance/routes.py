@@ -938,7 +938,7 @@ def _strip_extension(filename: str) -> str:
 
 # Protocol Specific Routes -------------------------------------------------
 
-# RTSP协议配置 - ProtocolGuard配置
+# SOL协议配置 - ProtocolGuard配置
 RTSP_CONFIG = {
     "script_path": None,  # 不再需要脚本文件
     "shell_command": "docker run --rm -it --privileged -v /home/hhh/下载/ProtocolGuardOutPut:/out/fuzz-output protocolguard:latest fuzz",  # ProtocolGuard启动命令
@@ -979,9 +979,9 @@ def write_script():
 
     # 根据协议获取配置
     if protocol == "RTSP":
-        # RTSP协议使用ProtocolGuard，不需要脚本文件，直接返回成功
+        # SOL协议使用ProtocolGuard，不需要脚本文件，直接返回成功
         return success_response({
-            "message": f"{protocol}协议不需要脚本文件，直接启动docker即可生成日志",
+            "message": f"SOL协议不需要脚本文件，直接启动docker即可生成日志",
             "filePath": "N/A",
             "size": 0
         })
@@ -1034,9 +1034,9 @@ def execute_command():
     # 根据协议获取配置
     if protocol == "RTSP":
         command = RTSP_CONFIG["shell_command"]
-        # RTSP协议实现信息记录到日志
+        # SOL协议实现信息记录到日志
         if protocol_implementations:
-            print(f"[DEBUG] RTSP协议实现: {protocol_implementations}")
+            print(f"[DEBUG] SOL协议实现: {protocol_implementations}")
     elif protocol == "MQTT":
         command = MQTT_CONFIG["shell_command"]
         # MQTT协议根据选择的实现调整命令
@@ -1058,7 +1058,7 @@ def execute_command():
     try:
         print(f"[DEBUG] 执行命令: {command}")  # 调试日志
 
-        # 对于RTSP协议的ProtocolGuard，使用后台运行方式
+        # 对于SOL协议的ProtocolGuard，使用后台运行方式
         if protocol == "RTSP":
             # ProtocolGuard需要在后台运行，因为它是长时间运行的fuzzing任务
             process = subprocess.Popen(
@@ -1236,7 +1236,7 @@ def check_status():
         }
         
         if protocol == "RTSP":
-            # 检查RTSP相关状态
+            # 检查SOL相关状态
             log_file_path = RTSP_CONFIG["log_file_path"]
             log_dir = os.path.dirname(log_file_path)
             

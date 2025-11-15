@@ -9,6 +9,7 @@ export * from './types';
 // 协议专用composables
 export { useSNMP } from './useSNMP';
 export { useRTSP } from './useRTSP';
+export { useSOL } from './useSOL';
 export { useMQTT } from './useMQTT';
 
 // 共享工具composables
