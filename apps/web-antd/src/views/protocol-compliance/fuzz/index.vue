@@ -5065,7 +5065,7 @@ onMounted(async () => {
                     <option value="SNMP_Fuzz" v-if="protocolType === 'SNMP'">
                       SNMP_Fuzz
                     </option>
-                    <option value="AFLNET" v-if="protocolType === 'RTSP'">
+                    <option value="AFLNET" v-if="protocolType === 'RTSP' || protocolType === 'MQTT'">
                       AFLNET
                     </option>
                     <option value="MBFuzzer" v-if="protocolType === 'MQTT'">
