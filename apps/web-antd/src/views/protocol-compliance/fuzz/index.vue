@@ -132,7 +132,7 @@ const fuzzEngine = ref<FuzzEngineType>('SNMP_Fuzz');
 const targetHost = ref('127.0.0.1');
 const targetPort = ref(161);
 const solCommandConfig = ref(
-  'afl-fuzz -d -i $AFLNET/tutorials/live555/in-rtsp -o out-live555 -N tcp://127.0.0.1/8554 -x $AFLNET/tutorials/live555/rtsp.dict -P RTSP -D 10000 -q 3 -s 3 -E -K -R ./testOnDemandRTSPServer 8554',
+  'afl-fuzz -d -i /home/下载/ProtocolGuard/seeds -o /home/下载/output -N tcp://127.0.0.1/8883 -P MQTT -D 10000 -q 3 -s 3 -E -K -R  -m none -t 3000+ ./sol_instrumented 8883',
 );
 
 // 协议实现配置
@@ -249,10 +249,10 @@ watch(selectedProtocolImplementation, (newImpl) => {
   // 对于MQTT协议，根据实现选择自动切换引擎
   if (protocolType.value === 'MQTT') {
     if (newImpl === 'SOL协议') {
-      // 选择SOL协议时，使用AFLNET引擎，端口改为8554
+      // 选择SOL协议时，使用AFLNET引擎，端口改为8883
       fuzzEngine.value = 'AFLNET';
-      targetPort.value = 8554;
-      console.log('[DEBUG] MQTT协议选择SOL实现，切换到AFLNET引擎，端口8554');
+      targetPort.value = 8883;
+      console.log('[DEBUG] MQTT协议选择SOL实现，切换到AFLNET引擎，端口8883');
     } else {
       // 选择传统MQTT broker时，使用MBFuzzer引擎，端口1883
       fuzzEngine.value = 'MBFuzzer';
@@ -5358,9 +5358,9 @@ onMounted(async () => {
               </div>
             </div>
 
-            <!-- SOL协议指令配置 -->
+            <!-- 指令配置 -->
             <div v-if="protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL协议'" class="mt-4">
-              <label class="text-dark/70 mb-2 block text-sm">SOL协议指令配置</label>
+              <label class="text-dark/70 mb-2 block text-sm">指令配置</label>
               <div class="relative">
                 <textarea
                   v-model="solCommandConfig"
