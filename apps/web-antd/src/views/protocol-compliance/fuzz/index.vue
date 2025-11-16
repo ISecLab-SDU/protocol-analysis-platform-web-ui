@@ -127,17 +127,17 @@ let testTimer: number | null = null;
 let mqttSimulationCancelled = false;
 
 // UI configuration
-const protocolType = ref<ProtocolType>('SNMP');
-const fuzzEngine = ref<FuzzEngineType>('SNMP_Fuzz');
+const protocolType = ref<ProtocolType>('MQTT');
+const fuzzEngine = ref<FuzzEngineType>('AFLNET');
 const targetHost = ref('127.0.0.1');
-const targetPort = ref(161);
+const targetPort = ref(8883);
 const solCommandConfig = ref(
   'afl-fuzz -d -i /home/下载/ProtocolGuard/seeds -o /home/下载/output -N tcp://127.0.0.1/8883 -P MQTT -D 10000 -q 3 -s 3 -E -K -R  -m none -t 3000+ ./sol_instrumented 8883',
 );
 
 // 协议实现配置
-const protocolImplementations = ref<ProtocolImplementationType[]>(['系统固件']);
-const selectedProtocolImplementation = ref<ProtocolImplementationType>('系统固件');
+const protocolImplementations = ref<ProtocolImplementationType[]>(['SOL']);
+const selectedProtocolImplementation = ref<ProtocolImplementationType>('SOL');
 
 // 协议实现配置映射
 const protocolImplementationConfigs: Record<FuzzEngineType, ProtocolImplementationConfig> = {
@@ -5420,6 +5420,14 @@ onMounted(async () => {
   // MQTT协议不需要图表初始化，使用统计卡片显示
   if (protocolType.value === 'MQTT') {
     console.log('MQTT protocol uses statistical cards instead of charts');
+    // 初始化MQTT协议实现选项
+    const config = protocolImplementationConfigs[fuzzEngine.value];
+    if (config) {
+      protocolImplementations.value = config.defaultImplementations;
+      console.log('[DEBUG] 初始化MQTT协议实现选项:', protocolImplementations.value);
+      console.log('[DEBUG] 当前选择的实现:', selectedProtocolImplementation.value);
+      console.log('[DEBUG] 当前引擎:', fuzzEngine.value);
+    }
     // MQTT动画将在测试开始时初始化
   }
 
