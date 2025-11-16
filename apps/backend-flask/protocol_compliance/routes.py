@@ -941,7 +941,7 @@ def _strip_extension(filename: str) -> str:
 # SOL协议配置 - ProtocolGuard配置
 RTSP_CONFIG = {
     "script_path": None,  # 不再需要脚本文件
-    "shell_command": "docker run --rm -it --privileged -v /home/hhh/下载/ProtocolGuardOutPut:/out/fuzz-output protocolguard:latest fuzz",  # ProtocolGuard启动命令
+    "shell_command": "docker run -d --privileged -v /home/hhh/下载/ProtocolGuardOutPut:/out/fuzz-output protocolguard:latest fuzz",  # ProtocolGuard启动命令（使用-d后台运行，移除--rm和-it）
     "log_file_path": "/home/hhh/下载/ProtocolGuardOutPut/plot_data"  # ProtocolGuard日志文件路径
 }
 
@@ -1075,18 +1075,28 @@ def execute_command():
             
             # 给进程一点时间启动
             import time
-            time.sleep(2)
+            time.sleep(3)
             
             # 检查进程是否还在运行
             if process.poll() is None:
-                # 进程仍在运行，说明启动成功
-                protocol_name = "SOL协议" if protocol == "MQTT" else protocol
-                return success_response({
-                    "message": f"{protocol_name} ProtocolGuard启动成功，正在后台运行fuzzing任务",
-                    "command": command,
-                    "pid": process.pid,
-                    "container_id": "protocolguard_container"
-                })
+                # 进程仍在运行，获取Docker容器ID
+                stdout, stderr = process.communicate()
+                container_id = stdout.strip() if stdout.strip() else None
+                
+                if container_id and len(container_id) > 10:  # Docker容器ID通常很长
+                    protocol_name = "SOL协议" if protocol == "MQTT" else protocol
+                    print(f"[DEBUG] {protocol_name} ProtocolGuard启动成功，容器ID: {container_id}")
+                    return success_response({
+                        "message": f"{protocol_name} ProtocolGuard启动成功，正在后台运行fuzzing任务",
+                        "command": command,
+                        "pid": process.pid,
+                        "container_id": container_id
+                    })
+                else:
+                    # 没有获取到有效的容器ID
+                    error_msg = stderr.strip() if stderr.strip() else "无法获取容器ID"
+                    print(f"[DEBUG] ProtocolGuard启动失败: {error_msg}")
+                    return make_response(error_response(f"ProtocolGuard启动失败: {error_msg}"), 500)
             else:
                 # 进程已经结束，可能是启动失败
                 stdout, stderr = process.communicate()

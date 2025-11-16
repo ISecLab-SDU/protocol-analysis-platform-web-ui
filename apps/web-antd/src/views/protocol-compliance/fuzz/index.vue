@@ -5550,7 +5550,7 @@ onMounted(async () => {
                 </div>
               </div>
 
-              <!-- SOL协议AFLNET测试区域 -->
+              <!-- SOL协议AFLNET测试区域 - 显示原来的RTSP状态机界面 -->
               <div v-else-if="protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL协议'" class="min-h-0 flex-1">
                 <!-- 初始状态显示设备待启动 -->
                 <div
@@ -5562,37 +5562,145 @@ onMounted(async () => {
                       class="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-purple-100 p-8"
                     >
                       <IconifyIcon
-                        icon="mdi:network-outline"
+                        icon="mdi:state-machine"
                         class="text-4xl text-purple-500"
                       />
                     </div>
                     <div class="mb-2 text-lg font-medium text-gray-600">
-                      SOL协议测试待启动
+                      SOL协议状态机待启动
                     </div>
                     <div class="text-sm text-gray-500">
-                      点击"开始测试"启动SOL协议AFLNET模糊测试
+                      点击"开始测试"启动SOL协议AFLNET状态机模糊测试
                     </div>
                   </div>
                 </div>
-                <!-- SOL协议测试运行时显示 -->
-                <div
-                  v-else
-                  class="flex h-full items-center justify-center"
-                >
-                  <div class="text-center">
-                    <div
-                      class="mx-auto mb-4 flex h-32 w-32 items-center justify-center rounded-full bg-purple-100 p-8"
+                
+                <!-- SOL协议状态机统计 - 运行时显示 -->
+                <div v-else class="grid h-72 grid-cols-1 gap-8 md:grid-cols-2">
+                  <!-- 路径发现趋势 -->
+                  <div>
+                    <h4
+                      class="text-dark/80 mb-3 text-center text-base font-medium"
                     >
-                      <IconifyIcon
-                        icon="mdi:network"
-                        class="text-6xl text-purple-500 animate-pulse"
-                      />
+                      路径发现统计
+                    </h4>
+                    <div
+                      class="h-60 rounded-lg border border-gray-200 bg-white p-4"
+                    >
+                      <div class="grid h-full grid-cols-2 gap-4">
+                        <div
+                          class="flex flex-col items-center justify-center rounded-lg bg-blue-50 p-4"
+                        >
+                          <div class="mb-2 text-3xl font-bold text-blue-600">
+                            {{ solStats.paths_total }}
+                          </div>
+                          <div class="text-center text-sm text-gray-600">
+                            总路径数
+                          </div>
+                          <div class="mt-1 text-xs text-gray-500">
+                            Total Paths
+                          </div>
+                        </div>
+                        <div
+                          class="flex flex-col items-center justify-center rounded-lg bg-green-50 p-4"
+                        >
+                          <div class="mb-2 text-3xl font-bold text-green-600">
+                            {{ solStats.cur_path }}
+                          </div>
+                          <div class="text-center text-sm text-gray-600">
+                            当前路径
+                          </div>
+                          <div class="mt-1 text-xs text-gray-500">
+                            Current Path
+                          </div>
+                        </div>
+                        <div
+                          class="flex flex-col items-center justify-center rounded-lg bg-yellow-50 p-4"
+                        >
+                          <div class="mb-2 text-3xl font-bold text-yellow-600">
+                            {{ solStats.pending_total }}
+                          </div>
+                          <div class="text-center text-sm text-gray-600">
+                            待处理
+                          </div>
+                          <div class="mt-1 text-xs text-gray-500">Pending</div>
+                        </div>
+                        <div
+                          class="flex flex-col items-center justify-center rounded-lg bg-purple-50 p-4"
+                        >
+                          <div class="mb-2 text-3xl font-bold text-purple-600">
+                            {{ solStats.pending_favs }}
+                          </div>
+                          <div class="text-center text-sm text-gray-600">
+                            优先路径
+                          </div>
+                          <div class="mt-1 text-xs text-gray-500">Favored</div>
+                        </div>
+                      </div>
                     </div>
-                    <div class="mb-2 text-xl font-medium text-purple-600">
-                      SOL协议AFLNET测试运行中
-                    </div>
-                    <div class="text-sm text-gray-500">
-                      正在使用AFLNET引擎进行SOL协议模糊测试
+                  </div>
+
+                  <!-- 状态机拓扑 -->
+                  <div>
+                    <h4
+                      class="text-dark/80 mb-3 text-center text-base font-medium"
+                    >
+                      协议状态机拓扑
+                    </h4>
+                    <div
+                      class="h-60 rounded-lg border border-gray-200 bg-white p-4"
+                    >
+                      <div class="flex h-full flex-col">
+                        <!-- 状态机可视化区域 -->
+                        <div
+                          class="mb-4 flex flex-1 items-center justify-center rounded-lg bg-gray-50 p-4"
+                        >
+                          <div class="text-center">
+                            <div
+                              class="mb-4 flex items-center justify-center space-x-4"
+                            >
+                              <div
+                                class="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500 text-xs font-bold text-white"
+                              >
+                                {{ solStats.n_nodes }}
+                              </div>
+                              <div class="text-gray-400">
+                                <i class="fa fa-arrow-right text-lg"></i>
+                              </div>
+                              <div
+                                class="flex h-8 w-8 items-center justify-center rounded-full bg-green-500 text-xs font-bold text-white"
+                              >
+                                {{ solStats.n_edges }}
+                              </div>
+                            </div>
+                            <div class="text-xs text-gray-600">
+                              <span class="font-medium text-blue-600"
+                                >{{ solStats.n_nodes }} 个状态节点</span
+                              >
+                              <span class="mx-2">•</span>
+                              <span class="font-medium text-green-600"
+                                >{{ solStats.n_edges }} 个状态转换</span
+                              >
+                            </div>
+                          </div>
+                        </div>
+
+                        <!-- 状态机统计信息 -->
+                        <div class="grid grid-cols-2 gap-2 text-xs">
+                          <div class="rounded bg-blue-50 p-2 text-center">
+                            <div class="font-bold text-blue-600">
+                              {{ solStats.max_depth }}
+                            </div>
+                            <div class="text-gray-600">最大深度</div>
+                          </div>
+                          <div class="rounded bg-green-50 p-2 text-center">
+                            <div class="font-bold text-green-600">
+                              {{ solStats.map_size }}
+                            </div>
+                            <div class="text-gray-600">覆盖率</div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -5810,132 +5918,14 @@ onMounted(async () => {
                 </div>
               </div>
 
-              <!-- SOL协议统计 -->
-              <div v-else class="grid h-72 grid-cols-1 gap-8 md:grid-cols-2">
-                <!-- 路径发现趋势 -->
-                <div>
-                  <h4
-                    class="text-dark/80 mb-3 text-center text-base font-medium"
-                  >
-                    路径发现统计
-                  </h4>
-                  <div
-                    class="h-60 rounded-lg border border-gray-200 bg-white p-4"
-                  >
-                    <div class="grid h-full grid-cols-2 gap-4">
-                      <div
-                        class="flex flex-col items-center justify-center rounded-lg bg-blue-50 p-4"
-                      >
-                        <div class="mb-2 text-3xl font-bold text-blue-600">
-                          {{ rtspStats.paths_total }}
-                        </div>
-                        <div class="text-center text-sm text-gray-600">
-                          总路径数
-                        </div>
-                        <div class="mt-1 text-xs text-gray-500">
-                          Total Paths
-                        </div>
-                      </div>
-                      <div
-                        class="flex flex-col items-center justify-center rounded-lg bg-green-50 p-4"
-                      >
-                        <div class="mb-2 text-3xl font-bold text-green-600">
-                          {{ rtspStats.cur_path }}
-                        </div>
-                        <div class="text-center text-sm text-gray-600">
-                          当前路径
-                        </div>
-                        <div class="mt-1 text-xs text-gray-500">
-                          Current Path
-                        </div>
-                      </div>
-                      <div
-                        class="flex flex-col items-center justify-center rounded-lg bg-yellow-50 p-4"
-                      >
-                        <div class="mb-2 text-3xl font-bold text-yellow-600">
-                          {{ rtspStats.pending_total }}
-                        </div>
-                        <div class="text-center text-sm text-gray-600">
-                          待处理
-                        </div>
-                        <div class="mt-1 text-xs text-gray-500">Pending</div>
-                      </div>
-                      <div
-                        class="flex flex-col items-center justify-center rounded-lg bg-purple-50 p-4"
-                      >
-                        <div class="mb-2 text-3xl font-bold text-purple-600">
-                          {{ rtspStats.pending_favs }}
-                        </div>
-                        <div class="text-center text-sm text-gray-600">
-                          优先路径
-                        </div>
-                        <div class="mt-1 text-xs text-gray-500">Favored</div>
-                      </div>
+              <!-- 其他协议的默认显示 -->
+              <div v-else class="min-h-0 flex-1">
+                <div class="flex h-full items-center justify-center">
+                  <div class="text-center text-gray-500">
+                    <div class="mb-4">
+                      <i class="fa fa-chart-bar text-4xl text-gray-400"></i>
                     </div>
-                  </div>
-                </div>
-
-                <!-- 状态机拓扑 -->
-                <div>
-                  <h4
-                    class="text-dark/80 mb-3 text-center text-base font-medium"
-                  >
-                    协议状态机拓扑
-                  </h4>
-                  <div
-                    class="h-60 rounded-lg border border-gray-200 bg-white p-4"
-                  >
-                    <div class="flex h-full flex-col">
-                      <!-- 状态机可视化区域 -->
-                      <div
-                        class="mb-4 flex flex-1 items-center justify-center rounded-lg bg-gray-50 p-4"
-                      >
-                        <div class="text-center">
-                          <div
-                            class="mb-4 flex items-center justify-center space-x-4"
-                          >
-                            <div
-                              class="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500 text-xs font-bold text-white"
-                            >
-                              {{ rtspStats.n_nodes }}
-                            </div>
-                            <div class="text-gray-400">
-                              <i class="fa fa-arrow-right text-lg"></i>
-                            </div>
-                            <div
-                              class="flex h-8 w-8 items-center justify-center rounded-full bg-green-500 text-xs font-bold text-white"
-                            >
-                              {{ rtspStats.n_edges }}
-                            </div>
-                          </div>
-                          <div class="text-xs text-gray-600">
-                            <span class="font-medium text-blue-600"
-                              >{{ rtspStats.n_nodes }} 个状态节点</span
-                            >
-                            <span class="mx-2">•</span>
-                            <span class="font-medium text-green-600"
-                              >{{ rtspStats.n_edges }} 个状态转换</span
-                            >
-                          </div>
-                        </div>
-                      </div>
-
-                      <!-- 状态机统计信息 -->
-                      <div class="grid grid-cols-2 gap-2 text-xs">
-                        <div class="rounded bg-blue-50 p-2 text-center">
-                          <div class="font-bold text-blue-600">
-                            {{ rtspStats.max_depth }}
-                          </div>
-                          <div class="text-gray-600">最大深度</div>
-                        </div>
-                        <div class="rounded bg-green-50 p-2 text-center">
-                          <div class="font-bold text-green-600">
-                            {{ rtspStats.map_size }}
-                          </div>
-                          <div class="text-gray-600">覆盖率</div>
-                        </div>
-                      </div>
-                    </div>
+                    <p>暂无协议统计数据</p>
                   </div>
                 </div>
               </div>
