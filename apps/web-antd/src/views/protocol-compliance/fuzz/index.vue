@@ -2885,12 +2885,32 @@ async function writeSOLScriptWrapper() {
 }
 
 async function executeSOLCommandWrapper() {
+  console.log('[DEBUG] ========== executeSOLCommandWrapper 被调用 ==========');
+  console.log('[DEBUG] selectedProtocolImplementation.value:', selectedProtocolImplementation.value);
+  
   try {
+    console.log('[DEBUG] 调用 executeSOLCommand...');
     const result = await executeSOLCommand([selectedProtocolImplementation.value]);
+    
+    console.log('[DEBUG] executeSOLCommand 返回结果:', result);
+    console.log('[DEBUG] result.data:', result.data);
+    console.log('[DEBUG] result.data.container_id:', result.data?.container_id);
+    console.log('[DEBUG] result.data.pid:', result.data?.pid);
 
     // 保存容器ID用于后续停止
-    if (result.data && (result.data.container_id || result.data.pid)) {
-      solProcessId.value = result.data.container_id || result.data.pid;
+    // 由于响应拦截器的处理，数据可能直接在result中，也可能在result.data中
+    const responseData = result.data || result;
+    console.log('[DEBUG] responseData:', responseData);
+    
+    if (responseData && (responseData.container_id || responseData.pid)) {
+      const containerId = responseData.container_id || responseData.pid;
+      console.log('[DEBUG] 设置 solProcessId.value 为:', containerId);
+      solProcessId.value = containerId;
+      console.log('[DEBUG] solProcessId.value 设置后的值:', solProcessId.value);
+    } else {
+      console.log('[DEBUG] 警告：没有从API响应中获取到容器ID或PID');
+      console.log('[DEBUG] result 完整结构:', JSON.stringify(result, null, 2));
+      console.log('[DEBUG] responseData 详情:', JSON.stringify(responseData, null, 2));
     }
 
     addLogToUI(
@@ -2899,7 +2919,7 @@ async function executeSOLCommandWrapper() {
         version: 'SOL',
         type: 'COMMAND',
         oids: [
-          `Docker容器已启动 (ID: ${result.data?.container_id || result.data?.pid || 'unknown'})`,
+          `Docker容器已启动 (ID: ${responseData?.container_id || responseData?.pid || 'unknown'})`,
         ],
         hex: '',
         result: 'success',
@@ -2907,7 +2927,8 @@ async function executeSOLCommandWrapper() {
       false,
     );
   } catch (error: any) {
-    console.error('执行SOL命令失败:', error);
+    console.error('[DEBUG] 执行SOL命令失败:', error);
+    console.error('[DEBUG] 错误详情:', error.response?.data || error.message);
     throw new Error(`执行启动命令失败: ${error.message}`);
   }
 }
@@ -3087,7 +3108,11 @@ async function readSOLLogPeriodically() {
 // addMQTTLogToUI 和 addRTSPLogToUI 现在通过 useLogReader composable 提供
 
 async function stopSOLProcessWrapper() {
+  console.log('[DEBUG] ========== stopSOLProcessWrapper 被调用 ==========');
+  console.log('[DEBUG] solProcessId.value:', solProcessId.value);
+  
   if (!solProcessId.value) {
+    console.log('[DEBUG] solProcessId 为空，直接返回');
     return;
   }
 
@@ -3097,9 +3122,18 @@ async function stopSOLProcessWrapper() {
       typeof solProcessId.value === 'string' &&
       solProcessId.value.length > 10;
 
+    console.log('[DEBUG] isDockerContainer:', isDockerContainer);
+    console.log('[DEBUG] solProcessId类型:', typeof solProcessId.value);
+    console.log('[DEBUG] solProcessId长度:', solProcessId.value?.length);
+
     if (isDockerContainer) {
+      console.log('[DEBUG] 识别为Docker容器，调用 stopAndCleanupSOL');
+      console.log('[DEBUG] 传递的容器ID:', solProcessId.value);
+      
       // 使用新的停止和清理功能
       const result = await stopAndCleanupSOL(solProcessId.value as string);
+      
+      console.log('[DEBUG] stopAndCleanupSOL 返回结果:', result);
 
       addLogToUI(
         {
@@ -3177,32 +3211,45 @@ async function stopSOLProcessWrapper() {
 
 // 处理停止测试的安全包装函数
 function handleStopTest() {
+  console.log('[DEBUG] ========== handleStopTest 被调用 (停止按钮点击) ==========');
+  console.log('[DEBUG] 当前协议类型:', protocolType.value);
+  console.log('[DEBUG] 当前协议实现:', selectedProtocolImplementation.value);
+  console.log('[DEBUG] 当前运行状态:', isRunning.value);
+  console.log('[DEBUG] 当前solProcessId:', solProcessId.value);
+  
   try {
     // 停止所有协议的实时流
+    console.log('[DEBUG] 停止所有实时流...');
     stopAllRealtimeStreams();
 
     // 更新当前协议状态
+    console.log('[DEBUG] 更新协议状态...');
     updateProtocolState(protocolType.value as any, {
       isRunning: false,
       isProcessing: false,
     });
 
     if (protocolType.value === 'MQTT') {
+      console.log('[DEBUG] 检测到MQTT协议，调用 stopMQTTTest');
       // MQTT协议使用安全的停止方式
       stopMQTTTest();
     } else {
+      console.log('[DEBUG] 非MQTT协议，调用 stopTest');
       // 其他协议使用原来的stopTest
       stopTest();
     }
   } catch (error) {
-    console.error('Error in handleStopTest:', error);
+    console.error('[DEBUG] handleStopTest 执行出错:', error);
   }
 }
 
 // MQTT专用的安全停止函数
 function stopMQTTTest() {
+  console.log('[DEBUG] ========== stopMQTTTest 被调用 ==========');
+  console.log('[DEBUG] selectedProtocolImplementation.value:', selectedProtocolImplementation.value);
+  
   try {
-    console.log('Stopping MQTT test safely...');
+    console.log('[DEBUG] 开始安全停止MQTT测试...');
 
     // 添加用户中止日志
     addUnifiedLog('WARNING', '用户手动停止了MQTT测试', 'MQTT');
@@ -3229,6 +3276,17 @@ function stopMQTTTest() {
       clearInterval(logReadingInterval.value);
       logReadingInterval.value = null;
     }
+    
+    // 检查是否是SOL协议实现，如果是则需要停止Docker容器
+    console.log('[DEBUG] 检查是否需要停止SOL Docker容器...');
+    console.log('[DEBUG] selectedProtocolImplementation.value === SOL协议:', selectedProtocolImplementation.value === 'SOL协议');
+    
+    if (selectedProtocolImplementation.value === 'SOL协议') {
+      console.log('[DEBUG] 检测到SOL协议实现，调用 stopSOLProcessWrapper');
+      stopSOLProcessWrapper();
+    } else {
+      console.log('[DEBUG] 非SOL协议实现，跳过Docker容器停止');
+    }
 
     // 添加停止完成日志
     addUnifiedLog('INFO', 'MQTT测试已被用户停止', 'MQTT');
@@ -3254,10 +3312,14 @@ function stopMQTTTest() {
 }
 
 function stopTest() {
+  console.log('[DEBUG] ========== stopTest 被调用 ==========');
+  console.log('[DEBUG] protocolType.value:', protocolType.value);
+  console.log('[DEBUG] selectedProtocolImplementation.value:', selectedProtocolImplementation.value);
+  
   try {
     // 如果是MQTT协议，重定向到安全的停止函数
     if (protocolType.value === 'MQTT') {
-      console.log('Redirecting MQTT test to safe stop function');
+      console.log('[DEBUG] 检测到MQTT协议，重定向到 stopMQTTTest');
       stopMQTTTest();
       return;
     }
@@ -3276,11 +3338,19 @@ function stopTest() {
     }
 
     // 停止协议特定的进程
+    console.log('[DEBUG] 检查是否需要停止SOL进程...');
+    console.log('[DEBUG] 条件1 - protocolType === MQTT:', protocolType.value === 'MQTT');
+    console.log('[DEBUG] 条件2 - selectedProtocolImplementation === SOL协议:', selectedProtocolImplementation.value === 'SOL协议');
+    
     if (protocolType.value === 'MQTT' && selectedProtocolImplementation.value === 'SOL协议') {
+      console.log('[DEBUG] 满足SOL协议条件，调用 stopSOLProcessWrapper');
       stopSOLProcessWrapper();
     } else if (protocolType.value === 'MQTT') {
+      console.log('[DEBUG] MQTT协议但非SOL实现，调用 stopLogReading');
       // MQTT协议的清理工作通过 useLogReader 管理
       stopLogReading();
+    } else {
+      console.log('[DEBUG] 非MQTT协议，跳过特殊停止逻辑');
     }
 
     if (testTimer) {

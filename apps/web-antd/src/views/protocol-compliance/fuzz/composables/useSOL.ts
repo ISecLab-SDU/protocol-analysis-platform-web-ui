@@ -136,15 +136,37 @@ export function useSOL() {
 
   // 执行SOL命令
   async function executeSOLCommand(protocolImplementations?: string[]) {
+    console.log('[DEBUG] ========== executeSOLCommand 被调用 ==========');
+    console.log('[DEBUG] protocolImplementations:', protocolImplementations);
+    
     try {
-      const result = await requestClient.post('/protocol-compliance/execute-command', {
+      const requestData = {
         protocol: 'MQTT',  // SOL协议现在通过MQTT协议实现选择
         protocolImplementations: protocolImplementations || []
+      };
+      
+      console.log('[DEBUG] 发送请求到 /protocol-compliance/execute-command');
+      console.log('[DEBUG] 请求数据:', requestData);
+      
+      const result = await requestClient.post('/protocol-compliance/execute-command', requestData);
+      
+      console.log('[DEBUG] API响应成功:', result);
+      
+      // 由于响应拦截器的处理，数据可能直接在result中，也可能在result.data中
+      const responseData = result.data || result;
+      console.log('[DEBUG] 响应数据结构:', {
+        status: result.status,
+        data: result.data,
+        responseData: responseData,
+        hasContainerId: !!responseData?.container_id,
+        hasPid: !!responseData?.pid
       });
+      
       return result;
       
     } catch (error: any) {
-      console.error('执行SOL命令失败:', error);
+      console.error('[DEBUG] 执行SOL命令失败:', error);
+      console.error('[DEBUG] 错误详情:', error.response?.data || error.message);
       throw new Error(`执行启动命令失败: ${error.message}`);
     }
   }
@@ -169,18 +191,30 @@ export function useSOL() {
 
   // 停止并清理SOL Docker容器
   async function stopAndCleanupSOL(containerId: string) {
+    console.log('[DEBUG] ========== stopAndCleanupSOL 被调用 ==========');
+    console.log('[DEBUG] 传入的容器ID:', containerId);
+    
     if (!containerId) {
+      console.log('[DEBUG] 容器ID为空，直接返回');
       return;
     }
     
     try {
-      const result = await requestClient.post('/protocol-compliance/stop-and-cleanup', {
+      const requestData = {
         container_id: containerId,
         protocol: 'RTSP'  // 保持协议标识符为RTSP
-      });
+      };
+      
+      console.log('[DEBUG] 发送请求到 /protocol-compliance/stop-and-cleanup');
+      console.log('[DEBUG] 请求数据:', requestData);
+      
+      const result = await requestClient.post('/protocol-compliance/stop-and-cleanup', requestData);
+      
+      console.log('[DEBUG] API响应成功:', result);
       return result;
     } catch (error) {
-      console.error('停止和清理SOL容器失败:', error);
+      console.error('[DEBUG] 停止和清理SOL容器失败:', error);
+      console.error('[DEBUG] 错误详情:', error.response?.data || error.message);
       throw error;
     }
   }

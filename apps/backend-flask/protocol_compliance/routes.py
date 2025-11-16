@@ -1020,16 +1020,24 @@ def write_script():
 @bp.route("/execute-command", methods=["POST"])
 def execute_command():
     """执行shell命令启动程序"""
+    print(f"[DEBUG] ========== execute-command API被调用 ==========")
+    
     _, error = _ensure_authenticated()
     if error:
+        print(f"[DEBUG] 认证失败: {error}")
         return error
 
     data = request.get_json()
+    print(f"[DEBUG] 接收到的请求数据: {data}")
+    
     if not data:
+        print(f"[DEBUG] 请求数据为空")
         return make_response(error_response("请求数据不能为空"), 400)
 
     protocol = data.get("protocol", "UNKNOWN")
     protocol_implementations = data.get("protocolImplementations", [])
+    
+    print(f"[DEBUG] 解析参数 - 协议: {protocol}, 实现: {protocol_implementations}")
 
     # 根据协议获取配置
     if protocol == "MQTT":
@@ -1065,44 +1073,59 @@ def execute_command():
         
         if is_sol_protocol:
             # ProtocolGuard需要在后台运行，因为它是长时间运行的fuzzing任务
-            process = subprocess.Popen(
-                command,
-                shell=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
-            )
-            
-            # 给进程一点时间启动
-            import time
-            time.sleep(3)
-            
-            # 检查进程是否还在运行
-            if process.poll() is None:
-                # 进程仍在运行，获取Docker容器ID
-                stdout, stderr = process.communicate()
-                container_id = stdout.strip() if stdout.strip() else None
+            # 直接执行docker命令并获取容器ID
+            try:
+                result = subprocess.run(
+                    command,
+                    shell=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    timeout=30  # 30秒超时
+                )
                 
-                if container_id and len(container_id) > 10:  # Docker容器ID通常很长
-                    protocol_name = "SOL协议" if protocol == "MQTT" else protocol
-                    print(f"[DEBUG] {protocol_name} ProtocolGuard启动成功，容器ID: {container_id}")
-                    return success_response({
-                        "message": f"{protocol_name} ProtocolGuard启动成功，正在后台运行fuzzing任务",
-                        "command": command,
-                        "pid": process.pid,
-                        "container_id": container_id
-                    })
+                if result.returncode == 0:
+                    container_id = result.stdout.strip()
+                    if container_id and len(container_id) >= 12:  # Docker容器ID至少12位
+                        protocol_name = "SOL协议" if protocol == "MQTT" else protocol
+                        print(f"[DEBUG] {protocol_name} ProtocolGuard启动成功，容器ID: {container_id}")
+                        
+                        # 验证容器是否真的在运行
+                        import time
+                        time.sleep(2)
+                        check_result = subprocess.run(
+                            f"docker ps -q --filter id={container_id}",
+                            shell=True,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            text=True
+                        )
+                        
+                        if check_result.returncode == 0 and check_result.stdout.strip():
+                            response_data = {
+                                "message": f"{protocol_name} ProtocolGuard启动成功，正在后台运行fuzzing任务",
+                                "command": command,
+                                "pid": None,  # Docker容器没有直接的PID
+                                "container_id": container_id
+                            }
+                            print(f"[DEBUG] 返回成功响应: {response_data}")
+                            return success_response(response_data)
+                        else:
+                            return make_response(error_response(f"容器启动后立即停止，请检查Docker镜像和配置"), 500)
+                    else:
+                        error_msg = result.stderr.strip() if result.stderr.strip() else "无法获取有效的容器ID"
+                        print(f"[DEBUG] ProtocolGuard启动失败: {error_msg}")
+                        return make_response(error_response(f"ProtocolGuard启动失败: {error_msg}"), 500)
                 else:
-                    # 没有获取到有效的容器ID
-                    error_msg = stderr.strip() if stderr.strip() else "无法获取容器ID"
+                    error_msg = result.stderr.strip() if result.stderr.strip() else "Docker命令执行失败"
                     print(f"[DEBUG] ProtocolGuard启动失败: {error_msg}")
                     return make_response(error_response(f"ProtocolGuard启动失败: {error_msg}"), 500)
-            else:
-                # 进程已经结束，可能是启动失败
-                stdout, stderr = process.communicate()
-                error_msg = stderr.strip() if stderr.strip() else "进程意外结束"
-                print(f"[DEBUG] ProtocolGuard启动失败: {error_msg}")
-                return make_response(error_response(f"ProtocolGuard启动失败: {error_msg}"), 500)
+                    
+            except subprocess.TimeoutExpired:
+                return make_response(error_response("Docker容器启动超时"), 500)
+            except Exception as e:
+                print(f"[DEBUG] ProtocolGuard启动异常: {str(e)}")
+                return make_response(error_response(f"ProtocolGuard启动异常: {str(e)}"), 500)
         else:
             # 其他协议使用原来的方式
             result = subprocess.run(
@@ -1364,18 +1387,27 @@ def stop_process():
 @bp.route("/stop-and-cleanup", methods=["POST"])
 def stop_and_cleanup():
     """停止Docker容器并清理输出文件"""
+    print(f"[DEBUG] ========== 停止和清理API被调用 ==========")
+    
     _, error = _ensure_authenticated()
     if error:
+        print(f"[DEBUG] 认证失败: {error}")
         return error
     
     data = request.get_json()
+    print(f"[DEBUG] 接收到的请求数据: {data}")
+    
     if not data:
+        print(f"[DEBUG] 请求数据为空")
         return make_response(error_response("请求数据不能为空"), 400)
     
     container_id = data.get("container_id")
     protocol = data.get("protocol", "UNKNOWN")
     
+    print(f"[DEBUG] 解析参数 - 容器ID: {container_id}, 协议: {protocol}")
+    
     if not container_id:
+        print(f"[DEBUG] 容器ID为空")
         return make_response(error_response("容器ID不能为空"), 400)
     
     cleanup_results = {
@@ -1387,6 +1419,35 @@ def stop_and_cleanup():
     
     try:
         print(f"[DEBUG] 开始停止和清理{protocol}容器: {container_id}")
+        
+        # 首先检查容器是否存在
+        check_result = subprocess.run(
+            f"docker ps -a -q --filter id={container_id}",
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        if check_result.returncode == 0 and check_result.stdout.strip():
+            print(f"[DEBUG] 找到容器: {check_result.stdout.strip()}")
+        else:
+            print(f"[DEBUG] 容器不存在或查找失败: {check_result.stderr}")
+            cleanup_results["errors"].append(f"容器不存在: {container_id}")
+        
+        # 检查容器是否正在运行
+        running_check = subprocess.run(
+            f"docker ps -q --filter id={container_id}",
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        if running_check.returncode == 0 and running_check.stdout.strip():
+            print(f"[DEBUG] 容器正在运行，需要停止: {running_check.stdout.strip()}")
+        else:
+            print(f"[DEBUG] 容器未在运行或已停止")
         
         # 1. 停止Docker容器
         try:
