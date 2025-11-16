@@ -938,7 +938,7 @@ def _strip_extension(filename: str) -> str:
 
 # Protocol Specific Routes -------------------------------------------------
 
-# SOL协议配置 - ProtocolGuard配置
+# SOL配置 - ProtocolGuard配置
 RTSP_CONFIG = {
     "script_path": None,  # 不再需要脚本文件
     "shell_command": "docker run -d --privileged -v /home/hhh/下载/ProtocolGuardOutPut:/out/fuzz-output protocolguard:latest fuzz",  # ProtocolGuard启动命令（使用-d后台运行，移除--rm和-it）
@@ -948,14 +948,14 @@ RTSP_CONFIG = {
 # MQTT协议配置 - MBFuzzer相关路径
 MQTT_CONFIG = {
     "log_file_path": os.path.join(os.path.dirname(__file__), "mbfuzzer_logs", "fuzzing_report.txt"),  # MBFuzzer日志文件路径
-    "shell_command": "python3 /path/to/mbfuzzer/fuzz.py",  # MBFuzzer启动命令（需要根据实际路径修改）
+    "shell_command": "echo 'MBFuzzer模拟运行 - 传统MQTT broker模糊测试'",  # MBFuzzer启动命令（临时模拟）
     "output_dir": os.path.join(os.path.dirname(__file__), "mbfuzzer_logs")  # MBFuzzer输出目录
 }
 
 # SNMP协议配置 - SNMP Fuzzer相关路径
 SNMP_CONFIG = {
     "log_file_path": os.path.join(os.path.dirname(__file__), "snmpfuzzer_logs", "fuzz_output.txt"),  # SNMP Fuzzer日志文件路径
-    "shell_command": "python3 /path/to/snmpfuzzer/fuzz.py",  # SNMP Fuzzer启动命令（需要根据实际路径修改）
+    "shell_command": "echo 'SNMP Fuzzer模拟运行'",  # SNMP Fuzzer启动命令（临时模拟）
     "output_dir": os.path.join(os.path.dirname(__file__), "snmpfuzzer_logs")  # SNMP Fuzzer输出目录
 }
 
@@ -979,9 +979,9 @@ def write_script():
 
     # 根据协议获取配置
     if protocol == "RTSP":
-        # SOL协议使用ProtocolGuard，不需要脚本文件，直接返回成功
+        # SOL使用ProtocolGuard，不需要脚本文件，直接返回成功
         return success_response({
-            "message": f"SOL协议不需要脚本文件，直接启动docker即可生成日志",
+            "message": f"SOL不需要脚本文件，直接启动docker即可生成日志",
             "filePath": "N/A",
             "size": 0
         })
@@ -1042,8 +1042,8 @@ def execute_command():
     # 根据协议获取配置
     if protocol == "MQTT":
         # MQTT协议支持双引擎配置
-        if protocol_implementations and "SOL协议" in protocol_implementations:
-            # SOL协议使用AFLNET引擎 (原RTSP配置)
+        if protocol_implementations and "SOL" in protocol_implementations:
+            # SOL使用AFLNET引擎 (原RTSP配置)
             command = RTSP_CONFIG["shell_command"]
             print(f"[DEBUG] MQTT协议使用SOL实现(AFLNET引擎): {protocol_implementations}")
         else:
@@ -1067,9 +1067,9 @@ def execute_command():
     try:
         print(f"[DEBUG] 执行命令: {command}")  # 调试日志
 
-        # 对于SOL协议的ProtocolGuard，使用后台运行方式
-        # 检查是否是SOL协议实现（MQTT协议 + SOL协议实现 或者 原RTSP协议）
-        is_sol_protocol = (protocol == "RTSP") or (protocol == "MQTT" and protocol_implementations and "SOL协议" in protocol_implementations)
+        # 对于SOL的ProtocolGuard，使用后台运行方式
+        # 检查是否是SOL实现（MQTT协议 + SOL实现 或者 原RTSP协议）
+        is_sol_protocol = (protocol == "RTSP") or (protocol == "MQTT" and protocol_implementations and "SOL" in protocol_implementations)
         
         if is_sol_protocol:
             # ProtocolGuard需要在后台运行，因为它是长时间运行的fuzzing任务
@@ -1087,7 +1087,7 @@ def execute_command():
                 if result.returncode == 0:
                     container_id = result.stdout.strip()
                     if container_id and len(container_id) >= 12:  # Docker容器ID至少12位
-                        protocol_name = "SOL协议" if protocol == "MQTT" else protocol
+                        protocol_name = "SOL" if protocol == "MQTT" else protocol
                         print(f"[DEBUG] {protocol_name} ProtocolGuard启动成功，容器ID: {container_id}")
                         
                         # 验证容器是否真的在运行
@@ -1186,8 +1186,8 @@ def read_log():
     
     if protocol == "MQTT":
         # MQTT协议支持双引擎配置
-        if protocol_implementations and "SOL协议" in protocol_implementations:
-            # SOL协议使用AFLNET引擎日志路径 (原RTSP配置)
+        if protocol_implementations and "SOL" in protocol_implementations:
+            # SOL使用AFLNET引擎日志路径 (原RTSP配置)
             file_path = RTSP_CONFIG["log_file_path"]
             print(f"[DEBUG] MQTT协议使用SOL实现，读取AFLNET日志: {file_path}")
         else:
@@ -1285,11 +1285,11 @@ def check_status():
             # MQTT协议支持双引擎配置，需要检查协议实现
             protocol_implementations = data.get("protocolImplementations", [])
             
-            if protocol_implementations and "SOL协议" in protocol_implementations:
+            if protocol_implementations and "SOL" in protocol_implementations:
                 # 检查SOL相关状态 (使用AFLNET引擎)
                 log_file_path = RTSP_CONFIG["log_file_path"]
                 status_info["engine"] = "AFLNET"
-                status_info["implementation"] = "SOL协议"
+                status_info["implementation"] = "SOL"
             else:
                 # 检查传统MQTT broker状态 (使用MBFuzzer引擎)
                 log_file_path = MQTT_CONFIG["log_file_path"]

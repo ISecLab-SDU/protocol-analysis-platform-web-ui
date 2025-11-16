@@ -57,7 +57,7 @@ const {
   processSNMPPacket,
   addSNMPLogToUI,
 } = useSNMP();
-// RTSP相关功能已移除，SOL协议现在通过MQTT协议实现选择来使用
+// RTSP相关功能已移除，SOL现在通过MQTT协议实现选择来使用
 const {
   solStats,
   resetSOLStats,
@@ -153,7 +153,7 @@ const protocolImplementationConfigs: Record<FuzzEngineType, ProtocolImplementati
   },
   'AFLNET': {
     fuzzEngine: 'AFLNET',
-    defaultImplementations: ['SOL协议'],
+    defaultImplementations: ['SOL'],
     isMultiSelect: false
   }
 };
@@ -216,7 +216,7 @@ watch(protocolType, (newProtocol, oldProtocol) => {
   } else if (newProtocol === 'MQTT') {
     targetPort.value = 1883;
     // MQTT协议的引擎将根据协议实现选择来确定
-    // 默认使用MBFuzzer，如果选择SOL协议则切换到AFLNET
+    // 默认使用MBFuzzer，如果选择SOL则切换到AFLNET
     fuzzEngine.value = 'MBFuzzer';
     // MQTT动画将在测试开始时初始化
   }
@@ -243,23 +243,35 @@ watch(fuzzEngine, (newEngine) => {
 
 // Watch for selected protocol implementation changes to sync with array
 watch(selectedProtocolImplementation, (newImpl) => {
+  console.log('[DEBUG] ========== 协议实现变更监听器触发 ==========');
+  console.log('[DEBUG] 新的协议实现:', newImpl);
+  console.log('[DEBUG] 当前协议类型:', protocolType.value);
+  console.log('[DEBUG] 当前Fuzz引擎:', fuzzEngine.value);
+  
   // 同步单选值到多选数组，保持向后兼容
   protocolImplementations.value = [newImpl];
   
   // 对于MQTT协议，根据实现选择自动切换引擎
   if (protocolType.value === 'MQTT') {
-    if (newImpl === 'SOL协议') {
-      // 选择SOL协议时，使用AFLNET引擎，端口改为8883
+    if (newImpl === 'SOL') {
+      // 选择SOL时，使用AFLNET引擎，端口改为8883
+      console.log('[DEBUG] 检测到SOL实现，准备切换到AFLNET引擎');
       fuzzEngine.value = 'AFLNET';
       targetPort.value = 8883;
       console.log('[DEBUG] MQTT协议选择SOL实现，切换到AFLNET引擎，端口8883');
+      console.log('[DEBUG] 切换后 - fuzzEngine.value:', fuzzEngine.value);
+      console.log('[DEBUG] 切换后 - targetPort.value:', targetPort.value);
     } else {
       // 选择传统MQTT broker时，使用MBFuzzer引擎，端口1883
+      console.log('[DEBUG] 检测到传统MQTT broker实现，准备切换到MBFuzzer引擎');
       fuzzEngine.value = 'MBFuzzer';
       targetPort.value = 1883;
       console.log('[DEBUG] MQTT协议选择传统broker实现，切换到MBFuzzer引擎，端口1883');
+      console.log('[DEBUG] 切换后 - fuzzEngine.value:', fuzzEngine.value);
+      console.log('[DEBUG] 切换后 - targetPort.value:', targetPort.value);
     }
   }
+  console.log('[DEBUG] ========== 协议实现变更监听器结束 ==========');
 });
 const showCharts = ref(false);
 const crashDetails = ref<any>(null);
@@ -961,8 +973,14 @@ async function startTest() {
       await startSNMPTest(loop);
     } else if (protocolType.value === 'MQTT') {
       // 根据协议实现选择不同的测试方式
-      if (selectedProtocolImplementation.value === 'SOL协议') {
-        // SOL协议使用AFLNET引擎
+      console.log('[DEBUG] ========== MQTT测试启动 ==========');
+      console.log('[DEBUG] 当前协议实现:', selectedProtocolImplementation.value);
+      console.log('[DEBUG] 当前Fuzz引擎:', fuzzEngine.value);
+      console.log('[DEBUG] 当前目标端口:', targetPort.value);
+      
+      if (selectedProtocolImplementation.value === 'SOL') {
+        // SOL使用AFLNET引擎
+        console.log('[DEBUG] 启动SOL测试 (AFLNET引擎)');
         await startSOLTest();
       } else {
         // 传统MQTT broker使用MBFuzzer引擎
@@ -1006,7 +1024,7 @@ async function startTest() {
 }
 
 // Protocol-specific test functions
-// startRTSPTest函数已移除，SOL协议现在通过startSOLTest函数处理
+// startRTSPTest函数已移除，SOL现在通过startSOLTest函数处理
 
 async function startSOLTest() {
   console.log('[DEBUG] ========== startSOLTest 被调用 ==========');
@@ -2131,7 +2149,7 @@ function getLogFormatter(protocol: ProtocolType) {
   switch (protocol) {
     case 'MQTT':
       return formatMQTTLogLine;
-    // RTSP已移除，SOL协议现在通过MQTT协议实现选择来处理
+    // RTSP已移除，SOL现在通过MQTT协议实现选择来处理
     case 'SNMP':
       return formatSNMPLogLine;
     default:
@@ -2143,7 +2161,7 @@ function getLogFormatter(protocol: ProtocolType) {
 // 测试函数是否正常工作
 console.log('[DEBUG] formatMQTTLogLine函数已加载');
 
-// RTSP日志格式化函数已移除，SOL协议现在通过formatSOLLogLine处理
+// RTSP日志格式化函数已移除，SOL现在通过formatSOLLogLine处理
 
 // SOL日志格式化
 function formatSOLLogLine(log: any): string {
@@ -3035,7 +3053,7 @@ async function checkSOLStatus() {
     const result = await requestClient.post(
       '/protocol-compliance/check-status',
       {
-        protocol: 'MQTT',  // SOL协议现在通过MQTT协议实现选择
+        protocol: 'MQTT',  // SOL现在通过MQTT协议实现选择
         protocolImplementations: [selectedProtocolImplementation.value],
       },
     );
@@ -3098,7 +3116,7 @@ async function readSOLLogPeriodically() {
     try {
       // 调用后端API读取日志文件
       const result = await requestClient.post('/protocol-compliance/read-log', {
-        protocol: 'MQTT',  // SOL协议现在通过MQTT协议实现选择
+        protocol: 'MQTT',  // SOL现在通过MQTT协议实现选择
         protocolImplementations: [selectedProtocolImplementation.value],
         lastPosition: logReadPosition.value, // 使用实际的读取位置，实现增量读取
       });
@@ -3428,15 +3446,15 @@ function stopMQTTTest() {
       logReadingInterval.value = null;
     }
     
-    // 检查是否是SOL协议实现，如果是则需要停止Docker容器
+    // 检查是否是SOL实现，如果是则需要停止Docker容器
     console.log('[DEBUG] 检查是否需要停止SOL Docker容器...');
-    console.log('[DEBUG] selectedProtocolImplementation.value === SOL协议:', selectedProtocolImplementation.value === 'SOL协议');
+    console.log('[DEBUG] selectedProtocolImplementation.value === SOL:', selectedProtocolImplementation.value === 'SOL');
     
-    if (selectedProtocolImplementation.value === 'SOL协议') {
-      console.log('[DEBUG] 检测到SOL协议实现，调用 stopSOLProcessWrapper');
+    if (selectedProtocolImplementation.value === 'SOL') {
+      console.log('[DEBUG] 检测到SOL实现，调用 stopSOLProcessWrapper');
       stopSOLProcessWrapper();
     } else {
-      console.log('[DEBUG] 非SOL协议实现，跳过Docker容器停止');
+      console.log('[DEBUG] 非SOL实现，跳过Docker容器停止');
     }
 
     // 添加停止完成日志
@@ -3491,10 +3509,10 @@ function stopTest() {
     // 停止协议特定的进程
     console.log('[DEBUG] 检查是否需要停止SOL进程...');
     console.log('[DEBUG] 条件1 - protocolType === MQTT:', protocolType.value === 'MQTT');
-    console.log('[DEBUG] 条件2 - selectedProtocolImplementation === SOL协议:', selectedProtocolImplementation.value === 'SOL协议');
+    console.log('[DEBUG] 条件2 - selectedProtocolImplementation === SOL:', selectedProtocolImplementation.value === 'SOL');
     
-    if (protocolType.value === 'MQTT' && selectedProtocolImplementation.value === 'SOL协议') {
-      console.log('[DEBUG] 满足SOL协议条件，调用 stopSOLProcessWrapper');
+    if (protocolType.value === 'MQTT' && selectedProtocolImplementation.value === 'SOL') {
+      console.log('[DEBUG] 满足SOL条件，调用 stopSOLProcessWrapper');
       stopSOLProcessWrapper();
     } else if (protocolType.value === 'MQTT') {
       console.log('[DEBUG] MQTT协议但非SOL实现，调用 stopLogReading');
@@ -3633,12 +3651,12 @@ function saveLog() {
 function generateTestReport() {
   let reportContent = '';
 
-  if (protocolType.value === 'MQTT' && selectedProtocolImplementation.value === 'SOL协议') {
-    // SOL协议AFLNET报告格式
+  if (protocolType.value === 'MQTT' && selectedProtocolImplementation.value === 'SOL') {
+    // SOLAFLNET报告格式
     reportContent =
-      `AFLNET SOL协议模糊测试报告\n` +
+      `AFLNET SOL模糊测试报告\n` +
       `==========================\n\n` +
-      `测试引擎: ${fuzzEngine.value} (SOL协议模糊测试)\n` +
+      `测试引擎: ${fuzzEngine.value} (SOL模糊测试)\n` +
       `目标服务器: ${targetHost.value}:${targetPort.value}\n` +
       `开始时间: ${startTime.value || (testStartTime.value ? testStartTime.value.toLocaleString() : '未开始')}\n` +
       `结束时间: ${endTime.value || (testEndTime.value ? testEndTime.value.toLocaleString() : '未结束')}\n` +
@@ -3658,7 +3676,7 @@ function generateTestReport() {
       `状态节点数: ${solStats.value.n_nodes || 0}\n` +
       `状态转换数: ${solStats.value.n_edges || 0}\n\n` +
       `报告生成时间: ${new Date().toLocaleString()}\n` +
-      `报告版本: AFLNET v1.0 - SOL协议模糊测试引擎`;
+      `报告版本: AFLNET v1.0 - SOL模糊测试引擎`;
   } else if (protocolType.value === 'MQTT') {
     // MQTT协议MBFuzzer报告格式
     reportContent =
@@ -3968,7 +3986,7 @@ function addLogToUI(packet: FuzzPacket, isCrash: boolean) {
   if (currentProtocolType === 'SNMP') {
     logContent = formatSNMPPacketLog(packet, isCrash);
     console.log('[DEBUG] 添加SNMP日志:', { logType, logContent, packet });
-  } else if (currentProtocolType === 'MQTT' && selectedProtocolImplementation.value === 'SOL协议') {
+  } else if (currentProtocolType === 'MQTT' && selectedProtocolImplementation.value === 'SOL') {
     logContent = formatSOLPacketLog(packet, isCrash);
     console.log('[DEBUG] 添加SOL日志:', { logType, logContent, packet });
   } else if (currentProtocolType === 'MQTT') {
@@ -4368,9 +4386,9 @@ function saveTestToHistory() {
         getnext: messageTypeStats.value.getnext,
         getbulk: messageTypeStats.value.getbulk,
       },
-      // 保存SOL协议统计数据
+      // 保存SOL统计数据
       rtspStats:
-        protocolType.value === 'MQTT' && selectedProtocolImplementation.value === 'SOL协议'
+        protocolType.value === 'MQTT' && selectedProtocolImplementation.value === 'SOL'
           ? {
               cycles_done: solStats.value.cycles_done,
               paths_total: solStats.value.paths_total,
@@ -4418,7 +4436,7 @@ function saveTestToHistory() {
               fuzzingStartTime: mqttStats.value.fuzzing_start_time,
               fuzzingEndTime: mqttStats.value.fuzzing_end_time,
             }
-          : protocolType.value === 'MQTT' && selectedProtocolImplementation.value === 'SOL协议'
+          : protocolType.value === 'MQTT' && selectedProtocolImplementation.value === 'SOL'
             ? {
                 pathCoverage:
                   (solStats.value.cur_path /
@@ -5279,28 +5297,6 @@ onMounted(async () => {
                 </div>
               </div>
 
-              <!-- 协议实现选择 -->
-              <div>
-                <label class="text-dark/70 mb-2 block text-sm">协议实现</label>
-                <div class="relative">
-                  <select
-                    v-model="selectedProtocolImplementation"
-                    class="border-primary/20 focus:ring-primary w-full appearance-none rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1"
-                  >
-                    <option 
-                      v-for="impl in protocolImplementationConfigs[fuzzEngine].defaultImplementations"
-                      :key="impl"
-                      :value="impl"
-                    >
-                      {{ impl }}
-                    </option>
-                  </select>
-                  <i
-                    class="fa fa-chevron-down text-dark/50 pointer-events-none absolute right-3 top-2.5"
-                  ></i>
-                </div>
-              </div>
-
               <!-- Fuzz引擎选择 -->
               <div>
                 <label class="text-dark/70 mb-2 block text-sm">Fuzz引擎</label>
@@ -5317,6 +5313,28 @@ onMounted(async () => {
                     </option>
                     <option value="MBFuzzer" v-if="protocolType === 'MQTT'">
                       MBFuzzer
+                    </option>
+                  </select>
+                  <i
+                    class="fa fa-chevron-down text-dark/50 pointer-events-none absolute right-3 top-2.5"
+                  ></i>
+                </div>
+              </div>
+
+              <!-- 协议实现选择 -->
+              <div>
+                <label class="text-dark/70 mb-2 block text-sm">协议实现</label>
+                <div class="relative">
+                  <select
+                    v-model="selectedProtocolImplementation"
+                    class="border-primary/20 focus:ring-primary w-full appearance-none rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1"
+                  >
+                    <option 
+                      v-for="impl in protocolImplementationConfigs[fuzzEngine].defaultImplementations"
+                      :key="impl"
+                      :value="impl"
+                    >
+                      {{ impl }}
                     </option>
                   </select>
                   <i
@@ -5359,14 +5377,14 @@ onMounted(async () => {
             </div>
 
             <!-- 指令配置 -->
-            <div v-if="protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL协议'" class="mt-4">
+            <div v-if="protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL'" class="mt-4">
               <label class="text-dark/70 mb-2 block text-sm">指令配置</label>
               <div class="relative">
                 <textarea
                   v-model="solCommandConfig"
                   rows="3"
                   class="border-primary/20 focus:ring-primary w-full resize-none rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1"
-                  placeholder="请输入SOL协议的指令配置..."
+                  placeholder="请输入SOL的指令配置..."
                 ></textarea>
                 <i
                   class="fa fa-terminal text-dark/50 absolute right-3 top-2.5"
@@ -5475,7 +5493,7 @@ onMounted(async () => {
                   </span>
                   <span
                     v-else-if="
-                      protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL协议' && solStats.unique_crashes > 0
+                      protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL' && solStats.unique_crashes > 0
                     "
                     class="bg-danger/10 text-danger animate-pulse rounded-full px-2 py-0.5 text-xs"
                   >
@@ -5494,8 +5512,8 @@ onMounted(async () => {
                   >
                 </div>
 
-                <!-- SOL协议崩溃统计 (AFLNET引擎) -->
-                <div v-if="protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL协议'" class="space-y-4">
+                <!-- SOL崩溃统计 (AFLNET引擎) -->
+                <div v-if="protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL'" class="space-y-4">
                   <div class="grid grid-cols-2 gap-4">
                     <div
                       class="rounded-lg border border-red-200 bg-red-50 p-3 text-center"
@@ -5704,10 +5722,10 @@ onMounted(async () => {
                 <h3 class="text-xl font-semibold">
                   {{
                     protocolType === 'RTSP'
-                      ? 'SOL协议状态机统计'
+                      ? 'SOL状态机统计'
                       : protocolType === 'MQTT'
-                        ? (selectedProtocolImplementation === 'SOL协议' 
-                            ? 'SOL协议AFLNET模糊测试' 
+                        ? (selectedProtocolImplementation === 'SOL' 
+                            ? 'SOLAFLNET模糊测试' 
                             : 'MQTT多方模糊测试')
                         : '消息类型分布与版本统计'
                   }}
@@ -5771,8 +5789,8 @@ onMounted(async () => {
                 </div>
               </div>
 
-              <!-- SOL协议AFLNET测试区域 - 显示原来的RTSP状态机界面 -->
-              <div v-else-if="protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL协议'" class="min-h-0 flex-1">
+              <!-- SOLAFLNET测试区域 - 显示原来的RTSP状态机界面 -->
+              <div v-else-if="protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL'" class="min-h-0 flex-1">
                 <!-- 初始状态显示设备待启动 -->
                 <div
                   v-if="!isRunning && !isTestCompleted"
@@ -5788,15 +5806,15 @@ onMounted(async () => {
                       />
                     </div>
                     <div class="mb-2 text-lg font-medium text-gray-600">
-                      SOL协议状态机待启动
+                      SOL状态机待启动
                     </div>
                     <div class="text-sm text-gray-500">
-                      点击"开始测试"启动SOL协议AFLNET状态机模糊测试
+                      点击"开始测试"启动SOLAFLNET状态机模糊测试
                     </div>
                   </div>
                 </div>
                 
-                <!-- SOL协议状态机统计 - 运行时显示 -->
+                <!-- SOL状态机统计 - 运行时显示 -->
                 <div v-else class="grid h-72 grid-cols-1 gap-8 md:grid-cols-2">
                   <!-- 路径发现趋势 -->
                   <div>
@@ -6228,8 +6246,8 @@ onMounted(async () => {
                 </div>
               </div>
 
-              <!-- SOL协议统计 (AFLNET引擎) -->
-              <div v-else-if="protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL协议'" class="space-y-4">
+              <!-- SOL统计 (AFLNET引擎) -->
+              <div v-else-if="protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL'" class="space-y-4">
                 <div>
                   <div class="mb-1 flex items-center justify-between">
                     <span class="text-dark/70 text-sm">当前执行路径</span>
@@ -6523,11 +6541,11 @@ onMounted(async () => {
               <div class="bg-light-gray border-dark/10 rounded-lg border p-3">
                 <h4 class="text-dark/80 mb-2 font-medium">性能统计</h4>
                 <div class="space-y-1">
-                  <!-- SOL协议统计 (AFLNET引擎) -->
-                  <template v-if="protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL协议'">
+                  <!-- SOL统计 (AFLNET引擎) -->
+                  <template v-if="protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL'">
                     <p>
                       <span class="text-dark/60">测试引擎:</span>
-                      <span>AFLNET (SOL协议模糊测试)</span>
+                      <span>AFLNET (SOL模糊测试)</span>
                     </p>
                     <p>
                       <span class="text-dark/60">当前执行路径:</span>
@@ -6656,7 +6674,7 @@ onMounted(async () => {
                       >
                     </p>
                   </template>
-                  <!-- SOL协议统计 -->
+                  <!-- SOL统计 -->
                   <template v-else>
                     <p>
                       <span class="text-dark/60">执行速度:</span>
@@ -6716,7 +6734,7 @@ onMounted(async () => {
               <div class="bg-light-gray border-dark/10 rounded-lg border p-3">
                 <h4 class="text-dark/80 mb-2 font-medium">
                   {{
-                    protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL协议'
+                    protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL'
                       ? 'AFLNET分析报告'
                       : protocolType === 'MQTT' 
                         ? 'MBFuzzer分析报告' 
@@ -6724,8 +6742,8 @@ onMounted(async () => {
                   }}
                 </h4>
 
-                <!-- SOL协议专用信息 (AFLNET引擎) -->
-                <div v-if="protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL协议'" class="space-y-2">
+                <!-- SOL专用信息 (AFLNET引擎) -->
+                <div v-if="protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL'" class="space-y-2">
                   <div class="flex items-center">
                     <i class="fa fa-file-code-o mr-2 text-purple-600"></i>
                     <div class="flex-1">
@@ -7042,7 +7060,7 @@ onMounted(async () => {
                             </div>
                           </div>
 
-                          <!-- SOL协议特定信息 -->
+                          <!-- SOL特定信息 -->
                           <div
                             v-else-if="item.protocol === 'RTSP'"
                             class="space-y-2"
@@ -7319,7 +7337,7 @@ onMounted(async () => {
                           }}</span>
                         </p>
                       </template>
-                      <!-- SOL协议统计 -->
+                      <!-- SOL统计 -->
                       <template
                         v-else-if="selectedHistoryItem.protocol === 'RTSP'"
                       >
@@ -7426,7 +7444,7 @@ onMounted(async () => {
                           }}</span>
                         </p>
                       </template>
-                      <!-- SOL协议AFL-NET统计 -->
+                      <!-- SOLAFL-NET统计 -->
                       <template
                         v-else-if="selectedHistoryItem.protocol === 'RTSP'"
                       >
@@ -7512,7 +7530,7 @@ onMounted(async () => {
                     selectedHistoryItem.protocol === 'SNMP'
                       ? 'SNMP协议详细统计'
                       : selectedHistoryItem.protocol === 'RTSP'
-                        ? 'SOL协议状态机统计'
+                        ? 'SOL状态机统计'
                         : 'MQTT协议差异分析统计'
                   }}
                 </h3>
@@ -7727,7 +7745,7 @@ onMounted(async () => {
                   </div>
                 </div>
 
-                <!-- SOL协议统计 -->
+                <!-- SOL统计 -->
                 <div
                   v-else-if="selectedHistoryItem.protocol === 'RTSP'"
                   class="grid grid-cols-1 gap-8 md:grid-cols-2"
@@ -8591,7 +8609,7 @@ onMounted(async () => {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-/* SOL协议专用样式 */
+/* SOL专用样式 */
 .rtsp-header-line {
   @apply mb-1 rounded border-l-4 border-blue-400 bg-blue-50 p-2;
 }
