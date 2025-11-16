@@ -3412,8 +3412,34 @@ function saveLog() {
 function generateTestReport() {
   let reportContent = '';
 
-  if (protocolType.value === 'MQTT') {
-    // MQTT协议专用报告格式
+  if (protocolType.value === 'MQTT' && selectedProtocolImplementation.value === 'SOL协议') {
+    // SOL协议AFLNET报告格式
+    reportContent =
+      `AFLNET SOL协议模糊测试报告\n` +
+      `==========================\n\n` +
+      `测试引擎: ${fuzzEngine.value} (SOL协议模糊测试)\n` +
+      `目标服务器: ${targetHost.value}:${targetPort.value}\n` +
+      `开始时间: ${startTime.value || (testStartTime.value ? testStartTime.value.toLocaleString() : '未开始')}\n` +
+      `结束时间: ${endTime.value || (testEndTime.value ? testEndTime.value.toLocaleString() : '未结束')}\n` +
+      `总耗时: ${elapsedTime.value}秒\n\n` +
+      `AFLNET核心统计:\n` +
+      `===============\n` +
+      `当前执行路径: ${solStats.value.cur_path || 0}\n` +
+      `总路径数: ${solStats.value.paths_total || 0}\n` +
+      `执行速度: ${solStats.value.execs_per_sec.toFixed(1) || '0.0'} exec/sec\n` +
+      `完成循环: ${solStats.value.cycles_done || 0}\n` +
+      `最大深度: ${solStats.value.max_depth || 0}\n` +
+      `代码覆盖率: ${solStats.value.map_size || 0}\n\n` +
+      `安全监控:\n` +
+      `========\n` +
+      `崩溃检测: ${solStats.value.unique_crashes > 0 ? `检测到 ${solStats.value.unique_crashes} 个崩溃` : '系统稳定运行'}\n` +
+      `挂起检测: ${solStats.value.unique_hangs > 0 ? `检测到 ${solStats.value.unique_hangs} 个挂起` : '无挂起现象'}\n` +
+      `状态节点数: ${solStats.value.n_nodes || 0}\n` +
+      `状态转换数: ${solStats.value.n_edges || 0}\n\n` +
+      `报告生成时间: ${new Date().toLocaleString()}\n` +
+      `报告版本: AFLNET v1.0 - SOL协议模糊测试引擎`;
+  } else if (protocolType.value === 'MQTT') {
+    // MQTT协议MBFuzzer报告格式
     reportContent =
       `MBFuzzer MQTT协议差异测试报告\n` +
       `================================\n\n` +
@@ -5247,8 +5273,60 @@ onMounted(async () => {
                   >
                 </div>
 
-                <!-- MQTT协议运行监控 -->
-                <div v-if="protocolType === 'MQTT'" class="space-y-4">
+                <!-- SOL协议崩溃统计 (AFLNET引擎) -->
+                <div v-if="protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL协议'" class="space-y-4">
+                  <div class="grid grid-cols-2 gap-4">
+                    <div
+                      class="rounded-lg border border-red-200 bg-red-50 p-3 text-center"
+                    >
+                      <div class="mb-1 text-2xl font-bold text-red-600">
+                        {{ solStats.unique_crashes }}
+                      </div>
+                      <div class="text-xs text-red-700">崩溃数</div>
+                      <div class="mt-1 text-xs text-gray-500">Crashes</div>
+                    </div>
+                    <div
+                      class="rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-center"
+                    >
+                      <div class="mb-1 text-2xl font-bold text-yellow-600">
+                        {{ solStats.unique_hangs }}
+                      </div>
+                      <div class="text-xs text-yellow-700">挂起数</div>
+                      <div class="mt-1 text-xs text-gray-500">Hangs</div>
+                    </div>
+                  </div>
+
+                  <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                    <div class="mb-2 text-xs text-gray-600">监控状态</div>
+                    <div class="flex items-center space-x-2">
+                      <div
+                        class="h-2 w-2 animate-pulse rounded-full"
+                        :class="
+                          solStats.unique_crashes > 0
+                            ? 'bg-red-500'
+                            : 'bg-green-500'
+                        "
+                      ></div>
+                      <span
+                        class="text-sm"
+                        :class="
+                          solStats.unique_crashes > 0
+                            ? 'font-medium text-red-700'
+                            : 'text-gray-700'
+                        "
+                      >
+                        {{
+                          solStats.unique_crashes > 0
+                            ? '检测到异常'
+                            : '持续监控中...'
+                        }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- MQTT协议运行监控 (MBFuzzer引擎) -->
+                <div v-else-if="protocolType === 'MQTT'" class="space-y-4">
                   <div class="grid grid-cols-1 gap-4">
                     <div
                       class="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-center"
@@ -5333,58 +5411,6 @@ onMounted(async () => {
                   </div>
                 </div>
 
-                <!-- SOL协议崩溃统计 -->
-                <div v-else-if="protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL协议'" class="space-y-4">
-                  <div class="grid grid-cols-2 gap-4">
-                    <div
-                      class="rounded-lg border border-red-200 bg-red-50 p-3 text-center"
-                    >
-                      <div class="mb-1 text-2xl font-bold text-red-600">
-                        {{ solStats.unique_crashes }}
-                      </div>
-                      <div class="text-xs text-red-700">崩溃数</div>
-                      <div class="mt-1 text-xs text-gray-500">Crashes</div>
-                    </div>
-                    <div
-                      class="rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-center"
-                    >
-                      <div class="mb-1 text-2xl font-bold text-yellow-600">
-                        {{ solStats.unique_hangs }}
-                      </div>
-                      <div class="text-xs text-yellow-700">挂起数</div>
-                      <div class="mt-1 text-xs text-gray-500">Hangs</div>
-                    </div>
-                  </div>
-
-                  <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                    <div class="mb-2 text-xs text-gray-600">监控状态</div>
-                    <div class="flex items-center space-x-2">
-                      <div
-                        class="h-2 w-2 animate-pulse rounded-full"
-                        :class="
-                          rtspStats.unique_crashes > 0
-                            ? 'bg-red-500'
-                            : 'bg-green-500'
-                        "
-                      ></div>
-                      <span
-                        class="text-sm"
-                        :class="
-                          rtspStats.unique_crashes > 0
-                            ? 'font-medium text-red-700'
-                            : 'text-gray-700'
-                        "
-                      >
-                        {{
-                          rtspStats.unique_crashes > 0
-                            ? '检测到异常'
-                            : '持续监控中...'
-                        }}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
                 <!-- SNMP协议崩溃统计 -->
                 <div v-else-if="protocolType === 'SNMP'" class="space-y-4">
                   <div class="grid grid-cols-1 gap-4">
@@ -5459,7 +5485,9 @@ onMounted(async () => {
                     protocolType === 'RTSP'
                       ? 'SOL协议状态机统计'
                       : protocolType === 'MQTT'
-                        ? 'MQTT多方模糊测试'
+                        ? (selectedProtocolImplementation === 'SOL协议' 
+                            ? 'SOL协议AFLNET模糊测试' 
+                            : 'MQTT多方模糊测试')
                         : '消息类型分布与版本统计'
                   }}
                 </h3>
@@ -5517,6 +5545,54 @@ onMounted(async () => {
                         <i class="fa fa-chart-pie text-primary/70 text-2xl"></i>
                       </div>
                       <span class="text-xs">数据统计中...</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- SOL协议AFLNET测试区域 -->
+              <div v-else-if="protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL协议'" class="min-h-0 flex-1">
+                <!-- 初始状态显示设备待启动 -->
+                <div
+                  v-if="!isRunning && !isTestCompleted"
+                  class="flex h-full items-center justify-center"
+                >
+                  <div class="text-center">
+                    <div
+                      class="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-purple-100 p-8"
+                    >
+                      <IconifyIcon
+                        icon="mdi:network-outline"
+                        class="text-4xl text-purple-500"
+                      />
+                    </div>
+                    <div class="mb-2 text-lg font-medium text-gray-600">
+                      SOL协议测试待启动
+                    </div>
+                    <div class="text-sm text-gray-500">
+                      点击"开始测试"启动SOL协议AFLNET模糊测试
+                    </div>
+                  </div>
+                </div>
+                <!-- SOL协议测试运行时显示 -->
+                <div
+                  v-else
+                  class="flex h-full items-center justify-center"
+                >
+                  <div class="text-center">
+                    <div
+                      class="mx-auto mb-4 flex h-32 w-32 items-center justify-center rounded-full bg-purple-100 p-8"
+                    >
+                      <IconifyIcon
+                        icon="mdi:network"
+                        class="text-6xl text-purple-500 animate-pulse"
+                      />
+                    </div>
+                    <div class="mb-2 text-xl font-medium text-purple-600">
+                      SOL协议AFLNET测试运行中
+                    </div>
+                    <div class="text-sm text-gray-500">
+                      正在使用AFLNET引擎进行SOL协议模糊测试
                     </div>
                   </div>
                 </div>
@@ -5941,7 +6017,87 @@ onMounted(async () => {
                 </div>
               </div>
 
-              <!-- MQTT协议统计 -->
+              <!-- SOL协议统计 (AFLNET引擎) -->
+              <div v-else-if="protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL协议'" class="space-y-4">
+                <div>
+                  <div class="mb-1 flex items-center justify-between">
+                    <span class="text-dark/70 text-sm">当前执行路径</span>
+                    <span class="text-xl font-bold"
+                      >#{{ solStats.cur_path }}</span
+                    >
+                  </div>
+                  <div
+                    class="bg-light-gray h-1.5 w-full overflow-hidden rounded-full"
+                  >
+                    <div
+                      class="bg-primary h-full"
+                      :style="{
+                        width:
+                          solStats.paths_total > 0
+                            ? Math.min(
+                                100,
+                                (solStats.cur_path / solStats.paths_total) *
+                                  100,
+                              )
+                            : 0 + '%',
+                      }"
+                    ></div>
+                  </div>
+                  <div class="text-dark/60 mt-1 text-xs">
+                    {{ solStats.cur_path }} / {{ solStats.paths_total }} 路径
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-1 gap-3">
+                  <!-- 第一行：执行速度和测试时长 -->
+                  <div class="grid grid-cols-2 gap-3">
+                    <div
+                      class="rounded-lg border border-blue-200 bg-blue-50 p-3"
+                    >
+                      <p class="mb-1 text-xs text-blue-700">执行速度</p>
+                      <h4 class="text-2xl font-bold text-blue-600">
+                        {{ solStats.execs_per_sec.toFixed(1) }}
+                      </h4>
+                      <p class="text-dark/60 mt-1 text-xs">exec/sec</p>
+                    </div>
+
+                    <div
+                      class="rounded-lg border border-green-200 bg-green-50 p-3"
+                    >
+                      <p class="mb-1 text-xs text-green-700">运行时长</p>
+                      <h4 class="text-2xl font-bold text-green-600">
+                        {{ elapsedTime }}
+                      </h4>
+                      <p class="text-dark/60 mt-1 text-xs">seconds</p>
+                    </div>
+                  </div>
+
+                  <!-- 第二行：崩溃和挂起统计 -->
+                  <div class="grid grid-cols-2 gap-3">
+                    <div
+                      class="rounded-lg border border-red-200 bg-red-50 p-3"
+                    >
+                      <p class="mb-1 text-xs text-red-700">崩溃数</p>
+                      <h4 class="text-2xl font-bold text-red-600">
+                        {{ solStats.unique_crashes }}
+                      </h4>
+                      <p class="text-dark/60 mt-1 text-xs">crashes</p>
+                    </div>
+
+                    <div
+                      class="rounded-lg border border-yellow-200 bg-yellow-50 p-3"
+                    >
+                      <p class="mb-1 text-xs text-yellow-700">挂起数</p>
+                      <h4 class="text-2xl font-bold text-yellow-600">
+                        {{ solStats.unique_hangs }}
+                      </h4>
+                      <p class="text-dark/60 mt-1 text-xs">hangs</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- MQTT协议统计 (MBFuzzer引擎) -->
               <div v-else-if="protocolType === 'MQTT'" class="space-y-6">
                 <!-- Client和Broker发送数据方框展示 -->
                 <div class="grid grid-cols-2 gap-4">
@@ -6050,96 +6206,13 @@ onMounted(async () => {
                 </div>
               </div>
 
-              <!-- SOL协议统计 -->
+              <!-- 其他协议的默认统计 -->
               <div v-else class="space-y-4">
-                <div>
-                  <div class="mb-1 flex items-center justify-between">
-                    <span class="text-dark/70 text-sm">当前执行路径</span>
-                    <span class="text-xl font-bold"
-                      >#{{ rtspStats.cur_path }}</span
-                    >
+                <div class="text-center text-gray-500">
+                  <div class="mb-4">
+                    <i class="fa fa-chart-bar text-4xl text-gray-400"></i>
                   </div>
-                  <div
-                    class="bg-light-gray h-1.5 w-full overflow-hidden rounded-full"
-                  >
-                    <div
-                      class="bg-primary h-full"
-                      :style="{
-                        width:
-                          rtspStats.paths_total > 0
-                            ? Math.min(
-                                100,
-                                (rtspStats.cur_path / rtspStats.paths_total) *
-                                  100,
-                              )
-                            : 0 + '%',
-                      }"
-                    ></div>
-                  </div>
-                  <div class="text-dark/60 mt-1 text-xs">
-                    {{ rtspStats.cur_path }} / {{ rtspStats.paths_total }} 路径
-                  </div>
-                </div>
-
-                <div class="grid grid-cols-1 gap-3">
-                  <!-- 第一行：执行速度和测试时长 -->
-                  <div class="grid grid-cols-2 gap-3">
-                    <div
-                      class="rounded-lg border border-blue-200 bg-blue-50 p-3"
-                    >
-                      <p class="mb-1 text-xs text-blue-700">执行速度</p>
-                      <h4 class="text-2xl font-bold text-blue-600">
-                        {{ rtspStats.execs_per_sec.toFixed(1) }}
-                      </h4>
-                      <p class="text-dark/60 mt-1 text-xs">exec/sec</p>
-                    </div>
-
-                    <div
-                      class="rounded-lg border border-green-200 bg-green-50 p-3"
-                    >
-                      <p class="mb-1 text-xs text-green-700">运行时长</p>
-                      <h4 class="text-2xl font-bold text-green-600">
-                        {{ elapsedTime }}
-                      </h4>
-                      <p class="text-dark/60 mt-1 text-xs">seconds</p>
-                    </div>
-                  </div>
-
-                  <!-- 第二行：循环次数和最大深度 -->
-                  <div class="grid grid-cols-2 gap-3">
-                    <div
-                      class="rounded-lg border border-purple-200 bg-purple-50 p-3"
-                    >
-                      <p class="mb-1 text-xs text-purple-700">完成循环</p>
-                      <h4 class="text-2xl font-bold text-purple-600">
-                        {{ rtspStats.cycles_done }}
-                      </h4>
-                      <p class="text-dark/60 mt-1 text-xs">cycles</p>
-                    </div>
-
-                    <div
-                      class="rounded-lg border border-indigo-200 bg-indigo-50 p-3"
-                    >
-                      <p class="mb-1 text-xs text-indigo-700">最大深度</p>
-                      <h4 class="text-2xl font-bold text-indigo-600">
-                        {{ rtspStats.max_depth }}
-                      </h4>
-                      <p class="text-dark/60 mt-1 text-xs">depth</p>
-                    </div>
-                  </div>
-
-                  <!-- 第三行：代码覆盖率 -->
-                  <div
-                    class="rounded-lg border border-orange-200 bg-orange-50 p-3"
-                  >
-                    <div class="mb-2 flex items-center justify-between">
-                      <span class="text-xs text-orange-700">代码覆盖率</span>
-                      <span class="text-lg font-bold text-orange-600">{{
-                        rtspStats.map_size
-                      }}</span>
-                    </div>
-                    <div class="text-dark/60 text-xs">Coverage Bitmap</div>
-                  </div>
+                  <p>暂无统计数据</p>
                 </div>
               </div>
             </div>
@@ -6239,8 +6312,36 @@ onMounted(async () => {
               <div class="bg-light-gray border-dark/10 rounded-lg border p-3">
                 <h4 class="text-dark/80 mb-2 font-medium">性能统计</h4>
                 <div class="space-y-1">
-                  <!-- MQTT协议统计 -->
-                  <template v-if="protocolType === 'MQTT'">
+                  <!-- SOL协议统计 (AFLNET引擎) -->
+                  <template v-if="protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL协议'">
+                    <p>
+                      <span class="text-dark/60">测试引擎:</span>
+                      <span>AFLNET (SOL协议模糊测试)</span>
+                    </p>
+                    <p>
+                      <span class="text-dark/60">当前执行路径:</span>
+                      <span>{{ solStats.cur_path || '0' }}</span>
+                    </p>
+                    <p>
+                      <span class="text-dark/60">总路径数:</span>
+                      <span>{{ solStats.paths_total || '0' }}</span>
+                    </p>
+                    <p>
+                      <span class="text-dark/60">执行速度:</span>
+                      <span>{{ solStats.execs_per_sec.toFixed(1) || '0.0' }} exec/sec</span>
+                    </p>
+                    <p>
+                      <span class="text-dark/60">崩溃数量:</span>
+                      <span>{{ solStats.unique_crashes || '0' }}</span>
+                    </p>
+                    <p>
+                      <span class="text-dark/60">挂起数量:</span>
+                      <span>{{ solStats.unique_hangs || '0' }}</span>
+                    </p>
+                  </template>
+
+                  <!-- MQTT协议统计 (MBFuzzer引擎) -->
+                  <template v-else-if="protocolType === 'MQTT'">
                     <p>
                       <span class="text-dark/60">测试引擎:</span>
                       <span>MBFuzzer (智能差异测试)</span>
@@ -6404,12 +6505,55 @@ onMounted(async () => {
               <div class="bg-light-gray border-dark/10 rounded-lg border p-3">
                 <h4 class="text-dark/80 mb-2 font-medium">
                   {{
-                    protocolType === 'MQTT' ? 'MBFuzzer分析报告' : '文件信息'
+                    protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL协议'
+                      ? 'AFLNET分析报告'
+                      : protocolType === 'MQTT' 
+                        ? 'MBFuzzer分析报告' 
+                        : '文件信息'
                   }}
                 </h4>
 
-                <!-- MQTT协议专用信息 -->
-                <div v-if="protocolType === 'MQTT'" class="space-y-2">
+                <!-- SOL协议专用信息 (AFLNET引擎) -->
+                <div v-if="protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL协议'" class="space-y-2">
+                  <div class="flex items-center">
+                    <i class="fa fa-file-code-o mr-2 text-purple-600"></i>
+                    <div class="flex-1">
+                      <p class="truncate text-xs font-medium">
+                        plot_data
+                      </p>
+                      <p class="text-dark/50 truncate text-xs">
+                        AFLNET完整分析报告
+                      </p>
+                    </div>
+                    <button
+                      @click="saveLog"
+                      class="rounded bg-purple-50 px-1.5 py-0.5 text-xs text-purple-600 hover:bg-purple-100"
+                    >
+                      导出
+                    </button>
+                  </div>
+
+                  <div class="flex items-center">
+                    <i class="fa fa-chart-line mr-2 text-green-600"></i>
+                    <div class="flex-1">
+                      <p class="truncate text-xs font-medium">
+                        Fuzz日志文件
+                      </p>
+                      <p class="text-dark/50 truncate text-xs">
+                        完整的模糊测试执行日志
+                      </p>
+                    </div>
+                    <button
+                      @click="saveLog"
+                      class="rounded bg-green-50 px-1.5 py-0.5 text-xs text-green-600 hover:bg-green-100"
+                    >
+                      导出
+                    </button>
+                  </div>
+                </div>
+
+                <!-- MQTT协议专用信息 (MBFuzzer引擎) -->
+                <div v-else-if="protocolType === 'MQTT'" class="space-y-2">
                   <div class="flex items-center">
                     <i class="fa fa-file-code-o mr-2 text-purple-600"></i>
                     <div class="flex-1">
