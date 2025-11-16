@@ -5,7 +5,7 @@
 
 import { ref, type Ref } from 'vue';
 import type { RTSPStats, LogUIData } from './types';
-import { requestClient } from '#/api/request';
+import { requestClient, dockerRequestClient } from '#/api/request';
 
 export function useSOL() {
   // SOL统计数据
@@ -148,7 +148,7 @@ export function useSOL() {
       console.log('[DEBUG] 发送请求到 /protocol-compliance/execute-command');
       console.log('[DEBUG] 请求数据:', requestData);
       
-      const result = await requestClient.post('/protocol-compliance/execute-command', requestData);
+      const result = await dockerRequestClient.post('/protocol-compliance/execute-command', requestData);
       
       console.log('[DEBUG] API响应成功:', result);
       
@@ -189,9 +189,32 @@ export function useSOL() {
     }
   }
 
-  // 停止并清理SOL Docker容器
-  async function stopAndCleanupSOL(containerId: string) {
-    console.log('[DEBUG] ========== stopAndCleanupSOL 被调用 ==========');
+  // 启动前清理：停止现有容器并清理输出文件
+  async function preStartCleanupSOL() {
+    console.log('[DEBUG] ========== preStartCleanupSOL 被调用 ==========');
+    
+    try {
+      const requestData = {
+        protocol: 'MQTT'  // SOL协议通过MQTT协议实现选择
+      };
+      
+      console.log('[DEBUG] 发送请求到 /protocol-compliance/pre-start-cleanup');
+      console.log('[DEBUG] 请求数据:', requestData);
+      
+      const result = await dockerRequestClient.post('/protocol-compliance/pre-start-cleanup', requestData);
+      
+      console.log('[DEBUG] 启动前清理API响应成功:', result);
+      return result;
+    } catch (error) {
+      console.error('[DEBUG] 启动前清理失败:', error);
+      console.error('[DEBUG] 错误详情:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  // 停止SOL Docker容器（不清理输出文件）
+  async function stopSOLContainer(containerId: string) {
+    console.log('[DEBUG] ========== stopSOLContainer 被调用 ==========');
     console.log('[DEBUG] 传入的容器ID:', containerId);
     
     if (!containerId) {
@@ -208,15 +231,20 @@ export function useSOL() {
       console.log('[DEBUG] 发送请求到 /protocol-compliance/stop-and-cleanup');
       console.log('[DEBUG] 请求数据:', requestData);
       
-      const result = await requestClient.post('/protocol-compliance/stop-and-cleanup', requestData);
+      const result = await dockerRequestClient.post('/protocol-compliance/stop-and-cleanup', requestData);
       
-      console.log('[DEBUG] API响应成功:', result);
+      console.log('[DEBUG] 停止容器API响应成功:', result);
       return result;
     } catch (error) {
-      console.error('[DEBUG] 停止和清理SOL容器失败:', error);
+      console.error('[DEBUG] 停止SOL容器失败:', error);
       console.error('[DEBUG] 错误详情:', error.response?.data || error.message);
       throw error;
     }
+  }
+
+  // 兼容性函数：保持原有的stopAndCleanupSOL接口
+  async function stopAndCleanupSOL(containerId: string) {
+    return stopSOLContainer(containerId);
   }
 
   return {
@@ -226,6 +254,8 @@ export function useSOL() {
     writeSOLScript,
     executeSOLCommand,
     stopSOLProcess,
+    preStartCleanupSOL,
+    stopSOLContainer,
     stopAndCleanupSOL
   };
 }

@@ -110,4 +110,10 @@ export const requestClient = createRequestClient(apiURL, {
   responseReturn: 'data',
 });
 
+// 专用于Docker操作的HTTP客户端，超时时间更长
+export const dockerRequestClient = createRequestClient(apiURL, {
+  responseReturn: 'data',
+  timeout: 60_000, // 60秒超时，适用于Docker操作
+});
+
 export const baseRequestClient = new RequestClient({ baseURL: apiURL });

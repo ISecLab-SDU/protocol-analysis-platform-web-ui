@@ -65,6 +65,8 @@ const {
   writeSOLScript,
   executeSOLCommand,
   stopSOLProcess,
+  preStartCleanupSOL,
+  stopSOLContainer,
   stopAndCleanupSOL,
 } = useSOL();
 const { mqttStats, resetMQTTStats, processMQTTLogLine } = useMQTT();
@@ -1007,14 +1009,73 @@ async function startTest() {
 // startRTSPTest函数已移除，SOL协议现在通过startSOLTest函数处理
 
 async function startSOLTest() {
+  console.log('[DEBUG] ========== startSOLTest 被调用 ==========');
+  
   try {
-    // 1. 写入脚本文件
+    // 1. 启动前清理：停止现有容器并清理输出文件
+    console.log('[DEBUG] 执行启动前清理...');
+    
+    addLogToUI(
+      {
+        timestamp: new Date().toLocaleTimeString(),
+        version: 'SOL',
+        type: 'CLEANUP',
+        oids: ['正在清理之前的测试环境...'],
+        hex: '',
+        result: 'info',
+      } as any,
+      false,
+    );
+
+    const cleanupResult = await preStartCleanupSOL();
+    const responseData = cleanupResult.data || cleanupResult;
+    
+    console.log('[DEBUG] 启动前清理完成:', responseData);
+    
+    if (responseData?.cleanup_results) {
+      const results = responseData.cleanup_results;
+      const cleanupMessages = [];
+      
+      if (results.containers_stopped > 0) {
+        cleanupMessages.push(`✓ 已停止 ${results.containers_stopped} 个容器`);
+      }
+      if (results.containers_removed > 0) {
+        cleanupMessages.push(`✓ 已删除 ${results.containers_removed} 个容器`);
+      }
+      if (results.output_cleaned) {
+        cleanupMessages.push(`✓ 输出目录已清理`);
+      }
+      if (results.errors && results.errors.length > 0) {
+        cleanupMessages.push(`⚠ 部分清理失败: ${results.errors.length} 个错误`);
+      }
+      
+      if (cleanupMessages.length === 0) {
+        cleanupMessages.push('✓ 环境已就绪，无需清理');
+      }
+
+      addLogToUI(
+        {
+          timestamp: new Date().toLocaleTimeString(),
+          version: 'SOL',
+          type: 'CLEANUP',
+          oids: cleanupMessages,
+          hex: '',
+          result: 'success',
+        } as any,
+        false,
+      );
+    }
+
+    // 2. 写入脚本文件
+    console.log('[DEBUG] 写入脚本文件...');
     await writeSOLScriptWrapper();
 
-    // 2. 执行shell命令启动程序
+    // 3. 执行shell命令启动程序
+    console.log('[DEBUG] 启动Docker容器...');
     await executeSOLCommandWrapper();
 
-    // 3. 开始实时读取日志
+    // 4. 开始实时读取日志
+    console.log('[DEBUG] 开始日志读取...');
     startSOLLogReading();
 
     addLogToUI(
@@ -1022,14 +1083,27 @@ async function startSOLTest() {
         timestamp: new Date().toLocaleTimeString(),
         version: 'SOL',
         type: 'START',
-        oids: ['SOL测试已启动'],
+        oids: ['SOL测试已启动，输出文件将在测试结束后保留供查看'],
         hex: '',
         result: 'success',
       } as any,
       false,
     );
   } catch (error: any) {
-    console.error('SOL测试启动失败:', error);
+    console.error('[DEBUG] SOL测试启动失败:', error);
+    
+    addLogToUI(
+      {
+        timestamp: new Date().toLocaleTimeString(),
+        version: 'SOL',
+        type: 'ERROR',
+        oids: [`启动失败: ${error.message || error}`],
+        hex: '',
+        result: 'error',
+      } as any,
+      false,
+    );
+    
     throw error;
   }
 }
@@ -3130,49 +3204,98 @@ async function stopSOLProcessWrapper() {
       console.log('[DEBUG] 识别为Docker容器，调用 stopAndCleanupSOL');
       console.log('[DEBUG] 传递的容器ID:', solProcessId.value);
       
-      // 使用新的停止和清理功能
-      const result = await stopAndCleanupSOL(solProcessId.value as string);
-      
-      console.log('[DEBUG] stopAndCleanupSOL 返回结果:', result);
-
+      // 显示停止进度提示
       addLogToUI(
         {
           timestamp: new Date().toLocaleTimeString(),
           version: 'SOL',
-          type: 'CLEANUP',
-          oids: [
-            `Docker容器已停止 (ID: ${solProcessId.value})`,
-            `容器清理状态: ${result.data?.cleanup_results ? '成功' : '部分成功'}`,
-            `输出目录已清空，为下次测试做准备`,
-          ],
+          type: 'INFO',
+          oids: ['正在停止Docker容器，请稍候...'],
           hex: '',
-          result: 'success',
+          result: 'info',
         } as any,
         false,
       );
-
-      // 显示详细的清理结果
-      if (result.data?.cleanup_results) {
-        const cleanupResults = result.data.cleanup_results;
-        const details = [];
-        if (cleanupResults.container_stopped) details.push('✓ 容器已停止');
-        if (cleanupResults.container_removed) details.push('✓ 容器已删除');
-        if (cleanupResults.output_cleaned) details.push('✓ 输出目录已清空');
-        if (cleanupResults.errors && cleanupResults.errors.length > 0) {
-          details.push(`⚠ 错误: ${cleanupResults.errors.join(', ')}`);
-        }
+      
+      try {
+        // 使用新的停止和清理功能
+        const result = await stopAndCleanupSOL(solProcessId.value as string);
+        
+        console.log('[DEBUG] stopAndCleanupSOL 返回结果:', result);
 
         addLogToUI(
           {
             timestamp: new Date().toLocaleTimeString(),
             version: 'SOL',
-            type: 'INFO',
-            oids: details,
+            type: 'STOP',
+            oids: [
+              `Docker容器已停止 (ID: ${solProcessId.value})`,
+              `容器状态: ${result.data?.stop_results ? '已停止' : '部分停止'}`,
+              `输出文件已保留，可在 /home/hhh/下载/ProtocolGuardOutPut 查看结果`,
+            ],
             hex: '',
-            result: 'info',
+            result: 'success',
           } as any,
           false,
         );
+
+        // 显示详细的停止结果
+        const responseData = result.data || result;
+        if (responseData?.stop_results) {
+          const stopResults = responseData.stop_results;
+          const details = [];
+          if (stopResults.container_stopped) details.push('✓ 容器已停止');
+          if (stopResults.container_removed) details.push('✓ 容器已删除');
+          details.push('✓ 输出文件已保留供查看');
+          if (stopResults.errors && stopResults.errors.length > 0) {
+            details.push(`⚠ 错误: ${stopResults.errors.join(', ')}`);
+          }
+
+          addLogToUI(
+            {
+              timestamp: new Date().toLocaleTimeString(),
+              version: 'SOL',
+              type: 'INFO',
+              oids: details,
+              hex: '',
+              result: 'info',
+            } as any,
+            false,
+          );
+        }
+      } catch (timeoutError: any) {
+        console.error('[DEBUG] 停止容器操作超时或失败:', timeoutError);
+        
+        // 检查是否是超时错误
+        if (timeoutError.message?.includes('timeout') || timeoutError.code === 'ECONNABORTED') {
+          addLogToUI(
+            {
+              timestamp: new Date().toLocaleTimeString(),
+              version: 'SOL',
+              type: 'WARNING',
+              oids: [
+                '停止操作超时，但容器可能已经停止',
+                '请手动检查Docker容器状态：docker ps',
+                '如需强制清理，请重新启动测试'
+              ],
+              hex: '',
+              result: 'warning',
+            } as any,
+            false,
+          );
+        } else {
+          addLogToUI(
+            {
+              timestamp: new Date().toLocaleTimeString(),
+              version: 'SOL',
+              type: 'ERROR',
+              oids: [`停止容器失败: ${timeoutError.message || timeoutError}`],
+              hex: '',
+              result: 'error',
+            } as any,
+            false,
+          );
+        }
       }
     } else {
       // 传统进程ID，使用原来的停止方法
@@ -3206,6 +3329,34 @@ async function stopSOLProcessWrapper() {
       } as any,
       false,
     );
+  }
+}
+
+// 手动验证Docker容器状态的辅助函数
+async function checkDockerContainerStatus() {
+  console.log('[DEBUG] ========== checkDockerContainerStatus 被调用 ==========');
+  
+  try {
+    // 这里可以添加一个API调用来检查Docker容器状态
+    // 或者提供用户手动验证的指导
+    addLogToUI(
+      {
+        timestamp: new Date().toLocaleTimeString(),
+        version: 'SOL',
+        type: 'INFO',
+        oids: [
+          '手动验证Docker容器状态：',
+          '1. 打开终端执行：docker ps',
+          '2. 检查是否还有protocolguard容器运行',
+          '3. 如有遗留容器，执行：docker rm -f [容器ID]'
+        ],
+        hex: '',
+        result: 'info',
+      } as any,
+      false,
+    );
+  } catch (error) {
+    console.error('检查Docker状态失败:', error);
   }
 }
 
