@@ -239,8 +239,7 @@ watch(fuzzEngine, (newEngine) => {
     selectedProtocolImplementation.value = config.defaultImplementations[0];
     console.log(`[DEBUG] 协议实现已更新为: ${selectedProtocolImplementation.value}`);
   }
-  // 引擎切换时重新加载对应的历史记录
-  loadHistoryFromStorage();
+  // 注意：现在使用统一历史记录存储，不需要根据引擎切换重新加载
 });
 
 // Watch for selected protocol implementation changes to sync with array
@@ -4478,19 +4477,26 @@ function saveTestToHistory() {
     // 将新的测试结果添加到历史记录的开头
     historyResults.value.unshift(historyItem);
 
+    // 按时间戳重新排序，确保顺序正确
+    historyResults.value.sort((a, b) => {
+      const dateA = new Date(a.timestamp);
+      const dateB = new Date(b.timestamp);
+      return dateB.getTime() - dateA.getTime(); // 降序排列（最新的在前）
+    });
+
     // 限制历史记录数量，保留最新的50条
     if (historyResults.value.length > 50) {
       historyResults.value = historyResults.value.slice(0, 50);
     }
 
-    // 保存到本地存储（按引擎类型分别存储）
+    // 保存到本地存储（统一存储所有引擎的历史记录）
     try {
-      const storageKey = `fuzz_test_history_${fuzzEngine.value}`;
+      const storageKey = 'fuzz_test_history_unified';
       localStorage.setItem(
         storageKey,
         JSON.stringify(historyResults.value),
       );
-      console.log(`Test results saved to history for engine ${fuzzEngine.value}:`, historyItem);
+      console.log(`Test results saved to unified history for engine ${fuzzEngine.value}:`, historyItem);
       console.log(
         '[DEBUG] History results length after save:',
         historyResults.value.length,
@@ -4550,14 +4556,14 @@ function deleteHistoryItem(id: string) {
   if (index > -1) {
     historyResults.value.splice(index, 1);
 
-    // 同步到本地存储（按引擎类型分别存储）
+    // 同步到本地存储（统一存储）
     try {
-      const storageKey = `fuzz_test_history_${fuzzEngine.value}`;
+      const storageKey = 'fuzz_test_history_unified';
       localStorage.setItem(
         storageKey,
         JSON.stringify(historyResults.value),
       );
-      console.log(`History item deleted and saved to localStorage for engine ${fuzzEngine.value}`);
+      console.log('History item deleted and saved to unified localStorage');
     } catch (error) {
       console.warn('Failed to save updated history to localStorage:', error);
     }
@@ -4605,12 +4611,12 @@ function exportHistoryItem(item: HistoryResult) {
 
 // 清空所有历史记录
 function clearAllHistory() {
-  if (confirm(`确定要清空当前引擎(${fuzzEngine.value})的所有历史记录吗？此操作不可撤销。`)) {
+  if (confirm('确定要清空所有历史记录吗？此操作不可撤销。')) {
     historyResults.value = [];
 
-    // 同步到本地存储（按引擎类型分别清空）
+    // 同步到本地存储（清空统一存储）
     try {
-      const storageKey = `fuzz_test_history_${fuzzEngine.value}`;
+      const storageKey = 'fuzz_test_history_unified';
       localStorage.removeItem(storageKey);
       console.log(`All history cleared for engine ${fuzzEngine.value}`);
     } catch (error) {
@@ -4721,62 +4727,84 @@ const testStatusClass = computed(() => {
   return 'text-warning';
 });
 
-// 迁移旧的历史记录到新的按引擎分类的格式
+// 迁移旧的历史记录到新的统一格式
 function migrateOldHistoryFormat() {
   try {
+    // 检查是否已经有统一格式的历史记录
+    const unifiedHistory = localStorage.getItem('fuzz_test_history_unified');
+    if (unifiedHistory) {
+      console.log('[DEBUG] 统一格式历史记录已存在，跳过迁移');
+      return;
+    }
+
+    // 收集所有旧格式的历史记录
+    const allHistory: any[] = [];
+    
+    // 1. 迁移最原始的格式
     const oldHistory = localStorage.getItem('fuzz_test_history');
     if (oldHistory) {
       const parsedHistory = JSON.parse(oldHistory);
       if (Array.isArray(parsedHistory)) {
-        console.log(`[DEBUG] 发现旧格式历史记录 ${parsedHistory.length} 条，开始迁移...`);
-        
-        // 按引擎类型分组
-        const engineGroups: { [key: string]: any[] } = {};
-        
-        parsedHistory.forEach(item => {
-          // 智能推断引擎类型
-          let engine = item.fuzzEngine;
-          
-          // 如果没有引擎信息或引擎信息不准确，根据协议和实现推断
-          if (!engine || engine === 'MBFuzzer') {
-            if (item.protocol === 'MQTT') {
-              // 检查是否有SOL相关的统计数据
-              if (item.rtspStats || (item.protocolSpecificData && (
-                item.protocolSpecificData.pathCoverage !== undefined ||
-                item.protocolSpecificData.stateTransitions !== undefined ||
-                item.protocolSpecificData.maxDepth !== undefined
-              ))) {
-                engine = 'AFLNET'; // SOL实现使用AFLNET引擎
-              } else {
-                engine = 'MBFuzzer'; // 传统MQTT broker使用MBFuzzer引擎
-              }
-            } else if (item.protocol === 'SNMP') {
-              engine = 'SNMP_Fuzz';
-            } else {
-              engine = 'MBFuzzer'; // 默认
-            }
-          }
-          
-          // 更新历史记录项的引擎信息
-          item.fuzzEngine = engine;
-          
-          if (!engineGroups[engine]) {
-            engineGroups[engine] = [];
-          }
-          engineGroups[engine].push(item);
-        });
-        
-        // 保存到新的分类存储中
-        Object.keys(engineGroups).forEach(engine => {
-          const storageKey = `fuzz_test_history_${engine}`;
-          localStorage.setItem(storageKey, JSON.stringify(engineGroups[engine]));
-          console.log(`[DEBUG] 迁移 ${engineGroups[engine].length} 条记录到引擎 ${engine}`);
-        });
-        
-        // 删除旧的历史记录
+        console.log(`[DEBUG] 发现原始格式历史记录 ${parsedHistory.length} 条`);
+        allHistory.push(...parsedHistory);
         localStorage.removeItem('fuzz_test_history');
-        console.log('[DEBUG] 历史记录迁移完成，旧格式已删除');
       }
+    }
+    
+    // 2. 迁移按引擎分类的格式
+    const engines = ['MBFuzzer', 'AFLNET', 'SNMP_Fuzz'];
+    engines.forEach(engine => {
+      const storageKey = `fuzz_test_history_${engine}`;
+      const stored = localStorage.getItem(storageKey);
+      if (stored) {
+        try {
+          const parsedHistory = JSON.parse(stored);
+          if (Array.isArray(parsedHistory)) {
+            console.log(`[DEBUG] 发现 ${engine} 引擎历史记录 ${parsedHistory.length} 条`);
+            allHistory.push(...parsedHistory);
+          }
+        } catch (error) {
+          console.warn(`Failed to parse history for engine ${engine}:`, error);
+        }
+        // 删除旧的分类存储
+        localStorage.removeItem(storageKey);
+      }
+    });
+    
+    if (allHistory.length > 0) {
+      // 确保每条记录都有正确的引擎信息
+      allHistory.forEach(item => {
+        if (!item.fuzzEngine) {
+          // 智能推断引擎类型
+          if (item.protocol === 'MQTT') {
+            // 检查是否有SOL相关的统计数据
+            if (item.rtspStats || (item.protocolSpecificData && (
+              item.protocolSpecificData.pathCoverage !== undefined ||
+              item.protocolSpecificData.stateTransitions !== undefined ||
+              item.protocolSpecificData.maxDepth !== undefined
+            ))) {
+              item.fuzzEngine = 'AFLNET';
+            } else {
+              item.fuzzEngine = 'MBFuzzer';
+            }
+          } else if (item.protocol === 'SNMP') {
+            item.fuzzEngine = 'SNMP_Fuzz';
+          } else {
+            item.fuzzEngine = 'MBFuzzer'; // 默认
+          }
+        }
+      });
+      
+      // 按时间戳排序，最新的在前面
+      const sortedHistory = allHistory.sort((a, b) => {
+        const dateA = new Date(a.timestamp);
+        const dateB = new Date(b.timestamp);
+        return dateB.getTime() - dateA.getTime();
+      });
+      
+      // 保存到统一存储
+      localStorage.setItem('fuzz_test_history_unified', JSON.stringify(sortedHistory));
+      console.log(`[DEBUG] 迁移完成，合并 ${sortedHistory.length} 条历史记录到统一存储`);
     }
   } catch (error) {
     console.warn('Failed to migrate old history format:', error);
@@ -4789,15 +4817,22 @@ function loadHistoryFromStorage() {
     // 首次运行时尝试迁移旧格式
     migrateOldHistoryFormat();
     
-    // 根据当前引擎类型加载对应的历史记录
-    const storageKey = `fuzz_test_history_${fuzzEngine.value}`;
+    // 加载统一的历史记录（包含所有引擎类型）
+    const storageKey = 'fuzz_test_history_unified';
     const stored = localStorage.getItem(storageKey);
     if (stored) {
       const parsedHistory = JSON.parse(stored);
       if (Array.isArray(parsedHistory)) {
-        historyResults.value = parsedHistory;
+        // 按时间戳排序，最新的在前面
+        const sortedHistory = parsedHistory.sort((a, b) => {
+          // 将时间戳字符串转换为Date对象进行比较
+          const dateA = new Date(a.timestamp);
+          const dateB = new Date(b.timestamp);
+          return dateB.getTime() - dateA.getTime(); // 降序排列（最新的在前）
+        });
+        historyResults.value = sortedHistory;
         console.log(
-          `Loaded ${parsedHistory.length} history items for engine ${fuzzEngine.value} from localStorage`,
+          `Loaded ${parsedHistory.length} unified history items from localStorage`,
         );
         console.log(
           '[DEBUG] Loaded history items:',
@@ -4810,9 +4845,9 @@ function loadHistoryFromStorage() {
         );
       }
     } else {
-      // 如果没有找到对应引擎的历史记录，清空当前显示
+      // 如果没有找到历史记录，清空当前显示
       historyResults.value = [];
-      console.log(`No history found for engine ${fuzzEngine.value}`);
+      console.log('No unified history found, starting fresh');
     }
   } catch (error) {
     console.warn('Failed to load history from localStorage:', error);
@@ -4836,80 +4871,61 @@ function testHistorySave() {
   }
 }
 
-// 手动重新分类历史记录的调试函数
+// 重新整理统一历史记录（调试用）
 function reclassifyAllHistory() {
-  console.log('[DEBUG] 开始手动重新分类所有历史记录...');
+  console.log('[DEBUG] 开始重新整理统一历史记录...');
   
-  // 收集所有引擎的历史记录
-  const allEngines = ['MBFuzzer', 'AFLNET', 'SNMP_Fuzz'];
-  const allHistory: any[] = [];
+  // 重新加载并排序统一历史记录
+  const storageKey = 'fuzz_test_history_unified';
+  const stored = localStorage.getItem(storageKey);
   
-  allEngines.forEach(engine => {
-    const storageKey = `fuzz_test_history_${engine}`;
-    const stored = localStorage.getItem(storageKey);
-    if (stored) {
-      try {
-        const parsedHistory = JSON.parse(stored);
-        if (Array.isArray(parsedHistory)) {
-          allHistory.push(...parsedHistory);
-          console.log(`[DEBUG] 从 ${engine} 收集到 ${parsedHistory.length} 条记录`);
-        }
-      } catch (error) {
-        console.warn(`Failed to parse history for engine ${engine}:`, error);
+  if (stored) {
+    try {
+      const parsedHistory = JSON.parse(stored);
+      if (Array.isArray(parsedHistory)) {
+        // 确保每条记录都有正确的引擎信息
+        parsedHistory.forEach(item => {
+          if (!item.fuzzEngine) {
+            // 智能推断引擎类型
+            if (item.protocol === 'MQTT') {
+              // 检查是否有SOL相关的统计数据
+              if (item.rtspStats || (item.protocolSpecificData && (
+                item.protocolSpecificData.pathCoverage !== undefined ||
+                item.protocolSpecificData.stateTransitions !== undefined ||
+                item.protocolSpecificData.maxDepth !== undefined
+              ))) {
+                item.fuzzEngine = 'AFLNET';
+              } else {
+                item.fuzzEngine = 'MBFuzzer';
+              }
+            } else if (item.protocol === 'SNMP') {
+              item.fuzzEngine = 'SNMP_Fuzz';
+            } else {
+              item.fuzzEngine = 'MBFuzzer'; // 默认
+            }
+          }
+        });
+        
+        // 按时间戳排序，最新的在前面
+        const sortedHistory = parsedHistory.sort((a, b) => {
+          const dateA = new Date(a.timestamp);
+          const dateB = new Date(b.timestamp);
+          return dateB.getTime() - dateA.getTime();
+        });
+        
+        // 保存回统一存储
+        localStorage.setItem(storageKey, JSON.stringify(sortedHistory));
+        console.log(`[DEBUG] 重新整理完成，共 ${sortedHistory.length} 条统一历史记录`);
+        
+        // 重新加载历史记录
+        loadHistoryFromStorage();
       }
+    } catch (error) {
+      console.warn('Failed to reclassify unified history:', error);
     }
-  });
-  
-  console.log(`[DEBUG] 总共收集到 ${allHistory.length} 条历史记录`);
-  
-  // 清空所有现有的分类存储
-  allEngines.forEach(engine => {
-    const storageKey = `fuzz_test_history_${engine}`;
-    localStorage.removeItem(storageKey);
-  });
-  
-  // 重新分类
-  const engineGroups: { [key: string]: any[] } = {};
-  
-  allHistory.forEach(item => {
-    // 智能推断引擎类型
-    let engine = 'MBFuzzer'; // 默认
-    
-    if (item.protocol === 'MQTT') {
-      // 检查是否有SOL相关的统计数据
-      if (item.rtspStats || (item.protocolSpecificData && (
-        item.protocolSpecificData.pathCoverage !== undefined ||
-        item.protocolSpecificData.stateTransitions !== undefined ||
-        item.protocolSpecificData.maxDepth !== undefined
-      ))) {
-        engine = 'AFLNET'; // SOL实现使用AFLNET引擎
-      } else {
-        engine = 'MBFuzzer'; // 传统MQTT broker使用MBFuzzer引擎
-      }
-    } else if (item.protocol === 'SNMP') {
-      engine = 'SNMP_Fuzz';
-    }
-    
-    // 更新历史记录项的引擎信息
-    item.fuzzEngine = engine;
-    
-    if (!engineGroups[engine]) {
-      engineGroups[engine] = [];
-    }
-    engineGroups[engine].push(item);
-  });
-  
-  // 保存到新的分类存储中
-  Object.keys(engineGroups).forEach(engine => {
-    const storageKey = `fuzz_test_history_${engine}`;
-    localStorage.setItem(storageKey, JSON.stringify(engineGroups[engine]));
-    console.log(`[DEBUG] 重新分类保存 ${engineGroups[engine].length} 条记录到引擎 ${engine}`);
-  });
-  
-  console.log('[DEBUG] 历史记录重新分类完成！');
-  
-  // 重新加载当前引擎的历史记录
-  loadHistoryFromStorage();
+  } else {
+    console.log('[DEBUG] 没有找到统一历史记录');
+  }
 }
 
 // 将测试函数暴露到全局作用域（仅用于调试）
@@ -4920,6 +4936,13 @@ if (typeof window !== 'undefined') {
     console.log('[DEBUG] History results length:', historyResults.value.length);
   };
   (window as any).reclassifyAllHistory = reclassifyAllHistory;
+  (window as any).forceUnifyHistory = () => {
+    // 强制迁移分类历史记录到统一存储
+    localStorage.removeItem('fuzz_test_history_unified');
+    migrateOldHistoryFormat();
+    loadHistoryFromStorage();
+    console.log('[DEBUG] 强制统一历史记录完成');
+  };
   (window as any).testMQTTAnimation = () => {
     console.log('[DEBUG] Manual MQTT animation test');
     initMQTTAnimations();
