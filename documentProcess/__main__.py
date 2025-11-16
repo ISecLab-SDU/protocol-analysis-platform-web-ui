@@ -177,9 +177,9 @@ def main():
             except Exception:
                 need_process_table = True
 
-        if need_process_table:
-            print("执行到节点5")
-            process_tables(config)
+    if need_process_table:
+        print("执行到节点5")
+        process_tables(config)
 
 
 if __name__ == "__main__":
