@@ -5662,19 +5662,23 @@ onMounted(async () => {
                     v-if="protocolType === 'MQTT'"
                     :class="[
                       'rounded-full px-2 py-0.5 text-xs',
-                      mqttRealTimeStats.crash_number > 0
-                        ? 'animate-pulse bg-red-100 text-red-600'
-                        : mqttRealTimeStats.diff_number > 0
-                          ? 'bg-yellow-100 text-yellow-600'
-                          : 'bg-green-100 text-green-600',
+                      !isRunning
+                        ? 'bg-gray-100 text-gray-600'
+                        : mqttRealTimeStats.crash_number > 0
+                          ? 'animate-pulse bg-red-100 text-red-600'
+                          : mqttRealTimeStats.diff_number > 0
+                            ? 'bg-yellow-100 text-yellow-600'
+                            : 'bg-green-100 text-green-600',
                     ]"
                   >
                     {{
-                      mqttRealTimeStats.crash_number > 0
-                        ? '检测到异常'
-                        : mqttRealTimeStats.diff_number > 0
-                          ? '发现差异'
-                          : '运行正常'
+                      !isRunning
+                        ? '待启动'
+                        : mqttRealTimeStats.crash_number > 0
+                          ? '检测到异常'
+                          : mqttRealTimeStats.diff_number > 0
+                            ? '发现差异'
+                            : '运行正常'
                     }}
                   </span>
                   <span
@@ -5693,9 +5697,15 @@ onMounted(async () => {
                   </span>
                   <span
                     v-else
-                    class="bg-success/10 text-success rounded-full px-2 py-0.5 text-xs"
-                    >正常</span
+                    :class="[
+                      'rounded-full px-2 py-0.5 text-xs',
+                      !isRunning
+                        ? 'bg-gray-100 text-gray-600'
+                        : 'bg-success/10 text-success'
+                    ]"
                   >
+                    {{ !isRunning ? '待启动' : '正常' }}
+                  </span>
                 </div>
 
                 <!-- SOL崩溃统计 (AFLNET引擎) -->
@@ -5725,25 +5735,31 @@ onMounted(async () => {
                     <div class="mb-2 text-xs text-gray-600">监控状态</div>
                     <div class="flex items-center space-x-2">
                       <div
-                        class="h-2 w-2 animate-pulse rounded-full"
+                        class="h-2 w-2 rounded-full"
                         :class="
-                          solStats.unique_crashes > 0
-                            ? 'bg-red-500'
-                            : 'bg-green-500'
+                          !isRunning
+                            ? 'bg-gray-400'
+                            : solStats.unique_crashes > 0
+                              ? 'animate-pulse bg-red-500'
+                              : 'animate-pulse bg-green-500'
                         "
                       ></div>
                       <span
                         class="text-sm"
                         :class="
-                          solStats.unique_crashes > 0
-                            ? 'font-medium text-red-700'
-                            : 'text-gray-700'
+                          !isRunning
+                            ? 'text-gray-600'
+                            : solStats.unique_crashes > 0
+                              ? 'font-medium text-red-700'
+                              : 'text-gray-700'
                         "
                       >
                         {{
-                          solStats.unique_crashes > 0
-                            ? '检测到异常'
-                            : '持续监控中...'
+                          !isRunning
+                            ? '待启动'
+                            : solStats.unique_crashes > 0
+                              ? '检测到异常'
+                              : '持续监控中...'
                         }}
                       </span>
                     </div>
@@ -5790,46 +5806,52 @@ onMounted(async () => {
                     <div class="mb-2 text-xs text-gray-600">监控状态</div>
                     <div class="flex items-center space-x-2">
                       <div
-                        class="h-2 w-2 animate-pulse rounded-full"
+                        class="h-2 w-2 rounded-full"
                         :class="
-                          mqttStats.crash_number > 0
-                            ? 'bg-red-500'
-                            : (
-                                  isTestCompleted
-                                    ? mqttStats.diff_number > 0
-                                    : mqttDifferentialStats.total_differences >
-                                      0
-                                )
-                              ? 'bg-yellow-500'
-                              : 'bg-green-500'
+                          !isRunning
+                            ? 'bg-gray-400'
+                            : mqttStats.crash_number > 0
+                              ? 'animate-pulse bg-red-500'
+                              : (
+                                    isTestCompleted
+                                      ? mqttStats.diff_number > 0
+                                      : mqttDifferentialStats.total_differences >
+                                        0
+                                  )
+                                ? 'animate-pulse bg-yellow-500'
+                                : 'animate-pulse bg-green-500'
                         "
                       ></div>
                       <span
                         class="text-sm"
                         :class="
-                          mqttStats.crash_number > 0
-                            ? 'font-medium text-red-700'
-                            : (
-                                  isTestCompleted
-                                    ? mqttStats.diff_number > 0
-                                    : mqttDifferentialStats.total_differences >
-                                      0
-                                )
-                              ? 'font-medium text-yellow-700'
-                              : 'text-gray-700'
+                          !isRunning
+                            ? 'text-gray-600'
+                            : mqttStats.crash_number > 0
+                              ? 'font-medium text-red-700'
+                              : (
+                                    isTestCompleted
+                                      ? mqttStats.diff_number > 0
+                                      : mqttDifferentialStats.total_differences >
+                                        0
+                                  )
+                                ? 'font-medium text-yellow-700'
+                                : 'text-gray-700'
                         "
                       >
                         {{
-                          mqttStats.crash_number > 0
-                            ? '检测到崩溃异常'
-                            : (
-                                  isTestCompleted
-                                    ? mqttStats.diff_number > 0
-                                    : mqttDifferentialStats.total_differences >
-                                      0
-                                )
-                              ? '发现协议差异'
-                              : '差异分析中...'
+                          !isRunning
+                            ? '待启动'
+                            : mqttStats.crash_number > 0
+                              ? '检测到崩溃异常'
+                              : (
+                                    isTestCompleted
+                                      ? mqttStats.diff_number > 0
+                                      : mqttDifferentialStats.total_differences >
+                                        0
+                                  )
+                                ? '发现协议差异'
+                                : '差异分析中...'
                         }}
                       </span>
                     </div>
@@ -5858,18 +5880,32 @@ onMounted(async () => {
                     <div class="mb-2 text-xs text-gray-600">监控状态</div>
                     <div class="flex items-center space-x-2">
                       <div
-                        class="h-2 w-2 animate-pulse rounded-full"
-                        :class="crashCount > 0 ? 'bg-red-500' : 'bg-green-500'"
+                        class="h-2 w-2 rounded-full"
+                        :class="
+                          !isRunning
+                            ? 'bg-gray-400'
+                            : crashCount > 0 
+                              ? 'animate-pulse bg-red-500' 
+                              : 'animate-pulse bg-green-500'
+                        "
                       ></div>
                       <span
                         class="text-sm"
                         :class="
-                          crashCount > 0
-                            ? 'font-medium text-red-700'
-                            : 'text-gray-700'
+                          !isRunning
+                            ? 'text-gray-600'
+                            : crashCount > 0
+                              ? 'font-medium text-red-700'
+                              : 'text-gray-700'
                         "
                       >
-                        {{ crashCount > 0 ? '检测到崩溃异常' : '运行正常' }}
+                        {{ 
+                          !isRunning 
+                            ? '待启动' 
+                            : crashCount > 0 
+                              ? '检测到崩溃异常' 
+                              : '运行正常' 
+                        }}
                       </span>
                     </div>
                     <div class="mt-1 text-xs text-gray-500">
@@ -5891,8 +5927,8 @@ onMounted(async () => {
                   <div class="bg-success/10 mb-4 rounded-full p-4">
                     <i class="fa fa-shield text-success/70 text-3xl"></i>
                   </div>
-                  <p>尚未检测到程序崩溃</p>
-                  <p class="mt-1">持续监控中...</p>
+                  <p>{{ !isRunning ? '尚未启动测试' : '尚未检测到程序崩溃' }}</p>
+                  <p class="mt-1">{{ !isRunning ? '待启动' : '持续监控中...' }}</p>
                 </div>
               </div>
             </div>
