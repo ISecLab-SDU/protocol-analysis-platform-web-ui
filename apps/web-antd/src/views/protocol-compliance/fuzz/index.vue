@@ -239,6 +239,8 @@ watch(fuzzEngine, (newEngine) => {
     selectedProtocolImplementation.value = config.defaultImplementations[0];
     console.log(`[DEBUG] 协议实现已更新为: ${selectedProtocolImplementation.value}`);
   }
+  // 引擎切换时重新加载对应的历史记录
+  loadHistoryFromStorage();
 });
 
 // Watch for selected protocol implementation changes to sync with array
@@ -3651,12 +3653,12 @@ function saveLog() {
 function generateTestReport() {
   let reportContent = '';
 
-  if (protocolType.value === 'MQTT' && selectedProtocolImplementation.value === 'SOL') {
-    // SOLAFLNET报告格式
+  if (protocolType.value === 'MQTT' && fuzzEngine.value === 'AFLNET') {
+    // AFLNET引擎报告格式（SOL实现）
     reportContent =
       `AFLNET SOL模糊测试报告\n` +
       `==========================\n\n` +
-      `测试引擎: ${fuzzEngine.value} (SOL模糊测试)\n` +
+      `测试引擎: ${fuzzEngine.value}\n` +
       `目标服务器: ${targetHost.value}:${targetPort.value}\n` +
       `开始时间: ${startTime.value || (testStartTime.value ? testStartTime.value.toLocaleString() : '未开始')}\n` +
       `结束时间: ${endTime.value || (testEndTime.value ? testEndTime.value.toLocaleString() : '未结束')}\n` +
@@ -3677,8 +3679,8 @@ function generateTestReport() {
       `状态转换数: ${solStats.value.n_edges || 0}\n\n` +
       `报告生成时间: ${new Date().toLocaleString()}\n` +
       `报告版本: AFLNET v1.0 - SOL模糊测试引擎`;
-  } else if (protocolType.value === 'MQTT') {
-    // MQTT协议MBFuzzer报告格式
+  } else if (protocolType.value === 'MQTT' && fuzzEngine.value === 'MBFuzzer') {
+    // MBFuzzer引擎报告格式（传统MQTT broker）
     reportContent =
       `MBFuzzer MQTT协议差异测试报告\n` +
       `================================\n\n` +
@@ -3748,7 +3750,7 @@ function exportDiffTypeData() {
   if (protocolType.value !== 'MQTT') return;
 
   let diffTypeContent =
-    `MBFuzzer 差异类型分布统计导出\n` +
+    `${fuzzEngine.value} 差异类型分布统计导出\n` +
     `==============================\n\n` +
     `导出时间: ${new Date().toLocaleString()}\n` +
     `总差异数量: ${mqttDiffTypeStats.value.total_differences}\n\n` +
@@ -3805,7 +3807,7 @@ function exportDifferentialResults() {
   if (protocolType.value !== 'MQTT') return;
 
   const diffContent =
-    `MBFuzzer差异测试结果导出\n` +
+    `${fuzzEngine.value}差异测试结果导出\n` +
     `=======================\n\n` +
     `导出时间: ${new Date().toLocaleString()}\n` +
     `新发现差异: ${mqttStats.value.diff_number} 个\n` +
@@ -4481,13 +4483,14 @@ function saveTestToHistory() {
       historyResults.value = historyResults.value.slice(0, 50);
     }
 
-    // 保存到本地存储
+    // 保存到本地存储（按引擎类型分别存储）
     try {
+      const storageKey = `fuzz_test_history_${fuzzEngine.value}`;
       localStorage.setItem(
-        'fuzz_test_history',
+        storageKey,
         JSON.stringify(historyResults.value),
       );
-      console.log('Test results saved to history:', historyItem);
+      console.log(`Test results saved to history for engine ${fuzzEngine.value}:`, historyItem);
       console.log(
         '[DEBUG] History results length after save:',
         historyResults.value.length,
@@ -4547,13 +4550,14 @@ function deleteHistoryItem(id: string) {
   if (index > -1) {
     historyResults.value.splice(index, 1);
 
-    // 同步到本地存储
+    // 同步到本地存储（按引擎类型分别存储）
     try {
+      const storageKey = `fuzz_test_history_${fuzzEngine.value}`;
       localStorage.setItem(
-        'fuzz_test_history',
+        storageKey,
         JSON.stringify(historyResults.value),
       );
-      console.log('History item deleted and saved to localStorage');
+      console.log(`History item deleted and saved to localStorage for engine ${fuzzEngine.value}`);
     } catch (error) {
       console.warn('Failed to save updated history to localStorage:', error);
     }
@@ -4601,13 +4605,14 @@ function exportHistoryItem(item: HistoryResult) {
 
 // 清空所有历史记录
 function clearAllHistory() {
-  if (confirm('确定要清空所有历史记录吗？此操作不可撤销。')) {
+  if (confirm(`确定要清空当前引擎(${fuzzEngine.value})的所有历史记录吗？此操作不可撤销。`)) {
     historyResults.value = [];
 
-    // 同步到本地存储
+    // 同步到本地存储（按引擎类型分别清空）
     try {
-      localStorage.removeItem('fuzz_test_history');
-      console.log('All history cleared');
+      const storageKey = `fuzz_test_history_${fuzzEngine.value}`;
+      localStorage.removeItem(storageKey);
+      console.log(`All history cleared for engine ${fuzzEngine.value}`);
     } catch (error) {
       console.warn('Failed to clear history from localStorage:', error);
     }
@@ -4716,30 +4721,103 @@ const testStatusClass = computed(() => {
   return 'text-warning';
 });
 
+// 迁移旧的历史记录到新的按引擎分类的格式
+function migrateOldHistoryFormat() {
+  try {
+    const oldHistory = localStorage.getItem('fuzz_test_history');
+    if (oldHistory) {
+      const parsedHistory = JSON.parse(oldHistory);
+      if (Array.isArray(parsedHistory)) {
+        console.log(`[DEBUG] 发现旧格式历史记录 ${parsedHistory.length} 条，开始迁移...`);
+        
+        // 按引擎类型分组
+        const engineGroups: { [key: string]: any[] } = {};
+        
+        parsedHistory.forEach(item => {
+          // 智能推断引擎类型
+          let engine = item.fuzzEngine;
+          
+          // 如果没有引擎信息或引擎信息不准确，根据协议和实现推断
+          if (!engine || engine === 'MBFuzzer') {
+            if (item.protocol === 'MQTT') {
+              // 检查是否有SOL相关的统计数据
+              if (item.rtspStats || (item.protocolSpecificData && (
+                item.protocolSpecificData.pathCoverage !== undefined ||
+                item.protocolSpecificData.stateTransitions !== undefined ||
+                item.protocolSpecificData.maxDepth !== undefined
+              ))) {
+                engine = 'AFLNET'; // SOL实现使用AFLNET引擎
+              } else {
+                engine = 'MBFuzzer'; // 传统MQTT broker使用MBFuzzer引擎
+              }
+            } else if (item.protocol === 'SNMP') {
+              engine = 'SNMP_Fuzz';
+            } else {
+              engine = 'MBFuzzer'; // 默认
+            }
+          }
+          
+          // 更新历史记录项的引擎信息
+          item.fuzzEngine = engine;
+          
+          if (!engineGroups[engine]) {
+            engineGroups[engine] = [];
+          }
+          engineGroups[engine].push(item);
+        });
+        
+        // 保存到新的分类存储中
+        Object.keys(engineGroups).forEach(engine => {
+          const storageKey = `fuzz_test_history_${engine}`;
+          localStorage.setItem(storageKey, JSON.stringify(engineGroups[engine]));
+          console.log(`[DEBUG] 迁移 ${engineGroups[engine].length} 条记录到引擎 ${engine}`);
+        });
+        
+        // 删除旧的历史记录
+        localStorage.removeItem('fuzz_test_history');
+        console.log('[DEBUG] 历史记录迁移完成，旧格式已删除');
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to migrate old history format:', error);
+  }
+}
+
 // 从本地存储加载历史记录
 function loadHistoryFromStorage() {
   try {
-    const stored = localStorage.getItem('fuzz_test_history');
+    // 首次运行时尝试迁移旧格式
+    migrateOldHistoryFormat();
+    
+    // 根据当前引擎类型加载对应的历史记录
+    const storageKey = `fuzz_test_history_${fuzzEngine.value}`;
+    const stored = localStorage.getItem(storageKey);
     if (stored) {
       const parsedHistory = JSON.parse(stored);
       if (Array.isArray(parsedHistory)) {
         historyResults.value = parsedHistory;
         console.log(
-          `Loaded ${parsedHistory.length} history items from localStorage`,
+          `Loaded ${parsedHistory.length} history items for engine ${fuzzEngine.value} from localStorage`,
         );
         console.log(
           '[DEBUG] Loaded history items:',
           parsedHistory.map((item) => ({
             id: item.id,
             protocol: item.protocol,
+            fuzzEngine: item.fuzzEngine,
             timestamp: item.timestamp,
           })),
         );
       }
+    } else {
+      // 如果没有找到对应引擎的历史记录，清空当前显示
+      historyResults.value = [];
+      console.log(`No history found for engine ${fuzzEngine.value}`);
     }
   } catch (error) {
     console.warn('Failed to load history from localStorage:', error);
-    // 如果加载失败，保持默认的模拟数据
+    // 如果加载失败，清空历史记录
+    historyResults.value = [];
   }
 }
 
@@ -4758,6 +4836,82 @@ function testHistorySave() {
   }
 }
 
+// 手动重新分类历史记录的调试函数
+function reclassifyAllHistory() {
+  console.log('[DEBUG] 开始手动重新分类所有历史记录...');
+  
+  // 收集所有引擎的历史记录
+  const allEngines = ['MBFuzzer', 'AFLNET', 'SNMP_Fuzz'];
+  const allHistory: any[] = [];
+  
+  allEngines.forEach(engine => {
+    const storageKey = `fuzz_test_history_${engine}`;
+    const stored = localStorage.getItem(storageKey);
+    if (stored) {
+      try {
+        const parsedHistory = JSON.parse(stored);
+        if (Array.isArray(parsedHistory)) {
+          allHistory.push(...parsedHistory);
+          console.log(`[DEBUG] 从 ${engine} 收集到 ${parsedHistory.length} 条记录`);
+        }
+      } catch (error) {
+        console.warn(`Failed to parse history for engine ${engine}:`, error);
+      }
+    }
+  });
+  
+  console.log(`[DEBUG] 总共收集到 ${allHistory.length} 条历史记录`);
+  
+  // 清空所有现有的分类存储
+  allEngines.forEach(engine => {
+    const storageKey = `fuzz_test_history_${engine}`;
+    localStorage.removeItem(storageKey);
+  });
+  
+  // 重新分类
+  const engineGroups: { [key: string]: any[] } = {};
+  
+  allHistory.forEach(item => {
+    // 智能推断引擎类型
+    let engine = 'MBFuzzer'; // 默认
+    
+    if (item.protocol === 'MQTT') {
+      // 检查是否有SOL相关的统计数据
+      if (item.rtspStats || (item.protocolSpecificData && (
+        item.protocolSpecificData.pathCoverage !== undefined ||
+        item.protocolSpecificData.stateTransitions !== undefined ||
+        item.protocolSpecificData.maxDepth !== undefined
+      ))) {
+        engine = 'AFLNET'; // SOL实现使用AFLNET引擎
+      } else {
+        engine = 'MBFuzzer'; // 传统MQTT broker使用MBFuzzer引擎
+      }
+    } else if (item.protocol === 'SNMP') {
+      engine = 'SNMP_Fuzz';
+    }
+    
+    // 更新历史记录项的引擎信息
+    item.fuzzEngine = engine;
+    
+    if (!engineGroups[engine]) {
+      engineGroups[engine] = [];
+    }
+    engineGroups[engine].push(item);
+  });
+  
+  // 保存到新的分类存储中
+  Object.keys(engineGroups).forEach(engine => {
+    const storageKey = `fuzz_test_history_${engine}`;
+    localStorage.setItem(storageKey, JSON.stringify(engineGroups[engine]));
+    console.log(`[DEBUG] 重新分类保存 ${engineGroups[engine].length} 条记录到引擎 ${engine}`);
+  });
+  
+  console.log('[DEBUG] 历史记录重新分类完成！');
+  
+  // 重新加载当前引擎的历史记录
+  loadHistoryFromStorage();
+}
+
 // 将测试函数暴露到全局作用域（仅用于调试）
 if (typeof window !== 'undefined') {
   (window as any).testHistorySave = testHistorySave;
@@ -4765,6 +4919,7 @@ if (typeof window !== 'undefined') {
     console.log('[DEBUG] Current history results:', historyResults.value);
     console.log('[DEBUG] History results length:', historyResults.value.length);
   };
+  (window as any).reclassifyAllHistory = reclassifyAllHistory;
   (window as any).testMQTTAnimation = () => {
     console.log('[DEBUG] Manual MQTT animation test');
     initMQTTAnimations();
@@ -6545,7 +6700,7 @@ onMounted(async () => {
                   <template v-if="protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL'">
                     <p>
                       <span class="text-dark/60">测试引擎:</span>
-                      <span>AFLNET (SOL模糊测试)</span>
+                      <span>AFLNET</span>
                     </p>
                     <p>
                       <span class="text-dark/60">当前执行路径:</span>
@@ -7125,7 +7280,7 @@ onMounted(async () => {
                               class="flex items-center justify-between text-sm"
                             >
                               <span class="font-medium text-gray-600"
-                                >MBFuzzer统计:</span
+                                >{{ item.fuzzEngine === 'AFLNET' ? 'AFLNET统计:' : 'MBFuzzer统计:' }}</span
                               >
                               <div class="flex space-x-4">
                                 <span class="text-red-600"
@@ -7315,7 +7470,7 @@ onMounted(async () => {
                     <h4 class="mb-2 font-medium text-gray-800">性能统计</h4>
                     <div class="space-y-1">
                       <!-- MQTT协议统计 -->
-                      <template v-if="selectedHistoryItem.protocol === 'MQTT'">
+                      <template v-if="selectedHistoryItem.protocol === 'MQTT' && selectedHistoryItem.fuzzEngine === 'MBFuzzer'">
                         <p>
                           <span class="text-gray-600">测试引擎:</span>
                           <span class="font-medium"
@@ -7337,10 +7492,16 @@ onMounted(async () => {
                           }}</span>
                         </p>
                       </template>
-                      <!-- SOL统计 -->
+                      <!-- AFLNET统计 -->
                       <template
-                        v-else-if="selectedHistoryItem.protocol === 'RTSP'"
+                        v-else-if="selectedHistoryItem.protocol === 'MQTT' && selectedHistoryItem.fuzzEngine === 'AFLNET'"
                       >
+                        <p>
+                          <span class="text-gray-600">测试引擎:</span>
+                          <span class="font-medium"
+                            >AFLNET</span
+                          >
+                        </p>
                         <p>
                           <span class="text-gray-600">发现路径数:</span>
                           <span class="font-medium">{{
@@ -7417,8 +7578,8 @@ onMounted(async () => {
                       {{
                         selectedHistoryItem.protocol === 'SNMP'
                           ? '协议版本'
-                          : selectedHistoryItem.protocol === 'RTSP'
-                            ? 'SOL AFL-NET统计'
+                          : selectedHistoryItem.fuzzEngine === 'AFLNET'
+                            ? 'AFLNET统计'
                             : 'MBFuzzer分析报告'
                       }}
                     </h4>
@@ -7444,9 +7605,9 @@ onMounted(async () => {
                           }}</span>
                         </p>
                       </template>
-                      <!-- SOLAFL-NET统计 -->
+                      <!-- AFLNET统计 -->
                       <template
-                        v-else-if="selectedHistoryItem.protocol === 'RTSP'"
+                        v-else-if="selectedHistoryItem.fuzzEngine === 'AFLNET'"
                       >
                         <p>
                           <span class="text-gray-600">执行速度:</span>
@@ -7529,8 +7690,8 @@ onMounted(async () => {
                   {{
                     selectedHistoryItem.protocol === 'SNMP'
                       ? 'SNMP协议详细统计'
-                      : selectedHistoryItem.protocol === 'RTSP'
-                        ? 'SOL状态机统计'
+                      : selectedHistoryItem.fuzzEngine === 'AFLNET'
+                        ? 'AFLNET状态机统计'
                         : 'MQTT协议差异分析统计'
                   }}
                 </h3>
@@ -7745,9 +7906,9 @@ onMounted(async () => {
                   </div>
                 </div>
 
-                <!-- SOL统计 -->
+                <!-- AFLNET统计 -->
                 <div
-                  v-else-if="selectedHistoryItem.protocol === 'RTSP'"
+                  v-else-if="selectedHistoryItem.fuzzEngine === 'AFLNET'"
                   class="grid grid-cols-1 gap-8 md:grid-cols-2"
                 >
                   <!-- 路径发现统计 -->
@@ -7854,9 +8015,9 @@ onMounted(async () => {
                   </div>
                 </div>
 
-                <!-- MQTT协议统计 -->
+                <!-- MQTT协议统计 (MBFuzzer引擎) -->
                 <div
-                  v-else-if="selectedHistoryItem.protocol === 'MQTT'"
+                  v-else-if="selectedHistoryItem.protocol === 'MQTT' && selectedHistoryItem.fuzzEngine === 'MBFuzzer'"
                   class="space-y-8"
                 >
                   <!-- 客户端和代理端请求统计 -->
