@@ -1,0 +1,414 @@
+{
+  "3. The Client-Server Protocol -> 3.6 Use of DHCP in clients with multiple interfaces": {},
+  "1. Introduction -> 1.1 Changes to RFC 1541": {},
+  "3. The Client-Server Protocol -> 3.4 Obtaining parameters with externally configured network address": {},
+  "1. Introduction -> 1.5 Terminology": {},
+  "3. The Client-Server Protocol -> 3.3 Interpretation and representation of time values": {},
+  "1. Introduction -> 1.3 Problem definition and issues": {},
+  "4. Specification of the DHCP client-server protocol": {},
+  "1. Introduction -> 1.4 Requirements": {},
+  "3. The Client-Server Protocol -> 3.7 When clients should use DHCP": {},
+  "3. The Client-Server Protocol": {
+    "is equal to": [
+      "is the same as"
+    ],
+    "is identical to": [
+      "is the same as"
+    ]
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.3 DHCP server behavior": {},
+  "4. Specification of the DHCP client-server protocol -> 4.3 DHCP server behavior -> 4.3.3 DHCPDECLINE message": {},
+  "4. Specification of the DHCP client-server protocol -> 4.3 DHCP server behavior -> 4.3.4 DHCPRELEASE message": {},
+  "2. Protocol Summary -> 2.2 Dynamic allocation of network addresses": {
+    "is equal to": [
+      "is"
+    ],
+    "is identical to": [
+      "same"
+    ],
+    "is different from": [
+      "different"
+    ],
+    "is greater than": [
+      "more"
+    ],
+    "is less than": [
+      "less"
+    ],
+    "exceeds": [
+      "exhaustion"
+    ],
+    "is dependent on": [
+      "due to"
+    ],
+    "is proportional to": [
+      "proportional"
+    ],
+    "is consistent with": [
+      "consistent"
+    ]
+  },
+  "2. Protocol Summary -> 2.1 Configuration parameters repository": {
+    "is equal to": [
+      "is"
+    ],
+    "matches": [
+      "is"
+    ],
+    "is identical to": [
+      "is"
+    ],
+    "is different from": [
+      "not be"
+    ],
+    "does not match": [
+      "not be"
+    ],
+    "is not equal to": [
+      "not be"
+    ],
+    "is dependent on": [
+      "depends on"
+    ],
+    "is consistent with": [
+      "allowing for"
+    ],
+    "contradicts": [
+      "not be"
+    ]
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.3 DHCP server behavior -> 4.3.5 DHCPINFORM message": {},
+  "1. Introduction": {},
+  "3. The Client-Server Protocol -> 3.5 Client parameters in DHCP": {
+    "exceeds": [
+      "may still exceed"
+    ],
+    "is dependent on": [
+      "are to be used for"
+    ],
+    "implies": [
+      "indicate that"
+    ],
+    "is consistent with": [
+      "MUST include",
+      "SHOULD include"
+    ]
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.4 DHCP client behavior -> 4.4.6 DHCPRELEASE": {},
+  "4. Specification of the DHCP client-server protocol -> 4.3 DHCP server behavior -> 4.3.6 Client messages": {
+    "is equal to": [
+      "zero"
+    ],
+    "is not equal to": [
+      "MUST NOT include",
+      "MUST NOT include",
+      "MUST NOT include"
+    ],
+    "is different from": [
+      "differences between"
+    ]
+  },
+  "1. Introduction -> 1.6 Design goals": {
+    "is equal to": [
+      "is"
+    ],
+    "is identical to": [
+      "same"
+    ],
+    "is different from": [
+      "no"
+    ],
+    "is not equal to": [
+      "no"
+    ],
+    "is dependent on": [
+      "require"
+    ],
+    "is consistent with": [
+      "work across",
+      "coexist with",
+      "interoperate with",
+      "provide service to"
+    ],
+    "contradicts": [
+      "not require"
+    ],
+    "is more likely than": [
+      "should"
+    ],
+    "occurs more frequently than": [
+      "should"
+    ]
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.4 DHCP client behavior -> 4.4.2 Initialization with known network address": {},
+  "5. Acknowledgments": {},
+  "1. Introduction -> 1.2 Related Work": {
+    "is equal to": [
+      "addresses"
+    ],
+    "matches": [
+      "addresses"
+    ],
+    "is identical to": [
+      "addresses"
+    ],
+    "is different from": [
+      "addresses"
+    ],
+    "does not match": [
+      "addresses"
+    ],
+    "is not equal to": [
+      "addresses"
+    ],
+    "is greater than": [
+      "addresses"
+    ],
+    "is less than": [
+      "addresses"
+    ],
+    "exceeds": [
+      "addresses"
+    ],
+    "falls within": [
+      "addresses"
+    ],
+    "is between X and Y": [
+      "addresses"
+    ],
+    "is out of bounds": [
+      "addresses"
+    ],
+    "is dependent on": [
+      "addresses"
+    ],
+    "is proportional to": [
+      "addresses"
+    ],
+    "is correlated with": [
+      "addresses"
+    ],
+    "follows": [
+      "addresses"
+    ],
+    "precedes": [
+      "addresses"
+    ],
+    "occur before": [
+      "addresses"
+    ],
+    "implies": [
+      "addresses"
+    ],
+    "is consistent with": [
+      "addresses"
+    ],
+    "contradicts": [
+      "addresses"
+    ],
+    "is more likely than": [
+      "addresses"
+    ],
+    "occurs more frequently than": [
+      "addresses"
+    ],
+    "has a higher probability than": [
+      "addresses"
+    ]
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.4 DHCP client behavior -> 4.4.3 Initialization with an externally assigned network address": {
+    "matches": [
+      "matching"
+    ]
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.2 DHCP server administrative controls": {
+    "is equal to": [
+      "matches"
+    ],
+    "is identical to": [
+      "matches"
+    ],
+    "is different from": [
+      "does not match"
+    ],
+    "is not equal to": [
+      "does not match"
+    ],
+    "is dependent on": [
+      "needs to use"
+    ],
+    "is correlated with": [
+      "associated with"
+    ],
+    "is consistent with": [
+      "use the same"
+    ],
+    "contradicts": [
+      "may cause unexpected results"
+    ]
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.4 DHCP client behavior -> 4.4.4 Use of broadcast and unicast": {
+    "is equal to": [
+      "knows"
+    ],
+    "is identical to": [
+      "knows"
+    ],
+    "is different from": [
+      "unless"
+    ],
+    "does not match": [
+      "unless"
+    ],
+    "is not equal to": [
+      "unless"
+    ],
+    "is dependent on": [
+      "unless"
+    ],
+    "implies": [
+      "unless"
+    ],
+    "is consistent with": [
+      "unless"
+    ],
+    "contradicts": [
+      "unless"
+    ],
+    "is more likely than": [
+      "may"
+    ],
+    "occurs more frequently than": [
+      "may"
+    ],
+    "has a higher probability than": [
+      "may"
+    ]
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.4 DHCP client behavior": {
+    "is equal to": [
+      "corresponds to"
+    ],
+    "matches": [
+      "corresponds to"
+    ],
+    "is identical to": [
+      "corresponds to"
+    ],
+    "follows": [
+      "subsequent"
+    ]
+  },
+  "3. The Client-Server Protocol ->": {
+    "is equal to": [
+      "corresponds to"
+    ],
+    "is identical to": [
+      "corresponds to"
+    ],
+    "is consistent with": [
+      "corresponds to"
+    ],
+    "is more likely than": [
+      "should choose to"
+    ],
+    "has a higher probability than": [
+      "should choose to"
+    ]
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.4 DHCP client behavior -> 4.4.1 Initialization and allocation of network address": {
+    "is equal to": [
+      "matches"
+    ],
+    "is identical to": [
+      "matches"
+    ],
+    "is different from": [
+      "does not match"
+    ],
+    "is not equal to": [
+      "does not match"
+    ],
+    "is dependent on": [
+      "implementation dependent"
+    ]
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.4 DHCP client behavior -> 4.4.5 Reacquisition and expiration": {
+    "is less than": [
+      "prior to"
+    ],
+    "is proportional to": [
+      "one-half of"
+    ]
+  },
+  "2. Protocol Summary": {
+    "is equal to": [
+      "equals"
+    ],
+    "is identical to": [
+      "identical to"
+    ]
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.3 DHCP server behavior -> 4.3.2 DHCPREQUEST message": {
+    "is equal to": [
+      "matches"
+    ],
+    "is identical to": [
+      "same"
+    ],
+    "is different from": [
+      "conflict"
+    ],
+    "does not match": [
+      "does not match"
+    ],
+    "is not equal to": [
+      "not match"
+    ],
+    "is dependent on": [
+      "on the basis of"
+    ],
+    "is consistent with": [
+      "consistent among"
+    ],
+    "contradicts": [
+      "conflict"
+    ]
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.3 DHCP server behavior -> 4.3.1 DHCPDISCOVER message": {
+    "is equal to": [
+      "same"
+    ],
+    "is identical to": [
+      "same"
+    ],
+    "is different from": [
+      "other"
+    ],
+    "is not equal to": [
+      "other"
+    ]
+  },
+  "3. The Client-Server Protocol -> 3.1 Client-server interaction - allocating a network address": {
+    "is equal to": [
+      "same value"
+    ],
+    "matches": [
+      "same value"
+    ],
+    "is identical to": [
+      "same value"
+    ]
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.1 Constructing and sending DHCP messages": {
+    "is equal to": [
+      "is not possible"
+    ],
+    "is identical to": [
+      "is not possible"
+    ],
+    "matches": [
+      "is not possible"
+    ]
+  }
+}

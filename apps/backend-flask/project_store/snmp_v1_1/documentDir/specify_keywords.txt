@@ -1,0 +1,69 @@
+{
+  "GetRequest": {
+    "version": {},
+    "community": {},
+    "PDU": {
+      "request-id": {},
+      "error-status": {},
+      "error-index": {},
+      "variable-bindings": {
+        "name": {},
+        "value": {}
+      }
+    }
+  },
+  "GetNextRequest": {
+    "version": {},
+    "community": {},
+    "PDU": {
+      "request-id": {},
+      "error-status": {},
+      "error-index": {},
+      "variable-bindings": {
+        "name": {},
+        "value": {}
+      }
+    }
+  },
+  "GetResponse": {
+    "version": {},
+    "community": {},
+    "PDU": {
+      "request-id": {},
+      "error-status": {},
+      "error-index": {},
+      "variable-bindings": {
+        "name": {},
+        "value": {}
+      }
+    }
+  },
+  "SetRequest": {
+    "version": {},
+    "community": {},
+    "PDU": {
+      "request-id": {},
+      "error-status": {},
+      "error-index": {},
+      "variable-bindings": {
+        "name": {},
+        "value": {}
+      }
+    }
+  },
+  "Trap": {
+    "version": {},
+    "community": {},
+    "PDU": {
+      "enterprise": {},
+      "agent-addr": {},
+      "generic-trap": {},
+      "specific-trap": {},
+      "time-stamp": {},
+      "variable-bindings": {
+        "name": {},
+        "value": {}
+      }
+    }
+  }
+}

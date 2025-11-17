@@ -1,0 +1,331 @@
+{
+  "1. Introduction": {},
+  "3. Presentation Language -> 3.2. Miscellaneous": {},
+  "3. Presentation Language -> 3.1. Basic Block Size": {
+    "charts": [
+      "Derived: Multi-byte data item formation example\nvalue = (byte[0] << 8*(n-1)) | (byte[1] << 8*(n-2)) | ... | byte[n-1];"
+    ]
+  },
+  "3. Presentation Language": {},
+  "1. Introduction -> 1.1. Conventions and Terminology": {
+    "charts": [
+      "Derived: Key terms and their definitions\nclient: The endpoint initiating the TLS connection.\nconnection: A transport-layer connection between two endpoints.\nendpoint: Either the client or server of the connection.\nhandshake: An initial negotiation between client and server that establishes the parameters of their subsequent interactions within TLS.\npeer: An endpoint. When discussing a particular endpoint, \"peer\" refers to the endpoint that is not the primary subject of discussion.\nreceiver: An endpoint that is receiving records.\nsender: An endpoint that is transmitting records.\nserver: The endpoint that did not initiate the TLS connection."
+    ]
+  },
+  "1. Introduction -> 1.3. Updates Affecting TLS 1.2": {},
+  "1. Introduction -> 1.2. Major Differences from TLS 1.2": {},
+  "3. Presentation Language -> 3.3. Numbers": {
+    "charts": [
+      "Derived: Predefined numeric types list\nuint8 uint16[2];\nuint8 uint24[3];\nuint8 uint32[4];\nuint8 uint64[8];"
+    ]
+  },
+  "2. Protocol Overview -> 2.1. Incorrect DHE Share": {
+    "charts": [
+      "Figure 2: Message Flow for a Full Handshake with Mismatched Parameters\nClient Server\nClientHello\n+ key_share -------->\n\nHelloRetryRequest\n<--------- + key_share\n\nClientHello\n+ key_share -------->\n                         ServerHello\n                         + key_share\n                         {EncryptedExtensions}\n                         {CertificateRequest*}\n                         {Certificate*}\n                         {CertificateVerify*}\n                         {Finished}\n                         <--------\n                         [Application Data*]\n{Certificate*}\n{CertificateVerify*}\n{Finished}\n-------->\n[Application Data]\n<------>\n[Application Data]"
+    ]
+  },
+  "3. Presentation Language -> 3.7. Constants": {},
+  "3. Presentation Language -> 3.4. Vectors": {
+    "charts": [
+      "Derived: Fixed-length vector example\nopaque Datum[3]; /* three uninterpreted bytes */\nDatum Data[9]; /* three consecutive 3-byte vectors */",
+      "Derived: Variable-length vector examples\nopaque mandatory<300..400>; /* length field is two bytes, cannot be empty */\nuint16 longer<0..800>; /* zero to 400 16-bit unsigned integers */"
+    ]
+  },
+  "4. Handshake Protocol -> 4.1. Key Exchange Messages": {
+    "charts": [
+      "```"
+    ]
+  },
+  "3. Presentation Language -> 3.8. Variants": {
+    "charts": [
+      "Derived: VariantRecord structure example\nenum { apple(0), orange(1) } VariantTag;\nstruct {\n  uint16 number;\n  opaque string<0..10>; /* variable length */\n} V1;\nstruct {\n  uint32 number;\n  opaque string[10]; /* fixed length */\n} V2;\nstruct {\n  VariantTag type;\n  select (VariantRecord.type) {\n    case apple: V1;\n    case orange: V2;\n  };\n} VariantRecord;"
+    ]
+  },
+  "3. Presentation Language -> 3.5. Enumerateds": {
+    "charts": [
+      "Derived: Example of enumerated definition\nenum { e1(v1), e2(v2), ... , en(vn) [[, (n)]] } Te;",
+      "Derived: Color enumerated example\nenum { red(3), blue(5), white(7) } Color;",
+      "Derived: Taste enumerated example with width specification\nenum { sweet(1), sour(2), bitter(4), (32000) } Taste;",
+      "Derived: Mood enumerated example with value ranges\nenum { sad(0), meh(1..254), happy(255) } Mood;"
+    ]
+  },
+  "4. Handshake Protocol -> 4.1. Key Exchange Messages -> 4.1.1. Cryptographic Negotiation": {
+    "charts": [
+      "Derived: ClientHello Options\n- A list of cipher suites which indicates the AEAD algorithm/HKDF hash pairs which the client supports.\n- A \"supported_groups\" (Section 4.2.7) extension which indicates the (EC)DHE groups which the client supports and a \"key_share\" (Section 4.2.8) extension which contains (EC)DHE shares for some or all of these groups.\n- A \"signature_algorithms\" (Section 4.2.3) extension which indicates the signature algorithms which the client can accept. A \"signature_algorithms_cert\" extension (Section 4.2.3) may also be added to indicate certificate-specific signature algorithms.\n- A \"pre_shared_key\" (Section 4.2.11) extension which contains a list of symmetric key identities known to the client and a \"psk_key_exchange_modes\" (Section 4.2.9) extension which indicates the key exchange modes that may be used with PSKs.",
+      "Derived: Server Parameter Selection\n- If PSK is being used, then the server will send a \"pre_shared_key\" extension indicating the selected key.\n- When (EC)DHE is in use, the server will also provide a \"key_share\" extension. If PSK is not being used, then (EC)DHE and certificate-based authentication are always used.\n- When authenticating via a certificate, the server will send the Certificate (Section 4.4.2) and CertificateVerify (Section 4.4.3) messages."
+    ]
+  },
+  "4. Handshake Protocol -> 4.1. Key Exchange Messages -> 4.1.4. Hello Retry Request": {},
+  "2. Protocol Overview -> 2.2. Resumption and Pre-Shared Key (PSK)": {
+    "charts": [
+      "Figure 3: Message Flow for Resumption and PSK\nClient Server\nInitial Handshake:\nClientHello \\+ key_share --------> \nServerHello \\+ key_share \n{EncryptedExtensions} \n{CertificateRequest*} \n{Certificate*} \n{CertificateVerify*} \n{Finished} \n<\\-------- [Application Data*]\n{Certificate*} \n{CertificateVerify*} \n{Finished} \n-------> \n<\\-------- [NewSessionTicket]\n[Application Data] \n<-------> [Application Data]\n\nSubsequent Handshake:\nClientHello \\+ key_share* \\+ pre_shared_key --------> \nServerHello \\+ pre_shared_key \\+ key_share* \n{EncryptedExtensions} \n{Finished} \n<\\-------- [Application Data*]\n{Finished} \n-------> \n[Application Data] \n<-------> [Application Data]"
+    ]
+  },
+  "4. Handshake Protocol": {
+    "charts": [
+      "Derived: HandshakeType values\nenum { client_hello(1), server_hello(2), new_session_ticket(4), end_of_early_data(5), encrypted_extensions(8), certificate(11), certificate_request(13), certificate_verify(15), finished(20), key_update(24), message_hash(254), (255) } HandshakeType;",
+      "Derived: Handshake structure\nstruct {\n    HandshakeType msg_type;    /* handshake type */\n    uint24 length;             /* remaining bytes in message */\n    select (Handshake.msg_type) {\n        case client_hello:          ClientHello;\n        case server_hello:          ServerHello;\n        case end_of_early_data:     EndOfEarlyData;\n        case encrypted_extensions:  EncryptedExtensions;\n        case certificate_request:   CertificateRequest;\n        case certificate:           Certificate;\n        case certificate_verify:    CertificateVerify;\n        case finished:              Finished;\n        case new_session_ticket:    NewSessionTicket;\n        case key_update:            KeyUpdate;\n    };\n} Handshake;"
+    ]
+  },
+  "4. Handshake Protocol -> 4.1. Key Exchange Messages -> 4.1.2. Client Hello": {
+    "charts": [
+      "Derived: ClientHello structure\nstruct {\n    ProtocolVersion legacy_version = 0x0303;    /* TLS v1.2 */\n    Random random;\n    opaque legacy_session_id<0..32>;\n    CipherSuite cipher_suites<2..2^16-2>;\n    opaque legacy_compression_methods<1..2^8-1>;\n    Extension extensions<8..2^16-1>;\n} ClientHello;"
+    ]
+  },
+  "3. Presentation Language -> 3.6. Constructed Types": {
+    "charts": [
+      "Derived: Structure type definition example\nstruct { T1 f1; T2 f2; ... Tn fn; } T;"
+    ]
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.2. Cookie": {
+    "charts": [
+      "Derived: Cookie structure definition\nstruct { opaque cookie<1..2^16-1>; } Cookie;"
+    ]
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.5. OID Filters": {
+    "charts": [
+      "Derived: OIDFilter structure definition\nstruct {\n    opaque certificate_extension_oid<1..2^8-1>;\n    opaque certificate_extension_values<0..2^16-1>;\n} OIDFilter;",
+      "Derived: OIDFilterExtension structure definition\nstruct {\n    OIDFilter filters<0..2^16-1>;\n} OIDFilterExtension;"
+    ]
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.4. Certificate Authorities": {
+    "charts": [
+      "Derived: CertificateAuthoritiesExtension structure\nopaque DistinguishedName<1..2^16-1>;\nstruct {\n    DistinguishedName authorities<3..2^16-1>;\n} CertificateAuthoritiesExtension;"
+    ]
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.1. Supported Versions": {
+    "charts": [
+      "Derived: SupportedVersions struct definition\nstruct {\n    select (Handshake.msg_type) {\n        case client_hello: ProtocolVersion versions<2..254>;\n        case server_hello: /* and HelloRetryRequest */ ProtocolVersion selected_version;\n    };\n} SupportedVersions;"
+    ]
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.8. Key Share -> 4.2.8.1. Diffie-Hellman Parameters": {
+    "charts": [
+      "Derived: Diffie-Hellman Public Key Encoding\nopaque key_exchange field of KeyShareEntry contains:\nY = g^X mod p (big-endian integer)\nLeft-padded with zeros to size of p in bytes"
+    ]
+  },
+  "4. Handshake Protocol -> 4.1. Key Exchange Messages -> 4.1.3. Server Hello": {
+    "charts": [
+      "Derived: ServerHello structure\nstruct {\n  ProtocolVersion legacy_version = 0x0303;    /* TLS v1.2 */\n  Random random;\n  opaque legacy_session_id_echo<0..32>;\n  CipherSuite cipher_suite;\n  uint8 legacy_compression_method = 0;\n  Extension extensions<6..2^16-1>;\n} ServerHello;"
+    ]
+  },
+  "4. Handshake Protocol -> 4.2. Extensions": {
+    "charts": [
+      "Derived: TLS Extensions and Their Applicable Messages\n+--------------------------------------------------+-------------+\n| Extension                                        | TLS 1.3     |\n+--------------------------------------------------+-------------+\n| server_name [RFC6066 Extensions: Extension Definitions\"\")] | CH, EE      |\n|                                                  |             |\n| max_fragment_length [RFC6066 Extensions: Extension Definitions\"\")] | CH, EE      |\n|                                                  |             |\n| status_request [RFC6066 Extensions: Extension Definitions\"\")] | CH, CR, CT  |\n|                                                  |             |\n| supported_groups [RFC7919\"\")]                    | CH, EE      |\n|                                                  |             |\n| signature_algorithms (RFC 8446)                  | CH, CR      |\n|                                                  |             |\n| use_srtp [RFC5764 Extension to Establish Keys for the Secure Real-time Transport Protocol \\(SRTP\\)\"\")] | CH, EE      |\n|                                                  |             |\n| heartbeat [RFC6520 and Datagram Transport Layer Security \\(DTLS\\) Heartbeat Extension\"\")] | CH, EE      |\n|                                                  |             |\n| application_layer_protocol_negotiation [RFC7301 Application-Layer Protocol Negotiation Extension\"\")] | CH, EE      |\n|                                                  |             |\n| signed_certificate_timestamp [RFC6962]           | CH, CR, CT  |\n|                                                  |             |\n| client_certificate_type [RFC7250 and Datagram Transport Layer Security \\(DTLS\\)\"\")] | CH, EE      |\n|                                                  |             |\n| server_certificate_type [RFC7250 and Datagram Transport Layer Security \\(DTLS\\)\"\")] | CH, EE      |\n|                                                  |             |\n| padding [RFC7685 ClientHello Padding Extension\"\")] | CH          |\n|                                                  |             |\n| key_share (RFC 8446)                             | CH, SH, HRR |\n|                                                  |             |\n| pre_shared_key (RFC 8446)                        | CH, SH      |\n|                                                  |             |\n| psk_key_exchange_modes (RFC 8446)                | CH          |\n|                                                  |             |\n| early_data (RFC 8446)                            | CH, EE, NST |\n|                                                  |             |\n| cookie (RFC 8446)                                | CH, HRR     |\n|                                                  |             |\n| supported_versions (RFC 8446)                    | CH, SH, HRR |\n|                                                  |             |\n| certificate_authorities (RFC 8446)               | CH, CR      |\n|                                                  |             |\n| oid_filters (RFC 8446)                           | CR          |\n|                                                  |             |\n| post_handshake_auth (RFC 8446)                   | CH          |\n|                                                  |             |\n| signature_algorithms_cert (RFC 8446)             | CH, CR      |\n+--------------------------------------------------+-------------+"
+    ]
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.8. Key Share -> 4.2.8.2. ECDHE Parameters": {
+    "charts": [
+      "Derived: UncompressedPointRepresentation struct\nstruct {\n   uint8 legacy_form = 4;\n   opaque X[coordinate_length];\n   opaque Y[coordinate_length];\n} UncompressedPointRepresentation;"
+    ]
+  },
+  "2. Protocol Overview -> 2.3. 0-RTT Data": {
+    "charts": [
+      "Figure 4: Message Flow for a 0-RTT Handshake\nClient Server\nClientHello \\+ early_data \\+ key_share* \\+ psk_key_exchange_modes \\+ pre_shared_key (Application Data*) --------> \nServerHello \\+ pre_shared_key \\+ key_share* {EncryptedExtensions} \\+ early_data* {Finished} <\\-------- \n[Application Data*] (EndOfEarlyData) {Finished} --------> \n[Application Data] <\\-------> [Application Data]\n\n\\+ Indicates noteworthy extensions sent in the previously noted message.\n* Indicates optional or situation-dependent messages/extensions that are not always sent.\n() Indicates messages protected using keys derived from a client_early_traffic_secret.\n{} Indicates messages protected using keys derived from a [sender]_handshake_traffic_secret.\n[] Indicates messages protected using keys derived from [sender]_application_traffic_secret_N."
+    ]
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.9. Pre-Shared Key Exchange Modes": {
+    "charts": [
+      "Derived: PskKeyExchangeMode enum and PskKeyExchangeModes struct\nenum {\n      psk_ke(0), psk_dhe_ke(1), (255)\n} PskKeyExchangeMode;\n\nstruct {\n      PskKeyExchangeMode ke_modes<1..255>;\n} PskKeyExchangeModes;"
+    ]
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.11. Pre-Shared Key Extension -> 4.2.11.1. Ticket Age": {
+    "charts": [
+      "Derived: Obfuscated Ticket Age Calculation\n   The \"obfuscated_ticket_age\" field of each PskIdentity contains an obfuscated version of the ticket age formed by taking the age in milliseconds and adding the \"ticket_age_add\" value that was included with the ticket (see Section 4.6.1), modulo 2^32."
+    ]
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.10. Early Data Indication": {
+    "charts": [
+      "Derived: EarlyDataIndication struct definition\nstruct {} Empty;\nstruct {\n    select (Handshake.msg_type) {\n        case new_session_ticket: uint32 max_early_data_size;\n        case client_hello: Empty;\n        case encrypted_extensions: Empty;\n    };\n} EarlyDataIndication;"
+    ]
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.3. Signature Algorithms": {
+    "charts": [
+      "Derived: SignatureScheme enum and SignatureSchemeList struct\nenum {\n   /* RSASSA-PKCS1-v1_5 algorithms */\n   rsa_pkcs1_sha256(0x0401),\n   rsa_pkcs1_sha384(0x0501),\n   rsa_pkcs1_sha512(0x0601),\n   /* ECDSA algorithms */\n   ecdsa_secp256r1_sha256(0x0403),\n   ecdsa_secp384r1_sha384(0x0503),\n   ecdsa_secp521r1_sha512(0x0603),\n   /* RSASSA-PSS algorithms with public key OID rsaEncryption */\n   rsa_pss_rsae_sha256(0x0804),\n   rsa_pss_rsae_sha384(0x0805),\n   rsa_pss_rsae_sha512(0x0806),\n   /* EdDSA algorithms */\n   ed25519(0x0807),\n   ed448(0x0808),\n   /* RSASSA-PSS algorithms with public key OID RSASSA-PSS */\n   rsa_pss_pss_sha256(0x0809),\n   rsa_pss_pss_sha384(0x080a),\n   rsa_pss_pss_sha512(0x080b),\n   /* Legacy algorithms */\n   rsa_pkcs1_sha1(0x0201),\n   ecdsa_sha1(0x0203),\n   /* Reserved Code Points */\n   private_use(0xFE00..0xFFFF),\n   (0xFFFF)\n} SignatureScheme;\n\nstruct {\n   SignatureScheme supported_signature_algorithms<2..2^16-2>;\n} SignatureSchemeList;"
+    ]
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.11. Pre-Shared Key Extension -> 4.2.11.2. PSK Binder": {
+    "charts": [
+      "Derived: Transcript hash computation for PSK binder\nTranscript-Hash(Truncate(ClientHello1))",
+      "Derived: Transcript hash computation with HelloRetryRequest\nTranscript-Hash(ClientHello1, HelloRetryRequest, Truncate(ClientHello2))"
+    ]
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.11. Pre-Shared Key Extension -> 4.2.11.3. Processing Order": {
+    "charts": [
+      "Derived: Client and server message processing order for 0-RTT data\nClients are permitted to \"stream\" 0-RTT data until they receive the server's Finished, only then sending the EndOfEarlyData message, followed by the rest of the handshake. In order to avoid deadlocks, when accepting \"early_data\", servers MUST process the client's ClientHello and then immediately send their flight of messages, rather than waiting for the client's EndOfEarlyData message before sending its ServerHello."
+    ]
+  },
+  "4. Handshake Protocol -> 4.3. Server Parameters": {},
+  "4. Handshake Protocol -> 4.3. Server Parameters -> 4.3.1. Encrypted Extensions": {
+    "charts": [
+      "Derived: EncryptedExtensions message structure\n   struct {\n      Extension extensions<0..2^16-1>;\n   } EncryptedExtensions;"
+    ]
+  },
+  "4. Handshake Protocol -> 4.4. Authentication Messages -> 4.4.1. The Transcript Hash": {
+    "charts": [
+      "```"
+    ]
+  },
+  "4. Handshake Protocol -> 4.4. Authentication Messages -> 4.4.2. Certificate -> 4.4.2.2. Server Certificate Selection": {},
+  "4. Handshake Protocol -> 4.4. Authentication Messages -> 4.4.2. Certificate -> 4.4.2.1. OCSP Status and SCT Extensions": {
+    "charts": [
+      "```"
+    ]
+  },
+  "2. Protocol Overview": {
+    "charts": [
+      "Figure 1: Message Flow for Full TLS Handshake\nClient Server\nKey ^ ClientHello\nExch | + key_share*\n     | + signature_algorithms*\n     | + psk_key_exchange_modes*\n     v + pre_shared_key*\n     --------> ServerHello  ^ Key\n             \\+ key_share*   | Exch\n             \\+ pre_shared_key* v\n             {EncryptedExtensions}  ^ Server\n             {CertificateRequest*}  v Params\n             {Certificate*}         ^\n             {CertificateVerify*}   | Auth\n             {Finished}             v\n             <\\-------- [Application Data*]\n                       ^ {Certificate*}\n                       Auth | {CertificateVerify*}\n                           v {Finished}\n                     --------> \n                     [Application Data]\n                     <\\-------> [Application Data]\n\n\\+ Indicates noteworthy extensions sent in the previously noted message.\n* Indicates optional or situation-dependent messages/extensions that are not always sent.\n{} Indicates messages protected using keys derived from a [sender]_handshake_traffic_secret.\n[] Indicates messages protected using keys derived from [sender]_application_traffic_secret_N."
+    ]
+  },
+  "4. Handshake Protocol -> 4.4. Authentication Messages -> 4.4.2. Certificate -> 4.4.2.3. Client Certificate Selection": {},
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.8. Key Share": {
+    "charts": [
+      "Derived: KeyShareEntry struct\nstruct {\n  NamedGroup group;\n  opaque key_exchange<1..2^16-1>;\n} KeyShareEntry;",
+      "Derived: KeyShareClientHello struct\nstruct {\n  KeyShareEntry client_shares<0..2^16-1>;\n} KeyShareClientHello;",
+      "Derived: KeyShareHelloRetryRequest struct\nstruct {\n  NamedGroup selected_group;\n} KeyShareHelloRetryRequest;",
+      "Derived: KeyShareServerHello struct\nstruct {\n  KeyShareEntry server_share;\n} KeyShareServerHello;"
+    ]
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.6. Post-Handshake Client Authentication": {
+    "charts": [
+      "Derived: PostHandshakeAuth structure definition\nstruct {} PostHandshakeAuth;"
+    ]
+  },
+  "4. Handshake Protocol -> 4.4. Authentication Messages -> 4.4.2. Certificate -> 4.4.2.4. Receiving a Certificate Message": {},
+  "4. Handshake Protocol -> 4.5. End of Early Data": {
+    "charts": [
+      "```"
+    ]
+  },
+  "4. Handshake Protocol -> 4.4. Authentication Messages -> 4.4.2. Certificate": {
+    "charts": [
+      "Derived: Certificate and CertificateEntry structures\nenum { X509(0), RawPublicKey(2), (255) } CertificateType;\nstruct {\n    select (certificate_type) {\n        case RawPublicKey:\n            /* From RFC 7250 ASN.1_subjectPublicKeyInfo */\n            opaque ASN1_subjectPublicKeyInfo<1..2^24-1>;\n        case X509:\n            opaque cert_data<1..2^24-1>;\n    };\n    Extension extensions<0..2^16-1>;\n} CertificateEntry;\nstruct {\n    opaque certificate_request_context<0..2^8-1>;\n    CertificateEntry certificate_list<0..2^24-1>;\n} Certificate;"
+    ]
+  },
+  "4. Handshake Protocol -> 4.3. Server Parameters -> 4.3.2. Certificate Request": {
+    "charts": [
+      "Derived: CertificateRequest structure\nstruct {\n    opaque certificate_request_context<0..2^8-1>;\n    Extension extensions<2..2^16-1>;\n} CertificateRequest;"
+    ]
+  },
+  "4. Handshake Protocol -> 4.6. Post-Handshake Messages": {},
+  "4. Handshake Protocol -> 4.4. Authentication Messages -> 4.4.4. Finished": {
+    "charts": [
+      "Derived: Finished message structure\nstruct {\n   opaque verify_data[Hash.length];\n} Finished;"
+    ]
+  },
+  "4. Handshake Protocol -> 4.6. Post-Handshake Messages -> 4.6.2. Post-Handshake Authentication": {},
+  "5. Record Protocol": {},
+  "4. Handshake Protocol -> 4.6. Post-Handshake Messages -> 4.6.1. New Session Ticket Message": {
+    "charts": [
+      "Derived: NewSessionTicket message structure\nstruct {\n    uint32 ticket_lifetime;\n    uint32 ticket_age_add;\n    opaque ticket_nonce<0..255>;\n    opaque ticket<1..2^16-1>;\n    Extension extensions<0..2^16-2>;\n} NewSessionTicket;"
+    ]
+  },
+  "5. Record Protocol -> 5.3. Per-Record Nonce": {
+    "charts": [
+      "Derived: Per-record nonce formation\n1. The 64-bit record sequence number is encoded in network byte order and padded to the left with zeros to iv_length.\n2. The padded sequence number is XORed with either the static client_write_iv or server_write_iv (depending on the role)."
+    ]
+  },
+  "5. Record Protocol -> 5.2. Record Payload Protection": {
+    "charts": [
+      "Derived: TLSInnerPlaintext structure\nstruct {\n  opaque content[TLSPlaintext.length];\n  ContentType type;\n  uint8 zeros[length_of_padding];\n} TLSInnerPlaintext;",
+      "Derived: TLSCiphertext structure\nstruct {\n  ContentType opaque_type = application_data; /* 23 */\n  ProtocolVersion legacy_record_version = 0x0303; /* TLS v1.2 */\n  uint16 length;\n  opaque encrypted_record[TLSCiphertext.length];\n} TLSCiphertext;"
+    ]
+  },
+  "5. Record Protocol -> 5.5. Limits on Key Usage": {
+    "charts": [
+      "Derived: Key Usage Limits for AES-GCM and ChaCha20/Poly1305\nThere are cryptographic limits on the amount of plaintext which can be safely encrypted under a given set of keys. [AEAD-LIMITS] provides an analysis of these limits under the assumption that the underlying primitive (AES or ChaCha20) has no weaknesses. Implementations SHOULD do a key update as described in Section 4.6.3 prior to reaching these limits. For AES-GCM, up to 2^24.5 full-size records (about 24 million) may be encrypted on a given connection while keeping a safety margin of approximately 2^-57 for Authenticated Encryption (AE) security. For ChaCha20/Poly1305, the record sequence number would wrap before the safety limit is reached."
+    ]
+  },
+  "5. Record Protocol -> 5.4. Record Padding": {},
+  "6. Alert Protocol -> 6.1. Closure Alerts": {},
+  "6. Alert Protocol": {
+    "charts": [
+      "Derived: AlertLevel values\nenum { warning(1), fatal(2), (255) } AlertLevel;",
+      "Derived: AlertDescription values\nenum { close_notify(0), unexpected_message(10), bad_record_mac(20), record_overflow(22), handshake_failure(40), bad_certificate(42), unsupported_certificate(43), certificate_revoked(44), certificate_expired(45), certificate_unknown(46), illegal_parameter(47), unknown_ca(48), access_denied(49), decode_error(50), decrypt_error(51), protocol_version(70), insufficient_security(71), internal_error(80), inappropriate_fallback(86), user_canceled(90), missing_extension(109), unsupported_extension(110), unrecognized_name(112), bad_certificate_status_response(113), unknown_psk_identity(115), certificate_required(116), no_application_protocol(120), (255) } AlertDescription;"
+    ]
+  },
+  "7. Cryptographic Computations -> 7.2. Updating Traffic Secrets": {
+    "charts": [
+      "Derived: Traffic secret update formula\napplication_traffic_secret_N+1 = HKDF-Expand-Label(application_traffic_secret_N, \"traffic upd\", \"\", Hash.length)"
+    ]
+  },
+  "7. Cryptographic Computations": {
+    "charts": [
+      "Nothing to output."
+    ]
+  },
+  "5. Record Protocol -> 5.1. Record Layer": {
+    "charts": [
+      "Derived: ContentType enum definition\nenum { invalid(0), change_cipher_spec(20), alert(21), handshake(22), application_data(23), (255) } ContentType;",
+      "Derived: TLSPlaintext struct definition\nstruct {\n    ContentType type;\n    ProtocolVersion legacy_record_version;\n    uint16 length;\n    opaque fragment[TLSPlaintext.length];\n} TLSPlaintext;"
+    ]
+  },
+  "7. Cryptographic Computations -> 7.3. Traffic Key Calculation": {
+    "charts": [
+      "Derived: Record Types and Their Secrets\n+-------------------+---------------------------------------+\n| Record Type       | Secret                                |\n+-------------------+---------------------------------------+\n| 0-RTT Application | client_early_traffic_secret           |\n|                   |                                       |\n| Handshake         | [sender]_handshake_traffic_secret     |\n|                   |                                       |\n| Application Data  | [sender]_application_traffic_secret_N |\n+-------------------+---------------------------------------+"
+    ]
+  },
+  "7. Cryptographic Computations -> 7.4. (EC)DHE Shared Secret Calculation -> 7.4.1. Finite Field Diffie-Hellman": {},
+  "7. Cryptographic Computations -> 7.1. Key Schedule": {
+    "charts": [
+      "Derived: Key derivation schedule diagram\n0\n|\nv\nPSK -> HKDF-Extract = Early Secret\n|\n+-----> Derive-Secret(., \"ext binder\" | \"res binder\", \"\")\n|        = binder_key\n|\n+-----> Derive-Secret(., \"c e traffic\", ClientHello)\n|        = client_early_traffic_secret\n|\n+-----> Derive-Secret(., \"e exp master\", ClientHello)\n|        = early_exporter_master_secret\nv\nDerive-Secret(., \"derived\", \"\")\n|\nv\n(EC)DHE -> HKDF-Extract = Handshake Secret\n|\n+-----> Derive-Secret(., \"c hs traffic\",\n|        ClientHello...ServerHello)\n|        = client_handshake_traffic_secret\n|\n+-----> Derive-Secret(., \"s hs traffic\",\n|        ClientHello...ServerHello)\n|        = server_handshake_traffic_secret\nv\nDerive-Secret(., \"derived\", \"\")\n|\nv\n0 -> HKDF-Extract = Master Secret\n|\n+-----> Derive-Secret(., \"c ap traffic\",\n|        ClientHello...server Finished)\n|        = client_application_traffic_secret_0\n|\n+-----> Derive-Secret(., \"s ap traffic\",\n|        ClientHello...server Finished)\n|        = server_application_traffic_secret_0\n|\n+-----> Derive-Secret(., \"exp master\",\n|        ClientHello...server Finished)\n|        = exporter_master_secret\n|\n+-----> Derive-Secret(., \"res master\", ClientHello...client Finished)\n         = resumption_master_secret"
+    ]
+  },
+  "7. Cryptographic Computations -> 7.5. Exporters": {},
+  "7. Cryptographic Computations -> 7.4. (EC)DHE Shared Secret Calculation -> 7.4.2. Elliptic Curve Diffie-Hellman": {},
+  "8. 0-RTT and Anti-Replay -> 8.1. Single-Use Tickets": {},
+  "8. 0-RTT and Anti-Replay": {},
+  "9. Compliance Requirements -> 9.1. Mandatory-to-Implement Cipher Suites": {},
+  "9. Compliance Requirements -> 9.2. Mandatory-to-Implement Extensions": {},
+  "8. 0-RTT and Anti-Replay -> 8.3. Freshness Checks": {
+    "charts": [
+      "Derived: Adjusted creation time and expected arrival time formulas\nadjusted_creation_time = creation_time + estimated_RTT\nexpected_arrival_time = adjusted_creation_time + clients_ticket_age"
+    ]
+  },
+  "10. Security Considerations": {},
+  "9. Compliance Requirements -> 9.3. Protocol Invariants": {},
+  "11. IANA Considerations": {
+    "charts": [
+      "```"
+    ]
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.11. Pre-Shared Key Extension": {
+    "charts": [
+      "Derived: PskIdentity structure\nstruct {\n    opaque identity<1..2^16-1>;\n    uint32 obfuscated_ticket_age;\n} PskIdentity;",
+      "Derived: PskBinderEntry definition\nopaque PskBinderEntry<32..255>;",
+      "Derived: OfferedPsks structure\nstruct {\n    PskIdentity identities<7..2^16-1>;\n    PskBinderEntry binders<33..2^16-1>;\n} OfferedPsks;",
+      "Derived: PreSharedKeyExtension structure\nstruct {\n    select (Handshake.msg_type) {\n        case client_hello: OfferedPsks;\n        case server_hello: uint16 selected_identity;\n    };\n} PreSharedKeyExtension;"
+    ]
+  },
+  "8. 0-RTT and Anti-Replay -> 8.2. Client Hello Recording": {
+    "charts": [
+      "Derived: ClientHello Recording Flow\nAn alternative form of anti-replay is to record a unique value derived from the ClientHello (generally either the random value or the PSK binder) and reject duplicates. Recording all ClientHellos causes state to grow without bound, but a server can instead record ClientHellos within a given time window and use the \"obfuscated_ticket_age\" to ensure that tickets aren't reused outside that window. In order to implement this, when a ClientHello is received, the server first verifies the PSK binder as described inSection 4.2.11. It then computes the expected_arrival_time as described in the next section and rejects 0-RTT if it is outside the recording window, falling back to the 1-RTT handshake. If the expected_arrival_time is in the window, then the server checks to see if it has recorded a matching ClientHello. If one is found, it either aborts the handshake with an \"illegal_parameter\" alert or accepts the PSK but rejects 0-RTT. If no matching ClientHello is found, then it accepts 0-RTT and then stores the ClientHello for as long as the expected_arrival_time is inside the window. Servers MAY also implement data stores with false positives, such as Bloom filters, in which case they MUST respond to apparent replay by rejecting 0-RTT but MUST NOT abort the handshake. The server MUST derive the storage key only from validated sections of the ClientHello. If the ClientHello contains multiple PSK identities, then an attacker can create multiple ClientHellos with different binder values for the less-preferred identity on the assumption that the server will not verify it (as recommended by Section 4.2.11). I.e., if the client sends PSKs A and B but the server prefers A, then the attacker can change the binder for B without affecting the binder for A. If the binder for B is part of the storage key, then this ClientHello will not appear as a duplicate, which will cause the ClientHello to be accepted, and may cause side effects such as replay cache pollution, although any 0-RTT data will not be decryptable because it will use different keys. If the validated binder or the ClientHello.random is used as the storage key, then this attack is not possible. Because this mechanism does not require storing all outstanding tickets, it may be easier to implement in distributed systems with high rates of resumption and 0-RTT, at the cost of potentially weaker anti-replay defense because of the difficulty of reliably storing and retrieving the received ClientHello messages. In many such systems, it is impractical to have globally consistent storage of all the received ClientHellos. In this case, the best anti-replay protection is provided by having a single storage zone be authoritative for a given ticket and refusing 0-RTT for that ticket in any other zone. This approach prevents simple replay by the attacker because only one zone will accept 0-RTT data. A weaker design is to implement separate storage for each zone but allow 0-RTT in any zone. This approach limits the number of replays to once per zone. Application message duplication of course remains possible with either design. When implementations are freshly started, they SHOULD reject 0-RTT as long as any portion of their recording window overlaps the startup time. Otherwise, they run the risk of accepting replays which were originally sent during that period. Note: If the client's clock is running much faster than the server's, then a ClientHello may be received that is outside the window in the future, in which case it might be accepted for 1-RTT, causing a client retry, and then acceptable later for 0-RTT. This is another variant of the second form of attack described in Section 8."
+    ]
+  },
+  "4. Handshake Protocol -> 4.6. Post-Handshake Messages -> 4.6.3. Key and Initialization Vector Update": {
+    "charts": [
+      "Derived: KeyUpdate message format\nenum { update_not_requested(0), update_requested(1), (255) } KeyUpdateRequest;\nstruct {\n    KeyUpdateRequest request_update;\n} KeyUpdate;"
+    ]
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.7. Supported Groups": {
+    "charts": [
+      "Derived: NamedGroup enum definition\nenum { /* Elliptic Curve Groups (ECDHE) */ secp256r1(0x0017), secp384r1(0x0018), secp521r1(0x0019), x25519(0x001D), x448(0x001E), /* Finite Field Groups (DHE) */ ffdhe2048(0x0100), ffdhe3072(0x0101), ffdhe4096(0x0102), ffdhe6144(0x0103), ffdhe8192(0x0104), /* Reserved Code Points */ ffdhe_private_use(0x01FC..0x01FF), ecdhe_private_use(0xFE00..0xFEFF), (0xFFFF) } NamedGroup;",
+      "Derived: NamedGroupList struct definition\nstruct { NamedGroup named_group_list<2..2^16-1>; } NamedGroupList;"
+    ]
+  },
+  "4. Handshake Protocol -> 4.4. Authentication Messages": {
+    "charts": [
+      "Derived: Handshake Context and MAC Base Key for each scenario\n+-----------+-------------------------+-----------------------------+\n| Mode      | Handshake Context       | Base Key                    |\n+-----------+-------------------------+-----------------------------+\n| Server    | ClientHello ... later   | server_handshake_traffic_   |\n|           | of EncryptedExtensions/ | secret                      |\n|           | CertificateRequest      |                             |\n|           |                         |                             |\n| Client    | ClientHello ... later   | client_handshake_traffic_   |\n|           | of server               | secret                      |\n|           | Finished/EndOfEarlyData |                             |\n|           |                         |                             |\n| Post-     | ClientHello ... client  | client_application_traffic_ |\n| Handshake | Finished +              | secret_N                    |\n|           | CertificateRequest      |                             |\n+-----------+-------------------------+-----------------------------+"
+    ]
+  },
+  "4. Handshake Protocol -> 4.4. Authentication Messages -> 4.4.3. Certificate Verify": {
+    "charts": [
+      "Derived: CertificateVerify structure\nstruct {\n  SignatureScheme algorithm;\n  opaque signature<0..2^16-1>;\n} CertificateVerify;",
+      "Derived: Example content covered by digital signature\n2020202020202020202020202020202020202020202020202020202020202020\n2020202020202020202020202020202020202020202020202020202020202020\n544c5320312e332c207365727665722043657274696669636174655665726966\n79 00 0101010101010101010101010101010101010101010101010101010101010101"
+    ]
+  },
+  "6. Alert Protocol -> 6.2. Error Alerts": {
+    "charts": [
+      "Derived: TLS Error Alerts\nunexpected_message: An inappropriate message (e.g., the wrong handshake message, premature Application Data, etc.) was received. This alert should never be observed in communication between proper implementations. bad_record_mac: This alert is returned if a record is received which cannot be deprotected. Because AEAD algorithms combine decryption and verification, and also to avoid side-channel attacks, this alert is used for all deprotection failures. This alert should never be observed in communication between proper implementations, except when messages were corrupted in the network. record_overflow: A TLSCiphertext record was received that had a length more than 2^14 + 256 bytes, or a record decrypted to a TLSPlaintext record with more than 2^14 bytes (or some other negotiated limit). This alert should never be observed in communication between proper implementations, except when messages were corrupted in the network. handshake_failure: Receipt of a \"handshake_failure\" alert message indicates that the sender was unable to negotiate an acceptable set of security parameters given the options available. bad_certificate: A certificate was corrupt, contained signatures that did not verify correctly, etc. unsupported_certificate: A certificate was of an unsupported type. certificate_revoked: A certificate was revoked by its signer. certificate_expired: A certificate has expired or is not currently valid. certificate_unknown: Some other (unspecified) issue arose in processing the certificate, rendering it unacceptable. illegal_parameter: A field in the handshake was incorrect or inconsistent with other fields. This alert is used for errors which conform to the formal protocol syntax but are otherwise incorrect. unknown_ca: A valid certificate chain or partial chain was received, but the certificate was not accepted because the CA certificate could not be located or could not be matched with a known trust anchor. access_denied: A valid certificate or PSK was received, but when access control was applied, the sender decided not to proceed with negotiation. decode_error: A message could not be decoded because some field was out of the specified range or the length of the message was incorrect. This alert is used for errors where the message does not conform to the formal protocol syntax. This alert should never be observed in communication between proper implementations, except when messages were corrupted in the network. decrypt_error: A handshake (not record layer) cryptographic operation failed, including being unable to correctly verify a signature or validate a Finished message or a PSK binder. protocol_version: The protocol version the peer has attempted to negotiate is recognized but not supported (see Appendix D). insufficient_security: Returned instead of \"handshake_failure\" when a negotiation has failed specifically because the server requires parameters more secure than those supported by the client. internal_error: An internal error unrelated to the peer or the correctness of the protocol (such as a memory allocation failure) makes it impossible to continue. inappropriate_fallback: Sent by a server in response to an invalid connection retry attempt from a client (see [RFC7507 for Preventing Protocol Downgrade Attacks\"\")]). missing_extension: Sent by endpoints that receive a handshake message not containing an extension that is mandatory to send for the offered TLS version or other negotiated parameters. unsupported_extension: Sent by endpoints receiving any handshake message containing an extension known to be prohibited for inclusion in the given handshake message, or including any extensions in a ServerHello or Certificate not first offered in the corresponding ClientHello or CertificateRequest. unrecognized_name: Sent by servers when no server exists identified by the name provided by the client via the \"server_name\" extension (see [RFC6066 Extensions: Extension Definitions\"\")]). bad_certificate_status_response: Sent by clients when an invalid or unacceptable OCSP response is provided by the server via the \"status_request\" extension (see [RFC6066 Extensions: Extension Definitions\"\")]). unknown_psk_identity: Sent by servers when PSK key establishment is desired but no acceptable PSK identity is provided by the client. Sending this alert is OPTIONAL; servers MAY instead choose to send a \"decrypt_error\" alert to merely indicate an invalid PSK identity. certificate_required: Sent by servers when a client certificate is desired but none was provided by the client. no_application_protocol: Sent by servers when a client \"application_layer_protocol_negotiation\" extension advertises only protocols that the server does not support (see [RFC7301 Application-Layer Protocol Negotiation Extension\"\")])."
+    ]
+  }
+}

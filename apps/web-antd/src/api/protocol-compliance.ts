@@ -646,3 +646,75 @@ export function readLog(data: { protocol: string; lastPosition: number }) {
 export function checkStatus(data: { protocol: string }) {
   return requestClient.post('/protocol-compliance/check-status', data);
 }
+
+export interface RunProtocolExtractPayload {
+  apiKey: string;
+  protocol: string;
+  version: string;
+  htmlFile: File;
+  filterHeadings?: boolean;
+}
+
+export interface ProtocolExtractRuleItem {
+  group?: string | null;
+  req_fields: string[];
+  req_type: string[];
+  res_fields: string[];
+  res_type: string[];
+  rule: string;
+}
+
+export interface RunProtocolExtractResponse {
+  protocol: string;
+  version: string;
+  ruleCount: number;
+  rules: ProtocolExtractRuleItem[];
+  storeDir: string;
+  resultPath: string;
+}
+
+export async function runProtocolExtract(payload: RunProtocolExtractPayload) {
+  const formData = new FormData();
+  formData.append('apiKey', payload.apiKey);
+  formData.append('protocol', payload.protocol);
+  formData.append('version', payload.version);
+  formData.append('htmlFile', payload.htmlFile);
+  if (payload.filterHeadings) {
+    formData.append('filterHeadings', '1');
+  }
+
+  // ✅ 发送请求
+  const res = await requestClient.post(
+    '/protocol-compliance/extract/run',
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    },
+  );
+
+  // ✅ 自动兼容各种返回结构
+  const data = res?.data ?? res;
+
+  // 兼容数组格式、对象格式、嵌套 data 结构
+  const rules = Array.isArray(data)
+    ? data
+    : Array.isArray(data.rules)
+      ? data.rules
+      : Array.isArray(data.result)
+        ? data.result
+        : Array.isArray(data.data?.rules)
+          ? data.data.rules
+          : [];
+
+  // ✅ 兼容附加字段（若后端没返回则设默认值）
+  return {
+    rules,
+    storeDir: data.storeDir || '',
+    resultPath: data.resultPath || '',
+    version: data.version || '',
+    protocol: data.protocol || payload.protocol,
+    ruleCount: rules.length || 0,
+  };
+}

@@ -1,0 +1,468 @@
+Heading: 3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.6. Form and Meaning of References to Managed Objects -> 3.2.6.3. Identification of Object Instances -> 3.2.6.3.1. ifTable Object Type Names
+Sentence: The name of a subnet interface, s, is the OBJECT IDENTIFIER value of the form i, where i has the value of the ifIndex object type instance associated with s.
+Matched specifyKeywords: value, OBJECT IDENTIFIER
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.6. Form and Meaning of References to Managed Objects -> 3.2.6.3. Identification of Object Instances -> 3.2.6.3.3. ipAddrTable Object Type Names
+Sentence: The name of an IP-addressable network element, x, is the OBJECT IDENTIFIER of the form a.b.c.d such that a.b.c.d is the value (in the familiar "dot" notation) of that instance of the ipAdEntAddr object type associated with x.
+Matched specifyKeywords: value, OBJECT IDENTIFIER
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.6. Form and Meaning of References to Managed Objects -> 3.2.6.3. Identification of Object Instances -> 3.2.6.3.2. atTable Object Type Names
+Sentence: The name of an AT-cached network address, x, is an OBJECT IDENTIFIER of the form 1.a.b.c.d, where a.b.c.d is the value (in the familiar "dot" notation) of the atNetAddress object type associated with x.
+Matched specifyKeywords: value, OBJECT IDENTIFIER
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.6. Form and Meaning of References to Managed Objects -> 3.2.6.3. Identification of Object Instances -> 3.2.6.3.2. atTable Object Type Names
+Sentence: The name of an address translation equivalence e is an OBJECT IDENTIFIER value of the form s.w, such that s is the value of the instance of the atIndex object type associated with e and such that w is the name of the AT-cached network address associated with e.
+Matched specifyKeywords: value, OBJECT IDENTIFIER
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.3. Operations Supported on Management Information
+Sentence: The SNMP models all management agent functions as alterations or inspections of variables.
+Matched specifyKeywords: variable, variables
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.3. Operations Supported on Management Information
+Sentence: Thus, a protocol entity on a logically remote host (possibly the network element itself) interacts with the management agent resident on the network element in order to retrieve (get) or alter (set) variables.
+Matched specifyKeywords: variable, variables
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.6. Form and Meaning of References to Managed Objects -> 3.2.6.3. Identification of Object Instances -> 3.2.6.3.4. ipRoutingTable Object Type Names
+Sentence: The name of an IP route, x, is the OBJECT IDENTIFIER of the form a.b.c.d such that a.b.c.d is the value (in the familiar "dot" notation) of that instance of the ipRouteDest object type associated with x.
+Matched specifyKeywords: value, OBJECT IDENTIFIER
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.6. Form and Meaning of References to Managed Objects -> 3.2.6.3. Identification of Object Instances -> 3.2.6.3.6. egpNeighTable Object Type Names
+Sentence: The name of an EGP neighbor, x, is the OBJECT IDENTIFIER of the form a.b.c.d such that a.b.c.d is the value (in the familiar "dot" notation) of that instance of the egpNeighAddr object type associated with x.
+Matched specifyKeywords: value, OBJECT IDENTIFIER
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.6. Form and Meaning of References to Managed Objects -> 3.2.6.3. Identification of Object Instances
+Sentence: Each instance of any object type defined in the MIB is identified in SNMP operations by a unique name called its "variable name." In general, the name of an SNMP variable is an OBJECT IDENTIFIER of the form x.y, where x is the name of a non-aggregate object type defined in the MIB and y is an OBJECT IDENTIFIER fragment that, in a way specific to the named object type, identifies the desired instance.
+Matched specifyKeywords: variable, OBJECT IDENTIFIER
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.6. Form and Meaning of References to Managed Objects -> 3.2.6.3. Identification of Object Instances
+Sentence: This naming strategy admits the fullest exploitation of the semantics of the GetNextRequest-PDU (see Section 4), because the strategy assigns names for related variables so as to be contiguous in the lexicographical ordering of all variable names known in the MIB.
+Matched specifyKeywords: GetNextRequest-PDU, variable, variables
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.6. Form and Meaning of References to Managed Objects -> 3.2.6.3. Identification of Object Instances -> 3.2.6.3.5. tcpConnTable Object Type Names
+Sentence: The name of a TCP connection x is the OBJECT IDENTIFIER of the form a.b.c.d.e.f.g.h.i.j, where a.b.c.d is the value (in the familiar "dot" notation) of the tcpConnLocalAddress object type instance associated with x, f.g.h.i is the value (in the familiar "dot" notation) of the tcpConnRemoteAddress object type instance associated with x, e is the value of the tcpConnLocalPort object type instance associated with x, and j is the value of the tcpConnRemotePort object type instance associated with x.
+Matched specifyKeywords: value, OBJECT IDENTIFIER
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.4. The GetResponse-PDU
+Sentence: The form of the GetResponse-PDU is identical to that of the GetRequest-PDU except for the indication of the PDU type.
+Matched specifyKeywords: GetRequest-PDU, GetResponse-PDU
+Matched modalKeywords: 
+Matched comparativeKeywords: is identical to, identical to
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.4. The GetResponse-PDU
+Sentence: In the ASN.1 language, the GetResponse-PDU is defined as: GetResponse-PDU ::= [2] IMPLICIT SEQUENCE { request-id RequestID, error-status ErrorStatus, error-index ErrorIndex, variable-bindings VarBindList }.
+Matched specifyKeywords: RequestID, VarBind, variable, ErrorIndex, GetResponse-PDU, ErrorStatus, VarBindList, variable-bindings
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.4. The GetResponse-PDU
+Sentence: The GetResponse-PDU is generated by a protocol entity only upon receipt of the GetRequest-PDU, GetNextRequest-PDU, or SetRequest-PDU, as described elsewhere in this document.
+Matched specifyKeywords: GetNextRequest-PDU, GetRequest-PDU, GetResponse-PDU, SetRequest-PDU
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.6. The Trap-PDU -> 4.1.6.3. The linkDown Trap
+Sentence: The Trap-PDU of type linkDown contains as the first element of its variable-bindings, the name and value of the ifIndex instance for the affected interface.
+Matched specifyKeywords: variable, value, Trap-PDU, variable-bindings
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.1. Common Constructs
+Sentence: Before introducing the six PDU types of the protocol, it is appropriate to consider some of the ASN.1 constructs used frequently: request/response information includes RequestID defined as INTEGER, ErrorStatus defined as INTEGER with values noError(0), tooBig(1), noSuchName(2), badValue(3), readOnly(4), genErr(5), and ErrorIndex defined as INTEGER.
+Matched specifyKeywords: RequestID, PDU types, ErrorIndex, ErrorStatus, value
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.1. Common Constructs
+Sentence: Variable bindings include VarBind defined as SEQUENCE containing name ObjectName and value ObjectSyntax, and VarBindList defined as SEQUENCE OF VarBind.
+Matched specifyKeywords: VarBind, ObjectSyntax, value, VarBindList, ObjectName
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.1. Common Constructs
+Sentence: In these cases, ErrorIndex may provide additional information by indicating which variable in a list caused the exception.
+Matched specifyKeywords: variable, ErrorIndex
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.1. Common Constructs
+Sentence: A variable binding, or VarBind, refers to the pairing of the name of a variable to the variable's value.
+Matched specifyKeywords: variable binding, VarBind, variable, value
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.1. Common Constructs
+Sentence: A VarBindList is a simple list of variable names and corresponding values.
+Matched specifyKeywords: VarBind, list of variable names and corresponding values, variable, value, VarBindList
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.1. Common Constructs
+Sentence: Some PDUs are concerned only with the name of a variable and not its value (e.g., the GetRequest-PDU).
+Matched specifyKeywords: GetRequest-PDU, variable, PDUs, value
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.1. Common Constructs
+Sentence: However, the value portion must still have valid ASN.1 syntax and encoding.
+Matched specifyKeywords: value
+Matched modalKeywords: must
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.1. Common Constructs
+Sentence: It is recommended that the ASN.1 value NULL be used for the value portion of such bindings.
+Matched specifyKeywords: value
+Matched modalKeywords: It is recommended that
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification
+Sentence: The network management protocol is an application protocol by which the variables of an agent's MIB may be inspected or altered.
+Matched specifyKeywords: variable, variables
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification
+Sentence: A message consists of a version identifier, an SNMP community name, and a protocol data unit (PDU).
+Matched specifyKeywords: SNMP community name, community name, version identifier, protocol data unit
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification
+Sentence: A protocol entity receives messages at UDP port 161 on the host with which it is associated for all messages except for those which report traps (i.e., all messages except those which contain the Trap-PDU).
+Matched specifyKeywords: trap, Trap-PDU
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification
+Sentence: Messages which report traps should be received on UDP port 162 for further processing.
+Matched specifyKeywords: trap
+Matched modalKeywords: should
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification
+Sentence: It is mandatory that all implementations of the SNMP support the five PDUs: GetRequest-PDU, GetNextRequest-PDU, GetResponse-PDU, SetRequest-PDU, and Trap-PDU.
+Matched specifyKeywords: GetNextRequest-PDU, GetRequest-PDU, PDUs, GetResponse-PDU, SetRequest-PDU, Trap-PDU
+Matched modalKeywords: It is mandatory that
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification
+Sentence: The RFC1157-SNMP definitions begin with imports of ObjectName, ObjectSyntax, NetworkAddress, IpAddress, and TimeTicks from RFC1155-SMI.
+Matched specifyKeywords: TimeTicks, ObjectSyntax, ObjectName, NetworkAddress
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification
+Sentence: The top-level message is defined as a sequence containing version (version-1 for this RFC as integer with value 0), community (community name as octet string), and data (such as PDUs if trivial authentication is being used).
+Matched specifyKeywords: version-1, community name, PDUs, value
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification
+Sentence: Protocol data units are defined as a choice of get-request GetRequest-PDU, get-next-request GetNextRequest-PDU, get-response GetResponse-PDU, set-request SetRequest-PDU, and trap Trap-PDU.
+Matched specifyKeywords: trap, GetNextRequest-PDU, Protocol data units, GetRequest-PDU, GetResponse-PDU, SetRequest-PDU, Trap-PDU
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.6. The Trap-PDU -> 4.1.6.4. The linkUp Trap
+Sentence: The Trap-PDU of type linkUp contains as the first element of its variable-bindings, the name and value of the ifIndex instance for the affected interface.
+Matched specifyKeywords: variable, value, Trap-PDU, variable-bindings
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.6. The Trap-PDU -> 4.1.6.7. The enterpriseSpecific Trap
+Sentence: A enterpriseSpecific(6) trap signifies that the sending protocol entity recognizes that some enterprise-specific event has occurred.
+Matched specifyKeywords: trap, enterprise
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.6. The Trap-PDU -> 4.1.6.7. The enterpriseSpecific Trap
+Sentence: The specific-trap field identifies the particular trap which occurred.
+Matched specifyKeywords: trap, specific-trap
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.6. The Trap-PDU -> 4.1.6.5. The authenticationFailure Trap
+Sentence: While implementations of the SNMP must be capable of generating the authenticationFailure trap, the implementations must also be capable of suppressing the emission of such traps via an implementation-specific mechanism.
+Matched specifyKeywords: trap
+Matched modalKeywords: must
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.6. The Trap-PDU
+Sentence: The form of the Trap-PDU is: Trap-PDU ::= [4] IMPLICIT SEQUENCE { enterprise OBJECT IDENTIFIER, agent-addr NetworkAddress, generic-trap INTEGER, specific-trap INTEGER, time-stamp TimeTicks, variable-bindings VarBindList } The Trap-PDU is generated by a protocol entity only at the request of the SNMP application entity.
+Matched specifyKeywords: trap, TimeTicks, enterprise, time-stamp, VarBind, variable, specific-trap, generic-trap, VarBindList, agent-addr, NetworkAddress, Trap-PDU, variable-bindings, OBJECT IDENTIFIER
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.6. The Trap-PDU
+Sentence: The significance of the variable-bindings component of the Trap-PDU is implementation-specific.
+Matched specifyKeywords: variable, Trap-PDU, variable-bindings
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.6. The Trap-PDU
+Sentence: Interpretations of the value of the generic-trap field are implementation-specific.
+Matched specifyKeywords: trap, generic-trap, value
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.2. The GetRequest-PDU
+Sentence: The form of the GetRequest-PDU is: GetRequest-PDU ::= [0] IMPLICIT SEQUENCE { request-id RequestID, error-status ErrorStatus, error-index ErrorIndex, variable-bindings VarBindList }.
+Matched specifyKeywords: RequestID, VarBind, GetRequest-PDU, variable, ErrorIndex, ErrorStatus, VarBindList, variable-bindings
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.2. The GetRequest-PDU
+Sentence: Upon receipt of the GetRequest-PDU, the receiving protocol entity responds according to any applicable rule in the list below: (1) If, for any object named in the variable-bindings field, the object's name does not exactly match the name of some object available for get operations in the relevant MIB view, then the receiving entity sends to the originator of the received message the GetResponse-PDU of identical form, except that the value of the error-status field is noSuchName, and the value of the error-index field is the index of said object name component in the received message.
+Matched specifyKeywords: object name, GetRequest-PDU, variable, GetResponse-PDU, value, object's name, variable-bindings
+Matched modalKeywords: 
+Matched comparativeKeywords: exactly match, identical form
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.2. The GetRequest-PDU
+Sentence: (2) If, for any object named in the variable-bindings field, the object is an aggregate type (as defined in the SMI), then the receiving entity sends to the originator of the received message the GetResponse-PDU of identical form, except that the value of the error-status field is noSuchName, and the value of the error-index field is the index of said object name component in the received message.
+Matched specifyKeywords: object name, variable, GetResponse-PDU, value, variable-bindings
+Matched modalKeywords: 
+Matched comparativeKeywords: identical form
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.2. The GetRequest-PDU
+Sentence: (3) If the size of the GetResponse-PDU generated as described below would exceed a local limitation, then the receiving entity sends to the originator of the received message the GetResponse-PDU of identical form, except that the value of the error-status field is tooBig, and the value of the error-index field is zero.
+Matched specifyKeywords: GetResponse-PDU, value
+Matched modalKeywords: 
+Matched comparativeKeywords: identical form, exceed
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.2. The GetRequest-PDU
+Sentence: (4) If, for any object named in the variable-bindings field, the value of the object cannot be retrieved for reasons not covered by any of the foregoing rules, then the receiving entity sends to the originator of the received message the GetResponse-PDU of identical form, except that the value of the error-status field is genErr and the value of the error-index field is the index of said object name component in the received message.
+Matched specifyKeywords: object name, variable, GetResponse-PDU, value, variable-bindings
+Matched modalKeywords: 
+Matched comparativeKeywords: identical form
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.2. The GetRequest-PDU
+Sentence: If none of the foregoing rules apply, then the receiving protocol entity sends to the originator of the received message the GetResponse-PDU such that, for each object named in the variable- bindings field of the received message, the corresponding component of the GetResponse-PDU represents the name and value of that variable.
+Matched specifyKeywords: object name, variable, GetResponse-PDU, value
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.2. The GetRequest-PDU
+Sentence: The value of the error-status field of the GetResponse-PDU is noError and the value of the error-index field is zero.
+Matched specifyKeywords: GetResponse-PDU, value
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.2. The GetRequest-PDU
+Sentence: The value of the request-id field of the GetResponse-PDU is that of the received GetRequest-PDU message.
+Matched specifyKeywords: GetRequest-PDU, GetResponse-PDU, value
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.6. The Trap-PDU -> 4.1.6.6. The egpNeighborLoss Trap
+Sentence: The Trap-PDU of type egpNeighborLoss contains as the first element of its variable-bindings, the name and value of the egpNeighAddr instance for the affected neighbor.
+Matched specifyKeywords: variable, value, Trap-PDU, variable-bindings
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.3. The GetNextRequest-PDU
+Sentence: The form of the GetNextRequest-PDU is identical to that of the GetRequest-PDU except for the indication of the PDU type.
+Matched specifyKeywords: GetNextRequest-PDU, GetRequest-PDU
+Matched modalKeywords: 
+Matched comparativeKeywords: is identical to, identical to
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.3. The GetNextRequest-PDU
+Sentence: Upon receipt of the GetNextRequest-PDU, the receiving protocol entity responds according to any applicable rule in the list below: (1) If, for any object name in the variable-bindings field, that name does not lexicographically precede the name of some object available for get operations in the relevant MIB view, then the receiving entity sends to the originator of the received message the GetResponse-PDU of identical form, except that the value of the error-status field is noSuchName, and the value of the error-index field is the index of said object name component in the received message.
+Matched specifyKeywords: GetNextRequest-PDU, object name, variable, GetResponse-PDU, value, variable-bindings
+Matched modalKeywords: 
+Matched comparativeKeywords: identical form
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.3. The GetNextRequest-PDU
+Sentence: (2) If the size of the GetResponse-PDU generated as described below would exceed a local limitation, then the receiving entity sends to the originator of the received message the GetResponse-PDU of identical form, except that the value of the error-status field is tooBig, and the value of the error-index field is zero.
+Matched specifyKeywords: GetResponse-PDU, value
+Matched modalKeywords: 
+Matched comparativeKeywords: identical form, exceed
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.3. The GetNextRequest-PDU
+Sentence: (3) If, for any object named in the variable-bindings field, the value of the lexicographical successor to the named object cannot be retrieved for reasons not covered by any of the foregoing rules, then the receiving entity sends to the originator of the received message the GetResponse-PDU of identical form, except that the value of the error-status field is genErr and the value of the error-index field is the index of said object name component in the received message.
+Matched specifyKeywords: object name, variable, GetResponse-PDU, value, variable-bindings
+Matched modalKeywords: 
+Matched comparativeKeywords: identical form
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.3. The GetNextRequest-PDU
+Sentence: If none of the foregoing rules apply, then the receiving protocol entity sends to the originator of the received message the GetResponse-PDU such that, for each name in the variable-bindings field of the received message, the corresponding component of the GetResponse-PDU represents the name and value of that object whose name is, in the lexicographical ordering of the names of all objects available for get operations in the relevant MIB view, the immediate successor to the value of the name field of the given component.
+Matched specifyKeywords: variable, GetResponse-PDU, value, variable-bindings
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.3. The GetNextRequest-PDU
+Sentence: The value of the error-status field of the GetResponse-PDU is noError and the value of the error-index field is zero.
+Matched specifyKeywords: GetResponse-PDU, value
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.3. The GetNextRequest-PDU
+Sentence: The value of the request-id field of the GetResponse-PDU is that of the received GetNextRequest-PDU message.
+Matched specifyKeywords: GetNextRequest-PDU, GetResponse-PDU, value
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.5. The SetRequest-PDU
+Sentence: The form of the SetRequest-PDU is identical to that of the GetRequest-PDU except for the indication of the PDU type.
+Matched specifyKeywords: GetRequest-PDU, SetRequest-PDU
+Matched modalKeywords: 
+Matched comparativeKeywords: is identical to, identical to
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.5. The SetRequest-PDU
+Sentence: In ASN.1 language, the SetRequest-PDU is defined as [3] IMPLICIT SEQUENCE containing request-id RequestID, error-status ErrorStatus (always 0), error-index ErrorIndex (always 0), and variable-bindings VarBindList.
+Matched specifyKeywords: RequestID, VarBind, variable, ErrorIndex, ErrorStatus, SetRequest-PDU, VarBindList, variable-bindings
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.5. The SetRequest-PDU
+Sentence: Upon receipt of the SetRequest-PDU, the receiving entity responds according to any applicable rule in the list below: (1) If, for any object named in the variable-bindings field, the object is not available for set operations in the relevant MIB view, then the receiving entity sends to the originator of the received message the GetResponse-PDU of identical form, except that the value of the error-status field is noSuchName, and the value of the error-index field is the index of said object name component in the received message.
+Matched specifyKeywords: object name, variable, GetResponse-PDU, SetRequest-PDU, value, variable-bindings
+Matched modalKeywords: 
+Matched comparativeKeywords: identical form
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.5. The SetRequest-PDU
+Sentence: (2) If, for any object named in the variable-bindings field, the contents of the value field does not, according to the ASN.1 language, manifest a type, length, and value that is consistent with that required for the variable, then the receiving entity sends to the originator of the received message the GetResponse-PDU of identical form, except that the value of the error-status field is badValue, and the value of the error-index field is the index of said object name in the received message.
+Matched specifyKeywords: object name, variable, GetResponse-PDU, value, variable-bindings
+Matched modalKeywords: 
+Matched comparativeKeywords: consistent with, identical form
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.5. The SetRequest-PDU
+Sentence: (3) If the size of the Get Response type message generated as described below would exceed a local limitation, then the receiving entity sends to the originator of the received message the GetResponse-PDU of identical form, except that the value of the error-status field is tooBig, and the value of the error-index field is zero.
+Matched specifyKeywords: GetResponse-PDU, value
+Matched modalKeywords: 
+Matched comparativeKeywords: identical form, exceed
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.5. The SetRequest-PDU
+Sentence: (4) If, for any object named in the variable-bindings field, the value of the named object cannot be altered for reasons not covered by any of the foregoing rules, then the receiving entity sends to the originator of the received message the GetResponse-PDU of identical form, except that the value of the error-status field is genErr and the value of the error-index field is the index of said object name component in the received message.
+Matched specifyKeywords: object name, variable, GetResponse-PDU, value, variable-bindings
+Matched modalKeywords: 
+Matched comparativeKeywords: identical form
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.5. The SetRequest-PDU
+Sentence: If none of the foregoing rules apply, then for each object named in the variable-bindings field of the received message, the corresponding value is assigned to the variable.
+Matched specifyKeywords: object name, variable, value, variable-bindings
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.5. The SetRequest-PDU
+Sentence: Each variable assignment specified by the SetRequest-PDU should be effected as if simultaneously set with respect to all other assignments specified in the same message.
+Matched specifyKeywords: variable, SetRequest-PDU
+Matched modalKeywords: should
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.5. The SetRequest-PDU
+Sentence: The receiving entity then sends to the originator of the received message the GetResponse-PDU of identical form except that the value of the error-status field of the generated message is noError and the value of the error-index field is zero.
+Matched specifyKeywords: GetResponse-PDU, value
+Matched modalKeywords: 
+Matched comparativeKeywords: identical form
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.3. The GetNextRequest-PDU -> 4.1.3.1. Example of Table Traversal
+Sentence: The management station sends to the SNMP agent a GetNextRequest-PDU containing the indicated OBJECT IDENTIFIER values as the requested variable names: ipRouteDest, ipRouteNextHop, and ipRouteMetric1.
+Matched specifyKeywords: GetNextRequest-PDU, variable, value, OBJECT IDENTIFIER
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.3. The GetNextRequest-PDU -> 4.1.3.1. Example of Table Traversal
+Sentence: The SNMP agent responds with a GetResponse-PDU containing ipRouteDest.9.1.2.3 with value "9.1.2.3", ipRouteNextHop.9.1.2.3 with value "99.0.0.3", and ipRouteMetric1.9.1.2.3 with value 3.
+Matched specifyKeywords: GetResponse-PDU, value
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.5. Definition of Administrative Relationships
+Sentence: An SNMP message originated by an SNMP application entity that belongs to the SNMP community named by the community component of that message is called an authentic SNMP message.
+Matched specifyKeywords: SNMP community name, community component, community name
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.5. Definition of Administrative Relationships
+Sentence: Note that the names of the object types represented in a SNMP MIB view need not belong to a single sub-tree of the object type name space.
+Matched specifyKeywords: names of the object types, object type name
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.5. Definition of Administrative Relationships
+Sentence: A SNMP community profile represents specified access privileges to variables in a specified MIB view.
+Matched specifyKeywords: variable, variables
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.5. Definition of Administrative Relationships
+Sentence: For every variable in the MIB view in a given SNMP community profile, access to that variable is represented by the profile according to the following conventions: (1) if the variable is defined in the MIB with "Access:" of "none," it is unavailable as an operand for any operator; (2) if the variable is defined in the MIB with "Access:" of "read-write" or "write-only" and the access mode of the given profile is READ-WRITE, that variable is available as an operand for the get, set, and trap operations; (3) otherwise, the variable is available as an operand for the get and trap operations.
+Matched specifyKeywords: trap, variable
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.5. Definition of Administrative Relationships
+Sentence: (4) In those cases where a "write-only" variable is an operand used for the get or trap operations, the value given for the variable is implementation-specific.
+Matched specifyKeywords: trap, variable, value
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.5. Definition of Administrative Relationships
+Sentence: For example, a proxy agent may implement sophisticated access control whereby diverse subsets of variables within the MIB are made accessible to different management stations without increasing the complexity of the network element.
+Matched specifyKeywords: variable, variables
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 5. Definitions
+Sentence: RFC1157-SNMP DEFINITIONS begin with imports of ObjectName, ObjectSyntax, NetworkAddress, IpAddress, and TimeTicks from RFC1155-SMI.
+Matched specifyKeywords: TimeTicks, ObjectSyntax, ObjectName, NetworkAddress
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 5. Definitions
+Sentence: The top-level message is defined as a sequence containing version (version-1 for this RFC as integer with value 0), community (community name as octet string), and data (for example, PDUs if trivial authentication is being used as any type).
+Matched specifyKeywords: version-1, community name, PDUs, value
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 5. Definitions
+Sentence: Protocol data units (PDUs) are defined as a choice of get-request GetRequest-PDU, get-next-request GetNextRequest-PDU, get-response GetResponse-PDU, set-request SetRequest-PDU, and trap Trap-PDU.
+Matched specifyKeywords: trap, GetNextRequest-PDU, Protocol data units, GetRequest-PDU, PDUs, GetResponse-PDU, SetRequest-PDU, Trap-PDU
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 5. Definitions
+Sentence: GetRequest-PDU is defined as [0] implicit PDU, GetNextRequest-PDU as [1] implicit PDU, GetResponse-PDU as [2] implicit PDU, and SetRequest-PDU as [3] implicit PDU.
+Matched specifyKeywords: GetNextRequest-PDU, GetRequest-PDU, GetResponse-PDU, SetRequest-PDU
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 5. Definitions
+Sentence: PDU is defined as a sequence containing request-id integer, error-status integer (sometimes ignored with values noError(0), tooBig(1), noSuchName(2), badValue(3), readOnly(4), genErr(5)), error-index integer (sometimes ignored), and variable-bindings VarBindList (values are sometimes ignored).
+Matched specifyKeywords: VarBind, variable, value, VarBindList, variable-bindings
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 5. Definitions
+Sentence: Trap-PDU is defined as [4] implicit sequence containing enterprise OBJECT IDENTIFIER (type of object generating trap, see sysObjectID in reference 5), agent-addr NetworkAddress (address of object generating trap), generic-trap integer (generic trap type with values coldStart(0), warmStart(1), linkDown(2), linkUp(3), authenticationFailure(4), egpNeighborLoss(5), enterpriseSpecific(6)), specific-trap integer (specific code, present even if generic-trap is not enterpriseSpecific), time-stamp TimeTicks (time elapsed between the last reinitialization of the network entity and the generation of the trap), and variable-bindings VarBindList (interesting information).
+Matched specifyKeywords: trap, TimeTicks, enterprise, time-stamp, VarBind, variable, specific-trap, generic-trap, value, VarBindList, agent-addr, NetworkAddress, Trap-PDU, variable-bindings, OBJECT IDENTIFIER
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------
+Heading: 5. Definitions
+Sentence: Variable bindings are defined with VarBind as a sequence containing name ObjectName and value ObjectSyntax, and VarBindList as a sequence of VarBind.
+Matched specifyKeywords: VarBind, ObjectSyntax, value, VarBindList, ObjectName
+Matched modalKeywords: 
+Matched comparativeKeywords: 
+--------------------------------------------------

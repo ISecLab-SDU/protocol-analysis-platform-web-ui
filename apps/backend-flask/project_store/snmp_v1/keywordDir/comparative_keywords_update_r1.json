@@ -1,0 +1,83 @@
+{
+  "3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.6. Form and Meaning of References to Managed Objects -> 3.2.6.3. Identification of Object Instances -> 3.2.6.3.3. ipAddrTable Object Type Names": {},
+  "3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.4. Form and Meaning of Protocol Exchanges": {},
+  "3. The SNMP Architecture": {},
+  "3. The SNMP Architecture -> 3.2. Elements of the Architecture": {},
+  "3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.6. Form and Meaning of References to Managed Objects": {},
+  "1. Status of this Memo": {},
+  "3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.1. Scope of Management Information": {},
+  "3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.6. Form and Meaning of References to Managed Objects -> 3.2.6.2. Resolution of References across MIB Versions": {},
+  "3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.6. Form and Meaning of References to Managed Objects -> 3.2.6.1. Resolution of Ambiguous MIB References": {},
+  "3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.6. Form and Meaning of References to Managed Objects -> 3.2.6.3. Identification of Object Instances -> 3.2.6.3.1. ifTable Object Type Names": {},
+  "3. The SNMP Architecture -> 3.1. Goals of the Architecture": {},
+  "3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.6. Form and Meaning of References to Managed Objects -> 3.2.6.3. Identification of Object Instances -> 3.2.6.3.2. atTable Object Type Names": {},
+  "3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.6. Form and Meaning of References to Managed Objects -> 3.2.6.3. Identification of Object Instances": {},
+  "3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.3. Operations Supported on Management Information": {},
+  "3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.2. Representation of Management Information": {},
+  "3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.6. Form and Meaning of References to Managed Objects -> 3.2.6.3. Identification of Object Instances -> 3.2.6.3.6. egpNeighTable Object Type Names": {},
+  "4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.6. The Trap-PDU -> 4.1.6.1. The coldStart Trap": {},
+  "2. Introduction": {},
+  "4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.6. The Trap-PDU -> 4.1.6.2. The warmStart Trap": {},
+  "3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.6. Form and Meaning of References to Managed Objects -> 3.2.6.3. Identification of Object Instances -> 3.2.6.3.5. tcpConnTable Object Type Names": {},
+  "4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.4. The GetResponse-PDU": {
+    "is identical to": [
+      "identical to"
+    ]
+  },
+  "4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.6. The Trap-PDU -> 4.1.6.3. The linkDown Trap": {},
+  "4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.1. Common Constructs": {},
+  "3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.6. Form and Meaning of References to Managed Objects -> 3.2.6.3. Identification of Object Instances -> 3.2.6.3.4. ipRoutingTable Object Type Names": {
+    "is equal to": [
+      "is the value"
+    ],
+    "is identical to": [
+      "is the form"
+    ],
+    "is dependent on": [
+      "associated with"
+    ]
+  },
+  "4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.6. The Trap-PDU -> 4.1.6.4. The linkUp Trap": {},
+  "4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.6. The Trap-PDU -> 4.1.6.7. The enterpriseSpecific Trap": {},
+  "4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.6. The Trap-PDU -> 4.1.6.5. The authenticationFailure Trap": {},
+  "4. Protocol Specification": {},
+  "4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.6. The Trap-PDU": {},
+  "4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.6. The Trap-PDU -> 4.1.6.6. The egpNeighborLoss Trap": {},
+  "6. Acknowledgements": {},
+  "4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.3. The GetNextRequest-PDU": {
+    "is identical to": [
+      "is identical to"
+    ],
+    "precedes": [
+      "precedes"
+    ]
+  },
+  "4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.2. The GetRequest-PDU": {
+    "matches": [
+      "exactly match"
+    ],
+    "is identical to": [
+      "identical form"
+    ],
+    "exceeds": [
+      "exceed"
+    ]
+  },
+  "4. Protocol Specification -> 4.1. Elements of Procedure": {
+    "is identical to": [
+      "shall be identical to"
+    ]
+  },
+  "3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.5. Definition of Administrative Relationships": {},
+  "4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.5. The SetRequest-PDU": {
+    "is identical to": [
+      "identical form",
+      "identical to"
+    ],
+    "is consistent with": [
+      "consistent with"
+    ]
+  },
+  "4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.3. The GetNextRequest-PDU -> 4.1.3.1. Example of Table Traversal": {},
+  "5. Definitions": {}
+}

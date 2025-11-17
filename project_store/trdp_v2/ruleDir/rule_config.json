@@ -1,0 +1,11 @@
+{
+  "paths": {
+    "paragraph_output": "project_store\\trdp_v2\\keywordDir\\paragraphs_output.json",
+    "final_output": "project_store\\trdp_v2\\keywordDir\\keywords_final.json",
+    "json_sentences": "project_store\\trdp_v2\\ruleDir\\filtered_sentences.json",
+    "txt_sentences": "project_store\\trdp_v2\\ruleDir\\matched_sentences.txt",
+    "excel_sentences": "project_store\\trdp_v2\\ruleDir\\filtered_sentences.xlsx",
+    "table": "project_store\\trdp_v2\\documentDir\\tables.md",
+    "processed": "project_store\\trdp_v2\\ruleDir\\processed_results.json"
+  }
+}

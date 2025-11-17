@@ -20,12 +20,25 @@ def success_response(data: Any, message: str = "ok") -> Dict[str, Any]:
 
 def error_response(message: str, error: Optional[Any] = None) -> Dict[str, Any]:
     """Wrap an error payload in the shared error envelope."""
-    return {
-        "code": -1,
+    return make_error_payload(message, error=error)
+
+
+def make_error_payload(
+    message: str,
+    *,
+    error: Optional[Any] = None,
+    details: Optional[Any] = None,
+    code: int = -1,
+) -> Dict[str, Any]:
+    payload: Dict[str, Any] = {
+        "code": code,
         "data": None,
         "error": error,
         "message": message,
     }
+    if details is not None:
+        payload["details"] = details
+    return payload
 
 
 def paginate(
@@ -55,3 +68,4 @@ def forbidden(message: str = "Forbidden Exception") -> Tuple[Response, int]:
 def sleep(ms: int) -> None:
     """Pause execution for the specified milliseconds."""
     time.sleep(max(ms, 0) / 1000.0)
+

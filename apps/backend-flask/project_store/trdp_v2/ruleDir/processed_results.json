@@ -1,0 +1,358 @@
+[
+    {
+        "rule": "The sequenceCounter parameter in PD-PDUs shall be actively managed by both sending and receiving entities. For outgoing process telegrams, the sender shall maintain and increment this counter with each transmission. For incoming telegrams, the receiver shall store the received sequence counter value. This mechanism enables communication layer surveillance to detect application liveliness by verifying that process data is being regularly updated. The sequence counter applies to all process data exchanges and provides a means to monitor data freshness and communication continuity between TRDP devices.",
+        "req_type": "PD-PDU",
+        "req_fields": [
+            "sequenceCounter"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "When the communication pattern is configured as PULL mode (pattern == PULL), upon receiving a poll request from a subscriber, the publisher shall execute the PolledOperation by calling PD.putData to transmit the current process data and simultaneously restart the transmission timer (txTime) to maintain proper timing synchronization. This rule applies specifically to polled communication scenarios where data transmission is initiated by subscriber requests rather than publisher-driven cycles, ensuring that data is only sent when explicitly requested while maintaining the required timing parameters for subsequent operations.",
+        "req_type": "poll request",
+        "req_fields": [],
+        "res_type": "PD.putData",
+        "res_fields": [
+            "current process data",
+            "txTime"
+        ]
+    },
+    {
+        "rule": "When the PD requester state machine transitions to the \"Prepare Request\" state, the action `prepareRequestTelegram` shall be executed to generate a request telegram for one or multiple publishers. During this action, the Time parameter shall be set equal to rxTime, where rxTime represents the timeout value specified in the PD.subscribe service primitive. This timeout governs the maximum allowable response time from publishers and must be initialized prior to entering this state through a valid PD.subscribe invocation. The expected outcome is a properly formatted request telegram containing the configured timeout value, enabling subsequent timeout monitoring during the communication cycle.",
+        "req_type": "request telegram",
+        "req_fields": [
+            "Time"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "When processing a PD request, if the value of the reply field is set to 0, the responding device shall transmit the reply using an unspecified PDU type. This rule applies specifically to the reply handling mechanism in PD request-response scenarios and ensures proper protocol behavior when no specific reply type is designated. The expected outcome is that the reply will be transmitted without a defined message type, maintaining protocol compliance while allowing for flexible response handling. This condition applies only when the device is responding to a PD request and the reply parameter value explicitly equals 0.",
+        "req_type": "PD request",
+        "req_fields": [
+            "reply"
+        ],
+        "res_type": "unspecified PDU type",
+        "res_fields": []
+    },
+    {
+        "rule": "The reserved field in the PD-PDU shall be set to 0 and used exclusively in PD request messages; it must not be utilized in PD reply messages or any other PD-PDU types. When this field is present in a PD request, it serves as reserved space for future protocol extensions while maintaining current compatibility. If a PD reply is required and the reply content is empty (0), the response shall be transmitted as an unspecified PDU rather than repurposing the reserved field. This ensures proper protocol version management and forward compatibility while preventing misuse of reserved protocol space.",
+        "req_type": "PD request",
+        "req_fields": [
+            "reserved field"
+        ],
+        "res_type": "PD reply",
+        "res_fields": []
+    },
+    {
+        "rule": "The Communication Identifier (ComId) must be set to zero (ComId = 0) when transmitting Protocol Data Units (PDUs) that contain an unspecified user dataset. This applies specifically during protocol initialization, diagnostic exchanges, or when transmitting PDUs without defined application data structures. The zero ComId value signals that the PDU does not correspond to any standardized dataset definition and should be processed accordingly by receiving entities. This rule ensures proper protocol operation when no specific dataset mapping exists, while maintaining the fundamental requirement that ComId values 1-999 remain reserved for system purposes.",
+        "req_type": "Protocol Data Units (PDUs)",
+        "req_fields": [
+            "Communication Identifier (ComId)"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "In the TRDP v2 pull communication pattern for process data exchange, when a dedicated subscriber initiates a request to one or multiple publishers whose identities are not known in advance, the subscriber shall broadcast or multicast a PD-PDU request. This rule applies when the subscriber does not have prior knowledge of publisher addresses but expects to receive process data from any responding publishers in the network. The expected outcome is that any publisher configured to respond to such requests shall transmit its PD-PDU data to the subscriber. This pattern requires that the network supports broadcast/multicast communication and that publishers are configured to listen and respond to these general requests.",
+        "req_type": "PD-PDU request",
+        "req_fields": [],
+        "res_type": "PD-PDU data",
+        "res_fields": []
+    },
+    {
+        "rule": "In the TRDP PD Push pattern, when a subscriber has successfully subscribed to a process data telegram using ComID and destination IP address, and timeout supervision has been initiated, the subscriber TRDP layer must restart the timeout supervision timer upon receiving each valid process data telegram that matches the subscription criteria. This applies specifically after the subscriber TRDP layer has verified the topography counters of the received telegram and confirmed its validity. The expected outcome is continuous monitoring of data flow continuity, where the timeout supervision remains active but resets with each valid data reception, ensuring timely detection of communication failures while preventing false timeout triggers during normal data exchange.",
+        "req_type": "process data telegram",
+        "req_fields": [
+            "ComID",
+            "destination IP address",
+            "topography counters"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "The datasetLength parameter shall contain the exact number of octets of user data payload, excluding any padding octets, and shall serve as the primary reference for determining the actual size and boundaries of the user data within the PD-PDU. This parameter must be accurately computed and set by the sender to ensure proper parsing and processing by the receiver, particularly when handling variable-length datasets. In cases where fixed-size datasets are used, this parameter may be redundant but must still be provided for protocol consistency. The value shall be within the range of 0 to 1432 octets as defined by the protocol constraints.",
+        "req_type": "PD-PDU",
+        "req_fields": [
+            "datasetLength"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "All TRDP communication must include a Communication Identifier (ComId) in the header of each Protocol Data Unit (PDU). This rule applies to every PDU transmission in the protocol flow and ensures that each message can be uniquely identified when combined with source and destination IP addresses. The ComId must correspond to a specific dataset structure and be standardized within application profiles. Exceptions include: ComId = 0 for PDUs with unspecified user datasets, and ComIds 1-999 are reserved for protocol-specific purposes and must not be used by applications. Proper implementation ensures correct message routing, processing, and compliance with TRDP addressing requirements.",
+        "req_type": "Protocol Data Unit (PDU)",
+        "req_fields": [
+            "Communication Identifier (ComId)",
+            "source IP address",
+            "destination IP address"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "The ComId value in TRDP PDUs must maintain a strict one-to-one correspondence with the data set structure definition, meaning each unique ComId identifies exactly one specific data structure format and payload composition. This mapping applies during all protocol communication phases where PDUs are constructed, transmitted, or processed, ensuring that receivers can correctly interpret the data content based solely on the ComId value. When this rule is followed, systems can reliably parse incoming data without requiring additional structural metadata, and data integrity is maintained across the network. Prerequisites include proper ComId registration in application profiles and avoidance of reserved ComId ranges (0, 1-999), with ComId=0 being reserved exclusively for PDUs containing unspecified user datasets.",
+        "req_type": "TRDP PDU",
+        "req_fields": [
+            "ComId",
+            "data set structure definition",
+            "data structure format",
+            "payload composition"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "The structure of a Process Data Protocol Data Unit (PD-PDU) is formally specified in Figure A.11 and using ASN.1 notation, which defines the exact format and encoding of PD-PDU messages. This rule applies when implementing PD-PDU communication in TRDP v2 systems, where the protocol supports three distinct IEC roles: subscribers (receiving data), publishers (sending data), and requesters (initiating request-reply exchanges). The expected outcome is correct message construction and interpretation according to the defined structure, enabling interoperable data exchange between TRDP-compliant devices. Prerequisites include understanding the PD-PDU header fields, data payload format, and the specific role (subscriber, publisher, or requester) that a device assumes in the communication flow.",
+        "req_type": "PD-PDU",
+        "req_fields": [
+            "PD-PDU header fields",
+            "data payload format"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "**dataset** The user data payload containing process information to be transmitted. This parameter applies when constructing or parsing PD-PDUs during process data exchange between TRDP devices. The dataset must be set by the application layer before transmission and shall be interpreted according to the comId-specific data definition. The actual content length must match the datasetLength parameter (0-1432 octets), excluding any padding. When receiving, the dataset contains the extracted user data for application processing.",
+        "req_type": "PD-PDU",
+        "req_fields": [
+            "dataset",
+            "datasetLength"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "The replyIpAddress parameter specifies the destination IP address for PD-PDU replies. This field shall be populated by the sending application and used by the receiving device to direct response telegrams back to the originating source. The rule applies when generating PD-PDU request messages that require a reply, ensuring that responses are correctly routed to the requesting device's network interface. When followed, this enables bidirectional communication by providing the necessary addressing information for reply PDUs. This parameter is mandatory for PD requests and shall be set by the user application prior to transmission.",
+        "req_type": "PD-PDU request messages",
+        "req_fields": [
+            "replyIpAddress"
+        ],
+        "res_type": "response telegrams",
+        "res_fields": []
+    },
+    {
+        "rule": "f) When an MD telegram contains an empty destinationUri field, it may be received by multiple listeners even if those listeners have different filter parameters (comId, sourceUri, or destinationUri). This exception applies specifically to telegrams with empty destinationUri and overrides the general requirement that listeners must have disjunctive filter sets. This behavior enables flexible reception of multicast-like messages by multiple subscribers with distinct filtering criteria.",
+        "req_type": "MD telegram",
+        "req_fields": [
+            "destinationUri",
+            "comId",
+            "sourceUri"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "When using the MD.addListener service primitive to register a listener with optional sourceUri and destinationUri filter parameters, if an incoming MD telegram contains an empty destinationUri field, the listener shall accept and process this telegram regardless of any destinationUri filter value specified during listener registration. This rule ensures that telegrams with empty destinationUri (which may represent potential multicast messages) are not filtered out by destination-based filtering mechanisms, allowing proper handling of broadcast-style communications within the TRDP protocol.",
+        "req_type": "MD telegram",
+        "req_fields": [
+            "destinationUri"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "This trigger governs the initiation of MD (Message Data) protocol communication when the user application calls the MD.request service primitive. It applies specifically when there is a change in the topography counters, which indicates modifications to the train's topological configuration. The rule requires that the MD protocol state machine is in a valid state to process service requests and that the topography counter change has been properly detected. When triggered, the expected outcome is the generation and transmission of an MD protocol message containing the updated topography information to ensure all receiving nodes maintain synchronized topological awareness of the train configuration.",
+        "req_type": "MD.request",
+        "req_fields": [
+            "topography counters"
+        ],
+        "res_type": "MD protocol message",
+        "res_fields": [
+            "updated topography information"
+        ]
+    },
+    {
+        "rule": "MD_PDU (Message Data Protocol Data Unit) is defined as a structured record format that encapsulates request data in the TRDP v2 protocol. This rule applies during the message composition phase when a device needs to initiate communication by sending a request to another network entity. The expected outcome is a properly formatted MD-PDU containing all necessary request elements as specified in the protocol, including header information and payload data. Prerequisites include valid session establishment and adherence to the MD-PDU structure defined in Figure A.20, ensuring interoperability between TRDP-compliant devices.",
+        "req_type": "MD-PDU",
+        "req_fields": [
+            "header information",
+            "payload data"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "In the PD Pull Pattern, while the publisher cyclically prepares and publishes process data, it must also support on-demand requests for these same PDUs. This capability allows subscribers to explicitly request the most current data at any time, independent of the regular publication cycle. The publisher's TRDP layer must respond to such requests using the latest available cyclically published data, provided the publisher has subscribed for requests and the incoming request matches its filter criteria. Topology counters in the request must be validated according to A.6.7 before processing, and the response must be sent to the request's source IP address if the reply IP address is 0.",
+        "req_type": "PD Pull request",
+        "req_fields": [
+            "topology counters",
+            "filter criteria",
+            "reply IP address"
+        ],
+        "res_type": "PD Pull response",
+        "res_fields": [
+            "latest available cyclically published data"
+        ]
+    },
+    {
+        "rule": "This rule governs the topography counter validation mechanism in TRDP v2 protocol communication between caller and replier entities. The rule applies during two critical protocol phases: (1) immediately before transmitting any telegram (including MD.request, MD.addListener, MD.reply, MD.indicate, MD.confirm, and MD.release message types), and (2) immediately after receiving any telegram. The prerequisite is that both communicating parties must maintain synchronized expected topography counter values according to the protocol state. When followed, the expected outcome is that all transmitted and received telegrams contain valid topography counters, ensuring data integrity and preventing processing of outdated or invalid messages. If counter validation fails, the telegram must be discarded and appropriate error handling procedures initiated as specified in the protocol.",
+        "req_type": "",
+        "req_fields": [],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "This rule governs the MD protocol state machine behavior for processing MD.request service primitives based on the sendType parameter. The rule applies when the caller composite state receives an MD.request with a valid sendType parameter that matches one of the defined cases in Table A.21. When sendType equals Mr (multicast with reply), the request is processed through the mdCallSession procedure. When sendType equals Mn (multicast with no reply), the state machine transitions to StateWaitForReply. The caller state exits when both missingReplies and missingConfirms counters reach zero, indicating all expected responses and confirmations have been received. This ensures proper state transitions based on the communication pattern specified in the MD.request, maintaining protocol synchronization between communicating entities.",
+        "req_type": "MD.request",
+        "req_fields": [
+            "sendType"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "The MD.indicate service primitive is used by the TRDP layer to deliver received query messages (Mq) to the application layer. This primitive applies when a query message is successfully received and processed, and its parameters must include: userReference (which matches the value originally submitted with the corresponding MD.request for query message reception), comId (as specified in Table A.18, but set to 0 if the communication identifier cannot be determined during error conditions), and userStatus (which conveys either application-specific status information or error codes). The prerequisite for this indication is that a valid query message has been received and matched to an existing MD.request, and the expected outcome is that the application can properly identify and process the incoming query using these parameters.",
+        "req_type": "Mq",
+        "req_fields": [
+            "userReference",
+            "comId",
+            "userStatus"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "The guards description defines the sendType parameter of the MD request telegram as requested by the user in the MD.request service primitive, governing how the MD protocol state machine processes different communication patterns. This rule applies during MD session initiation when the caller prepares to send a request, requiring that the sendType parameter, NoOfRepliers length, and topography counter collectively match at least one valid configuration from Table A.21. When followed correctly, the state machine appropriately routes the request: processing MD.request through mdCallSession for Mr type, transitioning to StateWaitForReply for Mn type, and only terminating the session when all expected replies and confirms are received (missingReplies = 0 AND missingConfirms = 0). Prerequisites include valid state machine initialization from the caller state and proper handling of subsequent events (MD.confirm, timeouts, and topology verification) to ensure protocol compliance.",
+        "req_type": "MD request telegram",
+        "req_fields": [
+            "sendType",
+            "NoOfRepliers",
+            "topography counter"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "Triggers Description: mdMessageReceived - This trigger activates when a valid MD (Message Data) protocol telegram is successfully received and passes all protocol-level validation checks including CRC verification and header consistency. It applies during the MD receiver state machine operation when the receiver is in a state capable of processing incoming MD messages. Upon activation, the receiver must transition to the appropriate processing state to handle the telegram contents according to the MD protocol specification, including payload extraction and application data delivery. Prerequisites include: the receiver must be in an operational state (not in INIT or ERROR states), the network interface must be properly configured, and the received telegram must conform to the TRDP v2 message format requirements.",
+        "req_type": "MD protocol telegram",
+        "req_fields": [
+            "CRC",
+            "header",
+            "payload",
+            "application data"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "dataset: Contains the actual user payload data being transmitted. This field carries the application-specific information that the protocol is transporting between source and destination URIs. The dataset content is opaque to the TRDP protocol layer and is interpreted by the application layer. The length of this data is specified by the datasetLength parameter, which must accurately reflect the number of octets in the dataset field. The dataset is transmitted after all other MD-PDU header parameters and before any trailing FCS fields.",
+        "req_type": "MD-PDU",
+        "req_fields": [
+            "dataset",
+            "datasetLength"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "comId: The Communication Identifier (comId) uniquely identifies the user dataset being transmitted in the MD-PDU. This identifier must be consistent between communicating entities to ensure proper dataset association and processing. The comId applies during message composition and interpretation phases, where it serves as the primary reference for dataset type identification. When correctly implemented, it enables receivers to validate and route datasets to appropriate application handlers. This parameter is mandatory for all MD-PDUs and must be set according to predefined dataset definitions as specified in section A.5 of the protocol specification.",
+        "req_type": "MD-PDU",
+        "req_fields": [
+            "comId"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "The sequenceCounter parameter in the MD-PDU shall be incremented by one for each repeated transmission of the same message within a session. When a reply message is generated in response to a request, the replier shall copy the sequenceCounter value from the received request into the corresponding field of the reply message. This mechanism enables the caller to correlate requests with their respective replies and detect missing or duplicate messages within the communication session. The sequence counter management applies to all MD-PDU exchanges that require message correlation and is essential for maintaining protocol reliability and message ordering.",
+        "req_type": "MD-PDU",
+        "req_fields": [
+            "sequenceCounter"
+        ],
+        "res_type": "MD-PDU",
+        "res_fields": [
+            "sequenceCounter"
+        ]
+    },
+    {
+        "rule": "The datasetLength parameter specifies the total size of the user data payload in octets within the MD-PDU message. This value must be calculated after the user dataset is fully assembled and must fall within the valid range of 0 to 65388 octets. When preparing an MD-PDU for transmission, the sender shall set this field to accurately reflect the actual length of the dataset payload. Receivers shall use this value to correctly parse and extract the user data from the message. This parameter applies to all MD-PDU messages containing user datasets and must be consistent with the actual data content; mismatches between declared length and actual data size constitute protocol violations.",
+        "req_type": "MD-PDU",
+        "req_fields": [
+            "datasetLength"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "When the application triggers Process Data transmission, set the datasetLength parameter to the actual length of user data to be sent, and provide the dataset buffer containing the user data. The redId parameter specifies the redundancy group ID for the transmission. This rule applies during the PD.publish service primitive when the application initiates Process Data sending, ensuring proper data length specification and redundancy group identification for reliable protocol operation.",
+        "req_type": "PD.publish",
+        "req_fields": [
+            "datasetLength",
+            "dataset buffer",
+            "redId"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "The IEC CompositeStateReceiver shall process incoming MD telegrams by handling both the mdMessageReceived and mdHandleReceived events when the 'exists' parameter equals TRUE. This processing occurs during the MD telegram reception state and includes validation of the message header against defined types (Mp, Mq, Mc, Mn, Mr). If the message type matches Me and 'exists' remains TRUE, the receiver shall proceed according to the specific handling procedures defined in IEC CD 61375-2-3:2024. Messages with unrecognized types shall be discarded. This rule ensures proper state transitions and protocol compliance during real-time data exchange operations.",
+        "req_type": "MD telegram",
+        "req_fields": [
+            "message header",
+            "message type",
+            "exists parameter"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "When initializing the sourceIpAddress parameter in PD.publish, PD.rePublish, or PD.request service primitives, the field must be set to 0 if the application does not require explicit source address specification. This reserved value indicates that the TRDP protocol layer should automatically determine and use the appropriate source IP address based on the system's network configuration and routing tables. This rule applies during the initialization phase before transmitting Process Data, ensuring proper protocol operation while allowing flexibility for applications that don't require manual source address management. The value 0 must be used exclusively for this purpose as defined in Table A.3, and any non-zero value should represent a valid, configured IP address when explicit source addressing is required.",
+        "req_type": "PD.publish, PD.rePublish, PD.request",
+        "req_fields": [
+            "sourceIpAddress"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "When a TRDP user (caller) provides confirmation during a request-reply/request-reply-confirm session, the TRDP layer shall send a confirmation message. This confirmation message must be sent as unicast to the specific destination URI obtained from the source URI in the reply message, and it shall not contain any user data payload. This rule applies specifically to the confirmation phase of the protocol flow after all expected replies have been received and the caller has provided confirmation, ensuring that confirmations are targeted acknowledgments without data content.",
+        "req_type": "",
+        "req_fields": [],
+        "res_type": "confirmation message",
+        "res_fields": [
+            "destination URI",
+            "source URI"
+        ]
+    },
+    {
+        "rule": "When the TRDP application layer initiates a PD.rePublish operation to republish Process Data, the handle parameter must be set to 0. This handle refers to the session identifier previously provided by the etbTopoCnt and opTrnTopoCnt topology counters as defined in Table A.3. This rule applies specifically during republishing scenarios where the application is reusing an existing publishing session rather than creating a new one. The expected outcome is proper session management where the protocol layer recognizes this as a republish operation rather than a new publication. Prerequisites include having an active publishing session established through previous PD.publish calls, and the source IP address must be properly configured to identify the Process Data source.",
+        "req_type": "PD.rePublish",
+        "req_fields": [
+            "handle"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "When a TRDP user registers as an MD listener via the MD.addListener service primitive, the topography counter values provided during registration must be used to validate all incoming messages. This validation occurs immediately upon message reception, before any further processing. If an incoming message contains topography counter values that do not match those registered by the listener, the message must be discarded. This ensures that messages are only processed when they align with the current train topology configuration, maintaining consistency across dynamic topology changes.",
+        "req_type": "incoming MD messages",
+        "req_fields": [
+            "topography counter values"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "When the TRDP layer (acting as a replier/listener) has successfully processed a valid request message (MsgType Mr) and established an open reply session, and subsequently receives an MD.reply primitive from the registered TRDP user application (listener), the TRDP layer shall construct and transmit the corresponding reply message. This reply message must be sent as unicast using the listener's source IP address and source URI. The transmission of this reply message completes the response phase of the protocol interaction initiated by the incoming request, and the subsequent handling (closing the session or starting a timeout timer) depends on whether the reply message type requires confirmation (Mq) or not (Mp).",
+        "req_type": "Mr",
+        "req_fields": [],
+        "res_type": "Mq or Mp",
+        "res_fields": [
+            "listener's source IP address",
+            "source URI"
+        ]
+    },
+    {
+        "rule": "When a TRDP listener generates an MD.reply message in response to a valid request message (MsgType Mr) that matches registered topography counters and session parameters, the reply message must be constructed using the listener's own network identity. Specifically, the source IP address field shall contain the IP address assigned to the listener device, and the source URI field shall contain the URI identifier of the listener. This ensures proper routing of the reply back to the original requester and maintains consistent endpoint identification throughout the communication session. This rule applies after the TRDP layer has received the MD.reply data from the application layer and before transmitting the reply message as a unicast response.",
+        "req_type": "Mr",
+        "req_fields": [],
+        "res_type": "MD.reply",
+        "res_fields": [
+            "source IP address",
+            "source URI"
+        ]
+    }
+]

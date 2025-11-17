@@ -1,0 +1,72 @@
+{
+  "GetRequest": {
+    "version": [],
+    "community": [],
+    "pdu": {
+      "request-id": [],
+      "error-status": [],
+      "error-index": [],
+      "variable-bindings": ["name", "value"]
+    }
+  },
+  "GetNextRequest": {
+    "version": [],
+    "community": [],
+    "pdu": {
+      "request-id": [],
+      "error-status": [],
+      "error-index": [],
+      "variable-bindings": ["name", "value"]
+    }
+  },
+  "GetBulkRequest": {
+    "version": [],
+    "community": [],
+    "pdu": {
+      "request-id": [],
+      "non-repeaters": [],
+      "max-repetitions": [],
+      "variable-bindings": ["name", "value"]
+    }
+  },
+  "Response": {
+    "version": [],
+    "community": [],
+    "pdu": {
+      "request-id": [],
+      "error-status": [],
+      "error-index": [],
+      "variable-bindings": ["name", "value"]
+    }
+  },
+  "SetRequest": {
+    "version": [],
+    "community": [],
+    "pdu": {
+      "request-id": [],
+      "error-status": [],
+      "error-index": [],
+      "variable-bindings": ["name", "value"]
+    }
+  },
+  "InformRequest": {
+    "version": [],
+    "community": [],
+    "pdu": {
+      "request-id": [],
+      "error-status": [],
+      "error-index": [],
+      "variable-bindings": ["name", "value"]
+    }
+  },
+  "SNMPv2-Trap": {
+    "version": [],
+    "community": [],
+    "pdu": {
+      "request-id": [],
+      "error-status": [],
+      "error-index": [],
+      "variable-bindings": ["name", "value"]
+    }
+  }
+}

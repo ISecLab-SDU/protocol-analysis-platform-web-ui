@@ -21,10 +21,22 @@ from werkzeug.datastructures import FileStorage
 
 try:
     from ..utils.auth import verify_access_token
-    from ..utils.responses import error_response, paginate, success_response, unauthorized
+    from ..utils.responses import (
+        error_response,
+        make_error_payload,
+        paginate,
+        success_response,
+        unauthorized,
+    )
 except ImportError:
     from utils.auth import verify_access_token
-    from utils.responses import error_response, paginate, success_response, unauthorized
+    from utils.responses import (
+        error_response,
+        make_error_payload,
+        paginate,
+        success_response,
+        unauthorized,
+    )
 from .analysis import (
     delete_static_analysis_job,
     extract_protocol_version,
@@ -48,6 +60,11 @@ from .assertion import (
     list_assertion_history,
 )
 from .store import STORE, TaskStatus
+from .pipeline_runner import (
+    PipelineExecutionError,
+    PipelineResultNotFoundError,
+    run_protocol_pipeline,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -161,6 +178,71 @@ def _collect_exception_details(exc: Exception, *, max_logs: int = 40) -> dict:
 
 
 # Routes --------------------------------------------------------------------
+
+
+@bp.route("/extract/run", methods=["POST"])
+def run_protocol_extract():
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+
+    html_upload = request.files.get("htmlFile")
+    if not isinstance(html_upload, FileStorage):
+        return make_response(error_response("请上传协议 HTML 文件"), 400)
+
+    api_key = (request.form.get("apiKey") or "").strip()
+    protocol = (request.form.get("protocol") or "").strip()
+    version = (request.form.get("version") or "").strip()
+    filter_flag = (request.form.get("filterHeadings") or "").strip().lower()
+    filter_headings = filter_flag in {"1", "true", "yes", "on"}
+
+    try:
+        result = run_protocol_pipeline(
+            api_key=api_key,
+            protocol=protocol,
+            version=version,
+            html_upload=html_upload,
+            filter_headings=filter_headings,
+        )
+    except ValueError as exc:
+        payload = make_error_payload("参数错误", details=str(exc))
+        return make_response(payload, 400)
+    except FileNotFoundError as exc:
+        payload = make_error_payload("流程未准备就绪", details=str(exc))
+        return make_response(payload, 500)
+    except PipelineResultNotFoundError as exc:
+        detail = {"message": str(exc)}
+        payload = make_error_payload("未找到分析结果文件", details=detail)
+        return make_response(payload, 500)
+    except PipelineExecutionError as exc:
+        detail = {
+            "stdout": (exc.stdout or "").splitlines()[-40:] or None,
+            "stderr": (exc.stderr or "").splitlines()[-40:] or None,
+        }
+        payload = make_error_payload("协议分析执行失败", details=detail)
+        return make_response(payload, 500)
+
+    payload = success_response(
+        {
+            "protocol": result.protocol,
+            "version": result.version,
+            "ruleCount": len(result.rules),
+            "rules": [
+                {
+                    "rule": item.rule,
+                    "req_type": item.req_type,
+                    "req_fields": item.req_fields,
+                    "res_type": item.res_type,
+                    "res_fields": item.res_fields,
+                    "group": item.group,
+                }
+                for item in result.rules
+            ],
+            "storeDir": str(result.store_dir),
+            "resultPath": str(result.result_path),
+        }
+    )
+    return make_response(payload, 200)
 
 
 @bp.route("/tasks", methods=["GET"])
@@ -1682,3 +1764,4 @@ def add_analysis_history():
         )
 
     return success_response({'message': '已添加到历史记录'})
+

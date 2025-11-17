@@ -1,0 +1,258 @@
+{
+  "5. Security Considerations": {},
+  "1.1. A Note on Terminology": {},
+  "2. Overview -> 2.1. Roles of Protocol Entities": {},
+  "2. Overview -> 2.2. Management Information": {},
+  "6. Editor's Address": {},
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.3. The GetBulkRequest-PDU -> 4.2.3.1. Another Example of Table Traversal": {},
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.4. The Response-PDU": {
+    "warning": "JSON parsed but format unexpected",
+    "data": "{\n    \"must be able to properly receive and handle\": \"Mandatory\",\n    \"is ignored\": \"Prohibited\"\n}"
+  },
+  "2. Overview -> 2.4. Retransmission of Requests": {
+    "is required to": [
+      "the receiver is required under normal circumstances, to generate and transmit a response to the originator of the request"
+    ]
+  },
+  "2. Overview -> 2.3. Access to Management Information": {
+    "is used to": [
+      "is used to retrieve or modify management information",
+      "is used to notify a SNMPv2 entity",
+      "is used to notify a SNMPv2 entity"
+    ]
+  },
+  "2. Overview -> 2.6. Transport Mappings": {
+    "requires": [
+      "requires only an unreliable datagram service",
+      "every message being entirely and independently contained in a single transport datagram"
+    ],
+    "preferred": [
+      "the preferred mapping is the use of the User Datagram Protocol"
+    ]
+  },
+  "7. Acknowledgements": {},
+  "4. Protocol Specification -> 4.1. Common Constructs": {
+    "Mandatory": [
+      "takes the value of",
+      "needs to use"
+    ],
+    "Recommended": [
+      "is recommended for use"
+    ],
+    "Prohibited": [
+      "limits OBJECT IDENTIFIER values to a maximum of 128 sub-identifiers"
+    ]
+  },
+  "2. Overview -> 2.5. Message Sizes": {
+    "Mandatory": [
+      "must be able to produce or consume",
+      "must never generate messages larger than allowed by the receiving SNMPv2 entity"
+    ],
+    "Prohibited": [],
+    "Recommended": [
+      "are encouraged to support larger values whenever possible",
+      "must take care to set its parameters accordingly"
+    ],
+    "Not Recommended": []
+  },
+  "4. Protocol Specification -> 4.2. PDU Processing": {
+    "mandatory_phrases": [
+      "It is mandatory that",
+      "must be able to generate",
+      "must be able to receive",
+      "must have valid ASN.1 syntax and encoding",
+      "is mandatory that",
+      "must be able to generate",
+      "must be able to receive"
+    ]
+  },
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.2. The GetNextRequest-PDU -> 4.2.2.1. Example of Table Traversal": {},
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.6. The SNMPv2-Trap-PDU": {
+    "Mandatory": [
+      "are sysUpTime.0 and snmpTrapOID.0 respectively",
+      "is copied, in order, to the variable-bindings field"
+    ],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "3. Definitions": {
+    "mandatory": [
+      "must be identical in structure to PDU",
+      "must define the Report-PDU's usage and semantics"
+    ],
+    "prohibited": [],
+    "recommended": [],
+    "not_recommended": []
+  },
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.2. The GetNextRequest-PDU": {
+    "Mandatory": [
+      "is generated and transmitted",
+      "processes each variable binding",
+      "All fields of the Response-PDU have the same values",
+      "Each variable binding is processed as follows",
+      "is set to the name and value of the located variable",
+      "is set to `endOfMibView'",
+      "is set to the variable binding's name in the request",
+      "is re-formatted with the same values",
+      "is set to `genErr'",
+      "is set to the index of the failed variable binding",
+      "is set to `noError'",
+      "is set to zero",
+      "is then encapsulated into a message",
+      "is transmitted to the originator",
+      "is generated",
+      "is formatted with the same values",
+      "is set to `tooBig'",
+      "is set to zero",
+      "is then encapsulated into a message",
+      "is transmitted to the originator",
+      "is incremented",
+      "is discarded"
+    ],
+    "Prohibited": [
+      "does not lexicographically precede",
+      "there is no lexicographic successor",
+      "fails for a reason other than listed above",
+      "is less than or equal to both a local constraint and the maximum message size",
+      "is less than or equal to both a local constraint and the maximum message size"
+    ]
+  },
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.7. The InformRequest-PDU": {
+    "Mandatory": [
+      "is generated and transmitted",
+      "is specified by the requesting application",
+      "are sysUpTime.0 and snmpTrapOID.0 respectively",
+      "is copied, in order, to the variable-bindings field",
+      "determines the size of a message",
+      "is greater than either a local constraint or the maximum message size of the originator",
+      "is generated, transmitted to the originator",
+      "processing of the InformRequest-PDU terminates immediately thereafter",
+      "is formatted with the same values",
+      "is set to `tooBig'",
+      "is set to zero",
+      "is then encapsulated into a message",
+      "is less than or equal to both a local constraint and the maximum message size of the originator",
+      "is transmitted to the originator",
+      "is incremented",
+      "is discarded",
+      "processing of the InformRequest-PDU terminates",
+      "presents the InformRequest-PDU contents to the appropriate SNMPv2 application",
+      "generates a Response-PDU with the same values",
+      "transmits the generated Response-PDU to the originator"
+    ],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.1. The GetRequest-PDU": {
+    "Mandatory": [
+      "is generated and transmitted at the request of",
+      "Upon receipt of a GetRequest-PDU, the receiving SNMPv2 entity processes each variable binding",
+      "All fields of the Response-PDU have the same values as the corresponding fields of the received request except as indicated below",
+      "Each variable binding is processed as follows",
+      "then the variable binding's value field is set to the value of the named variable",
+      "then its value field is set to `noSuchObject'",
+      "the variable binding's value field is set to `noSuchInstance'",
+      "then the Response-PDU is re-formatted with the same values in its request-id and variable-bindings fields as the received GetRequest-PDU",
+      "with the value of its error-status field set to `genErr'",
+      "the value of its error-index field is set to the index of the failed variable binding",
+      "the value of the Response-PDU's error-status field is set to `noError'",
+      "the value of its error-index field is zero",
+      "The generated Response-PDU is then encapsulated into a message",
+      "it is transmitted to the originator of the GetRequest-PDU",
+      "an alternate Response-PDU is generated",
+      "This alternate Response-PDU is formatted with the same value in its request-id field as the received GetRequest-PDU",
+      "with the value of its error-status field set to `tooBig'",
+      "the value of its error-index field set to zero",
+      "an empty variable-bindings field",
+      "This alternate Response-PDU is then encapsulated into a message",
+      "it is transmitted to the originator of the GetRequest-PDU",
+      "the snmpSilentDrops counter is incremented",
+      "the resultant message is discarded"
+    ]
+  },
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.3. The GetBulkRequest-PDU": {
+    "Mandatory": [
+      "shall have the same value as",
+      "is set to",
+      "is set to",
+      "is set to",
+      "shall have the same value as",
+      "is set to",
+      "is set to",
+      "shall be generated",
+      "shall be incremented",
+      "shall be discarded"
+    ],
+    "Prohibited": [
+      "does not apply"
+    ],
+    "Conditional constraints": [
+      "If the value in the non-repeaters field is less than zero, then the value of the field is set to zero",
+      "if the value in the max-repetitions field is less than zero, then the value of the field is set to zero",
+      "If N is greater than zero",
+      "if there is no lexicographic successor",
+      "If the size of the message encapsulating the Response-PDU containing the requested number of variable bindings would be greater than either a local constraint or the maximum message size of the originator, then the response is generated with a lesser number of variable bindings",
+      "if for some value of iteration i, such that i is greater than zero and less than or equal to M, that all of the generated variable bindings have the value field set to the `endOfMibView'. In this case, the variable bindings may be truncated",
+      "In the event that the processing of a request with many repetitions requires a significantly greater amount of processing time than a normal request, then an agent may terminate the request with less than the full number of repetitions, providing at least one repetition is completed",
+      "If the processing of any variable binding fails for a reason other than listed above, then the Response-PDU is re-formatted",
+      "If the size of the resultant message is less than or equal to both a local constraint and the maximum message size of the originator, it is transmitted to the originator of the GetBulkRequest-PDU. Otherwise, the snmpSilentDrops counter is incremented and the resultant message is discarded"
+    ]
+  },
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.5. The SetRequest-PDU": {
+    "Mandatory": [
+      "determines the size of a message",
+      "then an alternate Response-PDU is generated",
+      "transmitted to the originator of the SetRequest-PDU",
+      "processing of the SetRequest-PDU terminates immediately thereafter",
+      "This alternate Response-PDU is formatted with the same values in its request-id field as the received SetRequest-PDU",
+      "with the value of its error-status field set to `tooBig'",
+      "the value of its error-index field set to zero",
+      "and an empty variable-bindings field",
+      "This alternate Response-PDU is then encapsulated into a message",
+      "If the size of the resultant message is less than or equal to both a local constraint and the maximum message size of the originator, the resultant message is transmitted to the originator of the SetRequest-PDU",
+      "Otherwise, the snmpSilentDrops counter is incremented and the resultant message is discarded",
+      "processing of the SetRequest-PDU terminates",
+      "the receiving SNMPv2 entity processes each variable binding in the variable-binding list to produce a Response-PDU",
+      "All fields of the Response-PDU have the same values as the corresponding fields of the received request except as indicated below",
+      "the variable bindings are conceptually processed as a two phase operation",
+      "In the first phase, each variable binding is validated",
+      "if all validations are successful, then each variable is altered in the second phase",
+      "the following validations are performed in the first phase on each variable binding until they are all successful, or until one fails",
+      "then the value of the Response-PDU's error-status field is set to `noAccess'",
+      "and the value of its error-index field is set to the index of the failed variable binding",
+      "then the value of the Response-PDU's error-status field is set to `notWritable'",
+      "then the value of the Response-PDU's error-status field is set to `wrongType'",
+      "then the value of the Response-PDU's error-status field is set to `wrongLength'",
+      "then the value of the Response-PDU's error-status field is set to `wrongEncoding'",
+      "then the value of the Response-PDU's error-status field is set to `wrongValue'",
+      "then the value of the Response-PDU's error-status field is set to `noCreation'",
+      "then the value of the Response-PDU's error-status field is set to `inconsistentName'",
+      "then the value of the Response-PDU's error-status field is set to `notWritable'",
+      "then the value of the Response-PDU's error-status field is set to `inconsistentValue'",
+      "then the value of the Response-PDU's error-status field is set to `resourceUnavailable'",
+      "then the value of the Response-PDU's error-status field is set to `genErr'",
+      "At the end of the first phase, if the validation of all variable bindings succeeded, then the value of the Response-PDU's error-status field is set to `noError' and the value of its error-index field is zero",
+      "For each variable binding in the request, the named variable is created if necessary, and the specified value is assigned to it",
+      "Each of these variable assignments occurs as if simultaneously with respect to all other assignments specified in the same request",
+      "then all other assignments are undone",
+      "and the Response-PDU is modified to have the value of its error-status field set to `commitFailed'",
+      "and the value of its error-index field set to the index of the failed variable binding",
+      "then the Response-PDU is modified to have the value of its error-status field set to `undoFailed'",
+      "and the value of its error-index field is set to zero",
+      "Finally, the generated Response-PDU is encapsulated into a message, and transmitted to the originator of the SetRequest-PDU"
+    ],
+    "Prohibited": [
+      "failure to do X will result in Y"
+    ],
+    "Recommended": [
+      "implementors are at liberty to implement either the first, or second, or both, of these conceptual phases as multiple implementation phases",
+      "such multiple implementation phases may be necessary in some cases to ensure consistency",
+      "implementations are strongly encouraged to take all possible measures to avoid use of either `commitFailed' or `undoFailed'"
+    ],
+    "Not Recommended": [
+      "these two error-status codes are not to be taken as license to take the easy way out in an implementation"
+    ]
+  }
+}

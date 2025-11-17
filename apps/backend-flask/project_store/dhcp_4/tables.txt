@@ -1,0 +1,96 @@
+{
+  "1. Introduction -> 1.2 Related Work": {},
+  "3. The Client-Server Protocol -> 3.5 Client parameters in DHCP": {
+    "chart_text": "Derived: DHCP message options and flags\n  The parameters returned to a client may still exceed the space allocated to options in a DHCP message. In this case, two additional options flags (which must appear in the 'options' field of the message) indicate that the 'file' and 'sname' fields are to be used for options."
+  },
+  "3. The Client-Server Protocol -> 3.3 Interpretation and representation of time values": {
+    "chart_text": "```"
+  },
+  "3. The Client-Server Protocol": {
+    "chart_text": "Table 1\n+-------+--------+------+--------+\n|  Octet|   0    |  1   |   2-3  |\n+-------+--------+------+--------+\n| Field |  op    | htype|  hlen  |\n+-------+--------+------+--------+\n\nFigure 1\n+-------+--------+-------------------+\n|  Bit  |  0-7   |       8-15        |\n+-------+--------+-------------------+\n| Field |  op    |      htype        |\n+-------+--------+-------------------+"
+  },
+  "2. Protocol Summary -> 2.2 Dynamic allocation of network addresses": {
+    "chart_text": "No output."
+  },
+  "3. The Client-Server Protocol -> 3.6 Use of DHCP in clients with multiple interfaces": {},
+  "1. Introduction -> 1.1 Changes to RFC 1541": {
+    "chart_text": "No output."
+  },
+  "1. Introduction -> 1.5 Terminology": {},
+  "1. Introduction -> 1.6 Design goals": {
+    "chart_text": "No output."
+  },
+  "1. Introduction -> 1.4 Requirements": {},
+  "4. Specification of the DHCP client-server protocol": {
+    "chart_text": "```"
+  },
+  "2. Protocol Summary -> 2.1 Configuration parameters repository": {
+    "chart_text": "No output."
+  },
+  "3. The Client-Server Protocol -> 3.4 Obtaining parameters with externally configured network address": {
+    "chart_text": "No output."
+  },
+  "1. Introduction": {
+    "chart_text": "No output."
+  },
+  "3. The Client-Server Protocol ->": {
+    "chart_text": "Figure 4: Timeline diagram of messages exchanged between DHCP client and servers when reusing a previously allocated network address\n Server          Client          Server\n   v               v               v\n   |               |               |\n   |            Begins             |\n   |         initialization        |\n   |               |               |\n   |               /|\\             |\n   |  _________ __/ | \\\\__________ |\n   | /DHCPREQU EST | DHCPREQUEST\\ |\n   |/               |             \\|\n   |               |               |\n   |           Locates             |\n   |        configuration          |\n   |               |               |\n   |\\              |              /|\n   | \\        _____|_____        / |\n   |  \\______/           \\______/  |\n   |   DHCPACK            DHCPACK  |\n   |       |               |       |\n   |       |   Initialization      |\n   |       |    complete           |\n   |       |               |       |\n   |       |   (Subsequent         |\n   |       |    DHCPACKS           |\n   |       |    ignored)           |\n   |       |               |       |\n   v       v               v       v"
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.1 Constructing and sending DHCP messages": {
+    "chart_text": "text\nDerived: DHCP message retransmission timing example\n  For example, in a 10Mb/sec Ethernet internetwork, the delay before the first retransmission SHOULD be 4 seconds randomized by the value of a uniform random number chosen from the range -1 to +1. [...] The delay before the next retransmission SHOULD be 8 seconds randomized by the value of a uniform number chosen from the range -1 to +1. The retransmission delay SHOULD be doubled with subsequent retransmissions up to a maximum of 64 seconds."
+  },
+  "1. Introduction -> 1.3 Problem definition and issues": {
+    "chart_text": "[No output, as no chart/diagram information is detected in the content.]"
+  },
+  "3. The Client-Server Protocol -> 3.7 When clients should use DHCP": {
+    "chart_text": "```"
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.3 DHCP server behavior -> 4.3.4 DHCPRELEASE message": {
+    "chart_text": "```"
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.3 DHCP server behavior -> 4.3.2 DHCPREQUEST message": {
+    "chart_text": "Derived: DHCPREQUEST message generation in different states\n  o DHCPREQUEST generated during SELECTING state: Client inserts the address of the selected server in 'server identifier', 'ciaddr' MUST be zero, 'requested IP address' MUST be filled in with the yiaddr value from the chosen DHCPOFFER.\n  o DHCPREQUEST generated during INIT-REBOOT state: 'server identifier' MUST NOT be filled in, 'requested IP address' option MUST be filled in with client's notion of its previously assigned address. 'ciaddr' MUST be zero.\n  o DHCPREQUEST generated during RENEWING state: 'server identifier' MUST NOT be filled in, 'requested IP address' option MUST NOT be filled in, 'ciaddr' MUST be filled in with client's IP address.\n  o DHCPREQUEST generated during REBINDING state: 'server identifier' MUST NOT be filled in, 'requested IP address' option MUST NOT be filled in, 'ciaddr' MUST be filled in with client's IP address."
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.3 DHCP server behavior -> 4.3.5 DHCPINFORM message": {},
+  "4. Specification of the DHCP client-server protocol -> 4.3 DHCP server behavior": {
+    "chart_text": "Table 3: Use of fields and options in DHCP messages by server\n  <table content would appear here>"
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.4 DHCP client behavior -> 4.4.3 Initialization with an externally assigned network address": {},
+  "4. Specification of the DHCP client-server protocol -> 4.3 DHCP server behavior -> 4.3.3 DHCPDECLINE message": {
+    "chart_text": "```"
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.4 DHCP client behavior -> 4.4.6 DHCPRELEASE": {
+    "chart_text": "```"
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.4 DHCP client behavior -> 4.4.4 Use of broadcast and unicast": {
+    "chart_text": "```"
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.4 DHCP client behavior -> 4.4.2 Initialization with known network address": {
+    "chart_text": "No output."
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.4 DHCP client behavior -> 4.4.5 Reacquisition and expiration": {
+    "chart_text": "No output, as there is no chart or diagram information detected in the content."
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.3 DHCP server behavior -> 4.3.1 DHCPDISCOVER message": {
+    "chart_text": "Table 3: Fields and options used by DHCP servers\nField DHCPOFFER DHCPACK DHCPNAK \n----- --------- ------- ------- \n'op' BOOTREPLY BOOTREPLY BOOTREPLY \n'htype' (From \"Assigned Numbers\" RFC) \n'hlen' (Hardware address length in octets) \n'hops' 0 0 0 \n'xid' 'xid' from client 'xid' from client 'xid' from client \n      DHCPDISCOVER DHCPREQUEST DHCPREQUEST \n      message message message \n'secs' 0 0 0 \n'ciaddr' 0 'ciaddr' from 0 \n         DHCPREQUEST \n         or 0 \n'yiaddr' IP address offered IP address 0 \n         to client assigned to client \n'siaddr' IP address of next IP address of next 0 \n         bootstrap server bootstrap server \n'flags' 'flags' from 'flags' from 'flags' from \n        client DHCPDISCOVER client DHCPREQUEST client DHCPREQUEST \n        message message message \n'giaddr' 'giaddr' from 'giaddr' from 'giaddr' from \n         client DHCPDISCOVER client DHCPREQUEST client DHCPREQUEST \n         message message message \n'chaddr' 'chaddr' from 'chaddr' from 'chaddr' from \n         client DHCPDISCOVER client DHCPREQUEST client DHCPREQUEST \n         message message message \n'sname' Server host name Server host name (unused) \n        or options or options \n'file' Client boot file Client boot file (unused) \n       name or options name or options \n'options' options options \nOption DHCPOFFER DHCPACK DHCPNAK \n------ --------- ------- ------- \nRequested IP address MUST NOT MUST NOT MUST NOT \nIP address lease time MUST MUST (DHCPREQUEST) MUST NOT \n                       MUST NOT (DHCPINFORM) \nUse 'file'/'sname' fields MAY MAY MUST NOT \nDHCP message type DHCPOFFER DHCPACK DHCPNAK \nParameter request list MUST NOT MUST NOT MUST NOT \nMessage SHOULD SHOULD SHOULD \nClient identifier MUST NOT MUST NOT MAY \nVendor class identifier MAY MAY MAY \nServer identifier MUST MUST MUST \nMaximum message size MUST NOT MUST NOT MUST NOT \nAll others MAY MAY MUST NOT"
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.2 DHCP server administrative controls": {
+    "chart_text": "[No output since no chart/diagram information is detected]"
+  },
+  "5. Acknowledgments": {},
+  "4. Specification of the DHCP client-server protocol -> 4.3 DHCP server behavior -> 4.3.6 Client messages": {
+    "chart_text": "Table 4: Client messages from different states\n---------------------------------------------------------------------- \n|                |INIT-REBOOT |SELECTING |RENEWING |REBINDING       | \n---------------------------------------------------------------------- \n|broad/unicast   |broadcast   |broadcast |unicast  |broadcast       | \n|server-ip       |MUST NOT    |MUST      |MUST NOT |MUST NOT        | \n|requested-ip    |MUST        |MUST      |MUST NOT |MUST NOT        | \n|ciaddr          |zero        |zero      |IP address |IP address     | \n----------------------------------------------------------------------"
+  },
+  "3. The Client-Server Protocol -> 3.1 Client-server interaction - allocating a network address": {
+    "chart_text": "Table 2: DHCP messages\nMessage Use\n------- ---\nDHCPDISCOVER - Client broadcast to locate available servers.\nDHCPOFFER - Server to client in response to DHCPDISCOVER with offer of configuration parameters.\nDHCPREQUEST - Client message to servers either (a) requesting offered parameters from one server and implicitly declining offers from all others, (b) confirming correctness of previously allocated address after, e.g., system reboot, or (c) extending the lease on a particular network address.\nDHCPACK - Server to client with configuration parameters, including committed network address.\nDHCPNAK - Server to client indicating client's notion of network address is incorrect (e.g., client has moved to new subnet) or client's lease as expired\nDHCPDECLINE - Client to server indicating network address is already in use.\nDHCPRELEASE - Client to server relinquishing network address and cancelling remaining lease.\nDHCPINFORM - Client to server, asking only for local configuration parameters; client already has externally configured network address.\n\nFigure 3: Timeline diagram of messages exchanged between DHCP client and servers when allocating a new network address\nServer Client Server (not selected) (selected)\nv v v\n| | |\n| | |\n| Begins initialization |\n| | |\n| _____________/|\\\\____________ |\n| |/DHCPDISCOVER | DHCPDISCOVER \\|\n| | |\n| Determines | Determines configuration |\n| configuration | |\n| | |\n|\\ | ____________/ | | \\\\________ |\n/DHCPOFFER | | DHCPOFFER\\ |\n/ | | \\ |\n| | |\n| Collects replies |\n| \\| |\n| Selects configuration |\n| | |\n| _____________/|\\\\____________ |\n| |/ DHCPREQUEST | DHCPREQUEST\\ |\n| | |\n| | |\n| Commits configuration |\n| | |\n| _____________/| | |\n|/ DHCPACK | |\n| | |\n| Initialization complete |\n| | |\n. . . . . . |\n| | |\n| Graceful shutdown |\n| | |\n| |\\ ____________ |\n| | | DHCPRELEASE \\|\n| | |\n| | |\n| Discards lease |\n| | |\nv v v"
+  },
+  "2. Protocol Summary": {
+    "chart_text": "Figure 1: Format of a DHCP message\n 0 1 2 3 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| op (1) | htype (1) | hlen (1) | hops (1) |\n+---------------+---------------+---------------+---------------+\n| xid (4) |\n+-------------------------------+-------------------------------+\n| secs (2) | flags (2) |\n+-------------------------------+-------------------------------+\n| ciaddr (4) |\n+---------------------------------------------------------------+\n| yiaddr (4) |\n+---------------------------------------------------------------+\n| siaddr (4) |\n+---------------------------------------------------------------+\n| giaddr (4) |\n+---------------------------------------------------------------+\n| |\n| chaddr (16) |\n| |\n| |\n+---------------------------------------------------------------+\n| |\n| sname (64) |\n+---------------------------------------------------------------+\n| |\n| file (128) |\n+---------------------------------------------------------------+\n| |\n| options (variable) |\n+---------------------------------------------------------------+\n\nTable 1: Description of fields in a DHCP message\nFIELD OCTETS DESCRIPTION\n----- ------ -----------\nop 1 Message op code / message type. 1 = BOOTREQUEST, 2 = BOOTREPLY\nhtype 1 Hardware address type, see ARP section in \"Assigned Numbers\" RFC; e.g., '1' = 10mb ethernet.\nhlen 1 Hardware address length (e.g. '6' for 10mb ethernet).\nhops 1 Client sets to zero, optionally used by relay agents when booting via a relay agent.\nxid 4 Transaction ID, a random number chosen by the client, used by the client and server to associate messages and responses between a client and a server.\nsecs 2 Filled in by client, seconds elapsed since client began address acquisition or renewal process.\nflags 2 Flags (see figure 2).\nciaddr 4 Client IP address; only filled in if client is in BOUND, RENEW or REBINDING state and can respond to ARP requests.\nyiaddr 4 'your' (client) IP address.\nsiaddr 4 IP address of next server to use in bootstrap; returned in DHCPOFFER, DHCPACK by server.\ngiaddr 4 Relay agent IP address, used in booting via a relay agent.\nchaddr 16 Client hardware address.\nsname 64 Optional server host name, null terminated string.\nfile 128 Boot file name, null terminated string; \"generic\" name or null in DHCPDISCOVER, fully qualified directory-path name in DHCPOFFER.\noptions var Optional parameters field. See the options documents for a list of defined options.\n\nFigure 2: Format of the 'flags' field\n 1 1 1 1 1 1 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n|B| MBZ |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\nB: BROADCAST flag\nMBZ: MUST BE ZERO (reserved for future use)"
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.4 DHCP client behavior -> 4.4.1 Initialization and allocation of network address": {
+    "chart_text": "Table 5: Fields and options used by DHCP clients\nField DHCPDISCOVER DHCPREQUEST DHCPDECLINE, DHCPINFORM DHCPRELEASE \n----- ------------ ----------- ----------- \n'op' BOOTREQUEST BOOTREQUEST BOOTREQUEST \n'htype' (From \"Assigned Numbers\" RFC) \n'hlen' (Hardware address length in octets) \n'hops' 0 0 0 \n'xid' selected by client 'xid' from server selected by DHCPOFFER message client \n'secs' 0 or seconds since 0 or seconds since 0 DHCP process started DHCP process started \n'flags' Set 'BROADCAST' Set 'BROADCAST' 0 flag if client flag if client requires broadcast requires broadcast reply reply \n'ciaddr' 0 (DHCPDISCOVER) 0 or client's 0 (DHCPDECLINE) client's network address client's network network address (BOUND/RENEW/REBIND) address (DHCPINFORM) (DHCPRELEASE) \n'yiaddr' 0 0 0 \n'siaddr' 0 0 0 \n'giaddr' 0 0 0 \n'chaddr' client's hardware client's hardware client's hardware address address address \n'sname' options, if options, if (unused) indicated in indicated in 'sname/file' 'sname/file' option; otherwise option; otherwise unused unused \n'file' options, if options, if (unused) indicated in indicated in 'sname/file' 'sname/file' option; otherwise option; otherwise unused unused \n'options' options options (unused) \nOption DHCPDISCOVER DHCPREQUEST DHCPDECLINE, DHCPINFORM DHCPRELEASE \n------ ------------ ----------- ----------- \nRequested IP address MAY MUST (in MUST (DISCOVER) SELECTING or (DHCPDECLINE), MUST NOT INIT-REBOOT) MUST NOT (INFORM) MUST NOT (in (DHCPRELEASE) BOUND or RENEWING) \nIP address lease time MAY MAY MUST NOT (DISCOVER) MUST NOT (INFORM) \nUse 'file'/'sname' fields MAY MAY MAY \nDHCP message type DHCPDISCOVER/ DHCPREQUEST DHCPDECLINE/ DHCPINFORM DHCPRELEASE \nClient identifier MAY MAY MAY \nVendor class identifier MAY MAY MUST NOT \nServer identifier MUST NOT MUST (after MUST SELECTING) MUST NOT (after INIT-REBOOT, BOUND, RENEWING or REBINDING) \nParameter request list MAY MAY MUST NOT \nMaximum message size MAY MAY MUST NOT \nMessage SHOULD NOT SHOULD NOT SHOULD \nSite-specific MAY MAY MUST NOT \nAll others MAY MAY MUST NOT"
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.4 DHCP client behavior": {
+    "chart_text": "Figure 5: State-transition diagram for DHCP clients\n-------- ------- | | +-------------------------->| |<\\-------------------+ | INIT- | | +-------------------->| INIT | | | REBOOT |DHCPNAK/ +---------->| |<\\---+ | | |Restart| | ------- | | \\-------- | DHCPNAK/ | | | | Discard offer | -/Send DHCPDISCOVER | -/Send DHCPREQUEST | | | | | | DHCPACK v | | \\----------- | (not accept.)/ ----------- | | | | | Send DHCPDECLINE | | | | REBOOTING | | | | SELECTING |<\\----+ | | | | / | | |DHCPOFFER/ | \\----------- | / ----------- | |Collect | | | / | | | replies | DHCPACK/ | / +----------------+ +-------+ | Record lease, set| | v Select offer/ | timers T1, T2 ------------ send DHCPREQUEST | | | +----->| | DHCPNAK, Lease expired/ | | | | REQUESTING | Halt network | DHCPOFFER/ | | | | Discard ------------ | | | | | | ----------- | | +--------+ DHCPACK/ | | | | Record lease, set -----| REBINDING | | | timers T1, T2 / | | | | | DHCPACK/ ----------- | | v Record lease, set ^ | +----------------> \\------- /timers T1,T2 | | +----->| |<\\---+ | | | | BOUND |<\\---+ | | DHCPOFFER, DHCPACK, | | | T2 expires/ DHCPNAK/ DHCPNAK/Discard ------- | Broadcast Halt network | | | | DHCPREQUEST | +-------+ | DHCPACK/ | | T1 expires/ Record lease, set | | Send DHCPREQUEST timers T1, T2 | | to leasing server | | | | ---------- | | | | |------------+ | +->| RENEWING | | | |----------------------------+ \\----------"
+  }
+}
