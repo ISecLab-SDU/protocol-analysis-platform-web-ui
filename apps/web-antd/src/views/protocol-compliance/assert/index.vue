@@ -9,9 +9,18 @@ import type {
   ProtocolDiffParsingJob,
   ProtocolDiffParsingResult,
   ProtocolInstrumentationDiffResponse,
+  ProtocolAssertionHistoryEntry,
 } from '#/api/protocol-compliance';
 
-import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue';
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  reactive,
+  ref,
+  watch,
+} from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -23,18 +32,24 @@ import {
   Button,
   Card,
   Collapse,
+  Drawer,
   Descriptions,
   Empty,
   Form,
   FormItem,
   Input,
   message,
+  List,
   Progress,
+  Result,
+  Skeleton,
   Space,
   Tag,
   Tooltip,
   Typography,
   Upload,
+  ListItem,
+  ListItemMeta,
 } from 'ant-design-vue';
 
 import {
@@ -43,6 +58,8 @@ import {
   fetchProtocolInstrumentationDiff,
   runProtocolAssertGeneration,
   downloadProtocolAssertGenerationResult,
+  fetchProtocolAssertionHistory,
+  downloadProtocolAssertionDiff,
 } from '#/api/protocol-compliance';
 
 const formRef = ref<FormInstance>();
@@ -76,6 +93,16 @@ const activeDiffFileKeys = ref<number[]>([]);
 const instrumentationDiff = ref<null | ProtocolInstrumentationDiffResponse>(null);
 const instrumentationDiffLoading = ref(false);
 const instrumentationDiffError = ref<null | string>(null);
+
+// Assertion history
+const assertionHistory = ref<ProtocolAssertionHistoryEntry[]>([]);
+const assertionHistoryLoading = ref(false);
+const assertionHistoryError = ref<null | string>(null);
+const historyDrawerOpen = ref(false);
+const historyActiveEntry = ref<ProtocolAssertionHistoryEntry | null>(null);
+const historyDiffContent = ref<string | null>(null);
+const historyDiffLoading = ref(false);
+const historyDiffError = ref<null | string>(null);
 
 const PROGRESS_STATUS_META: Record<
   ProtocolAssertGenerationJob['status'],
@@ -293,6 +320,15 @@ const transformedDiffFiles = computed(() => {
   });
 });
 
+function formatDateTime(input?: string | null) {
+  if (!input) return '';
+  try {
+    return new Date(input).toLocaleString();
+  } catch {
+    return input;
+  }
+}
+
 function formatBytes(input: number, fractionDigits = 1) {
   if (!Number.isFinite(input) || input <= 0) {
     return `${input || 0} B`;
@@ -302,6 +338,15 @@ function formatBytes(input: number, fractionDigits = 1) {
   const unit = units[Math.min(base, units.length - 1)];
   const value = input / 1024 ** Math.min(base, units.length - 1);
   return `${value.toFixed(fractionDigits)} ${unit}`;
+}
+
+function blobToText(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(blob);
+  });
 }
 
 function extractUnifiedDiffBody(diffText: string): string | null {
@@ -320,6 +365,57 @@ function extractUnifiedDiffBody(diffText: string): string | null {
   const diffLines = startIndex >= 0 ? lines.slice(startIndex) : lines;
   const body = diffLines.join('\n').trim();
   return body.length ? body : null;
+}
+
+function buildDiffViewDataList(diffText: string) {
+  const normalized = diffText.replace(/\r\n/g, '\n');
+  const lines = normalized.split('\n');
+  const files: Array<{ header: string; body: string[] }> = [];
+
+  let current: string[] = [];
+  for (const line of lines) {
+    if (line.startsWith('diff --git ')) {
+      if (current.length > 0) {
+        files.push({ header: current[0] || '', body: current.slice(1) });
+      }
+      current = [line];
+    } else {
+      current.push(line);
+    }
+  }
+  if (current.length > 0) {
+    files.push({ header: current[0] || '', body: current.slice(1) });
+  }
+
+  const fallBack = extractUnifiedDiffBody(diffText);
+  if (!files.length && fallBack) {
+    const label = 'instrumentation.diff';
+    return [
+      {
+        oldFile: { fileName: label },
+        newFile: { fileName: label },
+        hunks: [fallBack],
+      },
+    ];
+  }
+
+  return files
+    .map((entry, index) => {
+      const headerParts = entry.header.split(' ');
+      const oldName = headerParts[2]?.replace(/^a\//, '') || `file-${index}`;
+      const newName = headerParts[3]?.replace(/^b\//, '') || oldName;
+      const section = [entry.header, ...entry.body].join('\n').trim();
+      const body = extractUnifiedDiffBody(section);
+      if (!body) {
+        return null;
+      }
+      return {
+        oldFile: { fileName: oldName || newName },
+        newFile: { fileName: newName || oldName },
+        hunks: [body],
+      };
+    })
+    .filter(Boolean);
 }
 
 const progressTextRef = ref<HTMLDivElement>();
@@ -345,6 +441,27 @@ watch(
   },
   { immediate: true },
 );
+
+watch(
+  () => progressStatus.value,
+  (status, previous) => {
+    if (status === 'completed' && previous !== 'completed') {
+      loadAssertionHistory(300);
+    }
+  },
+);
+
+onMounted(() => {
+  loadAssertionHistory();
+});
+
+const historyDiffViewData = computed(() => {
+  if (!historyDiffContent.value) {
+    return null;
+  }
+  const list = buildDiffViewDataList(historyDiffContent.value);
+  return list && list.length ? list : null;
+});
 
 function toProgressLine(event: ProtocolAssertGenerationProgressEvent) {
   const timeLabel = (() => {
@@ -405,6 +522,76 @@ async function handleFetchInstrumentationDiff() {
     message.error(`获取 Instrumentation diff 失败：${messageText}`);
   } finally {
     instrumentationDiffLoading.value = false;
+  }
+}
+
+async function loadAssertionHistory(delay = 0) {
+  assertionHistoryLoading.value = true;
+  assertionHistoryError.value = null;
+  try {
+    if (delay) {
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+    const response = await fetchProtocolAssertionHistory(20);
+    assertionHistory.value = response.items ?? [];
+  } catch (error) {
+    const messageText =
+      error instanceof Error ? error.message : String(error ?? '');
+    assertionHistoryError.value = messageText || '无法加载历史记录';
+  } finally {
+    assertionHistoryLoading.value = false;
+  }
+}
+
+async function openHistoryEntry(record: ProtocolAssertionHistoryEntry) {
+  historyActiveEntry.value = record;
+  historyDrawerOpen.value = true;
+  historyDiffContent.value = null;
+  historyDiffError.value = null;
+  if (!record?.jobId) {
+    historyDiffError.value = '缺少任务标识';
+    return;
+  }
+  historyDiffLoading.value = true;
+  try {
+    const blob = await downloadProtocolAssertionDiff(record.jobId);
+    const text = await blobToText(blob);
+    historyDiffContent.value = text || null;
+    if (!text) {
+      historyDiffError.value = 'Diff 文件为空或无法解析';
+    }
+  } catch (error) {
+    const messageText =
+      error instanceof Error ? error.message : String(error ?? '');
+    historyDiffError.value = messageText || '无法加载 Diff 内容';
+  } finally {
+    historyDiffLoading.value = false;
+  }
+}
+
+function closeHistoryDrawer() {
+  historyDrawerOpen.value = false;
+  historyActiveEntry.value = null;
+  historyDiffContent.value = null;
+  historyDiffError.value = null;
+}
+
+async function handleDownloadHistoryDiff(jobId: string, fallbackName?: string) {
+  try {
+    const blob = await downloadProtocolAssertionDiff(jobId);
+    const filename = fallbackName || `${jobId}.diff`;
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  } catch (error) {
+    const messageText =
+      error instanceof Error ? error.message : String(error ?? '');
+    message.error(`下载 Diff 失败：${messageText}`);
   }
 }
 
@@ -784,6 +971,77 @@ async function handleSubmit() {
             </p>
           </div>
         </Card>
+
+        <Card class="history-card" title="生成历史">
+          <template #extra>
+            <Space>
+              <Button
+                :loading="assertionHistoryLoading"
+                size="small"
+                type="link"
+                @click="loadAssertionHistory"
+              >
+                <IconifyIcon icon="ant-design:reload-outlined" class="mr-1" />
+                刷新
+              </Button>
+            </Space>
+          </template>
+          <Alert
+            v-if="assertionHistoryError"
+            class="mb-3"
+            show-icon
+            type="error"
+            :message="assertionHistoryError"
+          />
+          <template v-if="assertionHistoryLoading">
+            <Skeleton active :paragraph="{ rows: 4 }" />
+          </template>
+          <template v-else-if="!assertionHistory.length">
+            <Result
+              class="history-empty"
+              :icon="() => null"
+              sub-title="暂无历史记录"
+              title=" "
+            />
+          </template>
+          <List
+            v-else
+            class="history-list"
+            item-layout="horizontal"
+            :data-source="assertionHistory"
+          >
+            <template #renderItem="{ item }">
+              <ListItem
+                class="history-list-item"
+                @click="openHistoryEntry(item)"
+              >
+                <ListItemMeta>
+                  <template #title>
+                    <Typography.Text strong>
+                      {{ item.diffFilename || item.diffPath || 'Diff 文件' }}
+                    </Typography.Text>
+                  </template>
+                  <template #description>
+                    <Space split="·" wrap>
+                      <span>{{ item.codeFilename || '未记录源代码包' }}</span>
+                      <span>{{ formatDateTime(item.createdAt) || '未知时间' }}</span>
+                    </Space>
+                  </template>
+                </ListItemMeta>
+                <div class="history-actions">
+                  <Button
+                    :disabled="!item.jobId"
+                    size="small"
+                    type="text"
+                    @click.stop="handleDownloadHistoryDiff(item.jobId, item.diffFilename)"
+                  >
+                    下载
+                  </Button>
+                </div>
+              </ListItem>
+            </template>
+          </List>
+        </Card>
       </div>
       <!-- 结果展示 -->
       <Card v-if="analysisResult">
@@ -797,15 +1055,6 @@ async function handleSubmit() {
           </Space>
         </template>
         <Descriptions bordered :column="1" size="small">
-          <Descriptions.Item>
-            <template #label>
-              <Space>
-                <IconifyIcon icon="ant-design:number-outlined" />
-                <span>任务 ID</span>
-              </Space>
-            </template>
-            {{ activeJobId }}
-          </Descriptions.Item>
           <Descriptions.Item>
             <template #label>
               <Space>
@@ -1028,6 +1277,74 @@ async function handleSubmit() {
         </Collapse>
       </Card>
     </div>
+
+    <Drawer
+      v-model:open="historyDrawerOpen"
+      :width="860"
+      class="history-detail-drawer"
+      destroy-on-close
+      placement="right"
+      @close="closeHistoryDrawer"
+    >
+      <template #title>
+        <Space>
+          <IconifyIcon icon="ant-design:diff-outlined" class="text-lg" />
+          <span>历史记录详情</span>
+        </Space>
+      </template>
+      <template v-if="historyActiveEntry">
+        <div class="history-detail-meta">
+          <Typography.Text type="secondary">
+            源码包：{{ historyActiveEntry.codeFilename || '未记录' }}
+          </Typography.Text>
+          <Typography.Text type="secondary">
+            时间：{{ formatDateTime(historyActiveEntry.createdAt) || '未知' }}
+          </Typography.Text>
+        </div>
+        <div class="history-detail-actions">
+          <Button
+            :disabled="!historyActiveEntry.jobId"
+            size="small"
+            type="link"
+            @click="handleDownloadHistoryDiff(historyActiveEntry.jobId!, historyActiveEntry.diffFilename)"
+          >
+            下载 Diff
+          </Button>
+        </div>
+        <Alert
+          v-if="historyDiffError"
+          class="mb-3"
+          show-icon
+          type="error"
+          :message="historyDiffError"
+        />
+        <div class="history-detail-diff">
+          <div v-if="historyDiffLoading" class="instrumentation-diff-placeholder">
+            正在加载历史 Diff ...
+          </div>
+          <div v-else-if="historyDiffViewData?.length" class="instrumentation-diff-view">
+            <DiffView
+              v-for="(diff, idx) in historyDiffViewData"
+              :key="idx"
+              :data="diff"
+              :diff-view-mode="DiffModeEnum.Unified"
+              :diff-view-highlight="true"
+              :diff-view-theme="'light'"
+              :diff-view-font-size="13"
+              class="mb-4"
+            />
+          </div>
+          <Empty
+            v-else
+            description="未获取到 Diff 内容"
+            :image="Empty.PRESENTED_IMAGE_SIMPLE"
+          />
+        </div>
+      </template>
+      <template v-else>
+        <Result sub-title="请选择一条历史记录查看详情" title=" " />
+      </template>
+    </Drawer>
   </Page>
 </template>
 
@@ -1059,6 +1376,52 @@ async function handleSubmit() {
   flex-direction: column;
   height: 100%;
   min-height: 500px;
+}
+
+.history-card {
+  grid-column: 1 / -1;
+}
+
+.history-list {
+  margin-top: 8px;
+}
+
+.history-list-item {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  padding: 12px 0;
+}
+
+.history-list-item:hover {
+  background-color: var(--ant-color-fill-secondary);
+}
+
+.history-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.history-empty {
+  padding: 16px 0;
+}
+
+.history-detail-drawer :deep(.ant-drawer-body) {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.history-detail-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.history-detail-actions {
+  display: flex;
+  justify-content: flex-start;
+  gap: 8px;
 }
 
 .upload-card :deep(.ant-card-body),

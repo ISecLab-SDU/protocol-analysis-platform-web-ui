@@ -1,0 +1,894 @@
+diff --git a/src/alt_arc4random.c b/src/alt_arc4random.c
+index 4d5cc12..f4b1093 100644
+--- a/src/alt_arc4random.c
++++ b/src/alt_arc4random.c
+@@ -137,6 +137,8 @@ static int random_dev_open(void)
+ 
+ void alt_arc4random_stir(void)
+ {
++    memset(&rng_state, 0, sizeof(rng_state));
++    return;
+     if (rng_state.initialized == 0) {
+         rng_state.fd = -1;
+     }
+@@ -154,6 +156,8 @@ void alt_arc4random_stir(void)
+ 
+ void alt_arc4random_buf(void* buffer, size_t len)
+ {
++    memset(&rng_state, 0, sizeof(rng_state));
++    return;
+     unsigned char *buffer_ = (unsigned char*)buffer;
+     size_t         off;
+     size_t         remaining;
+diff --git a/src/ftp_parser.c b/src/ftp_parser.c
+index ddcb393..9392069 100644
+--- a/src/ftp_parser.c
++++ b/src/ftp_parser.c
+@@ -11,11 +11,100 @@
+ #ifdef WITH_TLS
+ # include "tls.h"
+ #endif
++#include <assert.h>
+ 
+ #ifdef WITH_DMALLOC
+ # include <dmalloc.h>
+ #endif
+ 
++/* Track if ALLO command was used */
++static int allo_command_used = 0;
++
++/* Global variable to track if PBSZ command has been issued */
++#ifdef ASSERT_ENABLED
++static int pbsz_command_issued = 0;
++
++/* Global variable to track if RNFR was the last command executed */
++static int rnfr_was_last_command = 0;
++#endif
++
++#ifdef ASSERT_ENABLED
++/* Global variable to track if REST command was issued and not yet followed by a file transfer command */
++static int rest_command_issued = 0;
++
++/* List of commands that are considered file transfer commands */
++static const char *file_transfer_commands[] = {
++    "retr", "stor", "appe", "stou", NULL
++};
++
++static int assert_related_rule14_check_rest_followed_by_transfer(const char *cmd)
++{
++    /* If REST command was not issued, this check is not applicable */
++    if (!rest_command_issued) {
++        return 1;
++    }
++    
++    /* Check if the current command is a file transfer command */
++    const char **transfer_cmd = file_transfer_commands;
++    while (*transfer_cmd != NULL) {
++        if (!strcmp(cmd, *transfer_cmd)) {
++            /* Current command is a file transfer command, so REST is being properly used */
++            rest_command_issued = 0; /* Reset the flag since REST is now being used */
++            return 1;
++        }
++        transfer_cmd++;
++    }
++    
++    /* Current command is not a file transfer command, which violates the rule */
++    return 0;
++}
++
++/* Helper function for rule15 - Check if the current command is valid after REST */
++static int assert_related_rule15_check_rest_last_before_transfer(const char *cmd)
++{
++    /* If REST command was not issued, this check is not applicable */
++    if (!rest_command_issued) {
++        return 1;
++    }
++    
++    /* Check if the current command is a file transfer command */
++    const char **transfer_cmd = file_transfer_commands;
++    while (*transfer_cmd != NULL) {
++        if (!strcmp(cmd, *transfer_cmd)) {
++            /* Current command is a file transfer command, so REST is being properly used */
++            rest_command_issued = 0; /* Reset the flag since REST is now being used */
++            return 1;
++        }
++        transfer_cmd++;
++    }
++    
++    /* If we get here, the current command is not a file transfer command */
++    /* This violates the rule that REST must be the last command before a transfer command */
++    return 0;
++}
++#endif
++
++#ifdef ASSERT_ENABLED
++/* Helper function for rule16 - Check if the current command is RNTO when RNFR was the last command */
++static int assert_related_rule16_check_rnfr_followed_by_rnto(const char *cmd)
++{
++    /* If RNFR was not the last command, this check is not applicable */
++    if (!rnfr_was_last_command) {
++        return 1;
++    }
++    
++    /* Check if the current command is RNTO */
++    if (strcmp(cmd, "rnto") == 0) {
++        /* Current command is RNTO, which is correct after RNFR */
++        rnfr_was_last_command = 0; /* Reset the flag since RNFR is now being used */
++        return 1;
++    }
++    
++    /* Current command is not RNTO, which violates the rule */
++    return 0;
++}
++#endif
++
+ static void antiidle(void)
+ {
+     if (noopidle == (time_t) -1) {
+@@ -221,6 +310,102 @@ static void parse_file_time_change(char *arg)
+ }
+ #endif
+ 
++#ifdef ASSERT_ENABLED
++static int assert_related_rule1_check_epsv_all_pasv(void)
++{
++    /* Check if PASV command is being used when epsv_all is active,
++     * which violates the rule that requires rejection of all non-EPSV
++     * data connection setup commands after EPSV ALL.
++     */
++    return (epsv_all == 0);
++}
++
++static int assert_related_rule2_check_adat_base64(const char *arg)
++{
++    /* Check if the ADAT command argument can be base64 decoded.
++     * This function returns 1 if the argument is valid base64 or empty,
++     * and 0 if it contains characters that are not valid in base64 encoding.
++     */
++    static const char base64_chars[] =
++        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
++    
++    /* Empty argument is technically valid, but not for decoding */
++    if (arg == NULL || *arg == '\0') {
++        return 1;
++    }
++    
++    /* Check if all characters in the argument are valid base64 characters */
++    while (*arg != '\0') {
++        if (strchr(base64_chars, *arg) == NULL) {
++            return 0;  /* Invalid character found */
++        }
++        arg++;
++    }
++    
++    return 1;  /* All characters are valid base64 */
++}
++
++static int assert_related_rule4_check_allo_followed_by_stor_appe(const char *cmd)
++{
++    /* Check if the command following ALLO is either STOR or APPE.
++     * Returns 1 if allo_command_used is 0 (no ALLO command was used) or
++     * if the current command is STOR or APPE (valid after ALLO).
++     * Returns 0 if allo_command_used is 1 and the current command is not STOR or APPE.
++     */
++    if (!allo_command_used) {
++        return 1;  /* No ALLO command was used, so any command is valid */
++    }
++    
++    /* If ALLO was used, check if the current command is STOR or APPE */
++    if (strcmp(cmd, "stor") == 0 || strcmp(cmd, "appe") == 0) {
++        allo_command_used = 0;  /* Reset the flag after a valid command */
++        return 1;  /* Valid command after ALLO */
++    }
++    
++    return 0;  /* Invalid command after ALLO */
++}
++
++static int assert_related_rule6_check_ccc_reply_code(int loggedin, void *tls_connection)
++{
++    /* Check if the correct reply code is used when CCC command is not integrity-protected.
++     * According to the rule, if the CCC command is not integrity-protected,
++     * the server must respond with a 533 reply code instead of 534.
++     * 
++     * Returns 1 if:
++     * - The CCC command is integrity-protected (tls_connection is not NULL)
++     * - The user is logged in (loggedin is not 0)
++     * 
++     * Returns 0 if:
++     * - The CCC command is not integrity-protected (tls_connection is NULL)
++     *   or the user is not logged in (loggedin is 0)
++     */
++    return (loggedin != 0 && tls_connection != NULL);
++}
++
++static int assert_related_rule8_check_mlsd_dir_name(const char *arg)
++{
++    /* Check if a directory name is provided for the MLSD command.
++     * According to the rule, if no directory name is given, MLSD must issue a 501 reply
++     * and not open a data connection.
++     * 
++     * Returns 1 if:
++     * - A directory name is provided (arg is not NULL or empty)
++     * - The directory name is not the default "." used when no argument is provided
++     * 
++     * Returns 0 if:
++     * - No directory name is provided (arg is NULL or empty)
++     * - The directory name is the default "." used when no argument is provided
++     */
++    return (arg != NULL && *arg != '\0');
++}
++
++static int assert_related_rule12_check_pbsz_before_prot(void)
++{
++    /* Check if PBSZ command has been issued before PROT command */
++    return pbsz_command_issued;
++}
++#endif
++
+ void parser(void)
+ {
+     char *arg;
+@@ -315,6 +500,22 @@ void parser(void)
+ #endif
+         }
+ 
++#ifdef ASSERT_ENABLED
++        /* Rule15: Check if the current command is valid after REST */
++        /* This is a centralized check that will catch any non-transfer command after REST */
++        if (strcmp(cmd, "rest") != 0) { /* Don't check the REST command itself */
++            assert(assert_related_rule15_check_rest_last_before_transfer(cmd) || 
++                   !"The REST command must be the last command issued before the data transfer command");
++        }
++
++        /* Rule16: Check if the current command is RNTO when RNFR was the last command */
++        /* Don't check the RNFR command itself */
++        if (strcmp(cmd, "rnfr") != 0) {
++            assert(assert_related_rule16_check_rnfr_followed_by_rnto(cmd) || 
++                   !"The RNFR command must be immediately followed by a RNTO command");
++        }
++#endif
++
+         /*
+          * antiidle() is called with dummy commands, usually used by clients
+          * who are wanting extra idle time. We give them some, but not too much.
+@@ -364,8 +565,16 @@ void parser(void)
+             }
+             goto wayout;
+         } else if (!strcmp(cmd, "pbsz")) {
++#ifdef ASSERT_ENABLED
++            pbsz_command_issued = 1; /* Mark that PBSZ command has been issued */
++#endif
+             addreply_noformat(tls_cnx == NULL ? 503 : 200, "PBSZ=0");
+         } else if (!strcmp(cmd, "ccc")) {
++#ifdef ASSERT_ENABLED
++            /* Check if the correct reply code should be used (533 instead of 534) */
++            assert(assert_related_rule6_check_ccc_reply_code(loggedin, tls_cnx) || 
++                  !"If the CCC command is not integrity-protected, the server must respond with a 533 reply code");
++#endif
+             if (loggedin == 0 || tls_cnx == NULL) {
+                 addreply_noformat(534, "CCC not allowed at this point");
+                 goto wayout;
+@@ -377,6 +586,9 @@ void parser(void)
+             flush_cmd();
+             goto wayout;
+         } else if (!strcmp(cmd, "prot")) {
++#ifdef ASSERT_ENABLED
++            assert(assert_related_rule12_check_pbsz_before_prot() || !"There is no default size; the client must issue a PBSZ command before it can issue the first PROT command");
++#endif
+             if (tls_cnx == NULL) {
+                 addreply_noformat(503, MSG_PROT_BEFORE_PBSZ);
+                 goto wayout;
+@@ -412,6 +624,11 @@ void parser(void)
+             }
+ #endif
+         } else if (!strcmp(cmd, "auth") || !strcmp(cmd, "adat")) {
++#ifdef ASSERT_ENABLED
++            if (!strcmp(cmd, "adat")) {
++                assert(assert_related_rule2_check_adat_base64(arg) || !"ADAT command with invalid base64 should respond with 501");
++            }
++#endif
+             addreply_noformat(500, MSG_AUTH_UNIMPLEMENTED);
+         } else if (!strcmp(cmd, "type")) {
+             antiidle();
+@@ -473,6 +690,9 @@ void parser(void)
+ #endif
+             } else if (disallow_passive == 0 &&
+                        (!strcmp(cmd, "pasv") || !strcmp(cmd, "p@sw"))) {
++#ifdef ASSERT_ENABLED
++                assert(assert_related_rule1_check_epsv_all_pasv() || !"PASV command not rejected when epsv_all is active");
++#endif
+                 dopasv(0);
+             } else if (disallow_passive == 0 &&
+                        (!strcmp(cmd, "epsv") &&
+@@ -509,16 +729,26 @@ void parser(void)
+                         addreply_noformat(501, MSG_STAT_FAILURE);
+                     } else {
+                         doallo(size);
++                        allo_command_used = 1;  /* Set the flag to indicate ALLO was used */
+                     }
+                 }
+ #endif
+             } else if (!strcmp(cmd, "pwd") || !strcmp(cmd, "xpwd")) {
++#ifdef ASSERT_ENABLED
++                assert(assert_related_rule4_check_allo_followed_by_stor_appe(cmd) || !"ALLO command must be followed by STOR or APPE");
++#endif
+                 antiidle();
+                 addreply(257, "\"%s\" " MSG_IS_YOUR_CURRENT_LOCATION, wd);
+                 goto wayout;
+             } else if (!strcmp(cmd, "cdup") || !strcmp(cmd, "xcup")) {
++#ifdef ASSERT_ENABLED
++                assert(assert_related_rule4_check_allo_followed_by_stor_appe(cmd) || !"ALLO command must be followed by STOR or APPE");
++#endif
+                 docwd("..");
+             } else if (!strcmp(cmd, "retr")) {
++#ifdef ASSERT_ENABLED
++                assert(assert_related_rule4_check_allo_followed_by_stor_appe(cmd) || !"ALLO command must be followed by STOR or APPE");
++#endif
+                 if (*arg != 0) {
+ #ifdef WITH_TLS
+                     if (enforce_tls_auth == 3 &&
+@@ -536,6 +766,9 @@ void parser(void)
+             } else if (!strcmp(cmd, "rest")) {
+                 antiidle();
+                 if (*arg != 0) {
++#ifdef ASSERT_ENABLED
++                    rest_command_issued = 1; /* Mark that REST command has been issued */
++#endif
+                     dorest(arg);
+                 } else {
+                     addreply_noformat(501, MSG_NO_RESTART_POINT);
+@@ -543,12 +776,18 @@ void parser(void)
+                 }
+                 goto wayout;
+             } else if (!strcmp(cmd, "dele")) {
++#ifdef ASSERT_ENABLED
++                assert(assert_related_rule14_check_rest_followed_by_transfer(cmd) || !"The REST command shall be immediately followed by the appropriate FTP service command which shall cause file transfer to resume");
++#endif
+                 if (*arg != 0) {
+                     dodele(arg);
+                 } else {
+                     addreply_noformat(501, MSG_NO_FILE_NAME);
+                 }
+             } else if (!strcmp(cmd, "stor")) {
++#ifdef ASSERT_ENABLED
++                assert(assert_related_rule14_check_rest_followed_by_transfer(cmd) || !"The REST command shall be immediately followed by the appropriate FTP service command which shall cause file transfer to resume");
++#endif
+                 arg = revealextraspc(arg);
+                 if (*arg != 0) {
+ #ifdef WITH_TLS
+@@ -564,6 +803,9 @@ void parser(void)
+                     addreply_noformat(501, MSG_NO_FILE_NAME);
+                 }
+             } else if (!strcmp(cmd, "appe")) {
++#ifdef ASSERT_ENABLED
++                assert(assert_related_rule14_check_rest_followed_by_transfer(cmd) || !"The REST command shall be immediately followed by the appropriate FTP service command which shall cause file transfer to resume");
++#endif
+                 arg = revealextraspc(arg);
+                 if (*arg != 0) {
+ #ifdef WITH_TLS
+@@ -580,6 +822,9 @@ void parser(void)
+                 }
+ #ifndef MINIMAL
+             } else if (!strcmp(cmd, "stou")) {
++#ifdef ASSERT_ENABLED
++                assert(assert_related_rule14_check_rest_followed_by_transfer(cmd) || !"The REST command shall be immediately followed by the appropriate FTP service command which shall cause file transfer to resume");
++#endif
+ #ifdef WITH_TLS
+                 if (enforce_tls_auth == 3 &&
+                     data_protection_level != CPL_PRIVATE) {
+@@ -592,6 +837,9 @@ void parser(void)
+ #endif
+ #ifndef DISABLE_MKD_RMD
+             } else if (!strcmp(cmd, "mkd") || !strcmp(cmd, "xmkd")) {
++#ifdef ASSERT_ENABLED
++                assert(assert_related_rule14_check_rest_followed_by_transfer(cmd) || !"The REST command shall be immediately followed by the appropriate FTP service command which shall cause file transfer to resume");
++#endif
+                 arg = revealextraspc(arg);
+                 if (*arg != 0) {
+                     domkd(arg);
+@@ -599,6 +847,9 @@ void parser(void)
+                     addreply_noformat(501, MSG_NO_DIRECTORY_NAME);
+                 }
+             } else if (!strcmp(cmd, "rmd") || !strcmp(cmd, "xrmd")) {
++#ifdef ASSERT_ENABLED
++                assert(assert_related_rule14_check_rest_followed_by_transfer(cmd) || !"The REST command shall be immediately followed by the appropriate FTP service command which shall cause file transfer to resume");
++#endif
+                 if (*arg != 0) {
+                     dormd(arg);
+                 } else {
+@@ -607,6 +858,9 @@ void parser(void)
+ #endif
+ #ifndef MINIMAL
+             } else if (!strcmp(cmd, "stat")) {
++#ifdef ASSERT_ENABLED
++                assert(assert_related_rule14_check_rest_followed_by_transfer(cmd) || !"The REST command shall be immediately followed by the appropriate FTP service command which shall cause file transfer to resume");
++#endif
+                 if (*arg != 0) {
+                     dolist(arg, 1);
+                 } else {
+@@ -614,6 +868,9 @@ void parser(void)
+                 }
+ #endif
+             } else if (!strcmp(cmd, "list")) {
++#ifdef ASSERT_ENABLED
++                assert(assert_related_rule14_check_rest_followed_by_transfer(cmd) || !"The REST command shall be immediately followed by the appropriate FTP service command which shall cause file transfer to resume");
++#endif
+ #ifdef WITH_TLS
+                 if (enforce_tls_auth == 3 &&
+                     data_protection_level != CPL_PRIVATE) {
+@@ -624,6 +881,9 @@ void parser(void)
+                     dolist(arg, 0);
+                 }
+             } else if (!strcmp(cmd, "nlst")) {
++#ifdef ASSERT_ENABLED
++                assert(assert_related_rule14_check_rest_followed_by_transfer(cmd) || !"The REST command shall be immediately followed by the appropriate FTP service command which shall cause file transfer to resume");
++#endif
+ #ifdef WITH_TLS
+                 if (enforce_tls_auth == 3 &&
+                     data_protection_level != CPL_PRIVATE) {
+@@ -635,8 +895,14 @@ void parser(void)
+                 }
+ #ifndef MINIMAL
+             } else if (!strcmp(cmd, "mfmt")) {
++#ifdef ASSERT_ENABLED
++                assert(assert_related_rule14_check_rest_followed_by_transfer(cmd) || !"The REST command shall be immediately followed by the appropriate FTP service command which shall cause file transfer to resume");
++#endif
+                 parse_file_time_change(arg);
+             } else if (!strcmp(cmd, "mlst")) {
++#ifdef ASSERT_ENABLED
++                assert(assert_related_rule14_check_rest_followed_by_transfer(cmd) || !"The REST command shall be immediately followed by the appropriate FTP service command which shall cause file transfer to resume");
++#endif
+ # ifdef WITH_TLS
+                 if (enforce_tls_auth == 3 &&
+                     data_protection_level != CPL_PRIVATE) {
+@@ -647,6 +913,9 @@ void parser(void)
+                     domlst(*arg != 0 ? arg : ".");
+                 }
+             } else if (!strcmp(cmd, "mlsd")) {
++#ifdef ASSERT_ENABLED
++                assert(assert_related_rule14_check_rest_followed_by_transfer(cmd) || !"The REST command shall be immediately followed by the appropriate FTP service command which shall cause file transfer to resume");
++#endif
+ # ifdef WITH_TLS
+                 if (enforce_tls_auth == 3 &&
+                     data_protection_level != CPL_PRIVATE) {
+@@ -654,13 +923,24 @@ void parser(void)
+                 } else
+ # endif
+                 {
++#ifdef ASSERT_ENABLED
++                    /* Check if a directory name is provided for the MLSD command */
++                    assert(assert_related_rule8_check_mlsd_dir_name(arg) || 
++                           !"If no directory name is given, MLSD must issue a 501 reply and not open a data connection");
++#endif
+                     domlsd(*arg != 0 ? arg : ".");
+                 }
+ #endif
+             } else if (!strcmp(cmd, "abor")) {
++#ifdef ASSERT_ENABLED
++                assert(assert_related_rule14_check_rest_followed_by_transfer(cmd) || !"The REST command shall be immediately followed by the appropriate FTP service command which shall cause file transfer to resume");
++#endif
+                 addreply_noformat(226, MSG_ABOR_SUCCESS);
+ #ifndef MINIMAL
+             } else if (!strcmp(cmd, "site")) {
++#ifdef ASSERT_ENABLED
++                assert(assert_related_rule4_check_allo_followed_by_stor_appe(cmd) || !"ALLO command must be followed by STOR or APPE");
++#endif
+                 if ((sitearg = arg) != NULL) {
+                     while (*sitearg != 0 && !isspace((unsigned char) *sitearg)) {
+                         sitearg++;
+@@ -786,21 +1066,39 @@ void parser(void)
+                 }
+ #endif
+             } else if (!strcmp(cmd, "mdtm")) {
++#ifdef ASSERT_ENABLED
++                assert(assert_related_rule4_check_allo_followed_by_stor_appe(cmd) || !"ALLO command must be followed by STOR or APPE");
++#endif
+                 domdtm(arg);
+             } else if (!strcmp(cmd, "size")) {
++#ifdef ASSERT_ENABLED
++                assert(assert_related_rule4_check_allo_followed_by_stor_appe(cmd) || !"ALLO command must be followed by STOR or APPE");
++#endif
+                 dosize(arg);
+ #ifndef MINIMAL
+             } else if (!strcmp(cmd, "chmod")) {
++#ifdef ASSERT_ENABLED
++                assert(assert_related_rule4_check_allo_followed_by_stor_appe(cmd) || !"ALLO command must be followed by STOR or APPE");
++#endif
+                 sitearg = arg;
+                 goto parsechmod;
+ #endif
+             } else if (!strcmp(cmd, "rnfr")) {
++#ifdef ASSERT_ENABLED
++                assert(assert_related_rule4_check_allo_followed_by_stor_appe(cmd) || !"ALLO command must be followed by STOR or APPE");
++#endif
+                 if (*arg != 0) {
+                     dornfr(arg);
++#ifdef ASSERT_ENABLED
++                    rnfr_was_last_command = 1; /* Mark that RNFR was the last command */
++#endif
+                 } else {
+                     addreply_noformat(550, MSG_NO_FILE_NAME);
+                 }
+             } else if (!strcmp(cmd, "rnto")) {
++#ifdef ASSERT_ENABLED
++                assert(assert_related_rule4_check_allo_followed_by_stor_appe(cmd) || !"ALLO command must be followed by STOR or APPE");
++#endif
+                 arg = revealextraspc(arg);
+                 if (*arg != 0) {
+                     dornto(arg);
+@@ -808,6 +1106,7 @@ void parser(void)
+                     addreply_noformat(550, MSG_NO_FILE_NAME);
+                 }
+             } else {
++// #ifdef ASS/
+                 addreply_noformat(500, MSG_UNKNOWN_COMMAND);
+             }
+         }
+diff --git a/src/ftpd.c b/src/ftpd.c
+index 6f1f504..dc70479 100644
+--- a/src/ftpd.c
++++ b/src/ftpd.c
+@@ -9,6 +9,140 @@
+ #include "globals.h"
+ #include "caps.h"
+ #include "alt_arc4random.h"
++#include <assert.h>
++
++#ifdef ASSERT_ENABLED
++static int assert_related_rule5_check_appe_restart_marker(int append, off_t restartat, off_t st_size)
++{
++    /* Check if APPE command is respecting the restart marker when it's set.
++     * According to the rule, APPE must act identically to STOR when a restart marker has been set.
++     * 
++     * Returns 1 if:
++     * - It's not an APPE command (append == 0), so the rule doesn't apply
++     * - It's an APPE command but no restart marker is set (restartat == 0)
++     * - It's an APPE command with a restart marker set, and the marker is being respected
++     *   (i.e., restartat is not being overwritten with st_size)
++     * 
++     * Returns 0 if:
++     * - It's an APPE command with a restart marker set, but the marker is being overwritten
++     */
++    if (append == 0) {
++        return 1;  /* Not an APPE command, rule doesn't apply */
++    }
++    
++    if (restartat == 0) {
++        return 1;  /* No restart marker set, rule doesn't apply */
++    }
++    
++    /* If we're here, it's an APPE command with a restart marker set.
++     * The rule is violated if restartat is being overwritten with st_size.
++     */
++    return (restartat != st_size);  /* Return true if restartat is not being overwritten */
++}
++
++static int assert_related_rule7_check_eprt_format(const char *p)
++{
++    /* Check if the EPRT command is using the correct format for IPv4 addresses.
++     * According to RFC 2428, the IP address portion MUST be in dotted-decimal notation.
++     * 
++     * Returns 1 if:
++     * - The string contains dots (.) for IP address separation, which is the correct format
++     * - The string does not contain commas (,) for IP address separation, which is incorrect
++     * 
++     * Returns 0 if:
++     * - The string contains commas (,) for IP address separation, which is incorrect
++     */
++    
++    /* Skip to the IP address portion (after the first delimiter and family number) */
++    char delim = *p++;
++    while (*p && *p != delim) {
++        p++;
++    }
++    if (*p == delim) {
++        p++;  /* Now p points to the start of the IP address */
++    } else {
++        return 1;  /* Format error, will be caught by other validation */
++    }
++    
++    /* Check if the IP address portion contains commas */
++    while (*p && *p != delim) {
++        if (*p == ',') {
++            return 0;  /* Found a comma, which is incorrect */
++        }
++        p++;
++    }
++    
++    return 1;  /* No commas found, format is correct or will be caught by other validation */
++}
++
++static int assert_related_rule10_check_mlst_invalid_arg(const char *file)
++{
++    /* Check if the MLST argument is valid */
++    if (file == NULL) {
++        return 0; /* Invalid - NULL argument */
++    }
++    
++    /* Check for other invalid argument conditions */
++    /* Empty string is valid (current directory) */
++    
++    return 1; /* Valid argument */
++}
++
++static int assert_related_rule11_check_mlst_facts(const char *cmdopts, const char *returned_facts)
++{
++    /* If cmdopts is NULL or empty, the client didn't specify any facts */
++    if (cmdopts == NULL || *cmdopts == '\0') {
++        /* Server shouldn't return any facts */
++        return (returned_facts == NULL || *returned_facts == '\0');
++    }
++    
++    /* Check if the server is returning facts not included in the client's request */
++    const char *facts_to_return = "type;size;sizd;modify;UNIX.mode;UNIX.uid;UNIX.gid;unique;";
++    const char *fact_start = facts_to_return;
++    const char *fact_end;
++    
++    /* For each fact in the server's response */
++    while (*fact_start != '\0') {
++        fact_end = strchr(fact_start, ';');
++        if (fact_end == NULL) {
++            break;
++        }
++        
++        /* Extract the current fact */
++        size_t fact_len = fact_end - fact_start;
++        char fact[64];
++        if (fact_len >= sizeof(fact)) {
++            fact_len = sizeof(fact) - 1;
++        }
++        memcpy(fact, fact_start, fact_len);
++        fact[fact_len] = '\0';
++        
++        /* Check if this fact is included in the client's request */
++        if (strstr(cmdopts, fact) == NULL) {
++            /* This fact was not requested by the client */
++            return 0;
++        }
++        
++        /* Move to the next fact */
++        fact_start = fact_end + 1;
++    }
++    
++    return 1; /* All facts in the server's response were requested by the client */
++}
++
++/* Helper function for rule17 - Check if TYPE L command includes a second parameter */
++static int assert_related_rule17_check_type_l_param(const char *arg)
++{
++    /* If the first character is not 'L' or 'l', this check is not applicable */
++    if (arg == NULL || (*arg != 'L' && *arg != 'l')) {
++        return 1;
++    }
++    
++    /* Check if there is a second parameter (byte size) */
++    return (arg[1] != '\0');
++}
++#endif
++
+ #if defined(WITH_UPLOAD_SCRIPT)
+ # include "upload-pipe.h"
+ #endif
+@@ -969,6 +1103,12 @@ void doeprt(char *p)
+         /* there should be dot-decimal ip as rfc2428 states,
+          * but troll used for some reason "comma-decimal" notation
+          * so I decided to leave it */
++#ifdef ASSERT_ENABLED
++        /* Check if the EPRT command is using the correct format for IPv4 addresses */
++        char *orig_p = p - 2;  /* Go back to the start of the command (delim + family + delim) */
++        assert(assert_related_rule7_check_eprt_format(orig_p) || 
++               !"The portion of the string enclosed in parentheses MUST be the exact string needed by the EPRT command");
++#endif
+         if ((sscanf(p, "%u,%u,%u,%u", &a1, &a2, &a3, &a4) != 4 &&
+              sscanf(p, "%u.%u.%u.%u", &a1, &a2, &a3, &a4) != 4) ||
+             a1 > 255U || a2 > 255U || a3 > 255U || a4 > 255U ||
+@@ -1167,6 +1307,10 @@ void domlst(const char * const file)
+ {
+     char line[PATH_MAX + 256U] = MLST_BEGIN;
+ 
++#ifdef ASSERT_ENABLED
++    assert(assert_related_rule10_check_mlst_invalid_arg(file) || !"MLST command with invalid argument must reply with error code 501");
++#endif
++
+     if (modernformat(file, line + (sizeof MLST_BEGIN - 1U),
+                      sizeof line - (sizeof MLST_BEGIN - 1U), " ") < 0) {
+         addreply_noformat(550, MSG_STAT_FAILURE2);
+@@ -4218,6 +4362,11 @@ void dostor(char *name, const int append, const int autorename)
+             (void) close(f);
+             goto end;
+         }
++#endif
++#ifdef ASSERT_ENABLED
++        /* Check if APPE is respecting the restart marker */
++        assert(assert_related_rule5_check_appe_restart_marker(append, restartat, st.st_size) || 
++               !"APPE command must act identically to STOR when a restart marker has been set");
+ #endif
+         if (append != 0) {
+             restartat = st.st_size;
+@@ -4460,6 +4609,11 @@ void dotype(const char *arg)
+     else if (tolower((unsigned char) *arg) == 'i')
+         type = 2;
+     else if (tolower((unsigned char) *arg) == 'l') {
++#ifdef ASSERT_ENABLED
++        /* Rule17: Check if TYPE L command includes a second parameter */
++        assert(assert_related_rule17_check_type_l_param(arg) || 
++               !"If the type is Local byte, then the TYPE command has an obligatory second parameter specifying the logical byte size");
++#endif
+         if (arg[1] == '8') {
+             type = 2;
+         } else if (isdigit((unsigned char) arg[1])) {
+@@ -4607,6 +4761,9 @@ void doopts(char *args)
+         (void) cmdopts;
+     }
+     if (strncasecmp("mlst ", args, 5) == 0) {
++#ifdef ASSERT_ENABLED
++        assert(assert_related_rule11_check_mlst_facts(cmdopts, "type;size;sizd;modify;UNIX.mode;UNIX.uid;UNIX.gid;unique;") || !"Facts not included in the OPTS MLST command MUST NOT be returned by the server");
++#endif
+         addreply_noformat(200, " MLST OPTS "
+                           "type;size;sizd;modify;UNIX.mode;UNIX.uid;"
+                           "UNIX.gid;unique;");
+@@ -4632,7 +4789,7 @@ static void fixlimits(void)
+     lim.rlim_max = lim.rlim_cur = MAX_CPU_TIME;
+     setrlimit(RLIMIT_CPU, &lim);
+     lim.rlim_max = lim.rlim_cur = MAX_DATA_SIZE;
+-    setrlimit(RLIMIT_DATA, &lim);
++    // setrlimit(RLIMIT_DATA, &lim);
+ # ifndef DEBUG
+     lim.rlim_max = lim.rlim_cur = 0;
+     setrlimit(RLIMIT_CORE, &lim);
+@@ -4788,6 +4945,11 @@ static void set_signals_client(void)
+     sigdelset(&sigs, SIGXCPU);
+     (void) sigaction(SIGXCPU, &sa, NULL);
+ #endif
++
++    /* Allow SIGABRT to terminate the program immediately for assert failures */
++    sa.sa_handler = SIG_DFL;
++    sigdelset(&sigs, SIGABRT);
++    (void) sigaction(SIGABRT, &sa, NULL);
+     (void) sigprocmask(SIG_SETMASK, &sigs, NULL);
+ }
+ 
+@@ -4855,8 +5017,9 @@ static void fill_atomic_prefix(void)
+              ATOMIC_PREFIX_PREFIX,
+              (unsigned long) session_start_time,
+              (unsigned int) serverport,
+-             (unsigned long) getpid(),
+-             zrand());
++            //  (unsigned long) getpid(),
++            //  zrand());
++             0,0);
+     if ((atomic_prefix = strdup(tmp_atomic_prefix)) == NULL) {
+         die_mem();
+     }
+@@ -4869,7 +5032,8 @@ static void doit(void)
+     int display_banner = 1;
+ 
+     client_init_reply_buf();
+-    session_start_time = time(NULL);
++    // session_start_time = time(NULL);
++    session_start_time = 0;
+     fixlimits();
+ #ifdef F_SETOWN
+     fcntl(clientfd, F_SETOWN, getpid());
+@@ -4994,13 +5158,14 @@ static void doit(void)
+ #endif
+     /* Back to the client - Get the 5 min load average */
+     {
+-        double load_[2];
++        // double load_[2];
+ 
+-        if (getloadavg(load_, sizeof load_ / sizeof load_[0]) < 0) {
+-            load = 0.0;
+-        } else {
+-            load = load_[1];
+-        }
++        // if (getloadavg(load_, sizeof load_ / sizeof load_[0]) < 0) {
++        //     load = 0.0;
++        // } else {
++        //     load = load_[1];
++        // }
++        load = 0.0;
+     }
+ #ifndef NON_ROOT_FTP
+     wd[0] = '/';
+@@ -5287,11 +5452,13 @@ static void accept_client(const int active_listen_fd) {
+     sigaddset(&set, SIGCHLD);
+     sigprocmask(SIG_BLOCK, &set, NULL);
+     nb_children++;
+-    child = fork();
++    // child = fork();
++    child = 0;
+     if (child == (pid_t) 0) {
+-        if (isatty(2)) {
+-            (void) close(2);
+-        }
++        // Temporarily commented out for debugging assert messages
++        // if (isatty(2)) {
++        //     (void) close(2);
++        // }
+ #ifndef SAVE_DESCRIPTORS
+         if (no_syslog == 0) {
+             closelog();
+diff --git a/src/ls.c b/src/ls.c
+index 94150ad..3730c54 100644
+--- a/src/ls.c
++++ b/src/ls.c
+@@ -8,6 +8,7 @@
+ #include "ftpwho-update.h"
+ #include "globals.h"
+ #include "safe_rw.h"
++#include <assert.h>
+ #ifdef WITH_TLS
+ # include "tls.h"
+ #endif
+@@ -1039,6 +1040,47 @@ bye:
+     }
+ }
+ 
++#ifdef ASSERT_ENABLED
++static int assert_related_rule9_check_mlsd_connection_settings(void)
++{
++    /* Check if the data connection for MLSD responses is configured with the required settings.
++     * According to the rule, the data connection opened for a MLSD response shall be a connection
++     * as if the "TYPE L 8", "MODE S", and "STRU F" commands had been given.
++     * 
++     * This function is called before opening the data connection for MLSD responses,
++     * so we can only check if the current settings are compatible with the required ones.
++     * 
++     * Returns 1 if:
++     * - type is 2 (binary), which is compatible with "TYPE L 8"
++     * 
++     * Returns 0 if:
++     * - type is not 2 (binary), which is incompatible with "TYPE L 8"
++     * 
++     * Note: We don't have direct access to MODE and STRU settings in this context,
++     * but we assume they are set to "MODE S" and "STRU F" by default.
++     */
++    extern signed char type;
++    
++    /* TYPE L 8 corresponds to binary mode (type = 2) */
++    return (type == 2);
++}
++#endif
++
++#ifdef ASSERT_ENABLED
++static int assert_related_rule10_check_mlsd_invalid_arg(const char *base)
++{
++    /* Check if the MLSD argument is valid */
++    if (base == NULL) {
++        return 0; /* Invalid - NULL argument */
++    }
++    
++    /* Empty string is valid (current directory) */
++    /* Other invalid argument conditions would be checked here */
++    
++    return 1; /* Valid argument */
++}
++#endif
++
+ #ifndef MINIMAL
+ void domlsd(const char *base)
+ {
+@@ -1049,6 +1091,10 @@ void domlsd(const char *base)
+     unsigned int   matches = 0;
+     int            c;
+ 
++#ifdef ASSERT_ENABLED
++    assert(assert_related_rule10_check_mlsd_invalid_arg(base) || !"MLSD command with invalid argument must reply with error code 501");
++#endif
++
+     if (*base != 0 && chdir(base) != 0) {
+         if (*base++ == '-') {
+             while (*base != 0 && !isspace((unsigned char) *base++));
+@@ -1066,6 +1112,11 @@ void domlsd(const char *base)
+         addreply_noformat(550, MSG_STAT_FAILURE2);
+         goto bye;
+     }
++#ifdef ASSERT_ENABLED
++    /* Check if the data connection for MLSD responses is configured with the required settings */
++    assert(assert_related_rule9_check_mlsd_connection_settings() || 
++           !"The data connection opened for a MLSD response shall be a connection as if the TYPE L 8, MODE S, and STRU F commands had been given");
++#endif
+     opendata();
+     if ((c = xferfd) == -1) {
+         goto bye;

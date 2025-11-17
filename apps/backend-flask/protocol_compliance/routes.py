@@ -36,6 +36,8 @@ from .analysis import (
     try_extract_rules_summary,
 )
 from .assertion import (
+    get_assertion_history_diff_path,
+    get_assertion_history_entry,
     get_assert_generation_job,
     get_assert_generation_result,
     get_assert_generation_zip_path,
@@ -43,6 +45,7 @@ from .assertion import (
     submit_diff_parsing_job,
     get_diff_parsing_job,
     get_diff_parsing_result,
+    list_assertion_history,
 )
 from .store import STORE, TaskStatus
 
@@ -394,6 +397,43 @@ def delete_static_analysis_history(job_id: str):
     except Exception as exc:
         LOGGER.error("Failed to delete static analysis job %s: %s", job_id, exc)
         return make_response(error_response(f"删除失败：{str(exc)}"), 500)
+
+
+@bp.route("/assertions/history", methods=["GET"])
+def assertion_history():
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+
+    limit = _to_int(request.args.get("limit"), 50)
+    limit = max(1, min(limit, 200))
+    items = list_assertion_history(limit=limit)
+    payload = {"items": items, "limit": limit, "count": len(items)}
+    return make_response(success_response(payload), 200)
+
+
+@bp.route("/assertions/history/<job_id>", methods=["GET"])
+def assertion_history_entry(job_id: str):
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+
+    entry = get_assertion_history_entry(job_id)
+    if not entry:
+        return make_response(error_response("历史记录不存在"), 404)
+    return make_response(success_response(entry), 200)
+
+
+@bp.route("/assertions/history/<job_id>/diff", methods=["GET"])
+def download_assertion_diff(job_id: str):
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+
+    diff_path = get_assertion_history_diff_path(job_id)
+    if not diff_path:
+        return make_response(error_response("Diff 文件不存在"), 404)
+    return send_file(diff_path, as_attachment=True, download_name=diff_path.name)
 
 
 def _expand_path(raw: Optional[str]) -> Optional[Path]:

@@ -20,6 +20,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import BinaryIO, Callable, Dict, List, Optional, Tuple
 
+from .assertion_history_repository import ASSERTION_HISTORY_REPOSITORY
 from .docker_runner import (
     ProtocolGuardDockerError,
     ProtocolGuardDockerRunner,
@@ -338,6 +339,12 @@ def run_assert_generation(
             # Merge instrumentation details into the base result
             if isinstance(base_result, dict):
                 base_result["instrumentation"] = instr_details
+            _record_assertion_history_entry(
+                job_id=job_identifier,
+                code_filename=code_file_name,
+                database_filename=database_file_name,
+                instrumentation_details=instr_details,
+            )
             if progress_callback:
                 progress_callback(job_identifier, "instrumentation", "Instrumentation completed successfully")
         except AssertGenerationError:
@@ -675,6 +682,47 @@ def get_assert_generation_zip_path(job_id: str) -> Optional[Path]:
     if not zip_path.exists():
         return None
     return zip_path
+
+
+def _record_assertion_history_entry(
+    *,
+    job_id: str,
+    code_filename: str,
+    instrumentation_details: Dict[str, object],
+) -> None:
+    artifacts = instrumentation_details.get("artifacts") if isinstance(instrumentation_details, dict) else None
+    if not isinstance(artifacts, dict):
+        return
+    diff_output = artifacts.get("diffOutput")
+    if not isinstance(diff_output, dict):
+        return
+    raw_path = diff_output.get("path")
+    if not isinstance(raw_path, str) or not raw_path:
+        return
+    diff_path = Path(raw_path)
+    if not diff_path.exists():
+        LOGGER.warning("Instrumentation diff file %s missing for job %s", diff_path, job_id)
+        return
+    try:
+        ASSERTION_HISTORY_REPOSITORY.record_job(
+            job_id=job_id,
+            diff_source_path=diff_path,
+            code_filename=code_filename,
+        )
+    except Exception as exc:  # pragma: no cover - persistence best effort
+        LOGGER.warning("Failed to persist assertion history for job %s: %s", job_id, exc)
+
+
+def list_assertion_history(limit: int = 50) -> List[Dict[str, object]]:
+    return ASSERTION_HISTORY_REPOSITORY.list_history(limit=limit)
+
+
+def get_assertion_history_entry(job_id: str) -> Optional[Dict[str, object]]:
+    return ASSERTION_HISTORY_REPOSITORY.get_entry(job_id)
+
+
+def get_assertion_history_diff_path(job_id: str) -> Optional[Path]:
+    return ASSERTION_HISTORY_REPOSITORY.resolve_diff_path(job_id)
 
 
 # ============================================================================

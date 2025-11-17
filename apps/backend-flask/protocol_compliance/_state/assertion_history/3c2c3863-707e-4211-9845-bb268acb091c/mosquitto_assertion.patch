@@ -1,0 +1,1020 @@
+diff --git a/lib/packet_mosq.c b/lib/packet_mosq.c
+index b063eb71..12a5cb24 100644
+--- a/lib/packet_mosq.c
++++ b/lib/packet_mosq.c
+@@ -47,6 +47,43 @@ Contributors:
+ #  define G_PUB_MSGS_SENT_INC(A)
+ #endif
+ 
++#ifdef ASSERT_ENABLED
++bool assert_related_rule1_packet_size_check(struct mosquitto__packet *packet, struct mosquitto *mosq);
++#endif
++
++#ifdef ASSERT_ENABLED
++bool assert_related_rule1_packet_size_check(struct mosquitto__packet *packet, struct mosquitto *mosq)
++{
++	/* Check if packet allocation might indicate missing Maximum Packet Size validation.
++	 * This detects scenarios where packet__alloc is called with sizes that should 
++	 * have triggered maximum packet size validation beforehand.
++	 * Return false when the condition suggests missing validation (to trigger assert).
++	 */
++	
++	if (!packet) {
++		return true; /* Invalid packet, other checks will handle this */
++	}
++	
++	/* Calculate total packet size including variable header */
++	uint32_t total_packet_size = packet->remaining_length + packet__varint_bytes(packet->remaining_length);
++	
++	/* Check for suspiciously large packets that suggest missing validation.
++	 * Using a reasonable threshold that indicates a packet size that should 
++	 * have been caught by maximum packet size checks if properly implemented.
++	 * MQTT spec suggests reasonable maximum packet sizes are typically much smaller.
++	 */
++	const uint32_t SUSPICIOUS_PACKET_SIZE = 0x10000000; /* 256MB - unreasonably large */
++	
++	if (total_packet_size > SUSPICIOUS_PACKET_SIZE) {
++		/* This indicates a scenario where Maximum Packet Size validation 
++		 * should have prevented this allocation */
++		return false;
++	}
++	
++	return true; /* Packet size seems reasonable */
++}
++#endif
++
+ int packet__alloc(struct mosquitto__packet *packet)
+ {
+ 	uint8_t remaining_bytes[5], byte;
+@@ -55,6 +92,10 @@ int packet__alloc(struct mosquitto__packet *packet)
+ 
+ 	assert(packet);
+ 
++#ifdef ASSERT_ENABLED
++	assert(assert_related_rule1_packet_size_check(packet, NULL) || !"Maximum Packet Size limit validation missing - should trigger protocol error with DISCONNECT reason code 0x95");
++#endif
++
+ 	remaining_length = packet->remaining_length;
+ 	packet->payload = NULL;
+ 	packet->remaining_count = 0;
+diff --git a/lib/property_mosq.c b/lib/property_mosq.c
+index 4d76c487..0f4a0798 100644
+--- a/lib/property_mosq.c
++++ b/lib/property_mosq.c
+@@ -31,6 +31,26 @@ Contributors:
+ #include "packet_mosq.h"
+ #include "property_mosq.h"
+ 
++#ifdef ASSERT_ENABLED
++#include <assert.h>
++
++/* Custom function to check for Subscription Identifier in client-to-server PUBLISH packets */
++static bool assert_related_rule17_subscription_id_in_publish_check(int command, int identifier);
++
++static bool assert_related_rule20_subscription_id_zero_check(uint32_t subscription_id);
++
++static bool assert_related_rule17_subscription_id_in_publish_check(int command, int identifier)
++{
++	/* Check if Subscription Identifier is used in CMD_PUBLISH (Client to Server direction) */
++	return (command == CMD_PUBLISH && identifier == MQTT_PROP_SUBSCRIPTION_IDENTIFIER);
++}
++
++static bool assert_related_rule20_subscription_id_zero_check(uint32_t subscription_id)
++{
++	/* Return false when Subscription Identifier has value of 0 (triggering Protocol Error) */
++	return (subscription_id != 0);
++}
++#endif
+ 
+ static int property__read(struct mosquitto__packet *packet, uint32_t *len, mosquitto_property *property)
+ {
+@@ -96,6 +116,9 @@ static int property__read(struct mosquitto__packet *packet, uint32_t *len, mosqu
+ 			if(rc) return rc;
+ 			*len -= byte_count;
+ 			property->value.varint = varint;
++#ifdef ASSERT_ENABLED
++			assert(assert_related_rule20_subscription_id_zero_check(varint) || !"Protocol Error: Subscription Identifier must not have a value of 0");
++#endif
+ 			break;
+ 
+ 		case MQTT_PROP_CONTENT_TYPE:
+@@ -464,6 +487,9 @@ int mosquitto_property_check_command(int command, int identifier)
+ 			if(command != CMD_PUBLISH && command != CMD_SUBSCRIBE){
+ 				return MOSQ_ERR_PROTOCOL;
+ 			}
++#ifdef ASSERT_ENABLED
++			assert(!assert_related_rule17_subscription_id_in_publish_check(command, identifier) || !"MQTT rule violation: PUBLISH packet from Client to Server must not contain Subscription Identifier");
++#endif
+ 			break;
+ 
+ 		case MQTT_PROP_SESSION_EXPIRY_INTERVAL:
+diff --git a/lib/send_mosq.c b/lib/send_mosq.c
+index a8346495..46b7ebfe 100644
+--- a/lib/send_mosq.c
++++ b/lib/send_mosq.c
+@@ -41,6 +41,10 @@ Contributors:
+ #include "time_mosq.h"
+ #include "util_mosq.h"
+ 
++#ifdef ASSERT_ENABLED
++bool assert_related_rule2_request_problem_info_check(struct mosquitto *mosq, uint8_t command, const mosquitto_property *properties);
++#endif
++
+ int send__pingreq(struct mosquitto *mosq)
+ {
+ 	int rc;
+@@ -124,6 +128,11 @@ int send__command_with_mid(struct mosquitto *mosq, uint8_t command, uint16_t mid
+ 	int rc;
+ 
+ 	assert(mosq);
++	
++#ifdef ASSERT_ENABLED
++	assert(assert_related_rule2_request_problem_info_check(mosq, command, properties) || !"Request Problem Information rule violation - MUST NOT send Reason String or User Properties in PUBACK/PUBREC/PUBREL/PUBCOMP when Request Problem Information is 0");
++#endif
++
+ 	packet = mosquitto__calloc(1, sizeof(struct mosquitto__packet));
+ 	if(!packet) return MOSQ_ERR_NOMEM;
+ 
+@@ -185,3 +194,45 @@ int send__simple_command(struct mosquitto *mosq, uint8_t command)
+ 	return packet__queue(mosq, packet);
+ }
+ 
++#ifdef ASSERT_ENABLED
++bool assert_related_rule2_request_problem_info_check(struct mosquitto *mosq, uint8_t command, const mosquitto_property *properties)
++{
++	/* Check if Request Problem Information rule might be violated.
++	 * If Request Problem Information is 0, packets other than PUBLISH, CONNACK, 
++	 * or DISCONNECT MUST NOT send Reason String or User Properties.
++	 * Since there's no field to track Request Problem Information value in mosq structure,
++	 * this function detects suspicious scenarios where properties are being sent
++	 * in packet types that shouldn't have them according to this rule.
++	 * Return false when the condition suggests possible rule violation (to trigger assert).
++	 */
++	
++	if (!mosq || !properties) {
++		return true; /* No properties or invalid context, no violation */
++	}
++	
++	/* Extract command type (ignore flags) */
++	uint8_t cmd_type = command & 0xF0;
++	
++	/* Check if this is a packet type that should not have Reason String or User Properties
++	 * when Request Problem Information is 0 */
++	if (cmd_type == CMD_PUBACK || cmd_type == CMD_PUBREC || 
++	    cmd_type == CMD_PUBREL || cmd_type == CMD_PUBCOMP) {
++		
++		/* Check if properties contain Reason String or User Properties */
++		const mosquitto_property *prop = properties;
++		while (prop) {
++			if (prop->identifier == MQTT_PROP_REASON_STRING || 
++			    prop->identifier == MQTT_PROP_USER_PROPERTY) {
++				/* This indicates a potential violation where these packet types
++				 * are being sent with Reason String or User Properties,
++				 * which should not happen if Request Problem Information is 0 */
++				return false;
++			}
++			prop = prop->next;
++		}
++	}
++	
++	return true; /* No violation detected */
++}
++#endif
++
+diff --git a/lib/send_publish.c b/lib/send_publish.c
+index be52474b..5492813b 100644
+--- a/lib/send_publish.c
++++ b/lib/send_publish.c
+@@ -38,6 +38,9 @@ Contributors:
+ #include "property_mosq.h"
+ #include "send_mosq.h"
+ 
++#ifdef ASSERT_ENABLED
++static bool assert_related_rule22_topic_alias_maximum_violation_check(struct mosquitto *mosq, const mosquitto_property *cmsg_props, const mosquitto_property *store_props);
++#endif
+ 
+ int send__publish(struct mosquitto *mosq, uint16_t mid, const char *topic, uint32_t payloadlen, const void *payload, uint8_t qos, bool retain, bool dup, const mosquitto_property *cmsg_props, const mosquitto_property *store_props, uint32_t expiry_interval)
+ {
+@@ -205,6 +208,9 @@ int send__real_publish(struct mosquitto *mosq, uint16_t mid, const char *topic,
+ 
+ 	if(mosq->protocol == mosq_p_mqtt5){
+ 		packet__write_varint(packet, proplen);
++#ifdef ASSERT_ENABLED
++		assert(assert_related_rule22_topic_alias_maximum_violation_check(mosq, cmsg_props, store_props) || !"MQTT-3.1.2-27: Server must not send Topic Aliases when Topic Alias Maximum is absent or zero");
++#endif
+ 		property__write_all(packet, cmsg_props, false);
+ 		property__write_all(packet, store_props, false);
+ 		if(expiry_interval > 0){
+@@ -219,3 +225,36 @@ int send__real_publish(struct mosquitto *mosq, uint16_t mid, const char *topic,
+ 
+ 	return packet__queue(mosq, packet);
+ }
++
++#ifdef ASSERT_ENABLED
++static bool assert_related_rule22_topic_alias_maximum_violation_check(struct mosquitto *mosq, const mosquitto_property *cmsg_props, const mosquitto_property *store_props)
++{
++	const mosquitto_property *prop;
++	
++	/* Check if we're sending Topic Alias when client's Topic Alias Maximum is zero or absent */
++	/* Rule MQTT-3.1.2-27: If Topic Alias Maximum is absent or zero, server MUST NOT send Topic Aliases */
++	
++	/* Check if client's Topic Alias Maximum is zero or absent (default is 0) */
++	bool client_allows_topic_alias = (mosq->listener && mosq->listener->max_topic_alias > 0);
++	
++	if (!client_allows_topic_alias) {
++		/* Client doesn't allow Topic Aliases, check if we're trying to send any */
++		
++		/* Check cmsg_props for Topic Alias */
++		for (prop = cmsg_props; prop; prop = prop->next) {
++			if (prop->identifier == MQTT_PROP_TOPIC_ALIAS) {
++				return false; /* Violation: sending Topic Alias when not allowed */
++			}
++		}
++		
++		/* Check store_props for Topic Alias */
++		for (prop = store_props; prop; prop = prop->next) {
++			if (prop->identifier == MQTT_PROP_TOPIC_ALIAS) {
++				return false; /* Violation: sending Topic Alias when not allowed */
++			}
++		}
++	}
++	
++	return true; /* No violation */
++}
++#endif
+diff --git a/src/handle_connect.c b/src/handle_connect.c
+index cb22e358..c2ee550b 100644
+--- a/src/handle_connect.c
++++ b/src/handle_connect.c
+@@ -21,6 +21,7 @@ Contributors:
+ #include <stdio.h>
+ #include <string.h>
+ #include <utlist.h>
++#include <assert.h>
+ 
+ #include "mosquitto_broker_internal.h"
+ #include "mqtt_protocol.h"
+@@ -423,7 +424,57 @@ error_cleanup:
+ 	return rc;
+ }
+ 
++#ifdef ASSERT_ENABLED
++bool assert_related_rule3_clientid_rejection_code(struct mosquitto *context, bool is_mqtt5)
++{
++	/* Check if the correct reason code is used when rejecting a ClientID.
++	 * According to [MQTT-3.1.3-8], if the Server rejects the ClientID it MUST use
++	 * reason code 0x85 (Client Identifier not valid) in MQTT 5.0.
++	 * Return false when the condition suggests incorrect reason code usage.
++	 */
++	
++	if (!context) {
++		return true; /* Invalid context, other checks will handle this */
++	}
++	
++	/* Only check MQTT 5.0 protocol */
++	if (is_mqtt5 && context->protocol == mosq_p_mqtt5) {
++		/* When rejecting ClientID in MQTT 5.0, must use reason code 0x85 (MQTT_RC_CLIENTID_NOT_VALID) */
++		return false; /* This will trigger the assert before the incorrect code is used */
++	}
++	
++	return true;
++}
+ 
++bool assert_related_rule4_connack_reason_code_check(struct mosquitto *context, uint8_t reason_code, const char *protocol_name, uint8_t protocol_version)
++{
++	/* Check if the correct CONNACK reason code is used for MQTT 5.0.
++	 * According to [MQTT-3.2.2-8], the Server sending the CONNACK packet MUST use 
++	 * one of the Connect Reason Code values from Table 3-1.
++	 * For MQTT 5.0, when protocol version is unsupported, must use 0x84 
++	 * (MQTT_RC_UNSUPPORTED_PROTOCOL_VERSION) instead of legacy 0x01 (CONNACK_REFUSED_PROTOCOL_VERSION).
++	 * Return false when the condition suggests incorrect reason code usage.
++	 */
++	
++	if (!context || !protocol_name) {
++		return true; /* Invalid parameters, other checks will handle this */
++	}
++	
++	/* Check if this is an MQTT 5.0 context attempting protocol version validation */
++	if (!strcmp(protocol_name, "MQTT")) {
++		/* This is the modern MQTT protocol name, could be 3.1.1 or 5.0 */
++		if ((protocol_version & 0x7F) == 5) {
++			/* Client is attempting MQTT 5.0 connection */
++			if (reason_code == CONNACK_REFUSED_PROTOCOL_VERSION) {
++				/* Using legacy MQTT 3.x reason code for MQTT 5.0 - this is wrong */
++				return false; /* Trigger assert */
++			}
++		}
++	}
++	
++	return true;
++}
++#endif
+ 
+ int handle__connect(struct mosquitto *context)
+ {
+@@ -495,6 +546,9 @@ int handle__connect(struct mosquitto *context)
+ 				log__printf(NULL, MOSQ_LOG_INFO, "Invalid protocol version %d in CONNECT from %s.",
+ 						protocol_version, context->address);
+ 			}
++#ifdef ASSERT_ENABLED
++			assert(assert_related_rule4_connack_reason_code_check(context, CONNACK_REFUSED_PROTOCOL_VERSION, protocol_name, protocol_version) || !"Must use MQTT 5.0 Connect Reason Codes for CONNACK packets in MQTT 5.0 contexts [MQTT-3.2.2-8]");
++#endif
+ 			send__connack(context, 0, CONNACK_REFUSED_PROTOCOL_VERSION, NULL);
+ 			rc = MOSQ_ERR_PROTOCOL;
+ 			goto handle_connect_error;
+@@ -517,6 +571,9 @@ int handle__connect(struct mosquitto *context)
+ 				log__printf(NULL, MOSQ_LOG_INFO, "Invalid protocol version %d in CONNECT from %s.",
+ 						protocol_version, context->address);
+ 			}
++#ifdef ASSERT_ENABLED
++			assert(assert_related_rule4_connack_reason_code_check(context, CONNACK_REFUSED_PROTOCOL_VERSION, protocol_name, protocol_version) || !"Must use MQTT 5.0 Connect Reason Codes for CONNACK packets in MQTT 5.0 contexts [MQTT-3.2.2-8]");
++#endif
+ 			send__connack(context, 0, CONNACK_REFUSED_PROTOCOL_VERSION, NULL);
+ 			rc = MOSQ_ERR_PROTOCOL;
+ 			goto handle_connect_error;
+@@ -625,6 +682,9 @@ int handle__connect(struct mosquitto *context)
+ 				if(context->protocol == mosq_p_mqtt311){
+ 					send__connack(context, 0, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
+ 				}else{
++#ifdef ASSERT_ENABLED
++					assert(assert_related_rule3_clientid_rejection_code(context, true) || !"Must use reason code 0x85 (Client Identifier not valid) when rejecting ClientID in MQTT 5.0 [MQTT-3.1.3-8]");
++#endif
+ 					send__connack(context, 0, MQTT_RC_UNSPECIFIED, NULL);
+ 				}
+ 				rc = MOSQ_ERR_PROTOCOL;
+diff --git a/src/handle_publish.c b/src/handle_publish.c
+index eb0cef3e..7ceaffa9 100644
+--- a/src/handle_publish.c
++++ b/src/handle_publish.c
+@@ -20,6 +20,7 @@ Contributors:
+ 
+ #include <stdio.h>
+ #include <string.h>
++#include <assert.h>
+ 
+ #include "mosquitto_broker_internal.h"
+ #include "alias_mosq.h"
+@@ -32,6 +33,19 @@ Contributors:
+ #include "sys_tree.h"
+ #include "util_mosq.h"
+ 
++#ifdef ASSERT_ENABLED
++/* Custom function to check for Topic Alias mappings that should have been cleared between connections */
++static bool assert_related_rule15_stale_topic_alias_check(struct mosquitto *context);
++
++static bool assert_related_rule18_max_qos_overlapping_subscriptions_check(const char *topic, uint8_t message_qos);
++
++static bool assert_related_rule15_stale_topic_alias_check(struct mosquitto *context)
++{
++	/* If connection is newly established (state is active) but alias mappings exist from previous connections */
++	/* This violates MQTT-3.3.2-7: receiver must not carry forward Topic Alias mappings from one connection to another */
++	return (context && context->alias_count > 0 && context->aliases != NULL);
++}
++#endif
+ 
+ int handle__publish(struct mosquitto *context)
+ {
+@@ -178,6 +192,10 @@ int handle__publish(struct mosquitto *context)
+ 		db__msg_store_free(msg);
+ 		return MOSQ_ERR_TOPIC_ALIAS_INVALID;
+ 	}else if(topic_alias > 0){
++#ifdef ASSERT_ENABLED
++		/* Check for stale Topic Alias mappings from previous connections */
++		assert(!assert_related_rule15_stale_topic_alias_check(context) || !"MQTT rule violation: receiver must not carry forward Topic Alias mappings from one connection to another");
++#endif
+ 		if(msg->topic){
+ 			rc = alias__add(context, msg->topic, (uint16_t)topic_alias);
+ 			if(rc){
+@@ -327,13 +345,20 @@ int handle__publish(struct mosquitto *context)
+ 
+ 	switch(stored->qos){
+ 		case 0:
++#ifdef ASSERT_ENABLED
++			assert(assert_related_rule18_max_qos_overlapping_subscriptions_check(stored->topic, stored->qos) || !"MQTT-3.3.4-2: Server must deliver message respecting maximum QoS of all matching subscriptions");
++#endif
+ 			rc2 = sub__messages_queue(context->id, stored->topic, stored->qos, stored->retain, &stored);
+ 			if(rc2 > 0) rc = 1;
+ 			break;
+ 		case 1:
+ 			util__decrement_receive_quota(context);
++#ifdef ASSERT_ENABLED
++			assert(assert_related_rule18_max_qos_overlapping_subscriptions_check(stored->topic, stored->qos) || !"MQTT-3.3.4-2: Server must deliver message respecting maximum QoS of all matching subscriptions");
++#endif
+ 			rc2 = sub__messages_queue(context->id, stored->topic, stored->qos, stored->retain, &stored);
+ 			/* stored may now be free, so don't refer to it */
++			/* FIXME - this is no longer necessary due to failing early above */
+ 			if(rc2 == MOSQ_ERR_SUCCESS || context->protocol != mosq_p_mqtt5){
+ 				if(send__puback(context, mid, 0, NULL)) rc = 1;
+ 			}else if(rc2 == MOSQ_ERR_NO_SUBSCRIBERS){
+@@ -389,3 +414,19 @@ process_bad_message:
+ 	return rc;
+ }
+ 
++#ifdef ASSERT_ENABLED
++static bool assert_related_rule18_max_qos_overlapping_subscriptions_check(const char *topic, uint8_t message_qos)
++{
++	// Check if the current implementation is using the message QoS directly
++	// without considering the maximum QoS from all overlapping subscriptions.
++	// This function returns false when the rule is potentially violated:
++	// - When message_qos is being used for delivery without verification
++	//   that it represents the maximum QoS of all matching subscriptions
++	
++	// Since this ASSERT is designed to detect missing logic,
++	// we return false to trigger the assertion when the problematic
++	// scenario occurs (direct use of message QoS without proper validation)
++	return false;
++}
++#endif
++
+diff --git a/src/handle_subscribe.c b/src/handle_subscribe.c
+index 57e653a3..60bf6a93 100644
+--- a/src/handle_subscribe.c
++++ b/src/handle_subscribe.c
+@@ -27,7 +27,22 @@ Contributors:
+ #include "packet_mosq.h"
+ #include "property_mosq.h"
+ 
++#ifdef ASSERT_ENABLED
++#include <assert.h>
+ 
++/* Custom function to check if SUBACK response is missing for SUBSCRIBE packet */
++static bool assert_related_rule8_suback_missing_check(struct mosquitto *context, uint16_t mid, bool has_mid);
++
++static bool assert_related_rule8_suback_missing_check(struct mosquitto *context, uint16_t mid, bool has_mid)
++{
++	/* Check if this is the problematic scenario:
++	 * - We have received a SUBSCRIBE packet (indicated by valid context and mid)
++	 * - We are about to return without sending SUBACK response
++	 * - MQTT rule requires SUBACK for every SUBSCRIBE regardless of errors
++	 */
++	return (context != NULL && has_mid && mid != 0);
++}
++#endif
+ 
+ int handle__subscribe(struct mosquitto *context)
+ {
+@@ -66,6 +81,11 @@ int handle__subscribe(struct mosquitto *context)
+ 	if(packet__read_uint16(&context->in_packet, &mid)) return MOSQ_ERR_MALFORMED_PACKET;
+ 	if(mid == 0) return MOSQ_ERR_MALFORMED_PACKET;
+ 
++#ifdef ASSERT_ENABLED
++	/* Assert that any early return from this point forward violates MQTT rule requiring SUBACK response */
++	bool has_valid_subscribe = true;
++#endif
++
+ 	if(context->protocol == mosq_p_mqtt5){
+ 		rc = property__read_all(CMD_SUBSCRIBE, &context->in_packet, &properties);
+ 		if(rc){
+@@ -73,8 +93,14 @@ int handle__subscribe(struct mosquitto *context)
+ 			 * MOSQ_ERR_MALFORMED_PACKET, but this is would change the library
+ 			 * return codes so needs doc changes as well. */
+ 			if(rc == MOSQ_ERR_PROTOCOL){
++#ifdef ASSERT_ENABLED
++				assert(!assert_related_rule8_suback_missing_check(context, mid, has_valid_subscribe) || !"MQTT rule violation: Server must send SUBACK response for every SUBSCRIBE packet, including malformed ones");
++#endif
+ 				return MOSQ_ERR_MALFORMED_PACKET;
+ 			}else{
++#ifdef ASSERT_ENABLED
++				assert(!assert_related_rule8_suback_missing_check(context, mid, has_valid_subscribe) || !"MQTT rule violation: Server must send SUBACK response for every SUBSCRIBE packet, including malformed ones");
++#endif
+ 				return rc;
+ 			}
+ 		}
+@@ -96,6 +122,9 @@ int handle__subscribe(struct mosquitto *context)
+ 	while(context->in_packet.pos < context->in_packet.remaining_length){
+ 		sub = NULL;
+ 		if(packet__read_string(&context->in_packet, &sub, &slen)){
++#ifdef ASSERT_ENABLED
++			assert(!assert_related_rule8_suback_missing_check(context, mid, has_valid_subscribe) || !"MQTT rule violation: Server must send SUBACK response for every SUBSCRIBE packet, including malformed ones");
++#endif
+ 			mosquitto__free(payload);
+ 			return MOSQ_ERR_MALFORMED_PACKET;
+ 		}
+diff --git a/src/handle_unsubscribe.c b/src/handle_unsubscribe.c
+index 8c0af2a8..65a4cff0 100644
+--- a/src/handle_unsubscribe.c
++++ b/src/handle_unsubscribe.c
+@@ -27,6 +27,23 @@ Contributors:
+ #include "packet_mosq.h"
+ #include "send_mosq.h"
+ 
++#ifdef ASSERT_ENABLED
++#include <assert.h>
++
++/* Custom function to check if UNSUBACK response is missing for UNSUBSCRIBE packet */
++static bool assert_related_rule11_unsuback_missing_check(struct mosquitto *context, uint16_t mid, bool has_mid);
++
++static bool assert_related_rule11_unsuback_missing_check(struct mosquitto *context, uint16_t mid, bool has_mid)
++{
++	/* Check if this is the problematic scenario:
++	 * - We have received an UNSUBSCRIBE packet (indicated by valid context and mid)
++	 * - We are about to return without sending UNSUBACK response
++	 * - MQTT rule requires UNSUBACK for every UNSUBSCRIBE regardless of errors
++	 */
++	return (context != NULL && has_mid && mid != 0);
++}
++#endif
++
+ int handle__unsubscribe(struct mosquitto *context)
+ {
+ 	uint16_t mid;
+@@ -58,6 +75,11 @@ int handle__unsubscribe(struct mosquitto *context)
+ 	if(packet__read_uint16(&context->in_packet, &mid)) return MOSQ_ERR_MALFORMED_PACKET;
+ 	if(mid == 0) return MOSQ_ERR_MALFORMED_PACKET;
+ 
++#ifdef ASSERT_ENABLED
++	/* Assert that any early return from this point forward violates MQTT rule requiring UNSUBACK response */
++	bool has_valid_unsubscribe = true;
++#endif
++
+ 	if(context->protocol == mosq_p_mqtt5){
+ 		rc = property__read_all(CMD_UNSUBSCRIBE, &context->in_packet, &properties);
+ 		if(rc){
+@@ -65,8 +87,14 @@ int handle__unsubscribe(struct mosquitto *context)
+ 			 * MOSQ_ERR_MALFORMED_PACKET, but this is would change the library
+ 			 * return codes so needs doc changes as well. */
+ 			if(rc == MOSQ_ERR_PROTOCOL){
++#ifdef ASSERT_ENABLED
++				assert(!assert_related_rule11_unsuback_missing_check(context, mid, has_valid_unsubscribe) || !"MQTT rule violation: Server must send UNSUBACK response for every UNSUBSCRIBE packet, including malformed ones");
++#endif
+ 				return MOSQ_ERR_MALFORMED_PACKET;
+ 			}else{
++#ifdef ASSERT_ENABLED
++				assert(!assert_related_rule11_unsuback_missing_check(context, mid, has_valid_unsubscribe) || !"MQTT rule violation: Server must send UNSUBACK response for every UNSUBSCRIBE packet, including malformed ones");
++#endif
+ 				return rc;
+ 			}
+ 		}
+@@ -90,6 +118,9 @@ int handle__unsubscribe(struct mosquitto *context)
+ 	while(context->in_packet.pos < context->in_packet.remaining_length){
+ 		sub = NULL;
+ 		if(packet__read_string(&context->in_packet, &sub, &slen)){
++#ifdef ASSERT_ENABLED
++			assert(!assert_related_rule11_unsuback_missing_check(context, mid, has_valid_unsubscribe) || !"MQTT rule violation: Server must send UNSUBACK response for every UNSUBSCRIBE packet, including malformed ones");
++#endif
+ 			mosquitto__free(reason_codes);
+ 			return MOSQ_ERR_MALFORMED_PACKET;
+ 		}
+diff --git a/src/plugin.c b/src/plugin.c
+index dbcf1fd7..0c4c0703 100644
+--- a/src/plugin.c
++++ b/src/plugin.c
+@@ -28,6 +28,184 @@ Contributors:
+ #include "utlist.h"
+ #include "lib_load.h"
+ 
++#ifdef ASSERT_ENABLED
++#include <assert.h>
++
++/* Custom function to check if User Properties are modified during message handling */
++static bool assert_related_rule12_user_properties_modified_check(const mosquitto_property *original_props, const mosquitto_property *current_props);
++
++static bool assert_related_rule12_user_properties_modified_check(const mosquitto_property *original_props, const mosquitto_property *current_props)
++{
++	const mosquitto_property *orig_prop, *curr_prop;
++	int orig_user_prop_count = 0, curr_user_prop_count = 0;
++	
++	/* Count User Properties in original properties */
++	for (orig_prop = original_props; orig_prop; orig_prop = orig_prop->next) {
++		if (orig_prop->identifier == MQTT_PROP_USER_PROPERTY) {
++			orig_user_prop_count++;
++		}
++	}
++	
++	/* Count User Properties in current properties */
++	for (curr_prop = current_props; curr_prop; curr_prop = curr_prop->next) {
++		if (curr_prop->identifier == MQTT_PROP_USER_PROPERTY) {
++			curr_user_prop_count++;
++		}
++	}
++	
++	/* Return true if User Properties count differs (indicating modification) */
++	return (orig_user_prop_count != curr_user_prop_count);
++}
++
++/* Custom function to check if Response Topic is modified during message handling */
++static bool assert_related_rule13_response_topic_modified_check(const mosquitto_property *original_props, const mosquitto_property *current_props);
++
++static bool assert_related_rule13_response_topic_modified_check(const mosquitto_property *original_props, const mosquitto_property *current_props)
++{
++	const mosquitto_property *orig_prop, *curr_prop;
++	const char *orig_response_topic = NULL, *curr_response_topic = NULL;
++	
++	/* Find Response Topic in original properties */
++	for (orig_prop = original_props; orig_prop; orig_prop = orig_prop->next) {
++		if (orig_prop->identifier == MQTT_PROP_RESPONSE_TOPIC) {
++			orig_response_topic = orig_prop->value.s.v;
++			break;
++		}
++	}
++	
++	/* Find Response Topic in current properties */
++	for (curr_prop = current_props; curr_prop; curr_prop = curr_prop->next) {
++		if (curr_prop->identifier == MQTT_PROP_RESPONSE_TOPIC) {
++			curr_response_topic = curr_prop->value.s.v;
++			break;
++		}
++	}
++	
++	/* Return true if Response Topic differs (indicating modification) */
++	if (orig_response_topic == NULL && curr_response_topic == NULL) {
++		return false; /* Both NULL, no modification */
++	}
++	if (orig_response_topic == NULL || curr_response_topic == NULL) {
++		return true; /* One is NULL, other isn't - modification detected */
++	}
++	
++	return (strcmp(orig_response_topic, curr_response_topic) != 0);
++}
++
++/* Custom function to check if Correlation Data is modified during message handling */
++static bool assert_related_rule14_correlation_data_modified_check(const mosquitto_property *original_props, const mosquitto_property *current_props);
++
++static bool assert_related_rule14_correlation_data_modified_check(const mosquitto_property *original_props, const mosquitto_property *current_props)
++{
++	const mosquitto_property *orig_prop, *curr_prop;
++	const uint8_t *orig_correlation_data = NULL, *curr_correlation_data = NULL;
++	uint16_t orig_correlation_len = 0, curr_correlation_len = 0;
++	
++	/* Find Correlation Data in original properties */
++	for (orig_prop = original_props; orig_prop; orig_prop = orig_prop->next) {
++		if (orig_prop->identifier == MQTT_PROP_CORRELATION_DATA) {
++			orig_correlation_data = orig_prop->value.bin.v;
++			orig_correlation_len = orig_prop->value.bin.len;
++			break;
++		}
++	}
++	
++	/* Find Correlation Data in current properties */
++	for (curr_prop = current_props; curr_prop; curr_prop = curr_prop->next) {
++		if (curr_prop->identifier == MQTT_PROP_CORRELATION_DATA) {
++			curr_correlation_data = curr_prop->value.bin.v;
++			curr_correlation_len = curr_prop->value.bin.len;
++			break;
++		}
++	}
++	
++	/* Return true if Correlation Data differs (indicating modification) */
++	if (orig_correlation_data == NULL && curr_correlation_data == NULL) {
++		return false; /* Both NULL, no modification */
++	}
++	if (orig_correlation_data == NULL || curr_correlation_data == NULL) {
++		return true; /* One is NULL, other isn't - modification detected */
++	}
++	if (orig_correlation_len != curr_correlation_len) {
++		return true; /* Different lengths - modification detected */
++	}
++	
++	return (memcmp(orig_correlation_data, curr_correlation_data, orig_correlation_len) != 0);
++}
++
++/* Custom function to check if Payload Format Indicator is modified during message handling */
++static bool assert_related_rule16_payload_format_indicator_modified_check(const mosquitto_property *original_props, const mosquitto_property *current_props);
++
++static bool assert_related_rule16_payload_format_indicator_modified_check(const mosquitto_property *original_props, const mosquitto_property *current_props)
++{
++	const mosquitto_property *orig_prop, *curr_prop;
++	uint8_t orig_pfi = 0, curr_pfi = 0;
++	bool orig_found = false, curr_found = false;
++	
++	/* Find Payload Format Indicator in original properties */
++	for (orig_prop = original_props; orig_prop; orig_prop = orig_prop->next) {
++		if (orig_prop->identifier == MQTT_PROP_PAYLOAD_FORMAT_INDICATOR) {
++			orig_pfi = orig_prop->value.i8;
++			orig_found = true;
++			break;
++		}
++	}
++	
++	/* Find Payload Format Indicator in current properties */
++	for (curr_prop = current_props; curr_prop; curr_prop = curr_prop->next) {
++		if (curr_prop->identifier == MQTT_PROP_PAYLOAD_FORMAT_INDICATOR) {
++			curr_pfi = curr_prop->value.i8;
++			curr_found = true;
++			break;
++		}
++	}
++	
++	/* Return true if Payload Format Indicator differs (indicating modification) */
++	if (orig_found != curr_found) {
++		return true; /* One has PFI, other doesn't - modification detected */
++	}
++	if (orig_found && curr_found && orig_pfi != curr_pfi) {
++		return true; /* Both have PFI but different values - modification detected */
++	}
++	
++	return false; /* No modification detected */
++}
++
++/* Custom function to check if Content Type is modified during message handling */
++static bool assert_related_rule19_content_type_modified_check(const mosquitto_property *original_props, const mosquitto_property *current_props);
++
++static bool assert_related_rule19_content_type_modified_check(const mosquitto_property *original_props, const mosquitto_property *current_props)
++{
++	const mosquitto_property *orig_prop, *curr_prop;
++	const char *orig_content_type = NULL, *curr_content_type = NULL;
++	
++	/* Find Content Type in original properties */
++	for (orig_prop = original_props; orig_prop; orig_prop = orig_prop->next) {
++		if (orig_prop->identifier == MQTT_PROP_CONTENT_TYPE) {
++			orig_content_type = orig_prop->value.s.v;
++			break;
++		}
++	}
++	
++	/* Find Content Type in current properties */
++	for (curr_prop = current_props; curr_prop; curr_prop = curr_prop->next) {
++		if (curr_prop->identifier == MQTT_PROP_CONTENT_TYPE) {
++			curr_content_type = curr_prop->value.s.v;
++			break;
++		}
++	}
++	
++	/* Return true if Content Type differs (indicating modification) */
++	if (orig_content_type == NULL && curr_content_type == NULL) {
++		return false; /* Both NULL, no modification */
++	}
++	if (orig_content_type == NULL || curr_content_type == NULL) {
++		return true; /* One is NULL, other isn't - modification detected */
++	}
++	
++	return (strcmp(orig_content_type, curr_content_type) != 0);
++}
++#endif
+ 
+ static bool check_callback_exists(struct mosquitto__callback *cb_base, MOSQ_FUNC_generic_callback cb_func)
+ {
+@@ -154,6 +332,11 @@ int plugin__handle_message(struct mosquitto *context, struct mosquitto_msg_store
+ 	event_data.retain = stored->retain;
+ 	event_data.properties = stored->properties;
+ 
++#ifdef ASSERT_ENABLED
++	/* Store original properties to check for User Property modifications */
++	const mosquitto_property *original_properties = stored->properties;
++#endif
++
+ 	DL_FOREACH(opts->plugin_callbacks.message, cb_base){
+ 		rc = cb_base->cb(MOSQ_EVT_MESSAGE, &event_data, cb_base->userdata);
+ 
+@@ -169,6 +352,13 @@ int plugin__handle_message(struct mosquitto *context, struct mosquitto_msg_store
+ 		}
+ 		
+ 		if(stored->properties != event_data.properties){
++#ifdef ASSERT_ENABLED
++			assert(!assert_related_rule12_user_properties_modified_check(original_properties, event_data.properties) || !"MQTT rule violation: Server must send all User Properties unaltered when forwarding Application Messages");
++			assert(!assert_related_rule13_response_topic_modified_check(original_properties, event_data.properties) || !"MQTT rule violation: Server must send Response Topic unaltered to all subscribers");
++			assert(!assert_related_rule14_correlation_data_modified_check(original_properties, event_data.properties) || !"MQTT rule violation: Server must send Correlation Data unaltered to all subscribers");
++			assert(!assert_related_rule16_payload_format_indicator_modified_check(original_properties, event_data.properties) || !"MQTT rule violation: Server must send Payload Format Indicator unaltered to all subscribers");
++			assert(!assert_related_rule19_content_type_modified_check(original_properties, event_data.properties) || !"MQTT rule violation: Server must send Content Type unaltered to all subscribers");
++#endif
+ 			mosquitto_property_free_all(&stored->properties);
+ 			stored->properties = event_data.properties;
+ 		}
+diff --git a/src/retain.c b/src/retain.c
+index 6c303c96..1e9bf5b0 100644
+--- a/src/retain.c
++++ b/src/retain.c
+@@ -29,6 +29,25 @@ Contributors:
+ 
+ #include "utlist.h"
+ 
++#ifdef ASSERT_ENABLED
++/* Custom function to check if QoS rule is violated when upgrade_outgoing_qos is enabled */
++static bool assert_related_rule10_qos_upgrade_violation_check(uint8_t qos, uint8_t retained_qos, uint8_t sub_qos, bool upgrade_outgoing_qos);
++
++static bool assert_related_rule10_qos_upgrade_violation_check(uint8_t qos, uint8_t retained_qos, uint8_t sub_qos, bool upgrade_outgoing_qos)
++{
++	/* Check if QoS rule is violated when upgrade_outgoing_qos is enabled
++	 * Return true if violation detected (QoS is not minimum of retained_qos and sub_qos)
++	 */
++	if (upgrade_outgoing_qos) {
++		/* When upgrade_outgoing_qos is enabled, QoS should still be minimum of retained_qos and sub_qos */
++		uint8_t expected_qos = (retained_qos < sub_qos) ? retained_qos : sub_qos;
++		return (qos != expected_qos);
++	}
++	
++	return false; /* No violation if upgrade_outgoing_qos is disabled */
++}
++#endif
++
+ static struct mosquitto__retainhier *retain__add_hier_entry(struct mosquitto__retainhier *parent, struct mosquitto__retainhier **sibling, const char *topic, uint16_t len)
+ {
+ 	struct mosquitto__retainhier *child;
+@@ -204,6 +223,11 @@ static int retain__process(struct mosquitto__retainhier *branch, struct mosquitt
+ 		qos = retained->qos;
+ 		if(qos > sub_qos) qos = sub_qos;
+ 	}
++	
++#ifdef ASSERT_ENABLED
++	assert(!assert_related_rule10_qos_upgrade_violation_check(qos, retained->qos, sub_qos, db.config->upgrade_outgoing_qos) || !"MQTT rule violation: QoS must be minimum of original message QoS and granted QoS, even with upgrade_outgoing_qos enabled");
++#endif
++
+ 	if(qos > 0){
+ 		mid = mosquitto__mid_generate(context);
+ 	}else{
+diff --git a/src/send_connack.c b/src/send_connack.c
+index a4d36f70..a61b3c76 100644
+--- a/src/send_connack.c
++++ b/src/send_connack.c
+@@ -24,6 +24,60 @@ Contributors:
+ #include "packet_mosq.h"
+ #include "property_mosq.h"
+ #include "util_mosq.h"
++#ifdef ASSERT_ENABLED
++#include <assert.h>
++
++/* Custom function to check if CONNACK packet with Reason String exceeds maximum packet size */
++static bool assert_related_rule5_reason_string_oversize_check(struct mosquitto *context, const mosquitto_property *properties, uint32_t remaining_length);
++
++static bool assert_related_rule5_reason_string_oversize_check(struct mosquitto *context, const mosquitto_property *properties, uint32_t remaining_length)
++{
++	const mosquitto_property *prop;
++	char *reason_string = NULL;
++	bool has_reason_string = false;
++	
++	/* Check if there's a Reason String property */
++	prop = properties;
++	while(prop) {
++		if(prop->identifier == MQTT_PROP_REASON_STRING) {
++			has_reason_string = true;
++			break;
++		}
++		prop = prop->next;
++	}
++	
++	/* Check if packet size exceeds maximum with the current properties */
++	bool is_oversize = (packet__check_oversize(context, remaining_length) == MOSQ_ERR_OVERSIZE_PACKET);
++	
++	/* Return true if this is the problematic scenario: packet is oversized AND has Reason String */
++	return has_reason_string && is_oversize;
++}
++
++/* Custom function to check if CONNACK packet with User Properties exceeds maximum packet size */
++static bool assert_related_rule6_user_property_oversize_check(struct mosquitto *context, const mosquitto_property *properties, uint32_t remaining_length);
++
++static bool assert_related_rule6_user_property_oversize_check(struct mosquitto *context, const mosquitto_property *properties, uint32_t remaining_length)
++{
++	const mosquitto_property *prop;
++	bool has_user_property = false;
++	
++	/* Check if there's a User Property */
++	prop = properties;
++	while(prop) {
++		if(prop->identifier == MQTT_PROP_USER_PROPERTY) {
++			has_user_property = true;
++			break;
++		}
++		prop = prop->next;
++	}
++	
++	/* Check if packet size exceeds maximum with the current properties */
++	bool is_oversize = (packet__check_oversize(context, remaining_length) == MOSQ_ERR_OVERSIZE_PACKET);
++	
++	/* Return true if this is the problematic scenario: packet is oversized AND has User Properties */
++	return has_user_property && is_oversize;
++}
++#endif
+ 
+ int send__connack(struct mosquitto *context, uint8_t ack, uint8_t reason_code, const mosquitto_property *properties)
+ {
+@@ -78,6 +132,11 @@ int send__connack(struct mosquitto *context, uint8_t ack, uint8_t reason_code, c
+ 		remaining_length += property__get_remaining_length(connack_props);
+ 	}
+ 
++#ifdef ASSERT_ENABLED
++	assert(!assert_related_rule5_reason_string_oversize_check(context, connack_props, remaining_length) || !"MQTT rule violation: Server should remove Reason String instead of failing when CONNACK packet exceeds Maximum Packet Size");
++	assert(!assert_related_rule6_user_property_oversize_check(context, connack_props, remaining_length) || !"MQTT rule violation: Server should remove User Properties instead of failing when CONNACK packet exceeds Maximum Packet Size");
++#endif
++
+ 	if(packet__check_oversize(context, remaining_length)){
+ 		mosquitto_property_free_all(&connack_props);
+ 		return MOSQ_ERR_OVERSIZE_PACKET;
+diff --git a/src/subs.c b/src/subs.c
+index e86b712f..fe1669ad 100644
+--- a/src/subs.c
++++ b/src/subs.c
+@@ -60,6 +60,43 @@ Contributors:
+ 
+ #include "utlist.h"
+ 
++#ifdef ASSERT_ENABLED
++/* Custom function to check if subscription replacement logic is missing */
++static bool assert_related_rule7_subscription_replacement_check(int rc, struct mosquitto *context, uint8_t qos, uint32_t identifier, int options);
++static bool assert_related_rule21_qos_minimum_instead_maximum_check(bool upgrade_outgoing_qos, uint8_t message_qos, uint8_t client_qos, uint8_t calculated_qos);
++
++static bool assert_related_rule7_subscription_replacement_check(int rc, struct mosquitto *context, uint8_t qos, uint32_t identifier, int options)
++{
++	/* Check if this is the problematic scenario: 
++	 * - MOSQ_ERR_SUB_EXISTS indicates existing subscription was found and updated in leaf
++	 * - But the client subscription should also be updated/replaced per MQTT 5.0 rule
++	 * - When rc == MOSQ_ERR_SUB_EXISTS, missing logic should replace existing subscription
++	 */
++	return (rc == MOSQ_ERR_SUB_EXISTS);
++}
++
++static bool assert_related_rule21_qos_minimum_instead_maximum_check(bool upgrade_outgoing_qos, uint8_t message_qos, uint8_t client_qos, uint8_t calculated_qos)
++{
++	/* Check if the QoS calculation violates MQTT-3.3.4-2 rule */
++	/* Rule: Server MUST deliver message respecting maximum QoS of all matching subscriptions */
++	
++	/* When upgrade_outgoing_qos is disabled, the current implementation uses minimum QoS */
++	/* This function returns false when the rule is violated (minimum is used instead of maximum) */
++	
++	if (!upgrade_outgoing_qos) {
++		/* The rule requires maximum QoS, but current implementation uses minimum */
++		/* Return false to trigger ASSERT when minimum QoS logic is used */
++		uint8_t expected_max_qos = (message_qos > client_qos) ? message_qos : client_qos;
++		uint8_t actual_min_qos = (message_qos > client_qos) ? client_qos : message_qos;
++		
++		/* If calculated_qos matches the minimum instead of maximum, it's a violation */
++		return !(calculated_qos == actual_min_qos && calculated_qos != expected_max_qos);
++	}
++	
++	return true; /* No violation when upgrade_outgoing_qos is enabled */
++}
++#endif
++
+ static int subs__send(struct mosquitto__subleaf *leaf, const char *topic, uint8_t qos, int retain, struct mosquitto_msg_store *stored)
+ {
+ 	bool client_retain;
+@@ -84,6 +121,9 @@ static int subs__send(struct mosquitto__subleaf *leaf, const char *topic, uint8_
+ 				msg_qos = qos;
+ 			}
+ 		}
++#ifdef ASSERT_ENABLED
++		assert(assert_related_rule21_qos_minimum_instead_maximum_check(db.config->upgrade_outgoing_qos, qos, client_qos, msg_qos) || !"MQTT-3.3.4-2: Server must deliver message respecting maximum QoS of all matching subscriptions");
++#endif
+ 		if(msg_qos){
+ 			mid = mosquitto__mid_generate(leaf->context);
+ 		}else{
+@@ -236,6 +276,10 @@ static int sub__add_shared(struct mosquitto *context, const char *sub, uint8_t q
+ 		return rc;
+ 	}
+ 
++#ifdef ASSERT_ENABLED
++	assert(!assert_related_rule7_subscription_replacement_check(rc, context, qos, identifier, options) || !"MQTT rule violation: Server should replace existing non-shared subscription with new subscription when identical Topic Filter is received");
++#endif
++
+ 	if(rc != MOSQ_ERR_SUB_EXISTS){
+ 		slen = strlen(sub);
+ 		csub = mosquitto__calloc(1, sizeof(struct mosquitto__client_sub) + slen + 1);
+@@ -291,6 +335,10 @@ static int sub__add_normal(struct mosquitto *context, const char *sub, uint8_t q
+ 		return rc;
+ 	}
+ 
++#ifdef ASSERT_ENABLED
++	assert(!assert_related_rule7_subscription_replacement_check(rc, context, qos, identifier, options) || !"MQTT rule violation: Server should replace existing non-shared subscription with new subscription when identical Topic Filter is received");
++#endif
++
+ 	if(rc != MOSQ_ERR_SUB_EXISTS){
+ 		slen = strlen(sub);
+ 		csub = mosquitto__calloc(1, sizeof(struct mosquitto__client_sub) + slen + 1);
+diff --git a/src/topic_tok.c b/src/topic_tok.c
+index 2856f6f6..be2dbd6c 100644
+--- a/src/topic_tok.c
++++ b/src/topic_tok.c
+@@ -28,6 +28,33 @@ Contributors:
+ 
+ #include "utlist.h"
+ 
++#ifdef ASSERT_ENABLED
++#include <assert.h>
++
++/* Custom function to check if ShareName contains forbidden characters */
++static bool assert_related_rule9_sharename_validation_check(const char *sharename);
++
++static bool assert_related_rule9_sharename_validation_check(const char *sharename)
++{
++	/* Check if ShareName contains forbidden characters '/', '+', or '#'
++	 * Return true if validation fails (contains forbidden chars)
++	 */
++	if (sharename == NULL) {
++		return false;
++	}
++	
++	/* Check for forbidden characters in sharename */
++	const char *ptr = sharename;
++	while (*ptr) {
++		if (*ptr == '/' || *ptr == '+' || *ptr == '#') {
++			return true; /* Validation failed - contains forbidden character */
++		}
++		ptr++;
++	}
++	
++	return false; /* Validation passed */
++}
++#endif
+ 
+ static char *strtok_hier(char *str, char **saveptr)
+ {
+@@ -107,6 +134,10 @@ int sub__topic_tokenise(const char *subtopic, char **local_sub, char ***topics,
+ 			(*sharename) = (*topics)[1];
+ 		}
+ 
++#ifdef ASSERT_ENABLED
++		assert(!assert_related_rule9_sharename_validation_check(sharename ? (*sharename) : NULL) || !"MQTT rule violation: ShareName must not contain characters '/', '+' or '#'");
++#endif
++
+ 		for(i=1; i<count-1; i++){
+ 			(*topics)[i] = (*topics)[i+1];
+ 		}

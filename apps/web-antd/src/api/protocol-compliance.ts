@@ -484,6 +484,54 @@ export async function downloadProtocolAssertGenerationResult(jobId: string) {
   return response.data;
 }
 
+// Assertion history ------------------------------------------------------
+
+export interface ProtocolAssertionHistoryEntry {
+  jobId: string;
+  codeFilename?: string | null;
+  databaseFilename?: string | null;
+  diffPath?: string | null;
+  diffFilename?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  source?: string | null;
+}
+
+export interface ProtocolAssertionHistoryResponse {
+  items: ProtocolAssertionHistoryEntry[];
+  limit: number;
+  count: number;
+}
+
+export function fetchProtocolAssertionHistory(limit = 20) {
+  return requestClient.get<ProtocolAssertionHistoryResponse>(
+    '/protocol-compliance/assertions/history',
+    {
+      params: { limit },
+    },
+  );
+}
+
+export async function downloadProtocolAssertionDiff(jobId: string) {
+  const accessStore = useAccessStore();
+  const token = accessStore.accessToken;
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = (await baseRequestClient.request(
+    `/protocol-compliance/assertions/history/${jobId}/diff`,
+    {
+      headers,
+      method: 'GET',
+      responseType: 'blob',
+    },
+  )) as { data: Blob };
+
+  return response.data;
+}
+
 // Diff Parsing Types and APIs
 export type ProtocolDiffParsingJobStatus =
   | 'queued'

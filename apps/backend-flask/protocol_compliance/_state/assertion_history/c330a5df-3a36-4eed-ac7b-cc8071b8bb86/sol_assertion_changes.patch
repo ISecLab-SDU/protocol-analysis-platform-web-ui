@@ -1,0 +1,1279 @@
+ src/handlers.c   | 523 +++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ src/mqtt.c       | 188 ++++++++++++++++++++
+ src/server.c     |  79 +++++++++
+ src/server.h     |   2 +-
+ src/subscriber.c |  28 +++
+ src/trie.c       |  96 +++++++++-
+ 6 files changed, 911 insertions(+), 5 deletions(-)
+
+diff --git a/src/handlers.c b/src/handlers.c
+index a20c664..9f285e1 100644
+--- a/src/handlers.c
++++ b/src/handlers.c
+@@ -33,6 +33,7 @@
+ #include "server.h"
+ #include "sol_internal.h"
+ #include <stdio.h>
++#include <assert.h>
+ 
+ /* Prototype for a command handler */
+ typedef int handler(struct io_event *);
+@@ -58,6 +59,53 @@ static unsigned next_free_mid(struct client_session *);
+ 
+ static void inflight_msg_init(struct inflight_msg *, struct mqtt_packet *);
+ 
++#ifdef ASSERT_ENABLED
++/* Helper function to verify Will QoS value is within allowed range */
++static int assert_related_rule2_will_qos_validation(struct mqtt_connect *c);
++/* Helper function to verify Will QoS is 0 when Will Flag is 0 */
++static int assert_related_rule3_will_flag_qos_validation(struct mqtt_connect *c);
++/* Helper function to verify complete Will Flag compliance */
++static int assert_related_rule4_will_flag_complete_validation(struct mqtt_connect *c);
++/* Helper function to verify Will QoS is not 3 when Will Flag is set */
++static int assert_related_rule5_will_qos_not_3_validation(struct mqtt_connect *c);
++/* Helper function to verify Will Message retain flag is set in header when will_retain is 1 */
++static int assert_related_rule7_will_retain_header_validation(struct mqtt_connect *c, struct mqtt_packet *lwt_msg);
++/* Helper function to verify client ID length is not truncated beyond 23 bytes */
++static int assert_related_rule8_client_id_length_validation(struct mqtt_connect *c);
++/* Helper function to verify Will Topic and Will Message are present when Will Flag is set */
++static int assert_related_rule9_will_fields_present_validation(struct mqtt_connect *c);
++/* Helper function to verify ClientId rejection uses correct CONNACK code */
++static int assert_related_rule10_client_id_rejection_validation(struct mqtt_connect *c, unsigned char connack_code);
++/* Helper function to verify CONNACK is sent before disconnection when CONNECT processing fails */
++static int assert_related_rule13_connack_before_disconnect_validation(struct client *cc, bool send_connack, unsigned char connack_code);
++/* Helper function to verify password presence when Password Flag is set */
++static int assert_related_rule15_password_flag_validation(struct mqtt_connect *c);
++/* Helper function to verify User Name Flag and Password Flag relationship compliance */
++static int assert_related_rule16_username_password_flag_validation(struct mqtt_connect *c);
++/* Helper function to verify connection is closed when CONNECT packet is rejected */
++static int assert_related_rule17_connect_rejection_connection_close_validation(int return_code);
++/* Helper function to verify existing client is disconnected when new client with same ClientId connects */
++static int assert_related_rule18_existing_client_disconnection_validation(struct client *cc, const char *client_id);
++/* Helper function to verify unacknowledged messages are retained after resending during CleanSession=0 reconnection */
++static int assert_related_rule20_unacknowledged_message_retention_validation(struct client *c, bool cleaning_queue);
++/* Helper function to verify Topic Filters in SUBSCRIBE packets are UTF-8 encoded */
++static int assert_related_rule21_utf8_topic_filter_validation(const unsigned char *topic, size_t len);
++static int assert_related_rule22_wildcard_support_validation(const char *topic);
++static int assert_related_rule24_subscription_replacement_validation(struct topic *t, struct client *c, bool found_existing);
++static int assert_related_rule25_qos_update_validation(struct subscriber *existing_sub, unsigned char new_qos);
++static int assert_related_rule27_publish_topic_wildcard_validation(const char *topic);
++static int assert_related_rule29_overlapping_subscription_max_qos_validation(struct subscriber *sub, struct client_session *session, unsigned char current_qos);
++static int assert_related_rule31_qos0_retain_discard_validation(struct topic *t, union mqtt_header *hdr);
++static int assert_related_rule32_zero_byte_retain_validation(struct mqtt_publish *p, union mqtt_header *hdr);
++static int assert_related_rule33_topic_name_utf8_length_validation(const char *topic, size_t topiclen);
++static int assert_related_rule34_topic_wildcard_prefix_validation(const char *topic);
++static int assert_related_rule35_multilevel_wildcard_last_validation(const char *topic);
++static int assert_related_rule36_qos_downgrade_policy_validation(struct client *c, unsigned char requested_qos, unsigned char granted_qos);
++static int assert_related_rule37_wildcard_topic_filter_matching_validation_trie(const char *topic_filter, const char *topic_name);
++static int assert_related_rule38_qos2_to_qos1_downgrade_validation(unsigned char original_qos, unsigned char granted_qos, unsigned char delivered_qos);
++static int assert_related_rule39_topic_filter_normalization_validation(const char *original_topic, const char *modified_topic, size_t original_len);
++#endif
++
+ /* Command handler mapped usign their position paired with their type */
+ static handler *handlers[15] = {NULL,
+                                 connect_handler,
+@@ -133,6 +181,398 @@ static inline void inflight_msg_init(struct inflight_msg *imsg,
+     imsg->qos    = p->header.bits.qos;
+ }
+ 
++#ifdef ASSERT_ENABLED
++/*
++ * Helper function to verify Will QoS value is within allowed range (0, 1, 2)
++ * according to MQTT rule: If the Will Flag is set to 1, the value of Will QoS
++ * can be 0 (0x00), 1 (0x01), or 2 (0x02).
++ */
++static int assert_related_rule2_will_qos_validation(struct mqtt_connect *c)
++{
++    /* When will flag is set, will_qos must be 0, 1, or 2 (not 3) */
++    return (!c->bits.will || c->bits.will_qos <= 2);
++}
++
++/*
++ * Helper function to verify Will QoS is 0 when Will Flag is 0
++ * according to MQTT rule MQTT-3.1.2-13: If the Will Flag is set to 0, 
++ * then the Will QoS MUST be set to 0 (0x00).
++ */
++static int assert_related_rule3_will_flag_qos_validation(struct mqtt_connect *c)
++{
++    /* When will flag is 0, will_qos must be 0 */
++    return (c->bits.will || c->bits.will_qos == 0);
++}
++
++/*
++ * Helper function to verify complete Will Flag compliance
++ * according to MQTT rule MQTT-3.1.2-11: If the Will Flag is set to 0,
++ * the Will QoS and Will Retain fields must be 0 and Will Topic/Message
++ * fields must NOT be present in the payload.
++ */
++static int assert_related_rule4_will_flag_complete_validation(struct mqtt_connect *c)
++{
++    /* When will flag is 0, all will-related fields must be 0/absent */
++    return (c->bits.will || 
++            (c->bits.will_qos == 0 && 
++             c->bits.will_retain == 0 && 
++             c->payload.will_topic == NULL && 
++             c->payload.will_message == NULL));
++}
++
++/*
++ * Helper function to verify Will QoS is not 3 when Will Flag is set
++ * according to MQTT rule MQTT-3.1.2-14: If the Will Flag is set to 1,
++ * Will QoS MUST NOT be 3 (0x03).
++ */
++static int assert_related_rule5_will_qos_not_3_validation(struct mqtt_connect *c)
++{
++    /* When will flag is set, will_qos must not be 3 */
++    return (!c->bits.will || c->bits.will_qos != 3);
++}
++
++/* Helper function to verify Will Message retain flag is set in header when will_retain is 1 */
++static int assert_related_rule7_will_retain_header_validation(struct mqtt_connect *c, struct mqtt_packet *lwt_msg)
++{
++    /* When will_retain is 1, the retain flag in the header must also be 1 */
++    return (!c->bits.will || !c->bits.will_retain || lwt_msg->header.bits.retain == 1);
++}
++
++/* Helper function to verify client ID length is not truncated beyond 23 bytes */
++static int assert_related_rule8_client_id_length_validation(struct mqtt_connect *c)
++{
++    /* When client ID is provided, it should not be truncated if longer than buffer allows */
++    size_t original_len = strlen((char *)c->payload.client_id);
++    return (original_len < MQTT_CLIENT_ID_LEN);
++}
++
++/* Helper function to verify Will Topic and Will Message are present when Will Flag is set */
++static int assert_related_rule9_will_fields_present_validation(struct mqtt_connect *c)
++{
++    /* When will flag is set, both will_topic and will_message must be present (non-NULL) */
++    return (!c->bits.will || (c->payload.will_topic[0] != '\0' && c->payload.will_message[0] != '\0'));
++}
++
++/* Helper function to verify ClientId rejection uses correct CONNACK code */
++static int assert_related_rule10_client_id_rejection_validation(struct mqtt_connect *c, unsigned char connack_code)
++{
++    /* When client ID is empty and clean_session is false (ClientId rejection scenario), 
++       the connack code must be MQTT_IDENTIFIER_REJECTED (0x02) */
++    return (!(!c->payload.client_id[0] && c->bits.clean_session == false) || connack_code == MQTT_IDENTIFIER_REJECTED);
++}
++
++/* Helper function to verify CONNACK is sent before disconnection when CONNECT processing fails */
++static int assert_related_rule13_connack_before_disconnect_validation(struct client *cc, bool send_connack, unsigned char connack_code)
++{
++    /* When CONNECT processing fails and client will be disconnected, 
++       CONNACK with non-zero return code must be sent first */
++    return (send_connack && connack_code != MQTT_CONNECTION_ACCEPTED);
++}
++
++/* Helper function to verify password presence when Password Flag is set */
++static int assert_related_rule15_password_flag_validation(struct mqtt_connect *c)
++{
++    /* When password flag is set, password must be present in payload */
++    return (!c->bits.password || c->payload.password != NULL);
++}
++
++/* Helper function to verify User Name Flag and Password Flag relationship compliance */
++static int assert_related_rule16_username_password_flag_validation(struct mqtt_connect *c)
++{
++    /* MQTT-3.1.2-22: If User Name Flag is set to 0, Password Flag MUST be set to 0 */
++    return (c->bits.username != 0 || c->bits.password == 0);
++}
++
++/* Helper function to verify connection is closed when CONNECT packet is rejected */
++static int assert_related_rule17_connect_rejection_connection_close_validation(int return_code)
++{
++    /* MQTT-3.1.4-5: If Server rejects CONNECT packet, it MUST NOT process any data
++       after CONNECT packet, meaning connection must be closed (-ERRCLIENTDC) */
++    return (return_code == -ERRCLIENTDC || return_code == REPLY);
++}
++
++/* Helper function to verify existing client is disconnected when new client with same ClientId connects */
++static int assert_related_rule18_existing_client_disconnection_validation(struct client *cc, const char *client_id)
++{
++    /* MQTT-3.1.4-2: If ClientId represents a client already connected to server,
++       server MUST disconnect the existing client before adding the new one */
++    struct client *existing_client = NULL;
++    HASH_FIND_STR(server.clients_map, client_id, existing_client);
++    return (existing_client == NULL || existing_client == cc);
++}
++
++/* Helper function to verify unacknowledged messages are retained after resending during CleanSession=0 reconnection */
++static int assert_related_rule20_unacknowledged_message_retention_validation(struct client *c, bool cleaning_queue)
++{
++    /* MQTT-4.4.0-1: When CleanSession=0 reconnection, unacknowledged PUBLISH (QoS>0) and PUBREL packets 
++       must be retained until acknowledged, not cleared after resending */
++    return (c->clean_session == true || cleaning_queue == false);
++}
++
++/* Helper function to verify Topic Filters in SUBSCRIBE packets are UTF-8 encoded */
++static int assert_related_rule21_utf8_topic_filter_validation(const unsigned char *topic, size_t len)
++{
++    /* Basic UTF-8 validation: check for valid byte sequences */
++    for (size_t i = 0; i < len; i++) {
++        unsigned char c = topic[i];
++        
++        /* ASCII (0-127) - valid */
++        if (c <= 0x7F) continue;
++        
++        /* Multi-byte sequences */
++        if ((c & 0xE0) == 0xC0) {  /* 110xxxxx - 2 byte sequence */
++            if (i + 1 >= len || (topic[i + 1] & 0xC0) != 0x80) return 0;
++            i += 1;
++        } else if ((c & 0xF0) == 0xE0) {  /* 1110xxxx - 3 byte sequence */
++            if (i + 2 >= len || (topic[i + 1] & 0xC0) != 0x80 || (topic[i + 2] & 0xC0) != 0x80) return 0;
++            i += 2;
++        } else if ((c & 0xF8) == 0xF0) {  /* 11110xxx - 4 byte sequence */
++            if (i + 3 >= len || (topic[i + 1] & 0xC0) != 0x80 || (topic[i + 2] & 0xC0) != 0x80 || (topic[i + 3] & 0xC0) != 0x80) return 0;
++            i += 3;
++        } else {
++            return 0; /* Invalid UTF-8 start byte */
++        }
++    }
++    return 1;
++}
++
++/* Helper function to verify server wildcard support configuration before processing wildcard subscriptions */
++static int assert_related_rule22_wildcard_support_validation(const char *topic)
++{
++    if (!topic) return 1;
++    /* Check if topic contains wildcard characters '+' or '#' */
++    bool has_wildcards = (index(topic, '+') != NULL || index(topic, '#') != NULL);
++    /* For demonstration, assume server supports wildcards by default */
++    /* In real implementation, this would check server configuration */
++    /* Return 1 (true) if no wildcards OR server supports wildcards */
++    return !has_wildcards || 1; /* Simplified: always return true for now */
++}
++
++/* Helper function to verify existing subscriptions are properly replaced when identical Topic Filter is found */
++static int assert_related_rule24_subscription_replacement_validation(struct topic *t, struct client *c, bool found_existing)
++{
++    /* If an existing subscription was found, it should be properly replaced */
++    /* For demonstration purposes, assume proper replacement logic exists */
++    /* In a real implementation, this would verify the replacement was done correctly */
++    return 1; /* Simplified: always return true for now */
++}
++
++/* Helper function to verify QoS is properly updated when resubscribing to identical Topic Filter */
++static int assert_related_rule25_qos_update_validation(struct subscriber *existing_sub, unsigned char new_qos)
++{
++    /* Verify that QoS update logic is handled correctly for existing subscriptions */
++    return 1; /* Simplified: always return true for now */
++}
++
++
++
++/*
++ * Helper function to verify Topic Names in PUBLISH packets do not contain wildcard characters
++ * according to MQTT rule MQTT-3.3.2-2: The Topic Name in the PUBLISH Packet MUST NOT 
++ * contain wildcard characters.
++ */
++static int assert_related_rule27_publish_topic_wildcard_validation(const char *topic)
++{
++    /* Check that topic does not contain '+' or '#' wildcard characters */
++    return (strchr(topic, '+') == NULL && strchr(topic, '#') == NULL);
++}
++
++
++
++/*
++ * Helper function to verify maximum QoS is used for overlapping Client subscriptions
++ * according to MQTT rule MQTT-3.3.5-1: When a published message matches multiple 
++ * subscription filters due to overlapping Client subscriptions with wildcards, 
++ * the Server MUST deliver the message using the maximum QoS level among all matching subscriptions.
++ */
++static int assert_related_rule29_overlapping_subscription_max_qos_validation(struct subscriber *sub, struct client_session *session, unsigned char current_qos)
++{
++    /* Check if the current QoS assignment respects the maximum QoS among all matching subscriptions */
++    unsigned char max_qos = 0;
++    
++    /* Find all matching subscriptions for this client and determine the maximum QoS */
++    list_foreach(node, session->subscriptions) {
++        struct subscription *s = (struct subscription *)node->data;
++        if (s->subscriber->session == session && s->subscriber->granted_qos > max_qos) {
++            max_qos = s->subscriber->granted_qos;
++        }
++    }
++    
++    /* The current QoS should be the maximum among all matching subscriptions */
++    return (current_qos == max_qos);
++}
++
++/*
++ * Helper function to verify that previously retained messages are properly discarded
++ * when QoS 0 PUBLISH packet with RETAIN flag is received, according to MQTT rule:
++ * "If the Server receives a QoS 0 PUBLISH Packet with the RETAIN flag set to 1 from a Client,
++ * the Server MUST discard any message previously retained for that topic."
++ */
++static int assert_related_rule31_qos0_retain_discard_validation(struct topic *t, union mqtt_header *hdr)
++{
++    /* Check if this is a QoS 0 PUBLISH with RETAIN flag set */
++    if (hdr->bits.qos == 0 && hdr->bits.retain == 1) {
++        /* If there's already a retained message, it should be properly freed
++           before being replaced. This ASSERT detects the memory leak scenario
++           where the previous message is not properly discarded. */
++        return (t->retained_msg == NULL); /* Should be NULL or properly freed before replacement */
++    }
++    return 1; /* Not applicable for non-QoS0 or non-RETAIN messages */
++}
++
++/* Helper function for rule32 validation */
++static int assert_related_rule32_zero_byte_retain_validation(struct mqtt_publish *p, union mqtt_header *hdr)
++{
++    /* Check if zero-byte payload with RETAIN=1 should NOT be stored as retained message
++     * According to MQTT-3.3.1-11: A PUBLISH Packet with a zero-byte payload and RETAIN flag set to 1 MUST NOT be stored as a retained message
++     * Returns true if validation passes (no violation)
++     */
++    
++    /* If RETAIN flag is set and payload length is zero, this is a violation */
++    return (hdr->bits.retain == 0 || p->payloadlen > 0);
++}
++
++/* Helper function for rule33 validation */
++static int assert_related_rule33_topic_name_utf8_length_validation(const char *topic, size_t topiclen)
++{
++    /* Check if Topic Name is UTF-8 encoded and does not exceed 65535 bytes
++     * According to MQTT specification: Topic Names and Topic Filters must be UTF-8 encoded strings that do not exceed 65535 bytes in length
++     * Returns true if validation passes (no violation)
++     */
++    
++    /* Check length constraint first */
++    if (topiclen > 65535) {
++        return 0; /* Length violation */
++    }
++    
++    /* Check UTF-8 validity */
++    if (!topic) {
++        return 0; /* NULL topic is invalid */
++    }
++    
++    /* Basic UTF-8 validation logic - check for valid UTF-8 byte sequences */
++    for (size_t i = 0; i < topiclen; ) {
++        unsigned char c = (unsigned char)topic[i];
++        
++        if (c <= 0x7F) {
++            /* ASCII character (0-127) - valid single byte */
++            i++;
++        } else if ((c & 0xE0) == 0xC0) {
++            /* Two-byte sequence */
++            if (i + 1 >= topiclen || (topic[i + 1] & 0xC0) != 0x80) {
++                return 0; /* Invalid UTF-8 sequence */
++            }
++            i += 2;
++        } else if ((c & 0xF0) == 0xE0) {
++            /* Three-byte sequence */
++            if (i + 2 >= topiclen || (topic[i + 1] & 0xC0) != 0x80 || (topic[i + 2] & 0xC0) != 0x80) {
++                return 0; /* Invalid UTF-8 sequence */
++            }
++            i += 3;
++        } else if ((c & 0xF8) == 0xF0) {
++            /* Four-byte sequence */
++            if (i + 3 >= topiclen || (topic[i + 1] & 0xC0) != 0x80 || (topic[i + 2] & 0xC0) != 0x80 || (topic[i + 3] & 0xC0) != 0x80) {
++                return 0; /* Invalid UTF-8 sequence */
++            }
++            i += 4;
++        } else {
++            /* Invalid UTF-8 start byte */
++            return 0;
++        }
++    }
++    
++    return 1; /* Valid UTF-8 and length */
++}
++
++/* Helper function for rule34 validation */
++static int assert_related_rule34_topic_wildcard_prefix_validation(const char *topic)
++{
++    /* Check if Topic Name starts with wildcard characters (+ or #)
++     * According to MQTT specification: The Server SHOULD prevent Clients from using Topic Names starting with a wildcard character
++     * Returns true if validation passes (no violation)
++     */
++    
++    /* Check if topic is NULL or empty */
++    if (!topic || topic[0] == '\0') {
++        return 0; /* Invalid topic */
++    }
++    
++    /* Check if topic starts with wildcard characters */
++    return (topic[0] != '+' && topic[0] != '#');
++}
++
++/* Helper function for rule35 validation */
++static int assert_related_rule35_multilevel_wildcard_last_validation(const char *topic)
++{
++    /* Check if multi-level wildcard '#' is the last character in the Topic Filter
++     * According to MQTT-4.7.1-2: The multi-level wildcard character MUST be the last character specified in the Topic Filter
++     * Returns true if validation passes (no violation)
++     */
++    
++    /* Check if topic is NULL or empty */
++    if (!topic || topic[0] == '\0') {
++        return 1; /* No violation for empty topics */
++    }
++    
++    /* Find the position of '#' in the topic */
++    const char *hash_pos = strchr(topic, '#');
++    if (!hash_pos) {
++        return 1; /* No '#' found, no violation */
++    }
++    
++    /* Check if '#' is the last character */
++    size_t topic_len = strlen(topic);
++    size_t hash_index = hash_pos - topic;
++    
++    /* '#' must be the last character (index == length - 1) */
++    return (hash_index == topic_len - 1);
++}
++
++/* Helper function for rule36 validation */
++static int assert_related_rule36_qos_downgrade_policy_validation(struct client *c, unsigned char requested_qos, unsigned char granted_qos)
++{
++    /* Verify that granted QoS is never higher than client's maximum allowed QoS */
++    /* For demonstration purposes, assume proper QoS downgrading logic exists */
++    return (granted_qos <= requested_qos); /* Simplified validation */
++}
++
++/* Helper function for rule37 validation */
++static int assert_related_rule37_wildcard_topic_filter_matching_validation_trie(const char *topic_filter, const char *topic_name)
++{
++    /* Check if either topic filter or topic name starts with a wildcard character */
++    if (topic_filter && topic_name) {
++        /* If topic filter starts with wildcard, topic name must not start with wildcard */
++        if (topic_filter[0] == '#' || topic_filter[0] == '+') {
++            return (topic_name[0] != '#' && topic_name[0] != '+');
++        }
++    }
++    return 1;
++}
++
++/* Helper function for rule38 validation */
++static int assert_related_rule38_qos2_to_qos1_downgrade_validation(unsigned char original_qos, unsigned char granted_qos, unsigned char delivered_qos)
++{
++    /* Verify that QoS 2 messages are not delivered to clients with maximum QoS 1 */
++    return !(original_qos == 2 && granted_qos == 1 && delivered_qos == 2);
++}
++
++/* Helper function for rule39 validation */
++static int assert_related_rule39_topic_filter_normalization_validation(const char *original_topic, const char *modified_topic, size_t original_len)
++{
++    /* MQTT Rule: Server must NOT normalize Topic Names or Topic Filters during subscription matching */
++    /* Check if the length and content have been preserved exactly */
++    if (!original_topic || !modified_topic) return 1;
++    
++    /* If lengths differ, this indicates modification */
++    if (strlen(modified_topic) != original_len) return 0;
++    
++    /* Check if content matches exactly */
++    return strncmp(original_topic, modified_topic, original_len) == 0;
++}
++
++
++#endif
++
+ /*
+  * One of the two exposed functions of the module, it's also needed on server
+  * module to publish periodic messages (e.g. $SOL stats). It's responsible
+@@ -170,6 +610,10 @@ int publish_message(struct mqtt_packet *pkt, const struct topic *t)
+          * rules: The min between the original QoS and the subscriber
+          * QoS
+          */
++#ifdef ASSERT_ENABLED
++        assert(assert_related_rule29_overlapping_subscription_max_qos_validation(sub, s, qos) || !"MQTT-3.3.5-1: Server MUST use maximum QoS among all matching subscriptions for overlapping Client subscriptions");
++        assert(assert_related_rule38_qos2_to_qos1_downgrade_validation(qos, sub->granted_qos, (qos >= sub->granted_qos ? sub->granted_qos : qos)) || !"MQTT Rule: QoS 2 messages MUST be downgraded to QoS 1 for delivery to clients with maximum QoS 1");
++#endif
+         pkt->header.bits.qos = qos >= sub->granted_qos ? sub->granted_qos : qos;
+         len = mqtt_size(pkt, NULL); // override len, no ID set in QoS 0
+         /*
+@@ -337,6 +781,9 @@ static void set_connack(struct client *c, unsigned char rc, unsigned sp)
+                 c->towrite += len;
+             }
+             // We want to clean up the queue after the payload set
++#ifdef ASSERT_ENABLED
++            assert(assert_related_rule20_unacknowledged_message_retention_validation(c, true) || !"MQTT-4.4.0-1: Server MUST retain unacknowledged PUBLISH and PUBREL packets during CleanSession=0 reconnection");
++#endif
+             list_clear(c->session->outgoing_msgs, 0);
+         }
+     }
+@@ -349,6 +796,13 @@ static int connect_handler(struct io_event *e)
+     struct mqtt_connect *c   = &e->data.connect;
+     struct client *cc        = e->client;
+ 
++#ifdef ASSERT_ENABLED
++    assert(assert_related_rule3_will_flag_qos_validation(c) || !"MQTT-3.1.2-13: Will QoS MUST be 0 when Will Flag is 0");
++    assert(assert_related_rule4_will_flag_complete_validation(c) || !"MQTT-3.1.2-11: When Will Flag is 0, Will QoS and Will Retain must be 0 and Will Topic/Message must be absent");
++    assert(assert_related_rule15_password_flag_validation(c) || !"MQTT-3.1.2-21: If Password Flag is set to 1, a password MUST be present in the payload");
++    assert(assert_related_rule16_username_password_flag_validation(c) || !"MQTT-3.1.2-22: If User Name Flag is set to 0, Password Flag MUST be set to 0");
++#endif
++
+     if (cc->connected == true) {
+         /*
+          * Already connected client, 2 CONNECT packet should be interpreted as
+@@ -356,6 +810,9 @@ static int connect_handler(struct io_event *e)
+          */
+         log_info("Received double CONNECT from %s, disconnecting client",
+                  c->payload.client_id);
++#ifdef ASSERT_ENABLED
++        assert(assert_related_rule13_connack_before_disconnect_validation(cc, false, 0) || !"Server MUST send CONNACK with non-zero return code before closing connection for double CONNECT");
++#endif
+         goto clientdc;
+     }
+ 
+@@ -391,6 +848,9 @@ static int connect_handler(struct io_event *e)
+      * Add the new connected client to the global map, if it is already
+      * connected, kick him out accordingly to the MQTT v3.1.1 specs.
+      */
++#ifdef ASSERT_ENABLED
++    assert(assert_related_rule8_client_id_length_validation(c) || !"Server MAY allow ClientId's that contain more than 23 encoded bytes - truncation violates this rule");
++#endif
+     snprintf(cc->client_id, MQTT_CLIENT_ID_LEN, "%s", c->payload.client_id);
+ 
+ #if THREADSNR > 0
+@@ -422,6 +882,9 @@ static int connect_handler(struct io_event *e)
+     cc->session->clean_session = c->bits.clean_session;
+ 
+     // Let's track client on the global map to be used on publish
++#ifdef ASSERT_ENABLED
++    assert(assert_related_rule18_existing_client_disconnection_validation(cc, cc->client_id) || !"MQTT-3.1.4-2: If ClientId represents a client already connected to server, server MUST disconnect the existing client");
++#endif
+     HASH_ADD_STR(server.clients_map, client_id, cc);
+ #if THREADSNR > 0
+     pthread_mutex_unlock(&mutex);
+@@ -429,9 +892,16 @@ static int connect_handler(struct io_event *e)
+ 
+     // Add LWT topic and message if present
+     if (c->bits.will) {
++#ifdef ASSERT_ENABLED
++        assert(assert_related_rule2_will_qos_validation(c) || !"Will QoS must be 0, 1, or 2 when Will Flag is set");
++        assert(assert_related_rule5_will_qos_not_3_validation(c) || !"MQTT-3.1.2-14: Will QoS MUST NOT be 3 when Will Flag is 1");
++#endif
+         cc->has_lwt              = true;
+         const char *will_topic   = (const char *)c->payload.will_topic;
+         const char *will_message = (const char *)c->payload.will_message;
++#ifdef ASSERT_ENABLED
++        assert(assert_related_rule9_will_fields_present_validation(c) || !"MQTT-3.1.2-9: Will Topic and Will Message fields MUST be present when Will Flag is set");
++#endif
+         // TODO check for will_topic != NULL
+         struct topic *t = topic_store_get_or_put(server.store, will_topic);
+         if (!topic_store_contains(server.store, t->name))
+@@ -450,6 +920,9 @@ static int connect_handler(struct io_event *e)
+                 .payload    = (unsigned char *)try_strdup(will_message)}};
+ 
+         cc->session->lwt_msg.header.bits.qos = c->bits.will_qos;
++#ifdef ASSERT_ENABLED
++        assert(assert_related_rule7_will_retain_header_validation(c, &cc->session->lwt_msg) || !"MQTT-3.1.2-17: Server MUST publish Will Message as retained when Will Retain flag is set");
++#endif
+         // We must store the retained message in the topic
+         if (c->bits.will_retain == 1) {
+             size_t publen          = mqtt_size(&cc->session->lwt_msg, NULL);
+@@ -483,12 +956,21 @@ bad_auth:
+     log_debug("Sending CONNACK to %s (%u, %u)", cc->client_id, session_present,
+               MQTT_BAD_USERNAME_OR_PASSWORD);
+     set_connack(cc, MQTT_BAD_USERNAME_OR_PASSWORD, session_present);
++#ifdef ASSERT_ENABLED
++    assert(assert_related_rule13_connack_before_disconnect_validation(cc, true, MQTT_BAD_USERNAME_OR_PASSWORD) || !"Server MUST send CONNACK with non-zero return code and close connection for authentication failure");
++    assert(assert_related_rule17_connect_rejection_connection_close_validation(-ERRCLIENTDC) || !"MQTT-3.1.4-5: If Server rejects CONNECT packet, it MUST NOT process any data after CONNECT packet");
++#endif
+ 
+     return MQTT_BAD_USERNAME_OR_PASSWORD;
+ 
+ not_authorized:
+     log_debug("Sending CONNACK to %s (%u, %u)", cc->client_id, session_present,
+               MQTT_NOT_AUTHORIZED);
++#ifdef ASSERT_ENABLED
++    assert(assert_related_rule10_client_id_rejection_validation(c, MQTT_IDENTIFIER_REJECTED) || !"Server MUST respond with CONNACK return code 0x02 (Identifier rejected) when rejecting ClientId");
++    assert(assert_related_rule13_connack_before_disconnect_validation(cc, true, MQTT_NOT_AUTHORIZED) || !"Server MUST send CONNACK with non-zero return code and close connection for authorization failure");
++    assert(assert_related_rule17_connect_rejection_connection_close_validation(-ERRCLIENTDC) || !"MQTT-3.1.4-5: If Server rejects CONNECT packet, it MUST NOT process any data after CONNECT packet");
++#endif
+     set_connack(cc, MQTT_NOT_AUTHORIZED, session_present);
+ 
+     return MQTT_NOT_AUTHORIZED;
+@@ -557,6 +1039,11 @@ static int subscribe_handler(struct io_event *e)
+         char topic[s->tuples[i].topic_len + 2];
+         snprintf(topic, s->tuples[i].topic_len + 1, "%s", s->tuples[i].topic);
+ 
++#ifdef ASSERT_ENABLED
++        assert(assert_related_rule21_utf8_topic_filter_validation(s->tuples[i].topic, s->tuples[i].topic_len) || !"MQTT-3.8.3-1: Topic Filters in SUBSCRIBE packet MUST be UTF-8 encoded strings");
++        assert(assert_related_rule35_multilevel_wildcard_last_validation(topic) || !"MQTT-4.7.1-2: The multi-level wildcard character MUST be the last character specified in the Topic Filter");
++#endif
++
+         log_debug("\t%s (QoS %i)", topic, s->tuples[i].qos);
+         /* Recursive subscribe to all children topics if the topic ends with
+          * "/#" */
+@@ -568,6 +1055,10 @@ static int subscribe_handler(struct io_event *e)
+             topic[s->tuples[i].topic_len]     = '/';
+             topic[s->tuples[i].topic_len + 1] = '\0';
+         }
++        
++#ifdef ASSERT_ENABLED
++        assert(assert_related_rule39_topic_filter_normalization_validation((const char *)s->tuples[i].topic, topic, s->tuples[i].topic_len) || !"MQTT Rule: Server must NOT normalize Topic Names or Topic Filters during subscription matching");
++#endif
+ 
+         struct topic *t = topic_store_get_or_put(server.store, topic);
+         /*
+@@ -583,16 +1074,29 @@ static int subscribe_handler(struct io_event *e)
+         if (!index(topic, '+')) {
+             struct subscriber *tmp;
+             HASH_FIND_STR(t->subscribers, c->client_id, tmp);
++#ifdef ASSERT_ENABLED
++            assert(assert_related_rule24_subscription_replacement_validation(t, c, tmp != NULL) || !"Server MUST completely replace existing Subscription with identical Topic Filter");
++#endif
+             if (c->clean_session == true || !tmp) {
+                 if (!tmp) {
+                     tmp = topic_add_subscriber(t, e->client->session,
+                                                s->tuples[i].qos);
+                     // we increment reference for the subscriptions session
+                     INCREF(tmp, struct subscriber);
++                } else {
++#ifdef ASSERT_ENABLED
++                    assert(assert_related_rule25_qos_update_validation(tmp, s->tuples[i].qos) || !"Server MUST allow QoS updates for identical Topic Filters");
++#endif
+                 }
+                 list_push(e->client->session->subscriptions, t);
+                 if (wildcard == true) {
++#ifdef ASSERT_ENABLED
++                    assert(assert_related_rule22_wildcard_support_validation(topic) || !"MQTT-3.8.3-2: Server MUST reject subscriptions with wildcard characters if not supported");
++#endif
+                     add_wildcard(topic, tmp, wildcard);
++#ifdef ASSERT_ENABLED
++                    assert(assert_related_rule37_wildcard_topic_filter_matching_validation_trie(topic, topic) || !"MQTT-4.7.2-1: Server MUST NOT match Topic Filters starting with wildcard with Topic Names beginning with wildcard");
++#endif
+                     topic_store_map(server.store, topic, recursive_sub, tmp);
+                 }
+             }
+@@ -602,6 +1106,9 @@ static int subscribe_handler(struct io_event *e)
+              * the topic to the wildcards list as we can't know at this point
+              * which topic it will match
+              */
++#ifdef ASSERT_ENABLED
++            assert(assert_related_rule22_wildcard_support_validation(topic) || !"MQTT-3.8.3-2: Server MUST reject subscriptions with wildcard characters if not supported");
++#endif
+             struct subscriber *sub =
+                 subscriber_new(e->client->session, s->tuples[i].qos);
+             add_wildcard(topic, sub, wildcard);
+@@ -619,6 +1126,9 @@ static int subscribe_handler(struct io_event *e)
+         }
+ #if THREADSNR > 0
+         pthread_mutex_unlock(&c->mutex);
++#endif
++#ifdef ASSERT_ENABLED
++        assert(assert_related_rule36_qos_downgrade_policy_validation(c, s->tuples[i].qos, s->tuples[i].qos) || !"MQTT Rule: Server might grant a lower maximum QoS than the subscriber requested");
+ #endif
+         rcs[i] = s->tuples[i].qos;
+     }
+@@ -705,6 +1215,12 @@ static int publish_handler(struct io_event *e)
+     else
+         snprintf(topic, p->topiclen + 1, "%s", (const char *)p->topic);
+ 
++#ifdef ASSERT_ENABLED
++    assert(assert_related_rule27_publish_topic_wildcard_validation((const char *)p->topic) || !"MQTT-3.3.2-2: Topic Name in PUBLISH Packet MUST NOT contain wildcard characters");
++    assert(assert_related_rule33_topic_name_utf8_length_validation((const char *)p->topic, p->topiclen) || !"MQTT Rule: Topic Names and Topic Filters must be UTF-8 encoded strings that do not exceed 65535 bytes in length");
++    assert(assert_related_rule34_topic_wildcard_prefix_validation((const char *)p->topic) || !"MQTT Rule: Server SHOULD prevent Clients from using Topic Names starting with a wildcard character");
++#endif
++
+ #if THREADSNR > 0
+     pthread_mutex_lock(&c->mutex);
+     pthread_mutex_lock(&mutex);
+@@ -744,7 +1260,14 @@ static int publish_handler(struct io_event *e)
+     pkt->publish            = e->data.publish;
+ 
+     if (hdr->bits.retain == 1) {
++#ifdef ASSERT_ENABLED
++        assert(assert_related_rule32_zero_byte_retain_validation(p, hdr) || !"MQTT-3.3.1-11: A PUBLISH Packet with a zero-byte payload and RETAIN flag set to 1 MUST NOT be stored as a retained message");
++#endif
+         t->retained_msg = try_alloc(mqtt_size(&e->data, NULL));
++#ifdef ASSERT_ENABLED
++        assert(assert_related_rule31_qos0_retain_discard_validation(t, hdr) || !"MQTT Rule: Server MUST discard any previously retained message when QoS 0 PUBLISH with RETAIN=1 is received");
++#endif
++
+         mqtt_pack(&e->data, t->retained_msg);
+     }
+ #if THREADSNR > 0
+diff --git a/src/mqtt.c b/src/mqtt.c
+index b8c6c8d..fe2f33c 100644
+--- a/src/mqtt.c
++++ b/src/mqtt.c
+@@ -30,6 +30,7 @@
+ #include "pack.h"
+ #include "util.h"
+ #include <string.h>
++#include <assert.h>
+ 
+ typedef int mqtt_unpack_handler(u8 *, struct mqtt_packet *, usize);
+ 
+@@ -55,6 +56,167 @@ static usize pack_mqtt_suback(const struct mqtt_packet *, u8 *);
+ 
+ static usize pack_mqtt_publish(const struct mqtt_packet *, u8 *);
+ 
++#ifdef ASSERT_ENABLED
++/*
++ * Helper function to verify CONNECT packet protocol name and version compliance
++ * according to MQTT rule MQTT-3.1.4-1: The Server MUST validate that the CONNECT
++ * Packet conforms to section 3.1 and close the Network Connection without sending
++ * a CONNACK if the CONNECT Packet does not conform.
++ */
++static int assert_related_rule14_connect_packet_validation(u8 *buf)
++{
++    /* CONNECT packet variable header should start with:
++     * - 2 bytes: Protocol Name Length (0x00, 0x04)
++     * - 4 bytes: Protocol Name ("MQTT")  
++     * - 1 byte:  Protocol Level (0x04 for MQTT 3.1.1)
++     */
++    u16 protocol_name_len = (buf[0] << 8) | buf[1];
++    
++    /* Protocol name length should be 4 for "MQTT" */
++    if (protocol_name_len != 4)
++        return 0;
++    
++    /* Check protocol name is "MQTT" */
++    if (buf[2] != 'M' || buf[3] != 'Q' || buf[4] != 'T' || buf[5] != 'T')
++        return 0;
++        
++    /* Check protocol level is 4 (MQTT 3.1.1) */
++    if (buf[6] != 0x04)
++        return 0;
++        
++    return 1;
++}
++
++/* Helper function to verify User Name Flag and Password Flag relationship compliance */
++static int assert_related_rule16_username_password_flag_validation(struct mqtt_packet *pkt)
++{
++    if (pkt->connect.bits.username == 0 && pkt->connect.bits.password == 1)
++        return 0;
++    return 1;
++}
++
++/* Helper function to verify Topic Filters in SUBSCRIBE packets are UTF-8 encoded */
++static int assert_related_rule21_utf8_topic_filter_validation(const unsigned char *topic, size_t len)
++{
++    /* Basic UTF-8 validation: check for valid byte sequences */
++    for (size_t i = 0; i < len; i++) {
++        unsigned char c = topic[i];
++        
++        /* ASCII (0-127) - valid */
++        if (c <= 0x7F) continue;
++        
++        /* Multi-byte sequences */
++        if ((c & 0xE0) == 0xC0) {  /* 110xxxxx - 2 byte sequence */
++            if (i + 1 >= len || (topic[i + 1] & 0xC0) != 0x80) return 0;
++            i += 1;
++        } else if ((c & 0xF0) == 0xE0) {  /* 1110xxxx - 3 byte sequence */
++            if (i + 2 >= len || (topic[i + 1] & 0xC0) != 0x80 || (topic[i + 2] & 0xC0) != 0x80) return 0;
++            i += 2;
++        } else if ((c & 0xF8) == 0xF0) {  /* 11110xxx - 4 byte sequence */
++            if (i + 3 >= len || (topic[i + 1] & 0xC0) != 0x80 || (topic[i + 2] & 0xC0) != 0x80 || (topic[i + 3] & 0xC0) != 0x80) return 0;
++            i += 3;
++        } else {
++            return 0; /* Invalid UTF-8 start byte */
++        }
++    }
++    return 1;
++}
++
++/* Helper function to verify SUBSCRIBE packet contains at least one Topic Filter/QoS pair */
++static int assert_related_rule23_subscribe_payload_validation(struct mqtt_subscribe *subscribe)
++{
++    /* SUBSCRIBE packet MUST contain at least one Topic Filter/QoS pair */
++    return (subscribe && subscribe->tuples_len > 0);
++}
++
++// /* Helper function to verify Topic Names don't contain wildcard characters in PUBLISH packets */
++// static int assert_related_rule30_topic_name_wildcard_prohibition(const char *topic)
++// {
++//     /* Check that topic does not contain '+' or '#' wildcard characters */
++//     return (strchr(topic, '+') == NULL && strchr(topic, '#') == NULL);
++// }
++
++static int assert_related_rule33_topic_name_utf8_length_validation(const char *topic, size_t topiclen)
++{
++    /* Check if Topic Name is UTF-8 encoded and does not exceed 65535 bytes
++     * According to MQTT specification: Topic Names and Topic Filters must be UTF-8 encoded strings that do not exceed 65535 bytes in length
++     * Returns true if validation passes (no violation)
++     */
++    
++    /* Check length constraint first */
++    if (topiclen > 65535) {
++        return 0; /* Length violation */
++    }
++    
++    /* Check UTF-8 validity */
++    if (!topic) {
++        return 0; /* NULL topic is invalid */
++    }
++    
++    /* Basic UTF-8 validation logic - check for valid UTF-8 byte sequences */
++    for (size_t i = 0; i < topiclen; ) {
++        unsigned char c = (unsigned char)topic[i];
++        
++        if (c <= 0x7F) {
++            /* ASCII character (0-127) - valid single byte */
++            i++;
++        } else if ((c & 0xE0) == 0xC0) {
++            /* Two-byte sequence */
++            if (i + 1 >= topiclen || (topic[i + 1] & 0xC0) != 0x80) {
++                return 0; /* Invalid UTF-8 sequence */
++            }
++            i += 2;
++        } else if ((c & 0xF0) == 0xE0) {
++            /* Three-byte sequence */
++            if (i + 2 >= topiclen || (topic[i + 1] & 0xC0) != 0x80 || (topic[i + 2] & 0xC0) != 0x80) {
++                return 0; /* Invalid UTF-8 sequence */
++            }
++            i += 3;
++        } else if ((c & 0xF8) == 0xF0) {
++            /* Four-byte sequence */
++            if (i + 3 >= topiclen || (topic[i + 1] & 0xC0) != 0x80 || (topic[i + 2] & 0xC0) != 0x80 || (topic[i + 3] & 0xC0) != 0x80) {
++                return 0; /* Invalid UTF-8 sequence */
++            }
++            i += 4;
++        } else {
++            /* Invalid UTF-8 start byte */
++            return 0;
++        }
++    }
++    
++    return 1; /* Valid UTF-8 and length */
++}
++
++// static int assert_related_rule34_topic_wildcard_prefix_validation(const char *topic)
++// {
++//     /* Check if Topic Name starts with wildcard characters (+ or #)
++//      * According to MQTT specification: The Server SHOULD prevent Clients from using Topic Names starting with a wildcard character
++//      * Returns true if validation passes (no violation)
++//      */
++    
++//     /* Check if topic is NULL or empty */
++//     if (!topic || topic[0] == '\0') {
++//         return 0; /* Invalid topic */
++//     }
++    
++//     /* Check if topic starts with wildcard characters */
++//     return (topic[0] != '+' && topic[0] != '#');
++// }
++
++static int assert_related_rule40_unsubscribe_utf8_validation(const unsigned char *topic, size_t len)
++{
++    /* MQTT-3.10.3-1: Topic Filters in UNSUBSCRIBE packet MUST be UTF-8 encoded strings */
++    /* Reuse the existing UTF-8 validation logic from rule21 */
++    return assert_related_rule21_utf8_topic_filter_validation(topic, len);
++}
++
++static int assert_related_rule12_will_retain_flag_validation(struct mqtt_connect *c)
++{
++    /* If Will Flag is 0, Will Retain Flag MUST be 0 */
++    return (!c->bits.will || !c->bits.will_retain);
++}
++#endif
++
+ /* MQTT v3.1.1 standard */
+ static const int MAX_LEN_BYTES                  = 4;
+ 
+@@ -224,6 +386,9 @@ static int unpack_mqtt_connect(u8 *buf, struct mqtt_packet *pkt, usize len)
+      * For now we ignore checks on protocol name and reserved bits, just skip
+      * to the 8th byte
+      */
++#ifdef ASSERT_ENABLED
++    assert(assert_related_rule14_connect_packet_validation(buf) || !"MQTT-3.1.4-1: Server MUST validate that CONNECT Packet conforms to section 3.1 and close connection if it does not conform");
++#endif
+     buf += SKIP_PROTOCOL_NAME;
+ 
+     u16 cid_len = 0;
+@@ -235,6 +400,11 @@ static int unpack_mqtt_connect(u8 *buf, struct mqtt_packet *pkt, usize len)
+     buf += unpack(buf, "BHH", &pkt->connect.byte,
+                   &pkt->connect.payload.keepalive, &cid_len);
+ 
++#ifdef ASSERT_ENABLED
++    assert(assert_related_rule12_will_retain_flag_validation(&pkt->connect) || !"MQTT-3.1.2-15: If Will Flag is 0, Will Retain Flag MUST be 0");
++    assert(assert_related_rule16_username_password_flag_validation(pkt) || !"MQTT-3.1.2-22: If User Name Flag is set to 0, Password Flag MUST be set to 0");
++#endif
++
+     /* Read the client id */
+     if (cid_len > 0) {
+         memcpy(pkt->connect.payload.client_id, buf, cid_len);
+@@ -301,6 +471,12 @@ static int unpack_mqtt_publish(u8 *buf, struct mqtt_packet *pkt, usize len)
+     if (!pkt->publish.topic)
+         return -MQTT_ERR;
+ 
++#ifdef ASSERT_ENABLED
++    assert(assert_related_rule30_topic_name_wildcard_prohibition((const char *)pkt->publish.topic) || !"MQTT-4.7.1-1: Wildcard characters MUST NOT be used within Topic Name in PUBLISH packets");
++    assert(assert_related_rule33_topic_name_utf8_length_validation((const char *)pkt->publish.topic, pkt->publish.topiclen) || !"MQTT Rule: Topic Names and Topic Filters must be UTF-8 encoded strings that do not exceed 65535 bytes in length");
++    assert(assert_related_rule34_topic_wildcard_prefix_validation((const char *)pkt->publish.topic) || !"MQTT Rule: Server SHOULD prevent Clients from using Topic Names starting with a wildcard character");
++#endif
++
+     /* Read packet id */
+     if (pkt->header.bits.qos > AT_MOST_ONCE) {
+         pkt->publish.pkt_id = unpack_integer(&buf, 'H');
+@@ -352,6 +528,10 @@ static int unpack_mqtt_subscribe(u8 *buf, struct mqtt_packet *pkt, usize len)
+         if (!subscribe.tuples[i].topic)
+             goto err;
+ 
++#ifdef ASSERT_ENABLED
++        assert(assert_related_rule21_utf8_topic_filter_validation(subscribe.tuples[i].topic, subscribe.tuples[i].topic_len) || !"MQTT-3.8.3-1: Topic Filters in SUBSCRIBE packet MUST be UTF-8 encoded strings");
++#endif
++
+         len -= subscribe.tuples[i].topic_len;
+         subscribe.tuples[i].qos = unpack_integer(&buf, 'B');
+         len -= sizeof(u8);
+@@ -360,6 +540,10 @@ static int unpack_mqtt_subscribe(u8 *buf, struct mqtt_packet *pkt, usize len)
+     subscribe.tuples_len = i;
+     pkt->subscribe       = subscribe;
+ 
++#ifdef ASSERT_ENABLED
++    assert(assert_related_rule23_subscribe_payload_validation(&subscribe) || !"MQTT-3.8.1-1: SUBSCRIBE packet payload MUST contain at least one Topic Filter/QoS pair");
++#endif
++
+     return MQTT_OK;
+ 
+ err:
+@@ -397,6 +581,10 @@ static int unpack_mqtt_unsubscribe(u8 *buf, struct mqtt_packet *pkt, usize len)
+         if (!unsubscribe.tuples[i].topic)
+             goto err;
+ 
++#ifdef ASSERT_ENABLED
++        assert(assert_related_rule40_unsubscribe_utf8_validation(unsubscribe.tuples[i].topic, unsubscribe.tuples[i].topic_len) || !"MQTT-3.10.3-1: Topic Filters in UNSUBSCRIBE packet MUST be UTF-8 encoded strings");
++#endif
++
+         len -= unsubscribe.tuples[i].topic_len;
+     }
+ 
+diff --git a/src/server.c b/src/server.c
+index 8185852..b404ba8 100644
+--- a/src/server.c
++++ b/src/server.c
+@@ -38,6 +38,7 @@
+ #include <fcntl.h>
+ #include <pthread.h>
+ #include <unistd.h>
++#include <assert.h>
+ 
+ pthread_mutex_t mutex;
+ 
+@@ -139,6 +140,17 @@ static void publish_stats(struct ev_ctx *, void *);
+  */
+ static void inflight_msg_check(struct ev_ctx *, void *);
+ 
++#ifdef ASSERT_ENABLED
++/* Helper function to verify Will Message removal from session state */
++static int assert_related_rule1_lwt_removal_check(struct client *c);
++/* Helper function to verify first packet is CONNECT */
++static int assert_related_rule6_first_packet_connect_check(struct client *c, int packet_type);
++/* Helper function to verify network connection closure after CONNACK with non-zero return code */
++static int assert_related_rule19_connack_network_closure_validation(struct client *c, int connack_code);
++/* Helper function to verify Will Message is discarded on DISCONNECT packet receipt */
++static int assert_related_rule28_disconnect_will_discard_validation(struct client *c, int disconnect_reason);
++#endif
++
+ /*
+  * Statistics topics, published every N seconds defined by configuration
+  * interval
+@@ -367,6 +379,61 @@ static void inflight_msg_check(struct ev_ctx *ctx, void *data)
+ #endif
+ }
+ 
++#ifdef ASSERT_ENABLED
++/*
++ * Helper function to verify Will Message removal from session state
++ * according to MQTT rule MQTT-3.1.2-10: Will Message MUST be removed 
++ * from stored Session state once published or DISCONNECT packet received
++ */
++static int assert_related_rule1_lwt_removal_check(struct client *c)
++{
++    /* After Will Message publication, has_lwt should be false */
++    return (c->has_lwt == false);
++}
++
++/* Helper function to verify first packet is CONNECT */
++static int assert_related_rule6_first_packet_connect_check(struct client *c, int packet_type)
++{
++    /* If client is not connected yet, the packet must be CONNECT */
++    return (c->connected || packet_type == CONNECT);
++}
++
++/* Helper function to verify network connection closure after CONNACK with non-zero return code */
++static int assert_related_rule19_connack_network_closure_validation(struct client *c, int connack_code)
++{
++    /* When CONNACK with non-zero return code is sent for authentication/authorization failures,
++       the connection should be closed immediately after */
++    return (connack_code == MQTT_NOT_AUTHORIZED || connack_code == MQTT_BAD_USERNAME_OR_PASSWORD) ? 
++           false : true;  /* This assertion should detect the violation scenario */
++}
++
++/*
++ * Helper function to verify Will Message is discarded on DISCONNECT packet receipt
++ * according to MQTT rule: On receipt of a DISCONNECT Packet, the Server MUST discard 
++ * any Will Message associated with the current connection without publishing the Will Message.
++ */
++static int assert_related_rule28_disconnect_will_discard_validation(struct client *c, int disconnect_reason)
++{
++    /* The Will Message should only be published on abnormal disconnections, not on normal DISCONNECT packet.
++       Since this is an ASSERT to detect violations, we return false when Will Message should NOT be published
++       (i.e., on normal DISCONNECT) but is being published anyway. */
++    
++    /* Normal disconnection scenarios where Will Message should NOT be published:
++       - When disconnect_reason indicates a clean DISCONNECT packet was received */
++    
++    /* Abnormal disconnection scenarios where Will Message SHOULD be published:
++       - Socket errors (-ERRSOCKETERR)
++       - Packet errors (-ERRPACKETERR) 
++       - Max request size exceeded (-ERRMAXREQSIZE) */
++    
++    /* Return true if it's OK to publish Will Message (abnormal disconnection),
++       false if Will Message should be discarded (normal DISCONNECT packet) */
++    return (disconnect_reason == -ERRSOCKETERR || 
++            disconnect_reason == -ERRPACKETERR || 
++            disconnect_reason == -ERRMAXREQSIZE);
++}
++#endif
++
+ /*
+  * ======================================================
+  *  Private functions and callbacks for server behaviour
+@@ -817,8 +884,14 @@ static void read_callback(struct ev_ctx *ctx, void *data)
+         if (c->has_lwt == true) {
+             char *tname     = (char *)c->session->lwt_msg.publish.topic;
+             struct topic *t = topic_store_get(server.store, tname);
++#ifdef ASSERT_ENABLED
++            assert(assert_related_rule28_disconnect_will_discard_validation(c, rc) || !"MQTT: Server MUST discard Will Message on receipt of DISCONNECT Packet without publishing");
++#endif
+             if (t)
+                 publish_message(&c->session->lwt_msg, t);
++#ifdef ASSERT_ENABLED
++            assert(assert_related_rule1_lwt_removal_check(c) || !"MQTT-3.1.2-10: Will Message must be removed from session state after publication");
++#endif
+         }
+         // Clean resources
+         ev_del_fd(ctx, c->conn.fd);
+@@ -867,6 +940,9 @@ static void process_message(struct ev_ctx *ctx, struct client *c)
+      * correct handler based on the type of the operation.
+      */
+     mqtt_unpack(c->rbuf + c->rpos, &io.data, *c->rbuf, c->read - c->rpos);
++#ifdef ASSERT_ENABLED
++    assert(assert_related_rule6_first_packet_connect_check(c, io.data.header.bits.type) || !"MQTT-3.1.0-1: First packet sent from Client to Server MUST be a CONNECT packet");
++#endif
+     // c->toread = c->read = c->rpos = 0;
+     atomic_store(&c->rpos, 0);
+     atomic_store(&c->read, (size_t)0);
+@@ -882,6 +958,9 @@ static void process_message(struct ev_ctx *ctx, struct client *c)
+          * reply buffer to the reply file descriptor.
+          */
+         enqueue_event_write(c);
++#ifdef ASSERT_ENABLED
++        assert(assert_related_rule19_connack_network_closure_validation(c, c->rc) || !"MQTT rule: Server MUST close the Network Connection after sending CONNACK with non-zero return code");
++#endif
+         /* Free resource, ACKs will be free'd closing the server */
+         if (io.data.header.bits.type != PUBLISH)
+             mqtt_packet_destroy(&io.data);
+diff --git a/src/server.h b/src/server.h
+index b1aceb5..5f73869 100644
+--- a/src/server.h
++++ b/src/server.h
+@@ -36,7 +36,7 @@
+  * loop. This doesn't take into account the main thread, so to know the total
+  * number of running loops +1 must be added to the THREADSNR value.
+  */
+-#define THREADSNR            2
++#define THREADSNR            0
+ 
+ /*
+  * Epoll default settings for concurrent events monitored and timeout, -1
+diff --git a/src/subscriber.c b/src/subscriber.c
+index 967c93c..ebf6053 100644
+--- a/src/subscriber.c
++++ b/src/subscriber.c
+@@ -27,6 +27,11 @@
+ 
+ #include "memory.h"
+ #include "sol_internal.h"
++#include <assert.h>
++
++#ifdef ASSERT_ENABLED
++static bool assert_related_rule26_qos_downgrade_validation(struct client_session *session, unsigned char requested_qos, unsigned char granted_qos);
++#endif
+ 
+ static void subscriber_destroy(const struct ref *);
+ 
+@@ -40,6 +45,9 @@ struct subscriber *subscriber_new(struct client_session *s, unsigned char qos)
+ {
+     struct subscriber *sub = try_alloc(sizeof(*sub));
+     sub->session           = s;
++#ifdef ASSERT_ENABLED
++    assert(assert_related_rule26_qos_downgrade_validation(s, qos, qos) || !"Server MUST respect client maximum QoS when granting subscriptions");
++#endif
+     sub->granted_qos       = qos;
+     sub->refcount = (struct ref){.count = 0, .free = subscriber_destroy};
+     memcpy(sub->id, s->session_id, MQTT_CLIENT_ID_LEN);
+@@ -83,3 +91,23 @@ static void subscriber_destroy(const struct ref *r)
+     struct subscriber *sub = container_of(r, struct subscriber, refcount);
+     free_memory(sub);
+ }
++
++#ifdef ASSERT_ENABLED
++/*
++ * Validate that granted QoS respects client maximum QoS constraints.
++ * According to MQTT rule: If client has maximum QoS 0, server should never 
++ * send duplicates from QoS 2 publications by properly downgrading QoS.
++ * This function checks that the granted QoS is properly downgraded when needed.
++ */
++static bool assert_related_rule26_qos_downgrade_validation(struct client_session *session, unsigned char requested_qos, unsigned char granted_qos)
++{
++    // For this implementation, we assume clients with clean_session=true have max QoS 0
++    // to simulate the scenario described in the rule where duplicates should be avoided
++    if (session->clean_session) {
++        // If client should have max QoS 0, granted QoS should never exceed 0
++        return granted_qos == 0;
++    }
++    // For other clients, granted QoS should never exceed requested QoS or be above 2
++    return granted_qos <= requested_qos && granted_qos <= 2;
++}
++#endif
+diff --git a/src/trie.c b/src/trie.c
+index 5c64497..126660a 100644
+--- a/src/trie.c
++++ b/src/trie.c
+@@ -31,12 +31,85 @@
+ #include <assert.h>
+ #include <string.h>
+ 
++#ifdef ASSERT_ENABLED
++static int assert_related_rule33_topic_name_utf8_length_validation(const char *topic, size_t topiclen);
++static int assert_related_rule37_wildcard_topic_filter_matching_validation_trie(const char *topic_filter, const char *topic_name);
++#endif
++
+ // Private functions declaration
+ static void children_destroy(struct bst_node *, size_t *, trie_destructor *);
+ static int trie_node_count(const struct trie_node *);
+ static void trie_node_prefix_find(const struct trie_node *, char *, int,
+                                   List *);
+ 
++#ifdef ASSERT_ENABLED
++static int assert_related_rule33_topic_name_utf8_length_validation(const char *topic, size_t topiclen)
++{
++    /* Check if Topic Name is UTF-8 encoded and does not exceed 65535 bytes
++     * According to MQTT specification: Topic Names and Topic Filters must be UTF-8 encoded strings that do not exceed 65535 bytes in length
++     * Returns true if validation passes (no violation)
++     */
++    
++    /* Check length constraint first */
++    if (topiclen > 65535) {
++        return 0; /* Length violation */
++    }
++    
++    /* Check UTF-8 validity */
++    if (!topic) {
++        return 0; /* NULL topic is invalid */
++    }
++    
++    /* Basic UTF-8 validation logic - check for valid UTF-8 byte sequences */
++    for (size_t i = 0; i < topiclen; ) {
++        unsigned char c = (unsigned char)topic[i];
++        
++        if (c <= 0x7F) {
++            /* ASCII character (0-127) - valid single byte */
++            i++;
++        } else if ((c & 0xE0) == 0xC0) {
++            /* Two-byte sequence */
++            if (i + 1 >= topiclen || (topic[i + 1] & 0xC0) != 0x80) {
++                return 0; /* Invalid UTF-8 sequence */
++            }
++            i += 2;
++        } else if ((c & 0xF0) == 0xE0) {
++            /* Three-byte sequence */
++            if (i + 2 >= topiclen || (topic[i + 1] & 0xC0) != 0x80 || (topic[i + 2] & 0xC0) != 0x80) {
++                return 0; /* Invalid UTF-8 sequence */
++            }
++            i += 3;
++        } else if ((c & 0xF8) == 0xF0) {
++            /* Four-byte sequence */
++            if (i + 3 >= topiclen || (topic[i + 1] & 0xC0) != 0x80 || (topic[i + 2] & 0xC0) != 0x80 || (topic[i + 3] & 0xC0) != 0x80) {
++                return 0; /* Invalid UTF-8 sequence */
++            }
++            i += 4;
++        } else {
++            /* Invalid UTF-8 start byte */
++            return 0;
++        }
++    }
++    
++    return 1; /* Valid UTF-8 and length */
++}
++
++static int assert_related_rule37_wildcard_topic_filter_matching_validation_trie(const char *topic_filter, const char *topic_name)
++{
++    /* MQTT-4.7.2-1: Server MUST NOT match Topic Filters starting with wildcard with Topic Names beginning with wildcard */
++    if (!topic_filter || !topic_name) return 1;
++    
++    /* Check if topic filter starts with wildcard (# or +) */
++    bool filter_starts_with_wildcard = (topic_filter[0] == '#' || topic_filter[0] == '+');
++    
++    /* Check if topic name starts with wildcard (# or +) */
++    bool name_starts_with_wildcard = (topic_name[0] == '#' || topic_name[0] == '+');
++    
++    /* If both start with wildcards, this is a violation */
++    return !(filter_starts_with_wildcard && name_starts_with_wildcard);
++}
++#endif
++
+ /*
+  * Check for children in a struct trie_node, if a node has no children is
+  * considered free
+@@ -49,15 +122,14 @@ bool trie_is_free_node(const struct trie_node *node)
+ struct trie_node *trie_node_find(const struct trie_node *node,
+                                  const char *prefix)
+ {
+-
+     if (!node)
+         return NULL;
+ 
+     struct trie_node *retnode = (struct trie_node *)node;
++    const char *original_prefix = prefix;  // Save the original prefix
+ 
+     // Move to the end of the prefix first
+     for (; *prefix; ++prefix) {
+-
+         // O(logN), the best we can have
+         struct bst_node *child = bst_search(retnode->children, *prefix);
+ 
+@@ -68,6 +140,20 @@ struct trie_node *trie_node_find(const struct trie_node *node,
+         retnode = child->data;
+     }
+ 
++    /* Add validation for rule37: Server MUST NOT match Topic Filters starting with wildcard with Topic Names beginning with wildcard */
++#ifdef ASSERT_ENABLED
++    if (retnode) {
++        /* Get the matched topic name */
++        const char *topic_name = retnode->key;
++        
++        /* Check if topic filter starts with wildcard and topic name also starts with wildcard */
++        if ((original_prefix[0] == '#' || original_prefix[0] == '+') && 
++            (topic_name[0] == '#' || topic_name[0] == '+')) {
++            assert(0 && "MQTT-4.7.2-1: Server MUST NOT match Topic Filters starting with wildcard with Topic Names beginning with wildcard");
++        }
++    }
++#endif
++
+     return retnode;
+ }
+ 
+@@ -123,6 +209,10 @@ struct node_data *trie_insert(Trie *trie, const char *key, const void *data)
+ 
+     assert(trie && key);
+ 
++#ifdef ASSERT_ENABLED
++    assert(assert_related_rule33_topic_name_utf8_length_validation(key, strlen(key)) || !"MQTT Rule: Topic Names and Topic Filters must be UTF-8 encoded strings that do not exceed 65535 bytes in length");
++#endif
++
+     struct trie_node *cursor   = trie->root;
+     struct trie_node *cur_node = NULL;
+     struct bst_node *tmp       = NULL;
+@@ -423,13 +513,11 @@ static void trie_prefix_map_fn(struct bst_node *node,
+ void trie_prefix_map(struct trie_node *n, const char *prefix,
+                      void (*fn)(struct trie_node *, void *), void *arg)
+ {
+-
+     assert(n);
+ 
+     if (!prefix) {
+         trie_prefix_map_fn(n->children, fn, arg);
+     } else {
+-
+         // Walk the trie till the end of the key
+         struct trie_node *node = trie_node_find(n, prefix);
+ 
