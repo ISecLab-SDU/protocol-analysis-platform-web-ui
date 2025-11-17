@@ -165,7 +165,7 @@ const HISTORY_DEFAULT_LIMIT = 50;
 const PROGRESS_LOGS_MAX_LINES = 2000;
 
 const historyColumns: HistoryColumn[] = [
-  { dataIndex: 'jobId', key: 'jobId', title: '任务 ID', width: 220 },
+  { dataIndex: 'codeFileName', key: 'codeFileName', title: '压缩包名称', width: 220 },
   { dataIndex: 'status', key: 'status', title: '任务状态', width: 120 },
   {
     dataIndex: 'overallStatus',
@@ -1743,14 +1743,30 @@ async function handleSubmit() {
               <span v-else>暂无历史记录</span>
             </template>
             <template #bodyCell="{ column, record }">
-              <template v-if="column.key === 'jobId'">
+              <template v-if="column.key === 'codeFileName'">
                 <TypographyParagraph
-                  :copyable="{ text: record.jobId }"
-                  :ellipsis="{ rows: 1, tooltip: record.jobId }"
+                  v-if="record.codeFileName"
+                  :copyable="{ text: record.codeFileName }"
+                  :ellipsis="{ rows: 1, tooltip: record.codeFileName }"
                   class="history-job"
                 >
-                  {{ record.jobId }}
+                  {{ record.codeFileName }}
                 </TypographyParagraph>
+                <div v-else class="history-job">
+                  <TypographyParagraph
+                    :copyable="{ text: record.jobId }"
+                    :ellipsis="{ rows: 1, tooltip: record.jobId }"
+                    class="history-job-fallback"
+                  >
+                    {{ record.jobId }}
+                  </TypographyParagraph>
+                  <TypographyParagraph
+                    class="history-job-meta"
+                    type="secondary"
+                  >
+                    (任务 ID)
+                  </TypographyParagraph>
+                </div>
               </template>
               <template v-else-if="column.key === 'status'">
                 <Tag
@@ -1948,6 +1964,15 @@ async function handleSubmit() {
   max-height: 300px;
   overflow-y: auto;
   margin-top: 8px;
+}
+
+.history-job-meta {
+  margin: 0;
+  font-size: 12px;
+}
+
+.history-job-fallback {
+  margin-bottom: 0;
 }
 
 .layout-grid {

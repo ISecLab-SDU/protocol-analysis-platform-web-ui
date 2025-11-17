@@ -141,6 +141,7 @@ export interface ProtocolStaticAnalysisHistoryEntry {
   analysisId?: string | null;
   completedAt?: string | null;
   configPath?: string | null;
+  codeFileName?: string | null;
   createdAt: string;
   databasePath?: string | null;
   details?: Record<string, unknown> | null;

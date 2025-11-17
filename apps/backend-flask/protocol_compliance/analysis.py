@@ -631,9 +631,11 @@ def list_static_analysis_history(limit: int = 50) -> List[Dict[str, object]]:
         analysis_id = result_dict.get("analysisId") if result_dict else None
         model_name = result_dict.get("model") if result_dict else None
 
+        code_file_name = None
         rules_file_name = None
         protocol_input_name = None
         if isinstance(inputs, dict):
+            code_file_name = inputs.get("codeFileName")
             rules_file_name = inputs.get("rulesFileName")
             protocol_input_name = inputs.get("protocolName")
             if protocol is None:
@@ -671,6 +673,7 @@ def list_static_analysis_history(limit: int = 50) -> List[Dict[str, object]]:
                 "ruleSet": rule_set,
                 "overallStatus": overall_status,
                 "summary": summary_payload,
+                "codeFileName": code_file_name,
                 "rulesFileName": rules_file_name,
                 "workspaceSnapshots": workspace_snapshots,
             }

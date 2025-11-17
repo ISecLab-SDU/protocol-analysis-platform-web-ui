@@ -32,7 +32,7 @@ def synthesize_job(
     protocol_name: str,
     protocol_version: Optional[str],
     rules_file: str,
-    code_file: str,
+    code_file_name: str,
     builder_file: str,
     config_file: str,
     notes: Optional[str],
@@ -76,12 +76,16 @@ def synthesize_job(
     repo.add_event(job_id=job_id, timestamp=_iso(t2), stage="inputs", message="Persisting uploaded artefacts")
 
     result = analysis.build_mock_analysis(
-        code_file_name=code_file,
+        code_file_name=code_file_name,
         rules_file_name=rules_file,
         protocol_name=protocol_name,
         notes=notes,
         rules_summary=rules_summary,
     )
+    if isinstance(result, dict):
+        inputs = result.setdefault("inputs", {})
+        if isinstance(inputs, dict):
+            inputs["codeFileName"] = code_file_name
     metadata = result.get("modelResponse", {}).get("metadata")
     if isinstance(metadata, dict) and protocol_version:
         metadata.setdefault("protocolVersion", protocol_version)
@@ -139,6 +143,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--protocol-name", default="TLS 1.3 handshake", help="Protocol name recorded in metadata")
     parser.add_argument("--protocol-version", default=None, help="Optional protocol version")
     parser.add_argument("--rules-file", default="protocol-guard-rules.yaml", help="Rules file name stored in inputs")
+    parser.add_argument(
+        "--code-file-name",
+        default=None,
+        help="Compressed source archive name stored in inputs.codeFileName",
+    )
     parser.add_argument("--code-file", default="handler.c", help="Source file name stored in inputs")
     parser.add_argument("--builder-file", default="protocol-builder.zip", help="Builder file name for inputs/artifacts")
     parser.add_argument("--config-file", default="protocol-config.yml", help="Config file name for inputs/artifacts")
@@ -162,6 +171,8 @@ def main() -> None:
     job_ids: List[str] = []
     database_paths = args.database or []
 
+    code_file_name = args.code_file_name or args.code_file
+
     if database_paths:
         pairs = list(enumerate(database_paths))
     else:
@@ -174,7 +185,7 @@ def main() -> None:
                 protocol_name=args.protocol_name,
                 protocol_version=args.protocol_version,
                 rules_file=args.rules_file,
-                code_file=args.code_file,
+                code_file_name=code_file_name,
                 builder_file=args.builder_file,
                 config_file=args.config_file,
                 notes=args.notes,
