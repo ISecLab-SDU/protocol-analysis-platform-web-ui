@@ -4,7 +4,7 @@
 
 import { ref, reactive, computed } from 'vue';
 
-export type ProtocolType = 'SNMP' | 'RTSP' | 'MQTT';
+export type ProtocolType = 'SNMP' | 'MQTT';
 
 export interface LogEntry {
   id: string;

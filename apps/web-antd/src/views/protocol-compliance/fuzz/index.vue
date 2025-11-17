@@ -20,13 +20,15 @@ import { Tabs } from 'ant-design-vue';
 // 导入协议专用的composables
 import {
   useSNMP,
-  useRTSP,
+  useSOL,
   useMQTT,
   useLogReader,
   type FuzzPacket,
   type HistoryResult,
   type ProtocolType,
   type FuzzEngineType,
+  type ProtocolImplementationType,
+  type ProtocolImplementationConfig,
 } from './composables';
 
 // 导入新的协议数据管理器和日志查看器
@@ -55,15 +57,18 @@ const {
   processSNMPPacket,
   addSNMPLogToUI,
 } = useSNMP();
+// RTSP相关功能已移除，SOL现在通过MQTT协议实现选择来使用
 const {
-  rtspStats,
-  resetRTSPStats,
-  processRTSPLogLine,
-  writeRTSPScript,
-  executeRTSPCommand,
-  stopRTSPProcess,
-  stopAndCleanupRTSP,
-} = useRTSP();
+  solStats,
+  resetSOLStats,
+  processSOLLogLine,
+  writeSOLScript,
+  executeSOLCommand,
+  stopSOLProcess,
+  preStartCleanupSOL,
+  stopSOLContainer,
+  stopAndCleanupSOL,
+} = useSOL();
 const { mqttStats, resetMQTTStats, processMQTTLogLine } = useMQTT();
 const {
   logContainer,
@@ -74,7 +79,7 @@ const {
   stopLogReading,
   resetLogReader,
   addMQTTLogToUI,
-  addRTSPLogToUI,
+  addSOLLogToUI,
   clearLog,
 } = useLogReader();
 
@@ -122,16 +127,39 @@ let testTimer: number | null = null;
 let mqttSimulationCancelled = false;
 
 // UI configuration
-const protocolType = ref<ProtocolType>('SNMP');
-const fuzzEngine = ref<FuzzEngineType>('SNMP_Fuzz');
+const protocolType = ref<ProtocolType>('MQTT');
+const fuzzEngine = ref<FuzzEngineType>('AFLNET');
 const targetHost = ref('127.0.0.1');
-const targetPort = ref(161);
-const rtspCommandConfig = ref(
-  'afl-fuzz -d -i $AFLNET/tutorials/live555/in-rtsp -o out-live555 -N tcp://127.0.0.1/8554 -x $AFLNET/tutorials/live555/rtsp.dict -P RTSP -D 10000 -q 3 -s 3 -E -K -R ./testOnDemandRTSPServer 8554',
+const targetPort = ref(8883);
+const solCommandConfig = ref(
+  'afl-fuzz -d -i /home/下载/ProtocolGuard/seeds -o /home/下载/output -N tcp://127.0.0.1/8883 -P MQTT -D 10000 -q 3 -s 3 -E -K -R  -m none -t 3000+ ./sol_instrumented 8883',
 );
 
+// 协议实现配置
+const protocolImplementations = ref<ProtocolImplementationType[]>(['SOL']);
+const selectedProtocolImplementation = ref<ProtocolImplementationType>('SOL');
+
+// 协议实现配置映射
+const protocolImplementationConfigs: Record<FuzzEngineType, ProtocolImplementationConfig> = {
+  'SNMP_Fuzz': {
+    fuzzEngine: 'SNMP_Fuzz',
+    defaultImplementations: ['系统固件'],
+    isMultiSelect: false
+  },
+  'MBFuzzer': {
+    fuzzEngine: 'MBFuzzer',
+    defaultImplementations: ['HiveMQ', 'VerneMQ', 'EMQX', 'FlashMQ', 'NanoMQ', 'Mosquitto'],
+    isMultiSelect: false  // 改为单选模式，统一风格
+  },
+  'AFLNET': {
+    fuzzEngine: 'AFLNET',
+    defaultImplementations: ['SOL'],
+    isMultiSelect: false
+  }
+};
+
 // Real-time log reading (现在通过useLogReader管理)
-const rtspProcessId = ref<number | null>(null);
+const solProcessId = ref<number | null>(null);
 
 // Watch for protocol changes to update port and fuzz engine
 watch(protocolType, (newProtocol, oldProtocol) => {
@@ -185,11 +213,10 @@ watch(protocolType, (newProtocol, oldProtocol) => {
   if (newProtocol === 'SNMP') {
     targetPort.value = 161;
     fuzzEngine.value = 'SNMP_Fuzz';
-  } else if (newProtocol === 'RTSP') {
-    targetPort.value = 8554;
-    fuzzEngine.value = 'AFLNET';
   } else if (newProtocol === 'MQTT') {
     targetPort.value = 1883;
+    // MQTT协议的引擎将根据协议实现选择来确定
+    // 默认使用MBFuzzer，如果选择SOL则切换到AFLNET
     fuzzEngine.value = 'MBFuzzer';
     // MQTT动画将在测试开始时初始化
   }
@@ -199,6 +226,53 @@ watch(protocolType, (newProtocol, oldProtocol) => {
     resetTestState();
     console.log('[DEBUG] 协议切换完成，状态已重置');
   });
+});
+
+// Watch for fuzz engine changes to update protocol implementations
+watch(fuzzEngine, (newEngine) => {
+  console.log(`[DEBUG] Fuzz引擎切换: ${newEngine}`);
+  const config = protocolImplementationConfigs[newEngine];
+  if (config) {
+    // 更新多选数组（保持向后兼容）
+    protocolImplementations.value = [...config.defaultImplementations];
+    // 更新单选值（新的统一风格）
+    selectedProtocolImplementation.value = config.defaultImplementations[0];
+    console.log(`[DEBUG] 协议实现已更新为: ${selectedProtocolImplementation.value}`);
+  }
+  // 注意：现在使用统一历史记录存储，不需要根据引擎切换重新加载
+});
+
+// Watch for selected protocol implementation changes to sync with array
+watch(selectedProtocolImplementation, (newImpl) => {
+  console.log('[DEBUG] ========== 协议实现变更监听器触发 ==========');
+  console.log('[DEBUG] 新的协议实现:', newImpl);
+  console.log('[DEBUG] 当前协议类型:', protocolType.value);
+  console.log('[DEBUG] 当前Fuzz引擎:', fuzzEngine.value);
+  
+  // 同步单选值到多选数组，保持向后兼容
+  protocolImplementations.value = [newImpl];
+  
+  // 对于MQTT协议，根据实现选择自动切换引擎
+  if (protocolType.value === 'MQTT') {
+    if (newImpl === 'SOL') {
+      // 选择SOL时，使用AFLNET引擎，端口改为8883
+      console.log('[DEBUG] 检测到SOL实现，准备切换到AFLNET引擎');
+      fuzzEngine.value = 'AFLNET';
+      targetPort.value = 8883;
+      console.log('[DEBUG] MQTT协议选择SOL实现，切换到AFLNET引擎，端口8883');
+      console.log('[DEBUG] 切换后 - fuzzEngine.value:', fuzzEngine.value);
+      console.log('[DEBUG] 切换后 - targetPort.value:', targetPort.value);
+    } else {
+      // 选择传统MQTT broker时，使用MBFuzzer引擎，端口1883
+      console.log('[DEBUG] 检测到传统MQTT broker实现，准备切换到MBFuzzer引擎');
+      fuzzEngine.value = 'MBFuzzer';
+      targetPort.value = 1883;
+      console.log('[DEBUG] MQTT协议选择传统broker实现，切换到MBFuzzer引擎，端口1883');
+      console.log('[DEBUG] 切换后 - fuzzEngine.value:', fuzzEngine.value);
+      console.log('[DEBUG] 切换后 - targetPort.value:', targetPort.value);
+    }
+  }
+  console.log('[DEBUG] ========== 协议实现变更监听器结束 ==========');
 });
 const showCharts = ref(false);
 const crashDetails = ref<any>(null);
@@ -853,7 +927,7 @@ function resetTestState() {
 
     // 重置协议专用的统计数据
     resetSNMPStats();
-    resetRTSPStats();
+    resetSOLStats();
     resetMQTTStats();
 
     // 重置日志读取器
@@ -884,9 +958,7 @@ async function startTest() {
 
   // 根据协议类型执行不同的启动逻辑
   try {
-    if (protocolType.value === 'RTSP') {
-      await startRTSPTest();
-    } else if (protocolType.value === 'SNMP') {
+    if (protocolType.value === 'SNMP') {
       // 初始化SNMP协议数据管理器
       clearProtocolLogs('SNMP');
       updateProtocolState('SNMP', {
@@ -901,7 +973,20 @@ async function startTest() {
 
       await startSNMPTest(loop);
     } else if (protocolType.value === 'MQTT') {
-      await startMQTTTest();
+      // 根据协议实现选择不同的测试方式
+      console.log('[DEBUG] ========== MQTT测试启动 ==========');
+      console.log('[DEBUG] 当前协议实现:', selectedProtocolImplementation.value);
+      console.log('[DEBUG] 当前Fuzz引擎:', fuzzEngine.value);
+      console.log('[DEBUG] 当前目标端口:', targetPort.value);
+      
+      if (selectedProtocolImplementation.value === 'SOL') {
+        // SOL使用AFLNET引擎
+        console.log('[DEBUG] 启动SOL测试 (AFLNET引擎)');
+        await startSOLTest();
+      } else {
+        // 传统MQTT broker使用MBFuzzer引擎
+        await startMQTTTest();
+      }
     } else {
       throw new Error(`不支持的协议类型: ${protocolType.value}`);
     }
@@ -940,30 +1025,104 @@ async function startTest() {
 }
 
 // Protocol-specific test functions
-async function startRTSPTest() {
+// startRTSPTest函数已移除，SOL现在通过startSOLTest函数处理
+
+async function startSOLTest() {
+  console.log('[DEBUG] ========== startSOLTest 被调用 ==========');
+  
   try {
-    // 1. 写入脚本文件
-    await writeRTSPScriptWrapper();
+    // 1. 启动前清理：停止现有容器并清理输出文件
+    console.log('[DEBUG] 执行启动前清理...');
+    
+    addLogToUI(
+      {
+        timestamp: new Date().toLocaleTimeString(),
+        version: 'SOL',
+        type: 'CLEANUP',
+        oids: ['正在清理之前的测试环境...'],
+        hex: '',
+        result: 'info',
+      } as any,
+      false,
+    );
 
-    // 2. 执行shell命令启动程序
-    await executeRTSPCommandWrapper();
+    const cleanupResult = await preStartCleanupSOL();
+    const responseData = cleanupResult.data || cleanupResult;
+    
+    console.log('[DEBUG] 启动前清理完成:', responseData);
+    
+    if (responseData?.cleanup_results) {
+      const results = responseData.cleanup_results;
+      const cleanupMessages = [];
+      
+      if (results.containers_stopped > 0) {
+        cleanupMessages.push(`✓ 已停止 ${results.containers_stopped} 个容器`);
+      }
+      if (results.containers_removed > 0) {
+        cleanupMessages.push(`✓ 已删除 ${results.containers_removed} 个容器`);
+      }
+      if (results.output_cleaned) {
+        cleanupMessages.push(`✓ 输出目录已清理`);
+      }
+      if (results.errors && results.errors.length > 0) {
+        cleanupMessages.push(`⚠ 部分清理失败: ${results.errors.length} 个错误`);
+      }
+      
+      if (cleanupMessages.length === 0) {
+        cleanupMessages.push('✓ 环境已就绪，无需清理');
+      }
 
-    // 3. 开始实时读取日志
-    startRTSPLogReading();
+      addLogToUI(
+        {
+          timestamp: new Date().toLocaleTimeString(),
+          version: 'SOL',
+          type: 'CLEANUP',
+          oids: cleanupMessages,
+          hex: '',
+          result: 'success',
+        } as any,
+        false,
+      );
+    }
+
+    // 2. 写入脚本文件
+    console.log('[DEBUG] 写入脚本文件...');
+    await writeSOLScriptWrapper();
+
+    // 3. 执行shell命令启动程序
+    console.log('[DEBUG] 启动Docker容器...');
+    await executeSOLCommandWrapper();
+
+    // 4. 开始实时读取日志
+    console.log('[DEBUG] 开始日志读取...');
+    startSOLLogReading();
 
     addLogToUI(
       {
         timestamp: new Date().toLocaleTimeString(),
-        version: 'RTSP',
+        version: 'SOL',
         type: 'START',
-        oids: ['RTSP测试已启动'],
+        oids: ['SOL测试已启动，输出文件将在测试结束后保留供查看'],
         hex: '',
         result: 'success',
       } as any,
       false,
     );
   } catch (error: any) {
-    console.error('RTSP测试启动失败:', error);
+    console.error('[DEBUG] SOL测试启动失败:', error);
+    
+    addLogToUI(
+      {
+        timestamp: new Date().toLocaleTimeString(),
+        version: 'SOL',
+        type: 'ERROR',
+        oids: [`启动失败: ${error.message || error}`],
+        hex: '',
+        result: 'error',
+      } as any,
+      false,
+    );
+    
     throw error;
   }
 }
@@ -1176,7 +1335,7 @@ const unifiedLogs = ref<
     timestamp: string;
     type: 'INFO' | 'ERROR' | 'WARNING' | 'SUCCESS';
     content: string;
-    protocol: 'SNMP' | 'RTSP' | 'MQTT';
+    protocol: 'SNMP' | 'MQTT';
   }>
 >([]);
 
@@ -1238,7 +1397,7 @@ const mqttDiffTypeStats = ref({
 function addUnifiedLog(
   type: 'INFO' | 'ERROR' | 'WARNING' | 'SUCCESS',
   content: string,
-  protocol: 'SNMP' | 'RTSP' | 'MQTT' = 'MQTT',
+  protocol: 'SNMP' | 'MQTT' = 'MQTT',
 ) {
   unifiedLogs.value.push({
     id: `${protocol.toLowerCase()}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -1991,8 +2150,7 @@ function getLogFormatter(protocol: ProtocolType) {
   switch (protocol) {
     case 'MQTT':
       return formatMQTTLogLine;
-    case 'RTSP':
-      return formatRTSPLogLine;
+    // RTSP已移除，SOL现在通过MQTT协议实现选择来处理
     case 'SNMP':
       return formatSNMPLogLine;
     default:
@@ -2004,12 +2162,14 @@ function getLogFormatter(protocol: ProtocolType) {
 // 测试函数是否正常工作
 console.log('[DEBUG] formatMQTTLogLine函数已加载');
 
-// RTSP日志格式化
-function formatRTSPLogLine(log: any): string {
+// RTSP日志格式化函数已移除，SOL现在通过formatSOLLogLine处理
+
+// SOL日志格式化
+function formatSOLLogLine(log: any): string {
   if (typeof log === 'string') {
     return log;
   }
-  return `[${log.timestamp}] [RTSP] ${log.content}`;
+  return `[${log.timestamp}] [SOL] ${log.content}`;
 }
 
 // SNMP日志格式化
@@ -2793,17 +2953,17 @@ async function startMQTTLogReading() {
 
 // MQTT日志读取函数现在通过 useLogReader 和 useMQTT composables 管理
 
-// RTSP specific functions (现在通过 useRTSP composable 管理)
-async function writeRTSPScriptWrapper() {
-  const scriptContent = rtspCommandConfig.value;
+// SOL specific functions (现在通过 useSOL composable 管理)
+async function writeSOLScriptWrapper() {
+  const scriptContent = solCommandConfig.value;
 
   try {
-    const result = await writeRTSPScript(scriptContent);
+    const result = await writeSOLScript(scriptContent, [selectedProtocolImplementation.value]);
 
     addLogToUI(
       {
         timestamp: new Date().toLocaleTimeString(),
-        version: 'RTSP',
+        version: 'SOL',
         type: 'SCRIPT',
         oids: [`脚本已写入: ${result.data?.filePath || '脚本文件'}`],
         hex: '',
@@ -2812,27 +2972,47 @@ async function writeRTSPScriptWrapper() {
       false,
     );
   } catch (error: any) {
-    console.error('写入RTSP脚本失败:', error);
+    console.error('写入SOL脚本失败:', error);
     throw new Error(`写入脚本文件失败: ${error.message}`);
   }
 }
 
-async function executeRTSPCommandWrapper() {
+async function executeSOLCommandWrapper() {
+  console.log('[DEBUG] ========== executeSOLCommandWrapper 被调用 ==========');
+  console.log('[DEBUG] selectedProtocolImplementation.value:', selectedProtocolImplementation.value);
+  
   try {
-    const result = await executeRTSPCommand();
+    console.log('[DEBUG] 调用 executeSOLCommand...');
+    const result = await executeSOLCommand([selectedProtocolImplementation.value]);
+    
+    console.log('[DEBUG] executeSOLCommand 返回结果:', result);
+    console.log('[DEBUG] result.data:', result.data);
+    console.log('[DEBUG] result.data.container_id:', result.data?.container_id);
+    console.log('[DEBUG] result.data.pid:', result.data?.pid);
 
     // 保存容器ID用于后续停止
-    if (result.data && (result.data.container_id || result.data.pid)) {
-      rtspProcessId.value = result.data.container_id || result.data.pid;
+    // 由于响应拦截器的处理，数据可能直接在result中，也可能在result.data中
+    const responseData = result.data || result;
+    console.log('[DEBUG] responseData:', responseData);
+    
+    if (responseData && (responseData.container_id || responseData.pid)) {
+      const containerId = responseData.container_id || responseData.pid;
+      console.log('[DEBUG] 设置 solProcessId.value 为:', containerId);
+      solProcessId.value = containerId;
+      console.log('[DEBUG] solProcessId.value 设置后的值:', solProcessId.value);
+    } else {
+      console.log('[DEBUG] 警告：没有从API响应中获取到容器ID或PID');
+      console.log('[DEBUG] result 完整结构:', JSON.stringify(result, null, 2));
+      console.log('[DEBUG] responseData 详情:', JSON.stringify(responseData, null, 2));
     }
 
     addLogToUI(
       {
         timestamp: new Date().toLocaleTimeString(),
-        version: 'RTSP',
+        version: 'SOL',
         type: 'COMMAND',
         oids: [
-          `Docker容器已启动 (ID: ${result.data?.container_id || result.data?.pid || 'unknown'})`,
+          `Docker容器已启动 (ID: ${responseData?.container_id || responseData?.pid || 'unknown'})`,
         ],
         hex: '',
         result: 'success',
@@ -2840,24 +3020,25 @@ async function executeRTSPCommandWrapper() {
       false,
     );
   } catch (error: any) {
-    console.error('执行RTSP命令失败:', error);
+    console.error('[DEBUG] 执行SOL命令失败:', error);
+    console.error('[DEBUG] 错误详情:', error.response?.data || error.message);
     throw new Error(`执行启动命令失败: ${error.message}`);
   }
 }
 
-function startRTSPLogReading() {
+function startSOLLogReading() {
   isReadingLog.value = true;
 
   // 先检查状态
-  checkRTSPStatus();
+  checkSOLStatus();
 
   // 开始实时日志读取
-  readRTSPLogPeriodically();
+  readSOLLogPeriodically();
 
   addLogToUI(
     {
       timestamp: new Date().toLocaleTimeString(),
-      version: 'RTSP',
+      version: 'SOL',
       type: 'LOG',
       oids: [`开始读取日志`],
       hex: '',
@@ -2867,23 +3048,24 @@ function startRTSPLogReading() {
   );
 }
 
-// 检查RTSP状态
-async function checkRTSPStatus() {
+// 检查SOL状态
+async function checkSOLStatus() {
   try {
     const result = await requestClient.post(
       '/protocol-compliance/check-status',
       {
-        protocol: 'RTSP',
+        protocol: 'MQTT',  // SOL现在通过MQTT协议实现选择
+        protocolImplementations: [selectedProtocolImplementation.value],
       },
     );
 
-    console.log('[DEBUG] RTSP状态检查结果:', result);
+    console.log('[DEBUG] SOL状态检查结果:', result);
 
     if (result) {
       // 显示状态信息到UI
       const statusMessage = `状态检查: 日志目录${result.log_dir_exists ? '存在' : '不存在'}, 日志文件${result.log_file_exists ? '存在' : '不存在'}`;
 
-      addToRealtimeStream('RTSP', {
+      addToRealtimeStream('MQTT', {
         timestamp: new Date().toLocaleTimeString(),
         type: 'INFO',
         content: statusMessage,
@@ -2891,7 +3073,7 @@ async function checkRTSPStatus() {
 
       // 如果有Docker容器信息，显示
       if (result.docker_containers) {
-        addToRealtimeStream('RTSP', {
+        addToRealtimeStream('MQTT', {
           timestamp: new Date().toLocaleTimeString(),
           type: 'INFO',
           content: `Docker容器状态: ${result.docker_containers.split('\n').length - 1}个容器运行中`,
@@ -2900,7 +3082,7 @@ async function checkRTSPStatus() {
 
       // 如果有文件列表，显示
       if (result.files_in_log_dir && Array.isArray(result.files_in_log_dir)) {
-        addToRealtimeStream('RTSP', {
+        addToRealtimeStream('MQTT', {
           timestamp: new Date().toLocaleTimeString(),
           type: 'INFO',
           content: `输出目录文件: ${result.files_in_log_dir.join(', ')}`,
@@ -2908,7 +3090,7 @@ async function checkRTSPStatus() {
       }
     }
   } catch (error) {
-    console.error('检查RTSP状态失败:', error);
+    console.error('检查SOL状态失败:', error);
 
     addToRealtimeStream('RTSP', {
       timestamp: new Date().toLocaleTimeString(),
@@ -2918,7 +3100,7 @@ async function checkRTSPStatus() {
   }
 }
 
-async function readRTSPLogPeriodically() {
+async function readSOLLogPeriodically() {
   if (logReadingInterval.value) {
     clearInterval(logReadingInterval.value);
   }
@@ -2935,11 +3117,12 @@ async function readRTSPLogPeriodically() {
     try {
       // 调用后端API读取日志文件
       const result = await requestClient.post('/protocol-compliance/read-log', {
-        protocol: 'RTSP',
+        protocol: 'MQTT',  // SOL现在通过MQTT协议实现选择
+        protocolImplementations: [selectedProtocolImplementation.value],
         lastPosition: logReadPosition.value, // 使用实际的读取位置，实现增量读取
       });
 
-      console.log('[DEBUG] RTSP日志读取结果:', result);
+      console.log('[DEBUG] SOL日志读取结果:', result);
 
       if (result && result.message) {
         // 显示后端返回的状态信息
@@ -2950,7 +3133,7 @@ async function readRTSPLogPeriodically() {
           result.message.includes('日志文件尚未创建') ||
           result.message.includes('日志目录不存在')
         ) {
-          addToRealtimeStream('RTSP', {
+          addToRealtimeStream('MQTT', {
             timestamp: new Date().toLocaleTimeString(),
             type: 'WARNING',
             content: result.message,
@@ -2962,7 +3145,7 @@ async function readRTSPLogPeriodically() {
         // 更新读取位置
         logReadPosition.value = result.position || logReadPosition.value;
 
-        console.log('[DEBUG] 读取到RTSP日志内容，长度:', result.content.length);
+        console.log('[DEBUG] 读取到SOL日志内容，长度:', result.content.length);
         console.log('[DEBUG] 日志内容预览:', result.content.substring(0, 200));
 
         // 处理AFL-NET的plot_data格式
@@ -2972,7 +3155,7 @@ async function readRTSPLogPeriodically() {
         console.log('[DEBUG] 处理日志行数:', logLines.length);
 
         logLines.forEach((line: string) => {
-          const logData = processRTSPLogLine(
+          const logData = processSOLLogLine(
             line,
             packetCount,
             successCount,
@@ -2984,7 +3167,7 @@ async function readRTSPLogPeriodically() {
             console.log('[DEBUG] 处理的日志数据:', logData);
 
             // 使用协议数据管理器添加日志，而不是直接操作DOM
-            addToRealtimeStream('RTSP', {
+            addToRealtimeStream('MQTT', {
               timestamp: logData.timestamp,
               type: logData.type === 'STATS' ? 'INFO' : logData.type,
               content: logData.content,
@@ -2999,10 +3182,10 @@ async function readRTSPLogPeriodically() {
         );
       }
     } catch (error) {
-      console.error('读取RTSP日志失败:', error);
+      console.error('读取SOL日志失败:', error);
 
       // 显示错误信息到UI
-      addToRealtimeStream('RTSP', {
+      addToRealtimeStream('MQTT', {
         timestamp: new Date().toLocaleTimeString(),
         type: 'ERROR',
         content: `读取日志失败: ${error.message || error}`,
@@ -3017,70 +3200,132 @@ async function readRTSPLogPeriodically() {
 
 // addMQTTLogToUI 和 addRTSPLogToUI 现在通过 useLogReader composable 提供
 
-async function stopRTSPProcessWrapper() {
-  if (!rtspProcessId.value) {
+async function stopSOLProcessWrapper() {
+  console.log('[DEBUG] ========== stopSOLProcessWrapper 被调用 ==========');
+  console.log('[DEBUG] solProcessId.value:', solProcessId.value);
+  
+  if (!solProcessId.value) {
+    console.log('[DEBUG] solProcessId 为空，直接返回');
     return;
   }
 
   try {
-    // 检查rtspProcessId是否是Docker容器ID（通常是长字符串）
+    // 检查solProcessId是否是Docker容器ID（通常是长字符串）
     const isDockerContainer =
-      typeof rtspProcessId.value === 'string' &&
-      rtspProcessId.value.length > 10;
+      typeof solProcessId.value === 'string' &&
+      solProcessId.value.length > 10;
+
+    console.log('[DEBUG] isDockerContainer:', isDockerContainer);
+    console.log('[DEBUG] solProcessId类型:', typeof solProcessId.value);
+    console.log('[DEBUG] solProcessId长度:', solProcessId.value?.length);
 
     if (isDockerContainer) {
-      // 使用新的停止和清理功能
-      const result = await stopAndCleanupRTSP(rtspProcessId.value as string);
-
+      console.log('[DEBUG] 识别为Docker容器，调用 stopAndCleanupSOL');
+      console.log('[DEBUG] 传递的容器ID:', solProcessId.value);
+      
+      // 显示停止进度提示
       addLogToUI(
         {
           timestamp: new Date().toLocaleTimeString(),
-          version: 'RTSP',
-          type: 'CLEANUP',
-          oids: [
-            `Docker容器已停止 (ID: ${rtspProcessId.value})`,
-            `容器清理状态: ${result.data?.cleanup_results ? '成功' : '部分成功'}`,
-            `输出目录已清空，为下次测试做准备`,
-          ],
+          version: 'SOL',
+          type: 'INFO',
+          oids: ['正在停止Docker容器，请稍候...'],
           hex: '',
-          result: 'success',
+          result: 'info',
         } as any,
         false,
       );
-
-      // 显示详细的清理结果
-      if (result.data?.cleanup_results) {
-        const cleanupResults = result.data.cleanup_results;
-        const details = [];
-        if (cleanupResults.container_stopped) details.push('✓ 容器已停止');
-        if (cleanupResults.container_removed) details.push('✓ 容器已删除');
-        if (cleanupResults.output_cleaned) details.push('✓ 输出目录已清空');
-        if (cleanupResults.errors && cleanupResults.errors.length > 0) {
-          details.push(`⚠ 错误: ${cleanupResults.errors.join(', ')}`);
-        }
+      
+      try {
+        // 使用新的停止和清理功能
+        const result = await stopAndCleanupSOL(solProcessId.value as string);
+        
+        console.log('[DEBUG] stopAndCleanupSOL 返回结果:', result);
 
         addLogToUI(
           {
             timestamp: new Date().toLocaleTimeString(),
-            version: 'RTSP',
-            type: 'INFO',
-            oids: details,
+            version: 'SOL',
+            type: 'STOP',
+            oids: [
+              `Docker容器已停止 (ID: ${solProcessId.value})`,
+              `容器状态: ${result.data?.stop_results ? '已停止' : '部分停止'}`,
+              `输出文件已保留，可在 /home/hhh/下载/ProtocolGuardOutPut 查看结果`,
+            ],
             hex: '',
-            result: 'info',
+            result: 'success',
           } as any,
           false,
         );
+
+        // 显示详细的停止结果
+        const responseData = result.data || result;
+        if (responseData?.stop_results) {
+          const stopResults = responseData.stop_results;
+          const details = [];
+          if (stopResults.container_stopped) details.push('✓ 容器已停止');
+          if (stopResults.container_removed) details.push('✓ 容器已删除');
+          details.push('✓ 输出文件已保留供查看');
+          if (stopResults.errors && stopResults.errors.length > 0) {
+            details.push(`⚠ 错误: ${stopResults.errors.join(', ')}`);
+          }
+
+          addLogToUI(
+            {
+              timestamp: new Date().toLocaleTimeString(),
+              version: 'SOL',
+              type: 'INFO',
+              oids: details,
+              hex: '',
+              result: 'info',
+            } as any,
+            false,
+          );
+        }
+      } catch (timeoutError: any) {
+        console.error('[DEBUG] 停止容器操作超时或失败:', timeoutError);
+        
+        // 检查是否是超时错误
+        if (timeoutError.message?.includes('timeout') || timeoutError.code === 'ECONNABORTED') {
+          addLogToUI(
+            {
+              timestamp: new Date().toLocaleTimeString(),
+              version: 'SOL',
+              type: 'WARNING',
+              oids: [
+                '停止操作超时，但容器可能已经停止',
+                '请手动检查Docker容器状态：docker ps',
+                '如需强制清理，请重新启动测试'
+              ],
+              hex: '',
+              result: 'warning',
+            } as any,
+            false,
+          );
+        } else {
+          addLogToUI(
+            {
+              timestamp: new Date().toLocaleTimeString(),
+              version: 'SOL',
+              type: 'ERROR',
+              oids: [`停止容器失败: ${timeoutError.message || timeoutError}`],
+              hex: '',
+              result: 'error',
+            } as any,
+            false,
+          );
+        }
       }
     } else {
       // 传统进程ID，使用原来的停止方法
-      await stopRTSPProcess(rtspProcessId.value);
+      await stopSOLProcess(solProcessId.value);
 
       addLogToUI(
         {
           timestamp: new Date().toLocaleTimeString(),
-          version: 'RTSP',
+          version: 'SOL',
           type: 'STOP',
-          oids: [`RTSP进程已停止 (PID: ${rtspProcessId.value})`],
+          oids: [`SOL进程已停止 (PID: ${solProcessId.value})`],
           hex: '',
           result: 'success',
         } as any,
@@ -3088,16 +3333,16 @@ async function stopRTSPProcessWrapper() {
       );
     }
 
-    rtspProcessId.value = null;
+    solProcessId.value = null;
   } catch (error) {
-    console.error('停止RTSP进程失败:', error);
+    console.error('停止SOL进程失败:', error);
 
     addLogToUI(
       {
         timestamp: new Date().toLocaleTimeString(),
-        version: 'RTSP',
+        version: 'SOL',
         type: 'ERROR',
-        oids: [`停止RTSP进程失败: ${error.message || error}`],
+        oids: [`停止SOL进程失败: ${error.message || error}`],
         hex: '',
         result: 'error',
       } as any,
@@ -3106,34 +3351,75 @@ async function stopRTSPProcessWrapper() {
   }
 }
 
+// 手动验证Docker容器状态的辅助函数
+async function checkDockerContainerStatus() {
+  console.log('[DEBUG] ========== checkDockerContainerStatus 被调用 ==========');
+  
+  try {
+    // 这里可以添加一个API调用来检查Docker容器状态
+    // 或者提供用户手动验证的指导
+    addLogToUI(
+      {
+        timestamp: new Date().toLocaleTimeString(),
+        version: 'SOL',
+        type: 'INFO',
+        oids: [
+          '手动验证Docker容器状态：',
+          '1. 打开终端执行：docker ps',
+          '2. 检查是否还有protocolguard容器运行',
+          '3. 如有遗留容器，执行：docker rm -f [容器ID]'
+        ],
+        hex: '',
+        result: 'info',
+      } as any,
+      false,
+    );
+  } catch (error) {
+    console.error('检查Docker状态失败:', error);
+  }
+}
+
 // 处理停止测试的安全包装函数
 function handleStopTest() {
+  console.log('[DEBUG] ========== handleStopTest 被调用 (停止按钮点击) ==========');
+  console.log('[DEBUG] 当前协议类型:', protocolType.value);
+  console.log('[DEBUG] 当前协议实现:', selectedProtocolImplementation.value);
+  console.log('[DEBUG] 当前运行状态:', isRunning.value);
+  console.log('[DEBUG] 当前solProcessId:', solProcessId.value);
+  
   try {
     // 停止所有协议的实时流
+    console.log('[DEBUG] 停止所有实时流...');
     stopAllRealtimeStreams();
 
     // 更新当前协议状态
+    console.log('[DEBUG] 更新协议状态...');
     updateProtocolState(protocolType.value as any, {
       isRunning: false,
       isProcessing: false,
     });
 
     if (protocolType.value === 'MQTT') {
+      console.log('[DEBUG] 检测到MQTT协议，调用 stopMQTTTest');
       // MQTT协议使用安全的停止方式
       stopMQTTTest();
     } else {
+      console.log('[DEBUG] 非MQTT协议，调用 stopTest');
       // 其他协议使用原来的stopTest
       stopTest();
     }
   } catch (error) {
-    console.error('Error in handleStopTest:', error);
+    console.error('[DEBUG] handleStopTest 执行出错:', error);
   }
 }
 
 // MQTT专用的安全停止函数
 function stopMQTTTest() {
+  console.log('[DEBUG] ========== stopMQTTTest 被调用 ==========');
+  console.log('[DEBUG] selectedProtocolImplementation.value:', selectedProtocolImplementation.value);
+  
   try {
-    console.log('Stopping MQTT test safely...');
+    console.log('[DEBUG] 开始安全停止MQTT测试...');
 
     // 添加用户中止日志
     addUnifiedLog('WARNING', '用户手动停止了MQTT测试', 'MQTT');
@@ -3160,6 +3446,17 @@ function stopMQTTTest() {
       clearInterval(logReadingInterval.value);
       logReadingInterval.value = null;
     }
+    
+    // 检查是否是SOL实现，如果是则需要停止Docker容器
+    console.log('[DEBUG] 检查是否需要停止SOL Docker容器...');
+    console.log('[DEBUG] selectedProtocolImplementation.value === SOL:', selectedProtocolImplementation.value === 'SOL');
+    
+    if (selectedProtocolImplementation.value === 'SOL') {
+      console.log('[DEBUG] 检测到SOL实现，调用 stopSOLProcessWrapper');
+      stopSOLProcessWrapper();
+    } else {
+      console.log('[DEBUG] 非SOL实现，跳过Docker容器停止');
+    }
 
     // 添加停止完成日志
     addUnifiedLog('INFO', 'MQTT测试已被用户停止', 'MQTT');
@@ -3185,10 +3482,14 @@ function stopMQTTTest() {
 }
 
 function stopTest() {
+  console.log('[DEBUG] ========== stopTest 被调用 ==========');
+  console.log('[DEBUG] protocolType.value:', protocolType.value);
+  console.log('[DEBUG] selectedProtocolImplementation.value:', selectedProtocolImplementation.value);
+  
   try {
     // 如果是MQTT协议，重定向到安全的停止函数
     if (protocolType.value === 'MQTT') {
-      console.log('Redirecting MQTT test to safe stop function');
+      console.log('[DEBUG] 检测到MQTT协议，重定向到 stopMQTTTest');
       stopMQTTTest();
       return;
     }
@@ -3207,11 +3508,19 @@ function stopTest() {
     }
 
     // 停止协议特定的进程
-    if (protocolType.value === 'RTSP') {
-      stopRTSPProcessWrapper();
+    console.log('[DEBUG] 检查是否需要停止SOL进程...');
+    console.log('[DEBUG] 条件1 - protocolType === MQTT:', protocolType.value === 'MQTT');
+    console.log('[DEBUG] 条件2 - selectedProtocolImplementation === SOL:', selectedProtocolImplementation.value === 'SOL');
+    
+    if (protocolType.value === 'MQTT' && selectedProtocolImplementation.value === 'SOL') {
+      console.log('[DEBUG] 满足SOL条件，调用 stopSOLProcessWrapper');
+      stopSOLProcessWrapper();
     } else if (protocolType.value === 'MQTT') {
+      console.log('[DEBUG] MQTT协议但非SOL实现，调用 stopLogReading');
       // MQTT协议的清理工作通过 useLogReader 管理
       stopLogReading();
+    } else {
+      console.log('[DEBUG] 非MQTT协议，跳过特殊停止逻辑');
     }
 
     if (testTimer) {
@@ -3343,8 +3652,34 @@ function saveLog() {
 function generateTestReport() {
   let reportContent = '';
 
-  if (protocolType.value === 'MQTT') {
-    // MQTT协议专用报告格式
+  if (protocolType.value === 'MQTT' && fuzzEngine.value === 'AFLNET') {
+    // AFLNET引擎报告格式（SOL实现）
+    reportContent =
+      `AFLNET SOL模糊测试报告\n` +
+      `==========================\n\n` +
+      `测试引擎: ${fuzzEngine.value}\n` +
+      `目标服务器: ${targetHost.value}:${targetPort.value}\n` +
+      `开始时间: ${startTime.value || (testStartTime.value ? testStartTime.value.toLocaleString() : '未开始')}\n` +
+      `结束时间: ${endTime.value || (testEndTime.value ? testEndTime.value.toLocaleString() : '未结束')}\n` +
+      `总耗时: ${elapsedTime.value}秒\n\n` +
+      `AFLNET核心统计:\n` +
+      `===============\n` +
+      `当前执行路径: ${solStats.value.cur_path || 0}\n` +
+      `总路径数: ${solStats.value.paths_total || 0}\n` +
+      `执行速度: ${solStats.value.execs_per_sec.toFixed(1) || '0.0'} exec/sec\n` +
+      `完成循环: ${solStats.value.cycles_done || 0}\n` +
+      `最大深度: ${solStats.value.max_depth || 0}\n` +
+      `代码覆盖率: ${solStats.value.map_size || 0}\n\n` +
+      `安全监控:\n` +
+      `========\n` +
+      `崩溃检测: ${solStats.value.unique_crashes > 0 ? `检测到 ${solStats.value.unique_crashes} 个崩溃` : '系统稳定运行'}\n` +
+      `挂起检测: ${solStats.value.unique_hangs > 0 ? `检测到 ${solStats.value.unique_hangs} 个挂起` : '无挂起现象'}\n` +
+      `状态节点数: ${solStats.value.n_nodes || 0}\n` +
+      `状态转换数: ${solStats.value.n_edges || 0}\n\n` +
+      `报告生成时间: ${new Date().toLocaleString()}\n` +
+      `报告版本: AFLNET v1.0 - SOL模糊测试引擎`;
+  } else if (protocolType.value === 'MQTT' && fuzzEngine.value === 'MBFuzzer') {
+    // MBFuzzer引擎报告格式（传统MQTT broker）
     reportContent =
       `MBFuzzer MQTT协议差异测试报告\n` +
       `================================\n\n` +
@@ -3414,7 +3749,7 @@ function exportDiffTypeData() {
   if (protocolType.value !== 'MQTT') return;
 
   let diffTypeContent =
-    `MBFuzzer 差异类型分布统计导出\n` +
+    `${fuzzEngine.value} 差异类型分布统计导出\n` +
     `==============================\n\n` +
     `导出时间: ${new Date().toLocaleString()}\n` +
     `总差异数量: ${mqttDiffTypeStats.value.total_differences}\n\n` +
@@ -3471,7 +3806,7 @@ function exportDifferentialResults() {
   if (protocolType.value !== 'MQTT') return;
 
   const diffContent =
-    `MBFuzzer差异测试结果导出\n` +
+    `${fuzzEngine.value}差异测试结果导出\n` +
     `=======================\n\n` +
     `导出时间: ${new Date().toLocaleString()}\n` +
     `新发现差异: ${mqttStats.value.diff_number} 个\n` +
@@ -3652,9 +3987,9 @@ function addLogToUI(packet: FuzzPacket, isCrash: boolean) {
   if (currentProtocolType === 'SNMP') {
     logContent = formatSNMPPacketLog(packet, isCrash);
     console.log('[DEBUG] 添加SNMP日志:', { logType, logContent, packet });
-  } else if (currentProtocolType === 'RTSP') {
-    logContent = formatRTSPPacketLog(packet, isCrash);
-    console.log('[DEBUG] 添加RTSP日志:', { logType, logContent, packet });
+  } else if (currentProtocolType === 'MQTT' && selectedProtocolImplementation.value === 'SOL') {
+    logContent = formatSOLPacketLog(packet, isCrash);
+    console.log('[DEBUG] 添加SOL日志:', { logType, logContent, packet });
   } else if (currentProtocolType === 'MQTT') {
     logContent = formatMQTTPacketLog(packet, isCrash);
     console.log('[DEBUG] 添加MQTT日志:', { logType, logContent, packet });
@@ -3692,12 +4027,12 @@ function formatSNMPPacketLog(packet: FuzzPacket, isCrash: boolean): string {
   }
 }
 
-// 格式化RTSP数据包日志
-function formatRTSPPacketLog(packet: FuzzPacket, isCrash: boolean): string {
+// 格式化SOL数据包日志
+function formatSOLPacketLog(packet: FuzzPacket, isCrash: boolean): string {
   if (isCrash) {
-    return `CRASH DETECTED ${packet.version?.toUpperCase() || 'RTSP'} ${packet.type?.toUpperCase() || 'UNKNOWN'}`;
+    return `CRASH DETECTED ${packet.version?.toUpperCase() || 'SOL'} ${packet.type?.toUpperCase() || 'UNKNOWN'}`;
   } else {
-    const protocol = packet.version?.toUpperCase() || 'RTSP';
+    const protocol = packet.version?.toUpperCase() || 'SOL';
     const op = packet.type?.toUpperCase() || 'UNKNOWN';
     const content = packet.oids?.[0] || '';
     const hex = (packet.hex || '').slice(0, 40);
@@ -4052,22 +4387,22 @@ function saveTestToHistory() {
         getnext: messageTypeStats.value.getnext,
         getbulk: messageTypeStats.value.getbulk,
       },
-      // 保存RTSP协议统计数据
+      // 保存SOL统计数据
       rtspStats:
-        protocolType.value === 'RTSP'
+        protocolType.value === 'MQTT' && selectedProtocolImplementation.value === 'SOL'
           ? {
-              cycles_done: rtspStats.value.cycles_done,
-              paths_total: rtspStats.value.paths_total,
-              cur_path: rtspStats.value.cur_path,
-              pending_total: rtspStats.value.pending_total,
-              pending_favs: rtspStats.value.pending_favs,
-              map_size: rtspStats.value.map_size,
-              unique_crashes: rtspStats.value.unique_crashes,
-              unique_hangs: rtspStats.value.unique_hangs,
-              max_depth: rtspStats.value.max_depth,
-              execs_per_sec: rtspStats.value.execs_per_sec,
-              n_nodes: rtspStats.value.n_nodes,
-              n_edges: rtspStats.value.n_edges,
+              cycles_done: solStats.value.cycles_done,
+              paths_total: solStats.value.paths_total,
+              cur_path: solStats.value.cur_path,
+              pending_total: solStats.value.pending_total,
+              pending_favs: solStats.value.pending_favs,
+              map_size: solStats.value.map_size,
+              unique_crashes: solStats.value.unique_crashes,
+              unique_hangs: solStats.value.unique_hangs,
+              max_depth: solStats.value.max_depth,
+              execs_per_sec: solStats.value.execs_per_sec,
+              n_nodes: solStats.value.n_nodes,
+              n_edges: solStats.value.n_edges,
             }
           : undefined,
       // 保存MQTT协议统计数据
@@ -4102,15 +4437,15 @@ function saveTestToHistory() {
               fuzzingStartTime: mqttStats.value.fuzzing_start_time,
               fuzzingEndTime: mqttStats.value.fuzzing_end_time,
             }
-          : protocolType.value === 'RTSP'
+          : protocolType.value === 'MQTT' && selectedProtocolImplementation.value === 'SOL'
             ? {
                 pathCoverage:
-                  (rtspStats.value.cur_path /
-                    Math.max(rtspStats.value.paths_total, 1)) *
+                  (solStats.value.cur_path /
+                    Math.max(solStats.value.paths_total, 1)) *
                   100,
-                stateTransitions: rtspStats.value.n_edges,
-                maxDepth: rtspStats.value.max_depth,
-                uniqueHangs: rtspStats.value.unique_hangs,
+                stateTransitions: solStats.value.n_edges,
+                maxDepth: solStats.value.max_depth,
+                uniqueHangs: solStats.value.unique_hangs,
               }
             : protocolType.value === 'SNMP'
               ? {
@@ -4142,18 +4477,26 @@ function saveTestToHistory() {
     // 将新的测试结果添加到历史记录的开头
     historyResults.value.unshift(historyItem);
 
+    // 按时间戳重新排序，确保顺序正确
+    historyResults.value.sort((a, b) => {
+      const dateA = new Date(a.timestamp);
+      const dateB = new Date(b.timestamp);
+      return dateB.getTime() - dateA.getTime(); // 降序排列（最新的在前）
+    });
+
     // 限制历史记录数量，保留最新的50条
     if (historyResults.value.length > 50) {
       historyResults.value = historyResults.value.slice(0, 50);
     }
 
-    // 保存到本地存储
+    // 保存到本地存储（统一存储所有引擎的历史记录）
     try {
+      const storageKey = 'fuzz_test_history_unified';
       localStorage.setItem(
-        'fuzz_test_history',
+        storageKey,
         JSON.stringify(historyResults.value),
       );
-      console.log('Test results saved to history:', historyItem);
+      console.log(`Test results saved to unified history for engine ${fuzzEngine.value}:`, historyItem);
       console.log(
         '[DEBUG] History results length after save:',
         historyResults.value.length,
@@ -4213,13 +4556,14 @@ function deleteHistoryItem(id: string) {
   if (index > -1) {
     historyResults.value.splice(index, 1);
 
-    // 同步到本地存储
+    // 同步到本地存储（统一存储）
     try {
+      const storageKey = 'fuzz_test_history_unified';
       localStorage.setItem(
-        'fuzz_test_history',
+        storageKey,
         JSON.stringify(historyResults.value),
       );
-      console.log('History item deleted and saved to localStorage');
+      console.log('History item deleted and saved to unified localStorage');
     } catch (error) {
       console.warn('Failed to save updated history to localStorage:', error);
     }
@@ -4270,10 +4614,11 @@ function clearAllHistory() {
   if (confirm('确定要清空所有历史记录吗？此操作不可撤销。')) {
     historyResults.value = [];
 
-    // 同步到本地存储
+    // 同步到本地存储（清空统一存储）
     try {
-      localStorage.removeItem('fuzz_test_history');
-      console.log('All history cleared');
+      const storageKey = 'fuzz_test_history_unified';
+      localStorage.removeItem(storageKey);
+      console.log(`All history cleared for engine ${fuzzEngine.value}`);
     } catch (error) {
       console.warn('Failed to clear history from localStorage:', error);
     }
@@ -4382,30 +4727,132 @@ const testStatusClass = computed(() => {
   return 'text-warning';
 });
 
+// 迁移旧的历史记录到新的统一格式
+function migrateOldHistoryFormat() {
+  try {
+    // 检查是否已经有统一格式的历史记录
+    const unifiedHistory = localStorage.getItem('fuzz_test_history_unified');
+    if (unifiedHistory) {
+      console.log('[DEBUG] 统一格式历史记录已存在，跳过迁移');
+      return;
+    }
+
+    // 收集所有旧格式的历史记录
+    const allHistory: any[] = [];
+    
+    // 1. 迁移最原始的格式
+    const oldHistory = localStorage.getItem('fuzz_test_history');
+    if (oldHistory) {
+      const parsedHistory = JSON.parse(oldHistory);
+      if (Array.isArray(parsedHistory)) {
+        console.log(`[DEBUG] 发现原始格式历史记录 ${parsedHistory.length} 条`);
+        allHistory.push(...parsedHistory);
+        localStorage.removeItem('fuzz_test_history');
+      }
+    }
+    
+    // 2. 迁移按引擎分类的格式
+    const engines = ['MBFuzzer', 'AFLNET', 'SNMP_Fuzz'];
+    engines.forEach(engine => {
+      const storageKey = `fuzz_test_history_${engine}`;
+      const stored = localStorage.getItem(storageKey);
+      if (stored) {
+        try {
+          const parsedHistory = JSON.parse(stored);
+          if (Array.isArray(parsedHistory)) {
+            console.log(`[DEBUG] 发现 ${engine} 引擎历史记录 ${parsedHistory.length} 条`);
+            allHistory.push(...parsedHistory);
+          }
+        } catch (error) {
+          console.warn(`Failed to parse history for engine ${engine}:`, error);
+        }
+        // 删除旧的分类存储
+        localStorage.removeItem(storageKey);
+      }
+    });
+    
+    if (allHistory.length > 0) {
+      // 确保每条记录都有正确的引擎信息
+      allHistory.forEach(item => {
+        if (!item.fuzzEngine) {
+          // 智能推断引擎类型
+          if (item.protocol === 'MQTT') {
+            // 检查是否有SOL相关的统计数据
+            if (item.rtspStats || (item.protocolSpecificData && (
+              item.protocolSpecificData.pathCoverage !== undefined ||
+              item.protocolSpecificData.stateTransitions !== undefined ||
+              item.protocolSpecificData.maxDepth !== undefined
+            ))) {
+              item.fuzzEngine = 'AFLNET';
+            } else {
+              item.fuzzEngine = 'MBFuzzer';
+            }
+          } else if (item.protocol === 'SNMP') {
+            item.fuzzEngine = 'SNMP_Fuzz';
+          } else {
+            item.fuzzEngine = 'MBFuzzer'; // 默认
+          }
+        }
+      });
+      
+      // 按时间戳排序，最新的在前面
+      const sortedHistory = allHistory.sort((a, b) => {
+        const dateA = new Date(a.timestamp);
+        const dateB = new Date(b.timestamp);
+        return dateB.getTime() - dateA.getTime();
+      });
+      
+      // 保存到统一存储
+      localStorage.setItem('fuzz_test_history_unified', JSON.stringify(sortedHistory));
+      console.log(`[DEBUG] 迁移完成，合并 ${sortedHistory.length} 条历史记录到统一存储`);
+    }
+  } catch (error) {
+    console.warn('Failed to migrate old history format:', error);
+  }
+}
+
 // 从本地存储加载历史记录
 function loadHistoryFromStorage() {
   try {
-    const stored = localStorage.getItem('fuzz_test_history');
+    // 首次运行时尝试迁移旧格式
+    migrateOldHistoryFormat();
+    
+    // 加载统一的历史记录（包含所有引擎类型）
+    const storageKey = 'fuzz_test_history_unified';
+    const stored = localStorage.getItem(storageKey);
     if (stored) {
       const parsedHistory = JSON.parse(stored);
       if (Array.isArray(parsedHistory)) {
-        historyResults.value = parsedHistory;
+        // 按时间戳排序，最新的在前面
+        const sortedHistory = parsedHistory.sort((a, b) => {
+          // 将时间戳字符串转换为Date对象进行比较
+          const dateA = new Date(a.timestamp);
+          const dateB = new Date(b.timestamp);
+          return dateB.getTime() - dateA.getTime(); // 降序排列（最新的在前）
+        });
+        historyResults.value = sortedHistory;
         console.log(
-          `Loaded ${parsedHistory.length} history items from localStorage`,
+          `Loaded ${parsedHistory.length} unified history items from localStorage`,
         );
         console.log(
           '[DEBUG] Loaded history items:',
           parsedHistory.map((item) => ({
             id: item.id,
             protocol: item.protocol,
+            fuzzEngine: item.fuzzEngine,
             timestamp: item.timestamp,
           })),
         );
       }
+    } else {
+      // 如果没有找到历史记录，清空当前显示
+      historyResults.value = [];
+      console.log('No unified history found, starting fresh');
     }
   } catch (error) {
     console.warn('Failed to load history from localStorage:', error);
-    // 如果加载失败，保持默认的模拟数据
+    // 如果加载失败，清空历史记录
+    historyResults.value = [];
   }
 }
 
@@ -4424,12 +4871,77 @@ function testHistorySave() {
   }
 }
 
+// 重新整理统一历史记录（调试用）
+function reclassifyAllHistory() {
+  console.log('[DEBUG] 开始重新整理统一历史记录...');
+  
+  // 重新加载并排序统一历史记录
+  const storageKey = 'fuzz_test_history_unified';
+  const stored = localStorage.getItem(storageKey);
+  
+  if (stored) {
+    try {
+      const parsedHistory = JSON.parse(stored);
+      if (Array.isArray(parsedHistory)) {
+        // 确保每条记录都有正确的引擎信息
+        parsedHistory.forEach(item => {
+          if (!item.fuzzEngine) {
+            // 智能推断引擎类型
+            if (item.protocol === 'MQTT') {
+              // 检查是否有SOL相关的统计数据
+              if (item.rtspStats || (item.protocolSpecificData && (
+                item.protocolSpecificData.pathCoverage !== undefined ||
+                item.protocolSpecificData.stateTransitions !== undefined ||
+                item.protocolSpecificData.maxDepth !== undefined
+              ))) {
+                item.fuzzEngine = 'AFLNET';
+              } else {
+                item.fuzzEngine = 'MBFuzzer';
+              }
+            } else if (item.protocol === 'SNMP') {
+              item.fuzzEngine = 'SNMP_Fuzz';
+            } else {
+              item.fuzzEngine = 'MBFuzzer'; // 默认
+            }
+          }
+        });
+        
+        // 按时间戳排序，最新的在前面
+        const sortedHistory = parsedHistory.sort((a, b) => {
+          const dateA = new Date(a.timestamp);
+          const dateB = new Date(b.timestamp);
+          return dateB.getTime() - dateA.getTime();
+        });
+        
+        // 保存回统一存储
+        localStorage.setItem(storageKey, JSON.stringify(sortedHistory));
+        console.log(`[DEBUG] 重新整理完成，共 ${sortedHistory.length} 条统一历史记录`);
+        
+        // 重新加载历史记录
+        loadHistoryFromStorage();
+      }
+    } catch (error) {
+      console.warn('Failed to reclassify unified history:', error);
+    }
+  } else {
+    console.log('[DEBUG] 没有找到统一历史记录');
+  }
+}
+
 // 将测试函数暴露到全局作用域（仅用于调试）
 if (typeof window !== 'undefined') {
   (window as any).testHistorySave = testHistorySave;
   (window as any).checkHistoryResults = () => {
     console.log('[DEBUG] Current history results:', historyResults.value);
     console.log('[DEBUG] History results length:', historyResults.value.length);
+  };
+  (window as any).reclassifyAllHistory = reclassifyAllHistory;
+  (window as any).forceUnifyHistory = () => {
+    // 强制迁移分类历史记录到统一存储
+    localStorage.removeItem('fuzz_test_history_unified');
+    migrateOldHistoryFormat();
+    loadHistoryFromStorage();
+    console.log('[DEBUG] 强制统一历史记录完成');
   };
   (window as any).testMQTTAnimation = () => {
     console.log('[DEBUG] Manual MQTT animation test');
@@ -4908,6 +5420,14 @@ onMounted(async () => {
   // MQTT协议不需要图表初始化，使用统计卡片显示
   if (protocolType.value === 'MQTT') {
     console.log('MQTT protocol uses statistical cards instead of charts');
+    // 初始化MQTT协议实现选项
+    const config = protocolImplementationConfigs[fuzzEngine.value];
+    if (config) {
+      protocolImplementations.value = config.defaultImplementations;
+      console.log('[DEBUG] 初始化MQTT协议实现选项:', protocolImplementations.value);
+      console.log('[DEBUG] 当前选择的实现:', selectedProtocolImplementation.value);
+      console.log('[DEBUG] 当前引擎:', fuzzEngine.value);
+    }
     // MQTT动画将在测试开始时初始化
   }
 
@@ -4945,7 +5465,7 @@ onMounted(async () => {
             class="border-primary/20 mb-6 rounded-xl border bg-white/80 p-4 backdrop-blur-sm"
           >
             <h3 class="mb-4 text-lg font-semibold">测试配置</h3>
-            <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-5">
               <!-- 协议选择 -->
               <div>
                 <label class="text-dark/70 mb-2 block text-sm">协议类型</label>
@@ -4955,7 +5475,6 @@ onMounted(async () => {
                     class="border-primary/20 focus:ring-primary w-full appearance-none rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1"
                   >
                     <option value="SNMP">SNMP</option>
-                    <option value="RTSP">RTSP</option>
                     <option value="MQTT">MQTT</option>
                   </select>
                   <i
@@ -4975,11 +5494,33 @@ onMounted(async () => {
                     <option value="SNMP_Fuzz" v-if="protocolType === 'SNMP'">
                       SNMP_Fuzz
                     </option>
-                    <option value="AFLNET" v-if="protocolType === 'RTSP'">
+                    <option value="AFLNET" v-if="protocolType === 'RTSP' || protocolType === 'MQTT'">
                       AFLNET
                     </option>
                     <option value="MBFuzzer" v-if="protocolType === 'MQTT'">
                       MBFuzzer
+                    </option>
+                  </select>
+                  <i
+                    class="fa fa-chevron-down text-dark/50 pointer-events-none absolute right-3 top-2.5"
+                  ></i>
+                </div>
+              </div>
+
+              <!-- 协议实现选择 -->
+              <div>
+                <label class="text-dark/70 mb-2 block text-sm">协议实现</label>
+                <div class="relative">
+                  <select
+                    v-model="selectedProtocolImplementation"
+                    class="border-primary/20 focus:ring-primary w-full appearance-none rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1"
+                  >
+                    <option 
+                      v-for="impl in protocolImplementationConfigs[fuzzEngine].defaultImplementations"
+                      :key="impl"
+                      :value="impl"
+                    >
+                      {{ impl }}
                     </option>
                   </select>
                   <i
@@ -5021,15 +5562,15 @@ onMounted(async () => {
               </div>
             </div>
 
-            <!-- RTSP协议指令配置 -->
-            <div v-if="protocolType === 'RTSP'" class="mt-4">
+            <!-- 指令配置 -->
+            <div v-if="protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL'" class="mt-4">
               <label class="text-dark/70 mb-2 block text-sm">指令配置</label>
               <div class="relative">
                 <textarea
-                  v-model="rtspCommandConfig"
+                  v-model="solCommandConfig"
                   rows="3"
                   class="border-primary/20 focus:ring-primary w-full resize-none rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1"
-                  placeholder="请输入RTSP协议的指令配置..."
+                  placeholder="请输入SOL的指令配置..."
                 ></textarea>
                 <i
                   class="fa fa-terminal text-dark/50 absolute right-3 top-2.5"
@@ -5121,28 +5662,32 @@ onMounted(async () => {
                     v-if="protocolType === 'MQTT'"
                     :class="[
                       'rounded-full px-2 py-0.5 text-xs',
-                      mqttRealTimeStats.crash_number > 0
-                        ? 'animate-pulse bg-red-100 text-red-600'
-                        : mqttRealTimeStats.diff_number > 0
-                          ? 'bg-yellow-100 text-yellow-600'
-                          : 'bg-green-100 text-green-600',
+                      !isRunning
+                        ? 'bg-gray-100 text-gray-600'
+                        : mqttRealTimeStats.crash_number > 0
+                          ? 'animate-pulse bg-red-100 text-red-600'
+                          : mqttRealTimeStats.diff_number > 0
+                            ? 'bg-yellow-100 text-yellow-600'
+                            : 'bg-green-100 text-green-600',
                     ]"
                   >
                     {{
-                      mqttRealTimeStats.crash_number > 0
-                        ? '检测到异常'
-                        : mqttRealTimeStats.diff_number > 0
-                          ? '发现差异'
-                          : '运行正常'
+                      !isRunning
+                        ? '待启动'
+                        : mqttRealTimeStats.crash_number > 0
+                          ? '检测到异常'
+                          : mqttRealTimeStats.diff_number > 0
+                            ? '发现差异'
+                            : '运行正常'
                     }}
                   </span>
                   <span
                     v-else-if="
-                      protocolType === 'RTSP' && rtspStats.unique_crashes > 0
+                      protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL' && solStats.unique_crashes > 0
                     "
                     class="bg-danger/10 text-danger animate-pulse rounded-full px-2 py-0.5 text-xs"
                   >
-                    {{ rtspStats.unique_crashes }} 个崩溃
+                    {{ solStats.unique_crashes }} 个崩溃
                   </span>
                   <span
                     v-else-if="protocolType === 'SNMP' && crashCount > 0"
@@ -5152,13 +5697,77 @@ onMounted(async () => {
                   </span>
                   <span
                     v-else
-                    class="bg-success/10 text-success rounded-full px-2 py-0.5 text-xs"
-                    >正常</span
+                    :class="[
+                      'rounded-full px-2 py-0.5 text-xs',
+                      !isRunning
+                        ? 'bg-gray-100 text-gray-600'
+                        : 'bg-success/10 text-success'
+                    ]"
                   >
+                    {{ !isRunning ? '待启动' : '正常' }}
+                  </span>
                 </div>
 
-                <!-- MQTT协议运行监控 -->
-                <div v-if="protocolType === 'MQTT'" class="space-y-4">
+                <!-- SOL崩溃统计 (AFLNET引擎) -->
+                <div v-if="protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL'" class="space-y-4">
+                  <div class="grid grid-cols-2 gap-4">
+                    <div
+                      class="rounded-lg border border-red-200 bg-red-50 p-3 text-center"
+                    >
+                      <div class="mb-1 text-2xl font-bold text-red-600">
+                        {{ solStats.unique_crashes }}
+                      </div>
+                      <div class="text-xs text-red-700">崩溃数</div>
+                      <div class="mt-1 text-xs text-gray-500">Crashes</div>
+                    </div>
+                    <div
+                      class="rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-center"
+                    >
+                      <div class="mb-1 text-2xl font-bold text-yellow-600">
+                        {{ solStats.unique_hangs }}
+                      </div>
+                      <div class="text-xs text-yellow-700">挂起数</div>
+                      <div class="mt-1 text-xs text-gray-500">Hangs</div>
+                    </div>
+                  </div>
+
+                  <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                    <div class="mb-2 text-xs text-gray-600">监控状态</div>
+                    <div class="flex items-center space-x-2">
+                      <div
+                        class="h-2 w-2 rounded-full"
+                        :class="
+                          !isRunning
+                            ? 'bg-gray-400'
+                            : solStats.unique_crashes > 0
+                              ? 'animate-pulse bg-red-500'
+                              : 'animate-pulse bg-green-500'
+                        "
+                      ></div>
+                      <span
+                        class="text-sm"
+                        :class="
+                          !isRunning
+                            ? 'text-gray-600'
+                            : solStats.unique_crashes > 0
+                              ? 'font-medium text-red-700'
+                              : 'text-gray-700'
+                        "
+                      >
+                        {{
+                          !isRunning
+                            ? '待启动'
+                            : solStats.unique_crashes > 0
+                              ? '检测到异常'
+                              : '持续监控中...'
+                        }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- MQTT协议运行监控 (MBFuzzer引擎) -->
+                <div v-else-if="protocolType === 'MQTT'" class="space-y-4">
                   <div class="grid grid-cols-1 gap-4">
                     <div
                       class="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-center"
@@ -5197,98 +5806,52 @@ onMounted(async () => {
                     <div class="mb-2 text-xs text-gray-600">监控状态</div>
                     <div class="flex items-center space-x-2">
                       <div
-                        class="h-2 w-2 animate-pulse rounded-full"
+                        class="h-2 w-2 rounded-full"
                         :class="
-                          mqttStats.crash_number > 0
-                            ? 'bg-red-500'
-                            : (
-                                  isTestCompleted
-                                    ? mqttStats.diff_number > 0
-                                    : mqttDifferentialStats.total_differences >
-                                      0
-                                )
-                              ? 'bg-yellow-500'
-                              : 'bg-green-500'
+                          !isRunning
+                            ? 'bg-gray-400'
+                            : mqttStats.crash_number > 0
+                              ? 'animate-pulse bg-red-500'
+                              : (
+                                    isTestCompleted
+                                      ? mqttStats.diff_number > 0
+                                      : mqttDifferentialStats.total_differences >
+                                        0
+                                  )
+                                ? 'animate-pulse bg-yellow-500'
+                                : 'animate-pulse bg-green-500'
                         "
                       ></div>
                       <span
                         class="text-sm"
                         :class="
-                          mqttStats.crash_number > 0
-                            ? 'font-medium text-red-700'
-                            : (
-                                  isTestCompleted
-                                    ? mqttStats.diff_number > 0
-                                    : mqttDifferentialStats.total_differences >
-                                      0
-                                )
-                              ? 'font-medium text-yellow-700'
-                              : 'text-gray-700'
+                          !isRunning
+                            ? 'text-gray-600'
+                            : mqttStats.crash_number > 0
+                              ? 'font-medium text-red-700'
+                              : (
+                                    isTestCompleted
+                                      ? mqttStats.diff_number > 0
+                                      : mqttDifferentialStats.total_differences >
+                                        0
+                                  )
+                                ? 'font-medium text-yellow-700'
+                                : 'text-gray-700'
                         "
                       >
                         {{
-                          mqttStats.crash_number > 0
-                            ? '检测到崩溃异常'
-                            : (
-                                  isTestCompleted
-                                    ? mqttStats.diff_number > 0
-                                    : mqttDifferentialStats.total_differences >
-                                      0
-                                )
-                              ? '发现协议差异'
-                              : '差异分析中...'
-                        }}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- RTSP协议崩溃统计 -->
-                <div v-else-if="protocolType === 'RTSP'" class="space-y-4">
-                  <div class="grid grid-cols-2 gap-4">
-                    <div
-                      class="rounded-lg border border-red-200 bg-red-50 p-3 text-center"
-                    >
-                      <div class="mb-1 text-2xl font-bold text-red-600">
-                        {{ rtspStats.unique_crashes }}
-                      </div>
-                      <div class="text-xs text-red-700">崩溃数</div>
-                      <div class="mt-1 text-xs text-gray-500">Crashes</div>
-                    </div>
-                    <div
-                      class="rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-center"
-                    >
-                      <div class="mb-1 text-2xl font-bold text-yellow-600">
-                        {{ rtspStats.unique_hangs }}
-                      </div>
-                      <div class="text-xs text-yellow-700">挂起数</div>
-                      <div class="mt-1 text-xs text-gray-500">Hangs</div>
-                    </div>
-                  </div>
-
-                  <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                    <div class="mb-2 text-xs text-gray-600">监控状态</div>
-                    <div class="flex items-center space-x-2">
-                      <div
-                        class="h-2 w-2 animate-pulse rounded-full"
-                        :class="
-                          rtspStats.unique_crashes > 0
-                            ? 'bg-red-500'
-                            : 'bg-green-500'
-                        "
-                      ></div>
-                      <span
-                        class="text-sm"
-                        :class="
-                          rtspStats.unique_crashes > 0
-                            ? 'font-medium text-red-700'
-                            : 'text-gray-700'
-                        "
-                      >
-                        {{
-                          rtspStats.unique_crashes > 0
-                            ? '检测到异常'
-                            : '持续监控中...'
+                          !isRunning
+                            ? '待启动'
+                            : mqttStats.crash_number > 0
+                              ? '检测到崩溃异常'
+                              : (
+                                    isTestCompleted
+                                      ? mqttStats.diff_number > 0
+                                      : mqttDifferentialStats.total_differences >
+                                        0
+                                  )
+                                ? '发现协议差异'
+                                : '差异分析中...'
                         }}
                       </span>
                     </div>
@@ -5317,18 +5880,32 @@ onMounted(async () => {
                     <div class="mb-2 text-xs text-gray-600">监控状态</div>
                     <div class="flex items-center space-x-2">
                       <div
-                        class="h-2 w-2 animate-pulse rounded-full"
-                        :class="crashCount > 0 ? 'bg-red-500' : 'bg-green-500'"
+                        class="h-2 w-2 rounded-full"
+                        :class="
+                          !isRunning
+                            ? 'bg-gray-400'
+                            : crashCount > 0 
+                              ? 'animate-pulse bg-red-500' 
+                              : 'animate-pulse bg-green-500'
+                        "
                       ></div>
                       <span
                         class="text-sm"
                         :class="
-                          crashCount > 0
-                            ? 'font-medium text-red-700'
-                            : 'text-gray-700'
+                          !isRunning
+                            ? 'text-gray-600'
+                            : crashCount > 0
+                              ? 'font-medium text-red-700'
+                              : 'text-gray-700'
                         "
                       >
-                        {{ crashCount > 0 ? '检测到崩溃异常' : '运行正常' }}
+                        {{ 
+                          !isRunning 
+                            ? '待启动' 
+                            : crashCount > 0 
+                              ? '检测到崩溃异常' 
+                              : '运行正常' 
+                        }}
                       </span>
                     </div>
                     <div class="mt-1 text-xs text-gray-500">
@@ -5350,8 +5927,8 @@ onMounted(async () => {
                   <div class="bg-success/10 mb-4 rounded-full p-4">
                     <i class="fa fa-shield text-success/70 text-3xl"></i>
                   </div>
-                  <p>尚未检测到程序崩溃</p>
-                  <p class="mt-1">持续监控中...</p>
+                  <p>{{ !isRunning ? '尚未启动测试' : '尚未检测到程序崩溃' }}</p>
+                  <p class="mt-1">{{ !isRunning ? '待启动' : '持续监控中...' }}</p>
                 </div>
               </div>
             </div>
@@ -5367,9 +5944,11 @@ onMounted(async () => {
                 <h3 class="text-xl font-semibold">
                   {{
                     protocolType === 'RTSP'
-                      ? 'RTSP协议状态机统计'
+                      ? 'SOL状态机统计'
                       : protocolType === 'MQTT'
-                        ? 'MQTT多方模糊测试'
+                        ? (selectedProtocolImplementation === 'SOL' 
+                            ? 'SOLAFLNET模糊测试' 
+                            : 'MQTT多方模糊测试')
                         : '消息类型分布与版本统计'
                   }}
                 </h3>
@@ -5427,6 +6006,162 @@ onMounted(async () => {
                         <i class="fa fa-chart-pie text-primary/70 text-2xl"></i>
                       </div>
                       <span class="text-xs">数据统计中...</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- SOLAFLNET测试区域 - 显示原来的RTSP状态机界面 -->
+              <div v-else-if="protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL'" class="min-h-0 flex-1">
+                <!-- 初始状态显示设备待启动 -->
+                <div
+                  v-if="!isRunning && !isTestCompleted"
+                  class="flex h-full items-center justify-center"
+                >
+                  <div class="text-center">
+                    <div
+                      class="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-purple-100 p-8"
+                    >
+                      <IconifyIcon
+                        icon="mdi:state-machine"
+                        class="text-4xl text-purple-500"
+                      />
+                    </div>
+                    <div class="mb-2 text-lg font-medium text-gray-600">
+                      SOL状态机待启动
+                    </div>
+                    <div class="text-sm text-gray-500">
+                      点击"开始测试"启动SOLAFLNET状态机模糊测试
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- SOL状态机统计 - 运行时显示 -->
+                <div v-else class="grid h-72 grid-cols-1 gap-8 md:grid-cols-2">
+                  <!-- 路径发现趋势 -->
+                  <div>
+                    <h4
+                      class="text-dark/80 mb-3 text-center text-base font-medium"
+                    >
+                      路径发现统计
+                    </h4>
+                    <div
+                      class="h-60 rounded-lg border border-gray-200 bg-white p-4"
+                    >
+                      <div class="grid h-full grid-cols-2 gap-4">
+                        <div
+                          class="flex flex-col items-center justify-center rounded-lg bg-blue-50 p-4"
+                        >
+                          <div class="mb-2 text-3xl font-bold text-blue-600">
+                            {{ solStats.paths_total }}
+                          </div>
+                          <div class="text-center text-sm text-gray-600">
+                            总路径数
+                          </div>
+                          <div class="mt-1 text-xs text-gray-500">
+                            Total Paths
+                          </div>
+                        </div>
+                        <div
+                          class="flex flex-col items-center justify-center rounded-lg bg-green-50 p-4"
+                        >
+                          <div class="mb-2 text-3xl font-bold text-green-600">
+                            {{ solStats.cur_path }}
+                          </div>
+                          <div class="text-center text-sm text-gray-600">
+                            当前路径
+                          </div>
+                          <div class="mt-1 text-xs text-gray-500">
+                            Current Path
+                          </div>
+                        </div>
+                        <div
+                          class="flex flex-col items-center justify-center rounded-lg bg-yellow-50 p-4"
+                        >
+                          <div class="mb-2 text-3xl font-bold text-yellow-600">
+                            {{ solStats.pending_total }}
+                          </div>
+                          <div class="text-center text-sm text-gray-600">
+                            待处理
+                          </div>
+                          <div class="mt-1 text-xs text-gray-500">Pending</div>
+                        </div>
+                        <div
+                          class="flex flex-col items-center justify-center rounded-lg bg-purple-50 p-4"
+                        >
+                          <div class="mb-2 text-3xl font-bold text-purple-600">
+                            {{ solStats.pending_favs }}
+                          </div>
+                          <div class="text-center text-sm text-gray-600">
+                            优先路径
+                          </div>
+                          <div class="mt-1 text-xs text-gray-500">Favored</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 状态机拓扑 -->
+                  <div>
+                    <h4
+                      class="text-dark/80 mb-3 text-center text-base font-medium"
+                    >
+                      协议状态机拓扑
+                    </h4>
+                    <div
+                      class="h-60 rounded-lg border border-gray-200 bg-white p-4"
+                    >
+                      <div class="flex h-full flex-col">
+                        <!-- 状态机可视化区域 -->
+                        <div
+                          class="mb-4 flex flex-1 items-center justify-center rounded-lg bg-gray-50 p-4"
+                        >
+                          <div class="text-center">
+                            <div
+                              class="mb-4 flex items-center justify-center space-x-4"
+                            >
+                              <div
+                                class="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500 text-xs font-bold text-white"
+                              >
+                                {{ solStats.n_nodes }}
+                              </div>
+                              <div class="text-gray-400">
+                                <i class="fa fa-arrow-right text-lg"></i>
+                              </div>
+                              <div
+                                class="flex h-8 w-8 items-center justify-center rounded-full bg-green-500 text-xs font-bold text-white"
+                              >
+                                {{ solStats.n_edges }}
+                              </div>
+                            </div>
+                            <div class="text-xs text-gray-600">
+                              <span class="font-medium text-blue-600"
+                                >{{ solStats.n_nodes }} 个状态节点</span
+                              >
+                              <span class="mx-2">•</span>
+                              <span class="font-medium text-green-600"
+                                >{{ solStats.n_edges }} 个状态转换</span
+                              >
+                            </div>
+                          </div>
+                        </div>
+
+                        <!-- 状态机统计信息 -->
+                        <div class="grid grid-cols-2 gap-2 text-xs">
+                          <div class="rounded bg-blue-50 p-2 text-center">
+                            <div class="font-bold text-blue-600">
+                              {{ solStats.max_depth }}
+                            </div>
+                            <div class="text-gray-600">最大深度</div>
+                          </div>
+                          <div class="rounded bg-green-50 p-2 text-center">
+                            <div class="font-bold text-green-600">
+                              {{ solStats.map_size }}
+                            </div>
+                            <div class="text-gray-600">覆盖率</div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -5644,132 +6379,14 @@ onMounted(async () => {
                 </div>
               </div>
 
-              <!-- RTSP协议统计 -->
-              <div v-else class="grid h-72 grid-cols-1 gap-8 md:grid-cols-2">
-                <!-- 路径发现趋势 -->
-                <div>
-                  <h4
-                    class="text-dark/80 mb-3 text-center text-base font-medium"
-                  >
-                    路径发现统计
-                  </h4>
-                  <div
-                    class="h-60 rounded-lg border border-gray-200 bg-white p-4"
-                  >
-                    <div class="grid h-full grid-cols-2 gap-4">
-                      <div
-                        class="flex flex-col items-center justify-center rounded-lg bg-blue-50 p-4"
-                      >
-                        <div class="mb-2 text-3xl font-bold text-blue-600">
-                          {{ rtspStats.paths_total }}
-                        </div>
-                        <div class="text-center text-sm text-gray-600">
-                          总路径数
-                        </div>
-                        <div class="mt-1 text-xs text-gray-500">
-                          Total Paths
-                        </div>
-                      </div>
-                      <div
-                        class="flex flex-col items-center justify-center rounded-lg bg-green-50 p-4"
-                      >
-                        <div class="mb-2 text-3xl font-bold text-green-600">
-                          {{ rtspStats.cur_path }}
-                        </div>
-                        <div class="text-center text-sm text-gray-600">
-                          当前路径
-                        </div>
-                        <div class="mt-1 text-xs text-gray-500">
-                          Current Path
-                        </div>
-                      </div>
-                      <div
-                        class="flex flex-col items-center justify-center rounded-lg bg-yellow-50 p-4"
-                      >
-                        <div class="mb-2 text-3xl font-bold text-yellow-600">
-                          {{ rtspStats.pending_total }}
-                        </div>
-                        <div class="text-center text-sm text-gray-600">
-                          待处理
-                        </div>
-                        <div class="mt-1 text-xs text-gray-500">Pending</div>
-                      </div>
-                      <div
-                        class="flex flex-col items-center justify-center rounded-lg bg-purple-50 p-4"
-                      >
-                        <div class="mb-2 text-3xl font-bold text-purple-600">
-                          {{ rtspStats.pending_favs }}
-                        </div>
-                        <div class="text-center text-sm text-gray-600">
-                          优先路径
-                        </div>
-                        <div class="mt-1 text-xs text-gray-500">Favored</div>
-                      </div>
+              <!-- 其他协议的默认显示 -->
+              <div v-else class="min-h-0 flex-1">
+                <div class="flex h-full items-center justify-center">
+                  <div class="text-center text-gray-500">
+                    <div class="mb-4">
+                      <i class="fa fa-chart-bar text-4xl text-gray-400"></i>
                     </div>
-                  </div>
-                </div>
-
-                <!-- 状态机拓扑 -->
-                <div>
-                  <h4
-                    class="text-dark/80 mb-3 text-center text-base font-medium"
-                  >
-                    协议状态机拓扑
-                  </h4>
-                  <div
-                    class="h-60 rounded-lg border border-gray-200 bg-white p-4"
-                  >
-                    <div class="flex h-full flex-col">
-                      <!-- 状态机可视化区域 -->
-                      <div
-                        class="mb-4 flex flex-1 items-center justify-center rounded-lg bg-gray-50 p-4"
-                      >
-                        <div class="text-center">
-                          <div
-                            class="mb-4 flex items-center justify-center space-x-4"
-                          >
-                            <div
-                              class="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500 text-xs font-bold text-white"
-                            >
-                              {{ rtspStats.n_nodes }}
-                            </div>
-                            <div class="text-gray-400">
-                              <i class="fa fa-arrow-right text-lg"></i>
-                            </div>
-                            <div
-                              class="flex h-8 w-8 items-center justify-center rounded-full bg-green-500 text-xs font-bold text-white"
-                            >
-                              {{ rtspStats.n_edges }}
-                            </div>
-                          </div>
-                          <div class="text-xs text-gray-600">
-                            <span class="font-medium text-blue-600"
-                              >{{ rtspStats.n_nodes }} 个状态节点</span
-                            >
-                            <span class="mx-2">•</span>
-                            <span class="font-medium text-green-600"
-                              >{{ rtspStats.n_edges }} 个状态转换</span
-                            >
-                          </div>
-                        </div>
-                      </div>
-
-                      <!-- 状态机统计信息 -->
-                      <div class="grid grid-cols-2 gap-2 text-xs">
-                        <div class="rounded bg-blue-50 p-2 text-center">
-                          <div class="font-bold text-blue-600">
-                            {{ rtspStats.max_depth }}
-                          </div>
-                          <div class="text-gray-600">最大深度</div>
-                        </div>
-                        <div class="rounded bg-green-50 p-2 text-center">
-                          <div class="font-bold text-green-600">
-                            {{ rtspStats.map_size }}
-                          </div>
-                          <div class="text-gray-600">覆盖率</div>
-                        </div>
-                      </div>
-                    </div>
+                    <p>暂无协议统计数据</p>
                   </div>
                 </div>
               </div>
@@ -5851,7 +6468,87 @@ onMounted(async () => {
                 </div>
               </div>
 
-              <!-- MQTT协议统计 -->
+              <!-- SOL统计 (AFLNET引擎) -->
+              <div v-else-if="protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL'" class="space-y-4">
+                <div>
+                  <div class="mb-1 flex items-center justify-between">
+                    <span class="text-dark/70 text-sm">当前执行路径</span>
+                    <span class="text-xl font-bold"
+                      >#{{ solStats.cur_path }}</span
+                    >
+                  </div>
+                  <div
+                    class="bg-light-gray h-1.5 w-full overflow-hidden rounded-full"
+                  >
+                    <div
+                      class="bg-primary h-full"
+                      :style="{
+                        width:
+                          solStats.paths_total > 0
+                            ? Math.min(
+                                100,
+                                (solStats.cur_path / solStats.paths_total) *
+                                  100,
+                              )
+                            : 0 + '%',
+                      }"
+                    ></div>
+                  </div>
+                  <div class="text-dark/60 mt-1 text-xs">
+                    {{ solStats.cur_path }} / {{ solStats.paths_total }} 路径
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-1 gap-3">
+                  <!-- 第一行：执行速度和测试时长 -->
+                  <div class="grid grid-cols-2 gap-3">
+                    <div
+                      class="rounded-lg border border-blue-200 bg-blue-50 p-3"
+                    >
+                      <p class="mb-1 text-xs text-blue-700">执行速度</p>
+                      <h4 class="text-2xl font-bold text-blue-600">
+                        {{ solStats.execs_per_sec.toFixed(1) }}
+                      </h4>
+                      <p class="text-dark/60 mt-1 text-xs">exec/sec</p>
+                    </div>
+
+                    <div
+                      class="rounded-lg border border-green-200 bg-green-50 p-3"
+                    >
+                      <p class="mb-1 text-xs text-green-700">运行时长</p>
+                      <h4 class="text-2xl font-bold text-green-600">
+                        {{ elapsedTime }}
+                      </h4>
+                      <p class="text-dark/60 mt-1 text-xs">seconds</p>
+                    </div>
+                  </div>
+
+                  <!-- 第二行：崩溃和挂起统计 -->
+                  <div class="grid grid-cols-2 gap-3">
+                    <div
+                      class="rounded-lg border border-red-200 bg-red-50 p-3"
+                    >
+                      <p class="mb-1 text-xs text-red-700">崩溃数</p>
+                      <h4 class="text-2xl font-bold text-red-600">
+                        {{ solStats.unique_crashes }}
+                      </h4>
+                      <p class="text-dark/60 mt-1 text-xs">crashes</p>
+                    </div>
+
+                    <div
+                      class="rounded-lg border border-yellow-200 bg-yellow-50 p-3"
+                    >
+                      <p class="mb-1 text-xs text-yellow-700">挂起数</p>
+                      <h4 class="text-2xl font-bold text-yellow-600">
+                        {{ solStats.unique_hangs }}
+                      </h4>
+                      <p class="text-dark/60 mt-1 text-xs">hangs</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- MQTT协议统计 (MBFuzzer引擎) -->
               <div v-else-if="protocolType === 'MQTT'" class="space-y-6">
                 <!-- Client和Broker发送数据方框展示 -->
                 <div class="grid grid-cols-2 gap-4">
@@ -5960,96 +6657,13 @@ onMounted(async () => {
                 </div>
               </div>
 
-              <!-- RTSP协议统计 -->
+              <!-- 其他协议的默认统计 -->
               <div v-else class="space-y-4">
-                <div>
-                  <div class="mb-1 flex items-center justify-between">
-                    <span class="text-dark/70 text-sm">当前执行路径</span>
-                    <span class="text-xl font-bold"
-                      >#{{ rtspStats.cur_path }}</span
-                    >
+                <div class="text-center text-gray-500">
+                  <div class="mb-4">
+                    <i class="fa fa-chart-bar text-4xl text-gray-400"></i>
                   </div>
-                  <div
-                    class="bg-light-gray h-1.5 w-full overflow-hidden rounded-full"
-                  >
-                    <div
-                      class="bg-primary h-full"
-                      :style="{
-                        width:
-                          rtspStats.paths_total > 0
-                            ? Math.min(
-                                100,
-                                (rtspStats.cur_path / rtspStats.paths_total) *
-                                  100,
-                              )
-                            : 0 + '%',
-                      }"
-                    ></div>
-                  </div>
-                  <div class="text-dark/60 mt-1 text-xs">
-                    {{ rtspStats.cur_path }} / {{ rtspStats.paths_total }} 路径
-                  </div>
-                </div>
-
-                <div class="grid grid-cols-1 gap-3">
-                  <!-- 第一行：执行速度和测试时长 -->
-                  <div class="grid grid-cols-2 gap-3">
-                    <div
-                      class="rounded-lg border border-blue-200 bg-blue-50 p-3"
-                    >
-                      <p class="mb-1 text-xs text-blue-700">执行速度</p>
-                      <h4 class="text-2xl font-bold text-blue-600">
-                        {{ rtspStats.execs_per_sec.toFixed(1) }}
-                      </h4>
-                      <p class="text-dark/60 mt-1 text-xs">exec/sec</p>
-                    </div>
-
-                    <div
-                      class="rounded-lg border border-green-200 bg-green-50 p-3"
-                    >
-                      <p class="mb-1 text-xs text-green-700">运行时长</p>
-                      <h4 class="text-2xl font-bold text-green-600">
-                        {{ elapsedTime }}
-                      </h4>
-                      <p class="text-dark/60 mt-1 text-xs">seconds</p>
-                    </div>
-                  </div>
-
-                  <!-- 第二行：循环次数和最大深度 -->
-                  <div class="grid grid-cols-2 gap-3">
-                    <div
-                      class="rounded-lg border border-purple-200 bg-purple-50 p-3"
-                    >
-                      <p class="mb-1 text-xs text-purple-700">完成循环</p>
-                      <h4 class="text-2xl font-bold text-purple-600">
-                        {{ rtspStats.cycles_done }}
-                      </h4>
-                      <p class="text-dark/60 mt-1 text-xs">cycles</p>
-                    </div>
-
-                    <div
-                      class="rounded-lg border border-indigo-200 bg-indigo-50 p-3"
-                    >
-                      <p class="mb-1 text-xs text-indigo-700">最大深度</p>
-                      <h4 class="text-2xl font-bold text-indigo-600">
-                        {{ rtspStats.max_depth }}
-                      </h4>
-                      <p class="text-dark/60 mt-1 text-xs">depth</p>
-                    </div>
-                  </div>
-
-                  <!-- 第三行：代码覆盖率 -->
-                  <div
-                    class="rounded-lg border border-orange-200 bg-orange-50 p-3"
-                  >
-                    <div class="mb-2 flex items-center justify-between">
-                      <span class="text-xs text-orange-700">代码覆盖率</span>
-                      <span class="text-lg font-bold text-orange-600">{{
-                        rtspStats.map_size
-                      }}</span>
-                    </div>
-                    <div class="text-dark/60 text-xs">Coverage Bitmap</div>
-                  </div>
+                  <p>暂无统计数据</p>
                 </div>
               </div>
             </div>
@@ -6149,8 +6763,36 @@ onMounted(async () => {
               <div class="bg-light-gray border-dark/10 rounded-lg border p-3">
                 <h4 class="text-dark/80 mb-2 font-medium">性能统计</h4>
                 <div class="space-y-1">
-                  <!-- MQTT协议统计 -->
-                  <template v-if="protocolType === 'MQTT'">
+                  <!-- SOL统计 (AFLNET引擎) -->
+                  <template v-if="protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL'">
+                    <p>
+                      <span class="text-dark/60">测试引擎:</span>
+                      <span>AFLNET</span>
+                    </p>
+                    <p>
+                      <span class="text-dark/60">当前执行路径:</span>
+                      <span>{{ solStats.cur_path || '0' }}</span>
+                    </p>
+                    <p>
+                      <span class="text-dark/60">总路径数:</span>
+                      <span>{{ solStats.paths_total || '0' }}</span>
+                    </p>
+                    <p>
+                      <span class="text-dark/60">执行速度:</span>
+                      <span>{{ solStats.execs_per_sec.toFixed(1) || '0.0' }} exec/sec</span>
+                    </p>
+                    <p>
+                      <span class="text-dark/60">崩溃数量:</span>
+                      <span>{{ solStats.unique_crashes || '0' }}</span>
+                    </p>
+                    <p>
+                      <span class="text-dark/60">挂起数量:</span>
+                      <span>{{ solStats.unique_hangs || '0' }}</span>
+                    </p>
+                  </template>
+
+                  <!-- MQTT协议统计 (MBFuzzer引擎) -->
+                  <template v-else-if="protocolType === 'MQTT'">
                     <p>
                       <span class="text-dark/60">测试引擎:</span>
                       <span>MBFuzzer (智能差异测试)</span>
@@ -6254,7 +6896,7 @@ onMounted(async () => {
                       >
                     </p>
                   </template>
-                  <!-- RTSP协议统计 -->
+                  <!-- SOL统计 -->
                   <template v-else>
                     <p>
                       <span class="text-dark/60">执行速度:</span>
@@ -6314,12 +6956,55 @@ onMounted(async () => {
               <div class="bg-light-gray border-dark/10 rounded-lg border p-3">
                 <h4 class="text-dark/80 mb-2 font-medium">
                   {{
-                    protocolType === 'MQTT' ? 'MBFuzzer分析报告' : '文件信息'
+                    protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL'
+                      ? 'AFLNET分析报告'
+                      : protocolType === 'MQTT' 
+                        ? 'MBFuzzer分析报告' 
+                        : '文件信息'
                   }}
                 </h4>
 
-                <!-- MQTT协议专用信息 -->
-                <div v-if="protocolType === 'MQTT'" class="space-y-2">
+                <!-- SOL专用信息 (AFLNET引擎) -->
+                <div v-if="protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL'" class="space-y-2">
+                  <div class="flex items-center">
+                    <i class="fa fa-file-code-o mr-2 text-purple-600"></i>
+                    <div class="flex-1">
+                      <p class="truncate text-xs font-medium">
+                        plot_data
+                      </p>
+                      <p class="text-dark/50 truncate text-xs">
+                        AFLNET完整分析报告
+                      </p>
+                    </div>
+                    <button
+                      @click="saveLog"
+                      class="rounded bg-purple-50 px-1.5 py-0.5 text-xs text-purple-600 hover:bg-purple-100"
+                    >
+                      导出
+                    </button>
+                  </div>
+
+                  <div class="flex items-center">
+                    <i class="fa fa-chart-line mr-2 text-green-600"></i>
+                    <div class="flex-1">
+                      <p class="truncate text-xs font-medium">
+                        Fuzz日志文件
+                      </p>
+                      <p class="text-dark/50 truncate text-xs">
+                        完整的模糊测试执行日志
+                      </p>
+                    </div>
+                    <button
+                      @click="saveLog"
+                      class="rounded bg-green-50 px-1.5 py-0.5 text-xs text-green-600 hover:bg-green-100"
+                    >
+                      导出
+                    </button>
+                  </div>
+                </div>
+
+                <!-- MQTT协议专用信息 (MBFuzzer引擎) -->
+                <div v-else-if="protocolType === 'MQTT'" class="space-y-2">
                   <div class="flex items-center">
                     <i class="fa fa-file-code-o mr-2 text-purple-600"></i>
                     <div class="flex-1">
@@ -6597,7 +7282,7 @@ onMounted(async () => {
                             </div>
                           </div>
 
-                          <!-- RTSP协议特定信息 -->
+                          <!-- SOL特定信息 -->
                           <div
                             v-else-if="item.protocol === 'RTSP'"
                             class="space-y-2"
@@ -6662,7 +7347,7 @@ onMounted(async () => {
                               class="flex items-center justify-between text-sm"
                             >
                               <span class="font-medium text-gray-600"
-                                >MBFuzzer统计:</span
+                                >{{ item.fuzzEngine === 'AFLNET' ? 'AFLNET统计:' : 'MBFuzzer统计:' }}</span
                               >
                               <div class="flex space-x-4">
                                 <span class="text-red-600"
@@ -6852,7 +7537,7 @@ onMounted(async () => {
                     <h4 class="mb-2 font-medium text-gray-800">性能统计</h4>
                     <div class="space-y-1">
                       <!-- MQTT协议统计 -->
-                      <template v-if="selectedHistoryItem.protocol === 'MQTT'">
+                      <template v-if="selectedHistoryItem.protocol === 'MQTT' && selectedHistoryItem.fuzzEngine === 'MBFuzzer'">
                         <p>
                           <span class="text-gray-600">测试引擎:</span>
                           <span class="font-medium"
@@ -6874,10 +7559,16 @@ onMounted(async () => {
                           }}</span>
                         </p>
                       </template>
-                      <!-- RTSP协议统计 -->
+                      <!-- AFLNET统计 -->
                       <template
-                        v-else-if="selectedHistoryItem.protocol === 'RTSP'"
+                        v-else-if="selectedHistoryItem.protocol === 'MQTT' && selectedHistoryItem.fuzzEngine === 'AFLNET'"
                       >
+                        <p>
+                          <span class="text-gray-600">测试引擎:</span>
+                          <span class="font-medium"
+                            >AFLNET</span
+                          >
+                        </p>
                         <p>
                           <span class="text-gray-600">发现路径数:</span>
                           <span class="font-medium">{{
@@ -6954,8 +7645,8 @@ onMounted(async () => {
                       {{
                         selectedHistoryItem.protocol === 'SNMP'
                           ? '协议版本'
-                          : selectedHistoryItem.protocol === 'RTSP'
-                            ? 'AFL-NET统计'
+                          : selectedHistoryItem.fuzzEngine === 'AFLNET'
+                            ? 'AFLNET统计'
                             : 'MBFuzzer分析报告'
                       }}
                     </h4>
@@ -6981,9 +7672,9 @@ onMounted(async () => {
                           }}</span>
                         </p>
                       </template>
-                      <!-- RTSP协议AFL-NET统计 -->
+                      <!-- AFLNET统计 -->
                       <template
-                        v-else-if="selectedHistoryItem.protocol === 'RTSP'"
+                        v-else-if="selectedHistoryItem.fuzzEngine === 'AFLNET'"
                       >
                         <p>
                           <span class="text-gray-600">执行速度:</span>
@@ -7066,8 +7757,8 @@ onMounted(async () => {
                   {{
                     selectedHistoryItem.protocol === 'SNMP'
                       ? 'SNMP协议详细统计'
-                      : selectedHistoryItem.protocol === 'RTSP'
-                        ? 'RTSP协议状态机统计'
+                      : selectedHistoryItem.fuzzEngine === 'AFLNET'
+                        ? 'AFLNET状态机统计'
                         : 'MQTT协议差异分析统计'
                   }}
                 </h3>
@@ -7282,9 +7973,9 @@ onMounted(async () => {
                   </div>
                 </div>
 
-                <!-- RTSP协议统计 -->
+                <!-- AFLNET统计 -->
                 <div
-                  v-else-if="selectedHistoryItem.protocol === 'RTSP'"
+                  v-else-if="selectedHistoryItem.fuzzEngine === 'AFLNET'"
                   class="grid grid-cols-1 gap-8 md:grid-cols-2"
                 >
                   <!-- 路径发现统计 -->
@@ -7391,9 +8082,9 @@ onMounted(async () => {
                   </div>
                 </div>
 
-                <!-- MQTT协议统计 -->
+                <!-- MQTT协议统计 (MBFuzzer引擎) -->
                 <div
-                  v-else-if="selectedHistoryItem.protocol === 'MQTT'"
+                  v-else-if="selectedHistoryItem.protocol === 'MQTT' && selectedHistoryItem.fuzzEngine === 'MBFuzzer'"
                   class="space-y-8"
                 >
                   <!-- 客户端和代理端请求统计 -->
@@ -8146,7 +8837,7 @@ onMounted(async () => {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-/* RTSP协议专用样式 */
+/* SOL专用样式 */
 .rtsp-header-line {
   @apply mb-1 rounded border-l-4 border-blue-400 bg-blue-50 p-2;
 }

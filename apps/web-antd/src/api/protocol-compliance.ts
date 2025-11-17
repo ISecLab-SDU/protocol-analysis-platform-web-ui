@@ -628,12 +628,12 @@ export function stopAndCleanup(data: { container_id: string; protocol: string })
 }
 
 // 写入脚本文件
-export function writeScript(data: { content: string; protocol: string }) {
+export function writeScript(data: { content: string; protocol: string; protocolImplementations?: string[] }) {
   return requestClient.post('/protocol-compliance/write-script', data);
 }
 
 // 执行命令
-export function executeCommand(data: { protocol: string }) {
+export function executeCommand(data: { protocol: string; protocolImplementations?: string[] }) {
   return requestClient.post('/protocol-compliance/execute-command', data);
 }
 

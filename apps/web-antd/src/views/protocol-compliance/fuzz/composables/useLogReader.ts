@@ -57,8 +57,6 @@ export function useLogReader() {
                 // 根据协议类型使用不同的UI显示函数
                 if (protocol === 'MQTT') {
                   addMQTTLogToUI(logData);
-                } else if (protocol === 'RTSP') {
-                  addRTSPLogToUI(logData);
                 } else {
                   addLogToUI(logData);
                 }
@@ -231,7 +229,8 @@ export function useLogReader() {
     });
   }
 
-  // RTSP专用的日志显示函数
+  // RTSP专用的日志显示函数已移除，SOL协议现在通过addSOLLogToUI处理
+  /*
   function addRTSPLogToUI(logData: LogUIData) {
     if (!logContainer.value) return;
     
@@ -281,6 +280,58 @@ export function useLogReader() {
       }
     });
   }
+  */
+
+  // SOL专用的日志显示函数
+  function addSOLLogToUI(logData: LogUIData) {
+    if (!logContainer.value) return;
+    
+    // 使用 nextTick 确保 DOM 稳定后再操作
+    nextTick(() => {
+      try {
+        // 双重检查 DOM 元素是否仍然存在
+        if (!logContainer.value || !logContainer.value.appendChild) {
+          return;
+        }
+        
+        const div = document.createElement('div');
+        
+        if (logData.isHeader) {
+          // 参数说明行
+          div.className = 'rtsp-header-line';
+          div.innerHTML = `<span class="text-dark/50">[${logData.timestamp}]</span> <span class="text-info font-medium">AFL-NET参数说明:</span> <span class="text-dark/70 text-xs">${logData.content}</span>`;
+        } else if (logData.type === 'STATS') {
+          // 统计数据行
+          div.className = 'rtsp-stats-line';
+          div.innerHTML = `<span class="text-dark/50">[${logData.timestamp}]</span> <span class="text-dark font-mono text-xs">${logData.content}</span>`;
+        } else {
+          // 普通信息行
+          div.className = 'rtsp-info-line';
+          div.innerHTML = `<span class="text-dark/50">[${logData.timestamp}]</span> <span class="text-primary">SOL-AFL:</span> <span class="text-dark/70">${logData.content}</span>`;
+        }
+        
+        // 再次检查容器是否存在再添加元素
+        if (logContainer.value && logContainer.value.appendChild) {
+          logContainer.value.appendChild(div);
+          
+          // 自动滚动到底部
+          if (logContainer.value.scrollTop !== undefined) {
+            logContainer.value.scrollTop = logContainer.value.scrollHeight;
+          }
+          
+          // 限制日志条目数量，保持性能
+          if (logContainer.value.children && logContainer.value.children.length > 200) {
+            const firstChild = logContainer.value.firstChild;
+            if (firstChild && logContainer.value.removeChild) {
+              logContainer.value.removeChild(firstChild);
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('添加SOL日志到UI失败:', error);
+      }
+    });
+  }
 
   // 清空日志
   function clearLog() {
@@ -309,7 +360,8 @@ export function useLogReader() {
     resetLogReader,
     addLogToUI,
     addMQTTLogToUI,
-    addRTSPLogToUI,
+    // addRTSPLogToUI, // 已移除
+    addSOLLogToUI,
     clearLog
   };
 }
