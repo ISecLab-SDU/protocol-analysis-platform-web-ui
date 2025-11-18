@@ -215,7 +215,7 @@ PROGRESS_REGISTRY = AssertGenerationProgressRegistry()
 # Environment setup for instrumentation
 # ----------------------------------------------------------------------------
 
-REQUIRED_INSTRUMENTATION_ENVS = ("ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL")
+REQUIRED_INSTRUMENTATION_ENVS = ("ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "OPENAI_API_KEY", "OPENAI_BASE_URL")
 INSTRUMENTATION_DIFF_FILENAME = "instrumentation.diff"
 INSTRUMENTATION_DIFF_MAX_PREVIEW_BYTES = 512 * 1024  # 512 KiB safety cap
 
