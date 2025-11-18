@@ -791,6 +791,7 @@ class ProtocolGuardDockerRunner:
         )
         volumes = self._build_volumes(job_paths, include_config=True)
         environment = self._build_environment()
+        self._log_step("environment", "analysis", f"Environment variables: {environment}")
         self._inspect_analysis_workspace(job_paths, volumes=volumes, environment=environment)
         logs = self._run_container(
             image=self._settings.analysis_image,
