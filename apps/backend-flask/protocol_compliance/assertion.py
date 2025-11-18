@@ -688,6 +688,7 @@ def _record_assertion_history_entry(
     *,
     job_id: str,
     code_filename: str,
+    database_filename: str,
     instrumentation_details: Dict[str, object],
 ) -> None:
     artifacts = instrumentation_details.get("artifacts") if isinstance(instrumentation_details, dict) else None
@@ -708,6 +709,7 @@ def _record_assertion_history_entry(
             job_id=job_id,
             diff_source_path=diff_path,
             code_filename=code_filename,
+            database_filename=database_filename,
         )
     except Exception as exc:  # pragma: no cover - persistence best effort
         LOGGER.warning("Failed to persist assertion history for job %s: %s", job_id, exc)
