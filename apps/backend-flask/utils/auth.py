@@ -108,26 +108,25 @@ _DEFAULT_SANITIZED_USER = _sanitize_user(_DEFAULT_USER) if _DEFAULT_USER else No
 
 
 def verify_access_token(auth_header: Optional[str]) -> Optional[Dict[str, Any]]:
-    sanitized: Optional[Dict[str, Any]] = None
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return None
+    token = auth_header.split(" ", 1)[1]
+    try:
+        payload = decode_jwt(token, ACCESS_TOKEN_SECRET)
+    except (TokenVerificationError, json.JSONDecodeError, UnicodeDecodeError):
+        return None
 
-    if auth_header and auth_header.startswith("Bearer "):
-        token = auth_header.split(" ", 1)[1]
-        try:
-            payload = decode_jwt(token, ACCESS_TOKEN_SECRET)
-            username = payload.get("username")
-            if isinstance(username, str):
-                user = _load_user(username)
-                if user:
-                    sanitized = _sanitize_user(user)
-        except (TokenVerificationError, json.JSONDecodeError, UnicodeDecodeError):
-            sanitized = None
+    username = payload.get("username")
+    if not isinstance(username, str):
+        return None
 
-    if sanitized:
-        return sanitized
+    user = _load_user(username)
+    if not user:
+        return None
 
-    if _DEFAULT_SANITIZED_USER:
-        return deepcopy(_DEFAULT_SANITIZED_USER)
-    return None
+    result = dict(user)
+    result.pop("password", None)
+    return result
 
 
 def verify_refresh_token(token: str) -> Optional[Dict[str, Any]]:
