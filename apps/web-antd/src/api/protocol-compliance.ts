@@ -141,6 +141,7 @@ export interface ProtocolStaticAnalysisHistoryEntry {
   analysisId?: string | null;
   completedAt?: string | null;
   configPath?: string | null;
+  codeFileName?: string | null;
   createdAt: string;
   databasePath?: string | null;
   details?: Record<string, unknown> | null;
@@ -341,9 +342,63 @@ export interface ProtocolAssertGenerationProgressEvent {
   timestamp: string;
 }
 
+export interface ProtocolAssertGenerationInputInfo {
+  buildInstructions?: null | string;
+  codeFileName?: string;
+  databaseFileName?: string;
+  notes?: null | string;
+}
+
+export interface ProtocolAssertGenerationArtifactInfo {
+  database?: string;
+  logs?: string;
+  output?: string;
+  workspace?: string;
+  workspaceSnapshots?: Array<{ stage?: string; path?: string }>;
+  zipPath?: string;
+}
+
+export interface ProtocolAssertGenerationDockerInfo {
+  command?: string[];
+  durationMs?: number;
+  image?: string;
+  logs?: string[];
+}
+
+export interface ProtocolInstrumentationDiffOutput {
+  available: boolean;
+  content?: string | null;
+  path?: string | null;
+  size?: number;
+  truncated?: boolean;
+}
+
+export interface ProtocolInstrumentationArtifacts {
+  diffFiles?: string[];
+  diffOutput?: ProtocolInstrumentationDiffOutput;
+  instrumentedCodePath?: string | null;
+}
+
+export interface ProtocolInstrumentationDockerInfo {
+  command?: string[];
+  durationMs?: number;
+  image?: string;
+}
+
+export interface ProtocolInstrumentationResult {
+  artifacts?: ProtocolInstrumentationArtifacts;
+  completedAt?: string;
+  docker?: ProtocolInstrumentationDockerInfo;
+  logs?: string[];
+}
+
 export interface ProtocolAssertGenerationResult {
   assertionCount: number;
+  artifacts?: ProtocolAssertGenerationArtifactInfo;
+  docker?: ProtocolAssertGenerationDockerInfo;
   generatedAt: string;
+  inputs?: ProtocolAssertGenerationInputInfo;
+  instrumentation?: ProtocolInstrumentationResult;
   jobId: string;
   protocolName: string;
 }
@@ -402,6 +457,14 @@ export function fetchProtocolAssertGenerationResult(jobId: string) {
   );
 }
 
+export type ProtocolInstrumentationDiffResponse = ProtocolInstrumentationDiffOutput;
+
+export function fetchProtocolInstrumentationDiff(jobId: string) {
+  return requestClient.get<ProtocolInstrumentationDiffResponse>(
+    `/protocol-compliance/assertion-generation/${jobId}/instrumentation-diff`,
+  );
+}
+
 export async function downloadProtocolAssertGenerationResult(jobId: string) {
   const accessStore = useAccessStore();
   const token = accessStore.accessToken;
@@ -412,6 +475,54 @@ export async function downloadProtocolAssertGenerationResult(jobId: string) {
 
   const response = (await baseRequestClient.request(
     `/protocol-compliance/assertion-generation/${jobId}/download`,
+    {
+      headers,
+      method: 'GET',
+      responseType: 'blob',
+    },
+  )) as { data: Blob };
+
+  return response.data;
+}
+
+// Assertion history ------------------------------------------------------
+
+export interface ProtocolAssertionHistoryEntry {
+  jobId: string;
+  codeFilename?: string | null;
+  databaseFilename?: string | null;
+  diffPath?: string | null;
+  diffFilename?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  source?: string | null;
+}
+
+export interface ProtocolAssertionHistoryResponse {
+  items: ProtocolAssertionHistoryEntry[];
+  limit: number;
+  count: number;
+}
+
+export function fetchProtocolAssertionHistory(limit = 20) {
+  return requestClient.get<ProtocolAssertionHistoryResponse>(
+    '/protocol-compliance/assertions/history',
+    {
+      params: { limit },
+    },
+  );
+}
+
+export async function downloadProtocolAssertionDiff(jobId: string) {
+  const accessStore = useAccessStore();
+  const token = accessStore.accessToken;
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = (await baseRequestClient.request(
+    `/protocol-compliance/assertions/history/${jobId}/diff`,
     {
       headers,
       method: 'GET',
@@ -517,12 +628,12 @@ export function stopAndCleanup(data: { container_id: string; protocol: string })
 }
 
 // 写入脚本文件
-export function writeScript(data: { content: string; protocol: string }) {
+export function writeScript(data: { content: string; protocol: string; protocolImplementations?: string[] }) {
   return requestClient.post('/protocol-compliance/write-script', data);
 }
 
 // 执行命令
-export function executeCommand(data: { protocol: string }) {
+export function executeCommand(data: { protocol: string; protocolImplementations?: string[] }) {
   return requestClient.post('/protocol-compliance/execute-command', data);
 }
 
