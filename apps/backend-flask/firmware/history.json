@@ -1,0 +1,153 @@
+[
+  {
+    "id": "1765335378219",
+    "fileName": "6.so",
+    "fileSize": 13804,
+    "analysisTime": "2025-12-10T02:56:18.219Z",
+    "results": [
+      {
+        "codeSnippet": "DES_ecb_encrypt(const_DES_cblock *input, DES_cblock *output, DES_key_schedule *ks, int enc);",
+        "description": "\u4f7f\u7528\u4e86\u4e0d\u5b89\u5168\u7684ECB\u52a0\u5bc6\u6a21\u5f0f\uff0c\u8be5\u6a21\u5f0f\u5728\u52a0\u5bc6\u76f8\u540c\u660e\u6587\u65f6\u4f1a\u4ea7\u751f\u76f8\u540c\u5bc6\u6587",
+        "functionName": "DES_ecb_encrypt",
+        "issueType": "ECB\u6a21\u5f0f\u4f7f\u7528",
+        "parameters": "const_DES_cblock *input, DES_cblock *output, DES_key_schedule *ks, int enc",
+        "severity": "high"
+      },
+      {
+        "codeSnippet": "DES_key_sched(const_DES_cblock *key, DES_key_schedule *schedule);",
+        "description": "\u4f7f\u7528\u4e86\u53ef\u80fd\u8f83\u5f31\u7684\u5bc6\u94a5\u957f\u5ea6\u6216\u56fa\u5b9a\u5bc6\u94a5\u503c",
+        "functionName": "DES_key_sched",
+        "issueType": "\u5f31\u5bc6\u94a5\u4f7f\u7528",
+        "parameters": "const_DES_cblock *key, DES_key_schedule *schedule",
+        "severity": "medium"
+      },
+      {
+        "codeSnippet": "DES_key_sched(const_DES_cblock *key, DES_key_schedule *schedule);",
+        "description": "\u68c0\u6d4b\u5230s_func\u7c7b\u578b\u7684\u5bc6\u7801\u5b66\u95ee\u9898",
+        "functionName": "DES_key_sched",
+        "issueType": "\u5bc6\u7801\u5b66\u7b97\u6cd5\u95ee\u9898",
+        "parameters": "const_DES_cblock *key, DES_key_schedule *schedule",
+        "severity": "medium"
+      },
+      {
+        "codeSnippet": "DES_ecb_encrypt(const_DES_cblock *input, DES_cblock *output, DES_key_schedule *ks, int enc);",
+        "description": "\u68c0\u6d4b\u5230s_func\u7c7b\u578b\u7684\u5bc6\u7801\u5b66\u95ee\u9898",
+        "functionName": "DES_ecb_encrypt",
+        "issueType": "\u5bc6\u7801\u5b66\u7b97\u6cd5\u95ee\u9898",
+        "parameters": "const_DES_cblock *input, DES_cblock *output, DES_key_schedule *ks, int enc",
+        "severity": "medium"
+      }
+    ],
+    "treeData": [
+      {
+        "title": "6.so",
+        "key": "root",
+        "isLeaf": false,
+        "children": [
+          {
+            "title": "\u9ad8\u5371\u95ee\u9898",
+            "key": "severity-high",
+            "isLeaf": false,
+            "children": [
+              {
+                "title": "ECB\u6a21\u5f0f\u4f7f\u7528 - DES_ecb_encrypt",
+                "key": "function-0",
+                "isLeaf": false,
+                "children": [
+                  {
+                    "title": "\u63cf\u8ff0: \u4f7f\u7528\u4e86\u4e0d\u5b89\u5168\u7684ECB\u52a0\u5bc6\u6a21\u5f0f\uff0c\u8be5\u6a21\u5f0f\u5728\u52a0\u5bc6\u76f8\u540c\u660e\u6587\u65f6\u4f1a\u4ea7\u751f\u76f8\u540c\u5bc6\u6587",
+                    "key": "desc-0",
+                    "isLeaf": true
+                  },
+                  {
+                    "title": "\u53c2\u6570: const_DES_cblock *input, DES_cblock *output, DES_key_schedule *ks, int enc",
+                    "key": "params-0",
+                    "isLeaf": true
+                  },
+                  {
+                    "title": "\u4ee3\u7801: DES_ecb_encrypt(const_DES_cblock *input, DES_cbloc...",
+                    "key": "code-0",
+                    "isLeaf": true
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "title": "\u4e2d\u5371\u95ee\u9898",
+            "key": "severity-medium",
+            "isLeaf": false,
+            "children": [
+              {
+                "title": "\u5f31\u5bc6\u94a5\u4f7f\u7528 - DES_key_sched",
+                "key": "function-1",
+                "isLeaf": false,
+                "children": [
+                  {
+                    "title": "\u63cf\u8ff0: \u4f7f\u7528\u4e86\u53ef\u80fd\u8f83\u5f31\u7684\u5bc6\u94a5\u957f\u5ea6\u6216\u56fa\u5b9a\u5bc6\u94a5\u503c",
+                    "key": "desc-1",
+                    "isLeaf": true
+                  },
+                  {
+                    "title": "\u53c2\u6570: const_DES_cblock *key, DES_key_schedule *schedule",
+                    "key": "params-1",
+                    "isLeaf": true
+                  },
+                  {
+                    "title": "\u4ee3\u7801: DES_key_sched(const_DES_cblock *key, DES_key_sched...",
+                    "key": "code-1",
+                    "isLeaf": true
+                  }
+                ]
+              },
+              {
+                "title": "\u5bc6\u7801\u5b66\u7b97\u6cd5\u95ee\u9898 - DES_key_sched",
+                "key": "function-2",
+                "isLeaf": false,
+                "children": [
+                  {
+                    "title": "\u63cf\u8ff0: \u68c0\u6d4b\u5230s_func\u7c7b\u578b\u7684\u5bc6\u7801\u5b66\u95ee\u9898",
+                    "key": "desc-2",
+                    "isLeaf": true
+                  },
+                  {
+                    "title": "\u53c2\u6570: const_DES_cblock *key, DES_key_schedule *schedule",
+                    "key": "params-2",
+                    "isLeaf": true
+                  },
+                  {
+                    "title": "\u4ee3\u7801: DES_key_sched(const_DES_cblock *key, DES_key_sched...",
+                    "key": "code-2",
+                    "isLeaf": true
+                  }
+                ]
+              },
+              {
+                "title": "\u5bc6\u7801\u5b66\u7b97\u6cd5\u95ee\u9898 - DES_ecb_encrypt",
+                "key": "function-3",
+                "isLeaf": false,
+                "children": [
+                  {
+                    "title": "\u63cf\u8ff0: \u68c0\u6d4b\u5230s_func\u7c7b\u578b\u7684\u5bc6\u7801\u5b66\u95ee\u9898",
+                    "key": "desc-3",
+                    "isLeaf": true
+                  },
+                  {
+                    "title": "\u53c2\u6570: const_DES_cblock *input, DES_cblock *output, DES_key_schedule *ks, int enc",
+                    "key": "params-3",
+                    "isLeaf": true
+                  },
+                  {
+                    "title": "\u4ee3\u7801: DES_ecb_encrypt(const_DES_cblock *input, DES_cbloc...",
+                    "key": "code-3",
+                    "isLeaf": true
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+]

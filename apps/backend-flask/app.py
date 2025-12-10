@@ -8,6 +8,7 @@ try:
     # Support running as a module (python -m backend_flask) and as a script (uv run app.py).
     from .auth import bp as auth_blueprint
     from .demo import bp as demo_blueprint
+    from .firmware import bp as firmware_blueprint
     from .menu import bp as menu_blueprint
     from .misc import bp as misc_blueprint
     from .protocol_compliance.routes import bp as protocol_compliance_blueprint
@@ -18,6 +19,7 @@ try:
 except ImportError:
     from auth import bp as auth_blueprint
     from demo import bp as demo_blueprint
+    from firmware import bp as firmware_blueprint
     from menu import bp as menu_blueprint
     from misc import bp as misc_blueprint
     from protocol_compliance.routes import bp as protocol_compliance_blueprint
@@ -35,6 +37,7 @@ def create_app() -> Flask:
     app.register_blueprint(system_blueprint)
     app.register_blueprint(table_blueprint)
     app.register_blueprint(upload_blueprint)
+    app.register_blueprint(firmware_blueprint)
     app.register_blueprint(demo_blueprint)
     app.register_blueprint(misc_blueprint)
     app.register_blueprint(protocol_compliance_blueprint)
