@@ -26,35 +26,43 @@ export function generateRefreshToken(user: UserInfo) {
   });
 }
 
+function getSuperUser() {
+  const [superUser] = MOCK_USERS;
+  if (!superUser) {
+    return null;
+  }
+  const { password: _pwd, ...userinfo } = superUser;
+  return userinfo;
+}
+
 export function verifyAccessToken(
   event: H3Event<EventHandlerRequest>,
 ): null | Omit<UserInfo, 'password'> {
   const authHeader = getHeader(event, 'Authorization');
-  if (!authHeader?.startsWith('Bearer')) {
-    return null;
-  }
+  if (authHeader?.startsWith('Bearer')) {
+    const tokenParts = authHeader.split(' ');
+    if (tokenParts.length === 2) {
+      const token = tokenParts[1] as string;
+      try {
+        const decoded = jwt.verify(
+          token,
+          ACCESS_TOKEN_SECRET,
+        ) as unknown as UserPayload;
 
-  const tokenParts = authHeader.split(' ');
-  if (tokenParts.length !== 2) {
-    return null;
-  }
-  const token = tokenParts[1] as string;
-  try {
-    const decoded = jwt.verify(
-      token,
-      ACCESS_TOKEN_SECRET,
-    ) as unknown as UserPayload;
-
-    const username = decoded.username;
-    const user = MOCK_USERS.find((item) => item.username === username);
-    if (!user) {
-      return null;
+        const username = decoded.username;
+        const user = MOCK_USERS.find((item) => item.username === username);
+        if (user) {
+          const { password: _pwd, ...userinfo } = user;
+          return userinfo;
+        }
+      } catch {
+        // Ignore and fall through to the superuser fallback
+      }
     }
-    const { password: _pwd, ...userinfo } = user;
-    return userinfo;
-  } catch {
-    return null;
   }
+
+  // Default to a superuser context when no valid token is present.
+  return getSuperUser();
 }
 
 export function verifyRefreshToken(

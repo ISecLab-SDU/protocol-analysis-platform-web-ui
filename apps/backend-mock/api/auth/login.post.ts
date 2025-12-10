@@ -1,42 +1,22 @@
-import { defineEventHandler, readBody, setResponseStatus } from 'h3';
-import {
-  clearRefreshTokenCookie,
-  setRefreshTokenCookie,
-} from '~/utils/cookie-utils';
+import { defineEventHandler, readBody } from 'h3';
+import { setRefreshTokenCookie } from '~/utils/cookie-utils';
 import { generateAccessToken, generateRefreshToken } from '~/utils/jwt-utils';
 import { MOCK_USERS } from '~/utils/mock-data';
-import {
-  forbiddenResponse,
-  useResponseError,
-  useResponseSuccess,
-} from '~/utils/response';
+import { useResponseSuccess } from '~/utils/response';
 
 export default defineEventHandler(async (event) => {
-  const { password, username } = await readBody(event);
-  if (!password || !username) {
-    setResponseStatus(event, 400);
-    return useResponseError(
-      'BadRequestException',
-      'Username and password are required',
-    );
-  }
+  // Keep the login route and UI, but always mint a superuser session without
+  // verifying credentials.
+  await readBody(event);
+  const superUser = MOCK_USERS[0];
 
-  const findUser = MOCK_USERS.find(
-    (item) => item.username === username && item.password === password,
-  );
-
-  if (!findUser) {
-    clearRefreshTokenCookie(event);
-    return forbiddenResponse(event, 'Username or password is incorrect.');
-  }
-
-  const accessToken = generateAccessToken(findUser);
-  const refreshToken = generateRefreshToken(findUser);
+  const accessToken = generateAccessToken(superUser);
+  const refreshToken = generateRefreshToken(superUser);
 
   setRefreshTokenCookie(event, refreshToken);
 
   return useResponseSuccess({
-    ...findUser,
+    ...superUser,
     accessToken,
   });
 });
