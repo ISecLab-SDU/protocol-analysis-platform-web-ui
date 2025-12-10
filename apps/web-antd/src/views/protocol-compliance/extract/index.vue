@@ -96,6 +96,17 @@ const ruleCategories = [
   '协议约束',
 ];
 
+// 服务器内置的历史结果（根据 public/pdfs 下实际文件调整）
+const BUILTIN_SERVER_RESULTS: Array<{ protocol: string; version: string; path: string }> = [
+  { protocol: 'CoAP', version: '1.0', path: '/public/ruleConfig_coap.json' },
+  { protocol: 'CoAP', version: '2.0', path: '/public/ruleConfig_CoAP_v2.json' },
+  { protocol: 'DHCPv6', version: '1.0', path: '/public/ruleConfig_dhcpv6.json' },
+  { protocol: 'MQTTv3_1_1', version: '3.1.1', path: '/public/ruleConfig_mqttv3_1_1.json' },
+  { protocol: 'MQTTv5', version: '5.0', path: '/public/ruleConfig_mqttv5.json' },
+  { protocol: 'TLSv1_3', version: '1.3', path: '/public/ruleConfig_tlsv1_3.json' },
+  { protocol: 'FTP', version: '1.0', path: '/public/ruleConfig_ftp.json' },
+];
+
 // 分隔符正则
 const SPLIT_PATTERN = /[,;/]|\s+(?:or|and)\s+/gi;
 
@@ -135,7 +146,7 @@ function toArray(value: unknown): string[] {
   if (typeof value === 'string') {
     const trimmed = value.trim();
     if (!trimmed) return [];
-    const segments = trimmed.split(SPLIT_PATTERN).map(s => s.trim()).filter(Boolean);
+    const segments = trimmed.split(SPLIT_PATTERN).map((s) => s.trim()).filter(Boolean);
     return [...new Set(segments)];
   }
   return [];
@@ -143,11 +154,12 @@ function toArray(value: unknown): string[] {
 
 // 标准化规则项
 function normalizeRuleItem(raw: any, msgType?: string): RuleItem {
-  const ruleText = typeof raw?.rule === 'string' ? raw.rule.trim() : String(raw?.rule ?? '').trim();
+  const ruleText =
+    typeof raw?.rule === 'string' ? raw.rule.trim() : String(raw?.rule ?? '').trim();
   return {
     rule: ruleText,
     group: raw?.group ?? null,
-    msgType: msgType || raw?.req_type?.[0] || '',
+    msgType: msgType || raw?.msgType || raw?.req_type?.[0] || '',
     req_type: toArray(raw?.req_type),
     req_fields: toArray(raw?.req_fields),
     res_type: toArray(raw?.res_type),
@@ -166,7 +178,9 @@ const beforeUploadRFC: UploadProps['beforeUpload'] = (file) => {
     message.error('仅支持上传 HTML、PDF、TXT、JSON 格式的协议文档');
     return false;
   }
-  const originalFile = (file as UploadFile & { originFileObj?: File }).originFileObj || (file as unknown as File);
+  const originalFile =
+    (file as UploadFile & { originFileObj?: File }).originFileObj ||
+    (file as unknown as File);
   selectedFile.value = originalFile;
   rfcFileList.value = [file];
   return false;
@@ -179,7 +193,9 @@ const beforeUploadResultFile: UploadProps['beforeUpload'] = (file) => {
     message.error('请上传 JSON 格式的分析结果文件');
     return false;
   }
-  const originalFile = (file as UploadFile & { originFileObj?: File }).originFileObj || (file as unknown as File);
+  const originalFile =
+    (file as UploadFile & { originFileObj?: File }).originFileObj ||
+    (file as unknown as File);
   selectedResultFile.value = originalFile;
   resultFileList.value = [file];
   return false;
@@ -238,9 +254,63 @@ function loadHistoryFromStorage() {
   }
 }
 
+// 预加载服务器上的内置结果，填充到 historyData 和 localStorage
+async function preloadServerHistory() {
+  for (const item of BUILTIN_SERVER_RESULTS) {
+    const key = `${item.protocol}__${item.version}`;
+
+    // 已存在相同协议+版本则跳过
+    const exists = historyData.value.some(
+      (h) => `${h.protocol}__${h.version}` === key,
+    );
+    if (exists) continue;
+
+    try {
+      const res = await fetch(item.path);
+      if (!res.ok) continue;
+
+      let text = await res.text();
+      let rawData: any;
+      try {
+        rawData = JSON.parse(text);
+      } catch {
+        text = text.replace(/^\uFEFF/, '').trim();
+        rawData = JSON.parse(text);
+      }
+
+      let rules: RuleItem[] = [];
+      if (Array.isArray(rawData)) {
+        rules = rawData.map(normalizeRuleItem).filter((r) => r.rule);
+      } else if (typeof rawData === 'object' && Array.isArray(rawData.rules)) {
+        rules = rawData.rules.map(normalizeRuleItem).filter((r) => r.rule);
+      } else if (typeof rawData === 'object' && rawData !== null) {
+        Object.entries(rawData).forEach(([msgType, ruleArray]) => {
+          if (Array.isArray(ruleArray)) {
+            const groupRules = ruleArray
+              .map((rawRule: any) => normalizeRuleItem(rawRule, msgType))
+              .filter((rule: RuleItem) => rule.rule);
+            rules = [...rules, ...groupRules];
+          }
+        });
+      }
+
+      if (!rules.length) continue;
+
+      lastResultMeta.value = {
+        storeDir: item.path.substring(0, item.path.lastIndexOf('/')),
+        resultPath: item.path,
+      };
+
+      addToHistory(rules, item.protocol, item.version);
+    } catch (e) {
+      console.error('预加载服务器历史失败：', item.path, e);
+    }
+  }
+}
+
 // 单条删除历史记录
 function deleteHistoryItem(id: string) {
-  historyData.value = historyData.value.filter(item => item.id !== id);
+  historyData.value = historyData.value.filter((item) => item.id !== id);
   saveHistoryToStorage();
   message.success('历史记录删除成功');
 }
@@ -322,8 +392,18 @@ async function startAnalysis() {
     totalItems.value = rules.length;
     analysisCompleted.value = true;
     lastResultMeta.value = {
-      storeDir: response.storeDir || response.data?.storeDir || `project_store/${normalizeProtocolName(protocol)}_${normalizeVersionName(version)}`,
-      resultPath: response.resultPath || response.data?.resultPath || `project_store/${normalizeProtocolName(protocol)}_${normalizeVersionName(version)}/rules.json`,
+      storeDir:
+        response.storeDir ||
+        response.data?.storeDir ||
+        `project_store/${normalizeProtocolName(protocol)}_${normalizeVersionName(
+          version,
+        )}`,
+      resultPath:
+        response.resultPath ||
+        response.data?.resultPath ||
+        `project_store/${normalizeProtocolName(protocol)}_${normalizeVersionName(
+          version,
+        )}/rules.json`,
     };
 
     addToHistory(rules, protocol, version);
@@ -442,13 +522,17 @@ async function uploadAndSaveResult() {
     totalItems.value = rules.length;
     analysisCompleted.value = true;
     lastResultMeta.value = {
-      storeDir: `uploaded_results/${normalizeProtocolName(protocol)}_${normalizeVersionName(version)}`,
-      resultPath: `${normalizeProtocolName(protocol)}_${normalizeVersionName(version)}_uploaded.json`,
+      storeDir: `uploaded_results/${normalizeProtocolName(
+        protocol,
+      )}_${normalizeVersionName(version)}`,
+      resultPath: `${normalizeProtocolName(protocol)}_${normalizeVersionName(
+        version,
+      )}_uploaded.json`,
     };
 
     // 去重添加历史
     const isDuplicate = historyData.value.some(
-      item => item.protocol === protocol && item.version === version
+      (item) => item.protocol === protocol && item.version === version,
     );
     if (!isDuplicate) {
       addToHistory(rules, protocol, version);
@@ -458,7 +542,9 @@ async function uploadAndSaveResult() {
     resultFileList.value = [];
     selectedResultFile.value = null;
 
-    message.success(`成功导入 ${protocol} ${version} 的分析结果，共 ${rules.length} 条规则（已存入历史记录）`);
+    message.success(
+      `成功导入 ${protocol} ${version} 的分析结果，共 ${rules.length} 条规则（已存入历史记录）`,
+    );
   } catch (error: any) {
     let errorMsg = '';
     if (error.message.includes('JSON格式错误')) {
@@ -477,7 +563,7 @@ async function uploadAndSaveResult() {
   }
 }
 
-// 加载本地结果文件
+// 加载本地结果文件（包含 /pdfs 下静态结果）
 async function loadExistingResult() {
   const protocol = formData.protocol.trim();
   const version = formData.version.trim();
@@ -507,7 +593,10 @@ async function loadExistingResult() {
       `project_store/${normalizedProtocol}/${normalizedVersion}/rules.json`,
       `results/${normalizedProtocol}_${normalizedVersion}.json`,
       `static/results/${normalizedProtocol}_${normalizedVersion}.json`,
-      `${normalizedProtocol}_${normalizedVersion}_rules.json`
+      `${normalizedProtocol}_${normalizedVersion}_rules.json`,
+      // 新增：public/pdfs 下的静态结果
+      `/public/ruleConfig_${normalizedProtocol}_${normalizedVersion}.json`,
+      `/public/ruleConfig_${normalizedProtocol}.json`,
     ];
 
     let rawResponseText = '';
@@ -523,7 +612,7 @@ async function loadExistingResult() {
           rawResponseText = await response.text();
           break;
         }
-      } catch (err) {
+      } catch {
         continue;
       }
     }
@@ -536,13 +625,9 @@ async function loadExistingResult() {
     let rawData: any;
     try {
       rawData = JSON.parse(rawResponseText);
-    } catch (jsonErr) {
+    } catch {
       const cleanedText = rawResponseText.replace(/^\uFEFF/, '').trim();
-      try {
-        rawData = JSON.parse(cleanedText);
-      } catch (err) {
-        throw new Error(`JSON格式错误：${(err as Error).message}`);
-      }
+      rawData = JSON.parse(cleanedText);
     }
 
     // 处理3种格式
@@ -577,7 +662,7 @@ async function loadExistingResult() {
 
     // 去重添加历史
     const isDuplicate = historyData.value.some(
-      item => item.protocol === protocol && item.version === version
+      (item) => item.protocol === protocol && item.version === version,
     );
     if (!isDuplicate) {
       addToHistory(rules, protocol, version);
@@ -619,7 +704,7 @@ function addToHistory(rules: RuleItem[], protocol: string, version: string) {
 
   // 去重
   historyData.value = historyData.value.filter(
-    item => !(item.protocol === protocol && item.version === version)
+    (item) => !(item.protocol === protocol && item.version === version),
   );
   historyData.value.unshift(newHistory);
   historyData.value = historyData.value.slice(0, 20); // 最多保留20条
@@ -635,10 +720,10 @@ function downloadAnalysisResult() {
   const normalizedProtocol = normalizeProtocolName(formData.protocol || 'protocol');
   const normalizedVersion = normalizeVersionName(formData.version || 'v');
   const fileName = `ruleConfig_${normalizedProtocol}_${normalizedVersion}.json`;
-  
+
   // 按消息类型分组
   const groupedRules: Record<string, RuleItem[]> = {};
-  stagedResults.value.forEach(rule => {
+  stagedResults.value.forEach((rule) => {
     const msgType = rule.msgType || 'default';
     if (!groupedRules[msgType]) {
       groupedRules[msgType] = [];
@@ -646,7 +731,7 @@ function downloadAnalysisResult() {
     const { msgType: _, ...ruleWithoutMsgType } = rule;
     groupedRules[msgType].push(ruleWithoutMsgType);
   });
-  
+
   const jsonStr = JSON.stringify(groupedRules, null, 2);
   const blob = new Blob([jsonStr], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -677,7 +762,9 @@ function openFromHistory(item: HistoryItem) {
 // 计算属性：分组列表（按消息类型）
 const groupList = computed(() => {
   const groups = new Set(
-    stagedResults.value.map((r) => r.msgType).filter((group): group is string => Boolean(group)),
+    stagedResults.value
+      .map((r) => r.msgType)
+      .filter((group): group is string => Boolean(group)),
   );
   return [...groups];
 });
@@ -709,11 +796,11 @@ const renderTagList = (value: unknown, color: string) => {
         {
           color: color,
           key: `tag-${index}`,
-          style: { margin: '2px' }
+          style: { margin: '2px' },
         },
-        () => item.trim()
-      )
-    )
+        () => item.trim(),
+      ),
+    ),
   );
 };
 
@@ -723,8 +810,7 @@ const columns: TableColumnType<RuleItem>[] = [
     title: '序号',
     key: 'index',
     width: 60,
-    customRender: ({ index }) =>
-      (currentPage.value - 1) * pageSize.value + index + 1,
+    customRender: ({ index }) => (currentPage.value - 1) * pageSize.value + index + 1,
   },
   {
     title: '消息类型',
@@ -743,9 +829,13 @@ const columns: TableColumnType<RuleItem>[] = [
     width: 420,
     customRender: ({ text }) => {
       const validText = String(text ?? '').trim();
-      return h('div', { 
-        style: 'white-space: pre-wrap; word-break: break-word; line-height: 1.5;' 
-      }, validText);
+      return h(
+        'div',
+        {
+          style: 'white-space: pre-wrap; word-break: break-word; line-height: 1.5;',
+        },
+        validText,
+      );
     },
   },
   {
@@ -825,16 +915,22 @@ const historyColumns = computed<TableColumnType<HistoryItem>[]>(() => [
           placement: 'top',
         },
         {
-          default: () => h(Button, { type: 'text', danger: true, size: 'small' }, '删除'),
-        }
+          default: () =>
+            h(
+              Button,
+              { type: 'text', danger: true, size: 'small' },
+              '删除',
+            ),
+        },
       );
     },
   },
 ]);
 
-// 挂载时加载历史记录
-onMounted(() => {
+// 挂载时：先加载本地缓存，再预加载服务器内置结果
+onMounted(async () => {
   loadHistoryFromStorage();
+  await preloadServerHistory();
 });
 </script>
 
@@ -852,8 +948,16 @@ onMounted(() => {
                   <span>协议分析 / 结果导入</span>
                 </Space>
               </template>
-              <Spin :spinning="isAnalyzing || isLoadingResult || isUploadingResult" 
-                    :tip="isAnalyzing ? '正在执行协议分析...' : isLoadingResult ? '正在读取本地结果...' : '正在导入结果文件...'">
+              <Spin
+                :spinning="isAnalyzing || isLoadingResult || isUploadingResult"
+                :tip="
+                  isAnalyzing
+                    ? '正在执行协议分析...'
+                    : isLoadingResult
+                    ? '正在读取本地结果...'
+                    : '正在导入结果文件...'
+                "
+              >
                 <Form class="extract-form" layout="vertical">
                   <!-- 基础信息 -->
                   <FormItem label="协议类型">
@@ -868,7 +972,7 @@ onMounted(() => {
                         { value: 'MQTTv3_1_1' },
                         { value: 'MQTTv5' },
                         { value: 'TLSv1_3' },
-                        { value: 'FTP' }
+                        { value: 'FTP' },
                       ]"
                     />
                   </FormItem>
@@ -880,9 +984,16 @@ onMounted(() => {
                   </FormItem>
 
                   <!-- 功能一：上传协议文档分析 -->
-                  <div style="margin: 16px 0; padding: 16px; border: 1px dashed #e8e8e8; border-radius: 4px;">
+                  <div
+                    style="
+                      margin: 16px 0;
+                      padding: 16px;
+                      border: 1px dashed #e8e8e8;
+                      border-radius: 4px;
+                    "
+                  >
                     <TypographyText strong>功能一：上传协议文档，自动分析</TypographyText>
-                    <FormItem label="DeepSeek API 密钥" style="margin-top: 8px;">
+                    <FormItem label="DeepSeek API 密钥" style="margin-top: 8px">
                       <Input.Password
                         v-model:value="formData.apiKey"
                         autocomplete="off"
@@ -895,7 +1006,7 @@ onMounted(() => {
                         :before-upload="beforeUploadRFC"
                         :on-remove="removeRFC"
                         accept=".html,.pdf,.txt,.json"
-                        style="width: 100%;"
+                        style="width: 100%"
                       >
                         <Button block type="dashed">
                           <IconifyIcon icon="ant-design:file-add-outlined" class="mr-1" />
@@ -910,7 +1021,7 @@ onMounted(() => {
                       type="primary"
                       :loading="isAnalyzing"
                       @click="startAnalysis"
-                      style="margin-top: 8px;"
+                      style="margin-top: 8px"
                     >
                       <IconifyIcon icon="ant-design:play-circle-outlined" class="mr-1" />
                       开始分析（生成结果并存储）
@@ -918,11 +1029,21 @@ onMounted(() => {
                   </div>
 
                   <!-- 功能二：上传结果文件导入 -->
-                  <div style="margin: 16px 0; padding: 16px; border: 1px dashed #e8e8e8; border-radius: 4px;">
-                    <TypographyText strong>功能二：上传已有结果文件，直接导入</TypographyText>
-                    <TypographyParagraph type="secondary" style="margin: 8px 0;">
+                  <div
+                    style="
+                      margin: 16px 0;
+                      padding: 16px;
+                      border: 1px dashed #e8e8e8;
+                      border-radius: 4px;
+                    "
+                  >
+                    <TypographyText strong
+                      >功能二：上传已有结果文件，直接导入</TypographyText
+                    >
+                    <TypographyParagraph type="secondary" style="margin: 8px 0">
                       已提前生成分析结果JSON文件？直接上传导入，无需重复分析（无需API密钥）
-                      <br/>支持3种JSON格式：1. 直接数组 [{...}] 2. { "rules": [...] } 3. 按消息类型分组 { "CONNECT": [...], ... }
+                      <br />支持3种JSON格式：1. 直接数组 [{...}] 2. { "rules": [...] } 3. 按消息类型分组 {
+                      "CONNECT": [...], ... }
                     </TypographyParagraph>
                     <FormItem label="上传分析结果文件">
                       <Upload
@@ -930,14 +1051,17 @@ onMounted(() => {
                         :before-upload="beforeUploadResultFile"
                         :on-remove="removeResultFile"
                         accept=".json"
-                        style="width: 100%;"
+                        style="width: 100%"
                       >
                         <Button block type="dashed">
                           <IconifyIcon icon="ant-design:upload-outlined" class="mr-1" />
                           选择JSON格式的结果文件
                         </Button>
                       </Upload>
-                      <TypographyText type="secondary" style="font-size: 12px; margin-top: 8px; display: block;">
+                      <TypographyText
+                        type="secondary"
+                        style="font-size: 12px; margin-top: 8px; display: block"
+                      >
                         已选文件：{{ resultFileList[0]?.name || '无' }}
                       </TypographyText>
                     </FormItem>
@@ -945,7 +1069,7 @@ onMounted(() => {
                       type="default"
                       :loading="isUploadingResult"
                       @click="uploadAndSaveResult"
-                      style="margin-top: 8px; background: #1890ff; color: white;"
+                      style="margin-top: 8px; background: #1890ff; color: white"
                     >
                       <IconifyIcon icon="ant-design:save-outlined" class="mr-1" />
                       导入结果并存储到历史记录
@@ -953,16 +1077,25 @@ onMounted(() => {
                   </div>
 
                   <!-- 功能三：加载本地结果 -->
-                  <div style="margin: 16px 0; padding: 16px; border: 1px dashed #e8e8e8; border-radius: 4px;">
-                    <TypographyText strong>功能三：加载本地已存结果，快速查看</TypographyText>
-                    <TypographyParagraph type="secondary" style="margin: 8px 0;">
+                  <div
+                    style="
+                      margin: 16px 0;
+                      padding: 16px;
+                      border: 1px dashed #e8e8e8;
+                      border-radius: 4px;
+                    "
+                  >
+                    <TypographyText strong
+                      >功能三：加载本地已存结果，快速查看</TypographyText
+                    >
+                    <TypographyParagraph type="secondary" style="margin: 8px 0">
                       项目中已存在结果文件？直接输入协议名和版本，快速加载（无需上传文件）
                     </TypographyParagraph>
                     <Button
                       type="default"
                       :loading="isLoadingResult"
                       @click="loadExistingResult"
-                      style="margin-top: 8px;"
+                      style="margin-top: 8px"
                     >
                       <IconifyIcon icon="ant-design:folder-open-outlined" class="mr-1" />
                       加载本地结果（自动查找文件）
@@ -971,7 +1104,7 @@ onMounted(() => {
 
                   <TypographyParagraph class="form-tip" type="secondary">
                     提示：所有生成/导入的结果都会自动存入历史记录，可在「历史记录」标签页查看。
-                    <br/>如果操作失败，请打开浏览器控制台（F12）查看具体错误信息。
+                    <br />如果操作失败，请打开浏览器控制台（F12）查看具体错误信息。
                   </TypographyParagraph>
                 </Form>
               </Spin>
@@ -1017,12 +1150,11 @@ onMounted(() => {
                 type="secondary"
               >
                 结果来源：{{ lastResultMeta.resultPath || '未知' }}
-                <span v-if="lastResultMeta.storeDir">（存储目录：{{ lastResultMeta.storeDir }}）</span>
+                <span v-if="lastResultMeta.storeDir"
+                  >（存储目录：{{ lastResultMeta.storeDir }}）</span
+                >
               </TypographyParagraph>
-              <div
-                v-if="analysisCompleted && filteredResults.length"
-                class="table-wrapper"
-              >
+              <div v-if="analysisCompleted && filteredResults.length" class="table-wrapper">
                 <Table
                   :columns="columns"
                   :data-source="currentPageData"
@@ -1040,15 +1172,8 @@ onMounted(() => {
                   @change="handleTableChange"
                 />
               </div>
-              <Empty
-                v-else-if="analysisCompleted"
-                description="未找到规则数据"
-              />
-              <TypographyParagraph
-                v-else
-                class="result-placeholder"
-                type="secondary"
-              >
+              <Empty v-else-if="analysisCompleted" description="未找到规则数据" />
+              <TypographyParagraph v-else class="result-placeholder" type="secondary">
                 请选择功能生成/导入规则，或加载本地已有结果。
               </TypographyParagraph>
             </Card>
@@ -1059,7 +1184,9 @@ onMounted(() => {
         <Tabs.TabPane key="history" tab="历史记录">
           <Card class="history-card">
             <template #title>
-              <Space style="width: 100%; justify-content: space-between; align-items: center;">
+              <Space
+                style="width: 100%; justify-content: space-between; align-items: center"
+              >
                 <Space>
                   <IconifyIcon icon="ant-design:calendar-outlined" class="text-lg" />
                   <span>历史记录（自动存储所有结果）</span>
@@ -1067,20 +1194,20 @@ onMounted(() => {
                 <!-- 清空全部按钮 -->
                 <Popconfirm
                   title="确定要清空全部历史记录吗？此操作不可恢复！"
-                  okText="确定"
-                  cancelText="取消"
-                  onConfirm="clearAllHistory"
+                  ok-text="确定"
+                  cancel-text="取消"
+                  ok-type="danger"
+                  @confirm="clearAllHistory"
                   placement="right"
-                  okType="danger"
                 >
-                  <Button type="danger" size="small">
+                  <Button type="primary" danger size="small">
                     <IconifyIcon icon="ant-design:delete-outlined" class="mr-1" />
                     清空全部
                   </Button>
                 </Popconfirm>
               </Space>
             </template>
-            
+
             <Divider />
 
             <div v-if="historyData.length" class="history-header">
@@ -1097,11 +1224,11 @@ onMounted(() => {
                 </Tag>
               </Space>
             </div>
-            
+
             <TypographyParagraph class="history-tip" type="secondary">
               包含：上传文档分析、导入结果文件、加载本地结果的所有记录，点击标签可快速查看。
             </TypographyParagraph>
-            
+
             <div class="history-table-wrapper" v-if="historyData.length">
               <Table
                 :columns="historyColumns"
@@ -1112,14 +1239,18 @@ onMounted(() => {
                   showQuickJumper: true,
                   showTotal: (total) => `共 ${total} 条记录`,
                 }"
-                :row-key="item => item.id"
+                :row-key="(item) => item.id"
                 bordered
                 :scroll="{ x: 'max-content' }"
-                @row-click="openFromHistory"
+                :custom-row="
+                  (record) => ({
+                    onClick: () => openFromHistory(record as HistoryItem),
+                  })
+                "
               />
             </div>
-            
-            <Empty v-else description="暂无历史记录" style="margin: 32px 0;" />
+
+            <Empty v-else description="暂无历史记录" style="margin: 32px 0" />
           </Card>
         </Tabs.TabPane>
       </Tabs>
