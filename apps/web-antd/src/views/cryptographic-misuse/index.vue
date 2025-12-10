@@ -30,6 +30,8 @@ import {
   analyzeFirmware,
   isValidFirmwareFile,
 } from '../../api/firmwareAnalysis';
+// 导入requestClient
+import { requestClient } from '../../api/request';
 
 // 定义分析结果类型
 interface AnalysisResult {
@@ -117,14 +119,66 @@ const analysisProgress = ref<number>(0);
 const analysisComplete = ref<boolean>(false);
 
 // 导出PDF文件
-const exportPDF = () => {
-  // 创建一个临时链接来下载PDF文件
-  const link = document.createElement('a');
-  link.href = '/pdfs/example.so-dfg.pdf'; // 使用public目录下的PDF文件
-  link.download = 'example.so-dfg.pdf'; // 设置下载文件名
-  document.body.append(link);
-  link.click();
-  link.remove();
+const exportPDF = async () => {
+  try {
+    // 检查是否有当前文件或选中的历史记录
+    let fileName = '';
+
+    if (file.value) {
+      // 如果有当前上传的文件
+      fileName = file.value.name;
+    } else if (selectedHistoryId.value) {
+      // 如果有选中的历史记录
+      const record = historyRecords.value.find(
+        (r) => r.id === selectedHistoryId.value,
+      );
+      if (record) {
+        fileName = record.fileName;
+      }
+    }
+
+    if (!fileName) {
+      message.error('无法确定要导出的文件名');
+      return;
+    }
+
+    // 构建API请求URL
+    const apiUrl = `/api/firmware/export?filename=${encodeURIComponent(fileName)}`;
+
+    // 设置加载状态
+    loading.value = true;
+
+    // 发送请求到后端API
+    const response = await fetch(apiUrl);
+
+    if (!response.ok) {
+      throw new Error(`API错误: ${response.status}`);
+    }
+
+    // 获取PDF文件Blob
+    const blob = await response.blob();
+
+    // 构建下载文件名
+    const pdfFileName = `${fileName}-dfg.pdf`;
+
+    // 创建下载链接
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = pdfFileName;
+    document.body.append(link);
+    link.click();
+
+    // 清理
+    link.remove();
+    URL.revokeObjectURL(link.href);
+
+    message.success('PDF文件下载成功');
+  } catch (error) {
+    console.error('导出PDF失败:', error);
+    message.error('导出PDF文件失败，请稍后重试');
+  } finally {
+    loading.value = false;
+  }
 };
 
 // 树状图数据
@@ -136,38 +190,29 @@ const historyRecords = ref<HistoryRecord[]>([]);
 // 当前选中的历史记录ID
 const selectedHistoryId = ref<null | string>(null);
 
-// 从localStorage加载历史记录
-const loadHistoryRecords = () => {
+// 从后端API加载历史记录
+const loadHistoryRecords = async () => {
   try {
-    const savedHistory = localStorage.getItem('firmwareAnalysisHistory');
-    if (savedHistory) {
-      historyRecords.value = JSON.parse(savedHistory, (key, value) => {
-        // 恢复Date对象
-        if (key === 'analysisTime') {
-          return new Date(value);
-        }
-        return value;
-      });
+    const response = await requestClient.get('/firmware/history');
+    if (response) {
+      historyRecords.value = response.map((record: any) => ({
+        ...record,
+        analysisTime: new Date(record.analysisTime),
+      }));
     }
   } catch (error) {
     console.error('加载历史记录失败:', error);
+    message.error('加载历史记录失败');
   }
 };
 
-// 保存历史记录到localStorage
-const saveHistoryRecords = () => {
-  try {
-    localStorage.setItem(
-      'firmwareAnalysisHistory',
-      JSON.stringify(historyRecords.value),
-    );
-  } catch (error) {
-    console.error('保存历史记录失败:', error);
-  }
+// 保存历史记录到后端API
+const saveHistoryRecords = async () => {
+  // 这个函数不再需要直接调用，因为saveToHistory和deleteHistoryRecord会直接调用API
 };
 
-// 保存当前分析结果到历史记录
-const saveToHistory = () => {
+// 保存当前分析结果到后端API
+const saveToHistory = async () => {
   if (!file.value || analysisResults.value.length === 0) return;
 
   const newRecord: HistoryRecord = {
@@ -179,41 +224,53 @@ const saveToHistory = () => {
     treeData: JSON.parse(JSON.stringify(treeData.value)),
   };
 
-  // 添加到历史记录列表开头
-  historyRecords.value.unshift(newRecord);
-
-  // 限制历史记录数量，最多保存10条
-  if (historyRecords.value.length > 10) {
-    historyRecords.value = historyRecords.value.slice(0, 10);
+  try {
+    await requestClient.post('/firmware/history', newRecord);
+    // 重新加载历史记录以确保数据一致
+    await loadHistoryRecords();
+  } catch (error) {
+    console.error('保存历史记录失败:', error);
+    message.error('保存历史记录失败');
   }
-
-  saveHistoryRecords();
 };
 
 // 从历史记录加载分析结果
-const loadFromHistory = (recordId: string) => {
-  const record = historyRecords.value.find((r) => r.id === recordId);
-  if (record) {
-    selectedHistoryId.value = recordId;
-    analysisResults.value = JSON.parse(JSON.stringify(record.results));
-    treeData.value = JSON.parse(JSON.stringify(record.treeData));
-    analysisComplete.value = true;
-    navItems[3].disabled = false; // 启用分析结果导航
-    handleNavChange('analysis-results');
+const loadFromHistory = async (recordId: string) => {
+  try {
+    // 先确保历史记录是最新的
+    await loadHistoryRecords();
+    const record = historyRecords.value.find((r) => r.id === recordId);
+    if (record) {
+      selectedHistoryId.value = recordId;
+      analysisResults.value = JSON.parse(JSON.stringify(record.results));
+      treeData.value = JSON.parse(JSON.stringify(record.treeData));
+      analysisComplete.value = true;
+      navItems[3].disabled = false; // 启用分析结果导航
+      handleNavChange('analysis-results');
 
-    // 显式渲染函数调用关系图
-    if (treeData.value && treeData.value.length > 0) {
-      const { nodes, links } = convertTreeToGraphData(treeData.value);
-      renderGraphChart(nodes, links);
+      // 显式渲染函数调用关系图
+      if (treeData.value && treeData.value.length > 0) {
+        const { nodes, links } = convertTreeToGraphData(treeData.value);
+        renderGraphChart(nodes, links);
+      }
     }
+  } catch (error) {
+    console.error('加载历史记录详情失败:', error);
+    message.error('加载历史记录详情失败');
   }
 };
 
 // 删除历史记录
-const deleteHistoryRecord = (recordId: string) => {
-  historyRecords.value = historyRecords.value.filter((r) => r.id !== recordId);
-  saveHistoryRecords();
-  message.success('历史记录已删除');
+const deleteHistoryRecord = async (recordId: string) => {
+  try {
+    await requestClient.delete(`/firmware/history/${recordId}`);
+    // 重新加载历史记录以确保数据一致
+    await loadHistoryRecords();
+    message.success('历史记录已删除');
+  } catch (error) {
+    console.error('删除历史记录失败:', error);
+    message.error('删除历史记录失败');
+  }
 };
 
 // ECharts关系图引用
@@ -221,8 +278,8 @@ const graphRef = ref<EchartsUIType>();
 const { renderEcharts } = useEcharts(graphRef);
 
 // 组件挂载时执行初始化操作
-onMounted(() => {
-  loadHistoryRecords();
+onMounted(async () => {
+  await loadHistoryRecords();
   // 移除对uploadArea的检查，因为它只在特定导航下才会渲染
 });
 
@@ -304,107 +361,100 @@ const handleDrop = (e: DragEvent) => {
 
 // 生成树状图数据
 const generateTreeData = (): TreeDataNode[] => {
-  // 创建根节点
+  // 确保分析结果存在且是数组
+  if (
+    !Array.isArray(analysisResults.value) ||
+    analysisResults.value.length === 0
+  ) {
+    return [];
+  }
+
+  // 创建根节点，使用上传的文件名作为标题
   const rootNode: TreeDataNode = {
-    title: 'example.so',
+    title: file.value?.name || '固件文件',
     key: 'root',
     isLeaf: false,
-    children: [
-      // 第一个二层节点
-      {
-        title:
-          's_ecb DES_ecb_encrypt #0 (const_DES_cblock *input, DES_cblock *output, DES_key_schedule *ks, int enc)',
-        key: 'node1',
-        isLeaf: false,
-        children: [
-          {
-            title: '0x00010fec CALL DES_ecb_encrypt',
-            key: 'node1-1',
-            isLeaf: true,
-          },
-          {
-            title: '0x00010b48 CALL DES_ecb_encrypt',
-            key: 'node1-2',
-            isLeaf: true,
-          },
-          {
-            title: '0x000117ac CALL DES_ecb_encrypt',
-            key: 'node1-3',
-            isLeaf: true,
-          },
-          {
-            title: '0x00011638 CALL DES_ecb_encrypt',
-            key: 'node1-4',
-            isLeaf: true,
-          },
-        ],
-      },
-      // 第二个二层节点
-      {
-        title:
-          's_func DES_ecb_encrypt #0 (const_DES_cblock *input, DES_cblock *output, DES_key_schedule *ks, int enc)',
-        key: 'node2',
-        isLeaf: false,
-        children: [
-          {
-            title: '0x00010fec CALL DES_ecb_encrypt',
-            key: 'node2-1',
-            isLeaf: true,
-          },
-          {
-            title: '0x00010b48 CALL DES_ecb_encrypt',
-            key: 'node2-2',
-            isLeaf: true,
-          },
-        ],
-      },
-      // 第三个二层节点
-      {
-        title:
-          'const_key DES_key_sched #1 (const_DES_cblock *key, DES_key_schedule *schedule)',
-        key: 'node3',
-        isLeaf: false,
-        children: [
-          {
-            title: '0x000115f8 CALL DES_key_sched',
-            key: 'node3-1',
-            isLeaf: false,
-            children: [
-              {
-                title: '0x000115f8 (unique, 0x100003a7, 4) CAST',
-                key: 'node3-1-1',
-                isLeaf: true,
-              },
-            ],
-          },
-          {
-            title: '0x00010aa0 (register, 0x20, 4) CALL DES_key_sched',
-            key: 'node3-2',
-            isLeaf: true,
-          },
-        ],
-      },
-      // 第四个二层节点
-      {
-        title:
-          's_func DES_key_sched #0 (const_DES_cblock *key, DES_key_schedule *schedule)',
-        key: 'node4',
-        isLeaf: false,
-        children: [
-          {
-            title: '0x000115f8 CALL DES_key_sched',
-            key: 'node4-1',
-            isLeaf: true,
-          },
-          {
-            title: '0x000119d8 CALL DES_key_sched',
-            key: 'node4-2',
-            isLeaf: true,
-          },
-        ],
-      },
-    ],
+    children: [],
   };
+
+  // 按严重性分组
+  const severityGroups: Record<string, any[]> = {
+    high: [],
+    medium: [],
+    low: [],
+  };
+
+  // 为每个分析结果创建节点
+  analysisResults.value.forEach((item, index) => {
+    if (!item) return;
+
+    // 创建函数节点
+    const functionNode: TreeDataNode = {
+      title: `${item.issueType || '未分类问题'} - ${item.functionName || `函数${index + 1}`}`,
+      key: `function-${index}`,
+      isLeaf: false,
+      children: [],
+    };
+
+    // 添加描述节点
+    if (item.description) {
+      functionNode.children.push({
+        title: `描述: ${item.description}`,
+        key: `desc-${index}`,
+        isLeaf: true,
+      });
+    }
+
+    // 添加参数节点
+    if (item.parameters) {
+      functionNode.children.push({
+        title: `参数: ${item.parameters}`,
+        key: `params-${index}`,
+        isLeaf: true,
+      });
+    }
+
+    // 添加代码片段节点
+    if (item.codeSnippet) {
+      // 截断长的代码片段以避免显示问题
+      const shortSnippet =
+        item.codeSnippet.length > 50
+          ? `${item.codeSnippet.slice(0, 50)}...`
+          : item.codeSnippet;
+      functionNode.children.push({
+        title: `代码: ${shortSnippet}`,
+        key: `code-${index}`,
+        isLeaf: true,
+      });
+    }
+
+    // 按严重性将节点添加到相应组中
+    const severity = item.severity || 'low';
+    if (severityGroups[severity]) {
+      severityGroups[severity].push(functionNode);
+    } else {
+      severityGroups.low.push(functionNode); // 默认低危
+    }
+  });
+
+  // 创建严重性分组节点
+  const severityMap = {
+    high: '高危问题',
+    medium: '中危问题',
+    low: '低危问题',
+  };
+
+  Object.keys(severityGroups).forEach((severity) => {
+    if (severityGroups[severity].length > 0) {
+      const groupNode: TreeDataNode = {
+        title: severityMap[severity as keyof typeof severityMap],
+        key: `severity-${severity}`,
+        isLeaf: false,
+        children: severityGroups[severity],
+      };
+      rootNode.children?.push(groupNode);
+    }
+  });
 
   return [rootNode];
 };
@@ -551,26 +601,42 @@ const handleAnalyze = async () => {
     const result = await analyzeFirmware({
       fileName: file.value.name,
       fileSize: file.value.size,
+      file: file.value,
     });
 
     clearInterval(progressInterval);
     analysisProgress.value = 100;
     analysisComplete.value = true;
 
-    if (result.success && result.data?.functions) {
-      analysisResults.value = result.data.functions;
+    // 确保正确处理后端返回的数据结构
+    // 后端返回的格式是: {code: 0, data: ..., error: null, message: ...}
+    // 检查响应对象格式，处理可能的嵌套情况
+    const responseData = result?.data || {};
+
+    if (responseData.code === 0 && responseData.data?.functions) {
+      // 直接使用后端返回的分析结果
+      analysisResults.value = responseData.data.functions;
+      console.log('分析结果:', analysisResults.value);
+
       // 生成树状图数据
       treeData.value = generateTreeData();
-      message.success('固件分析完成');
+      message.success(responseData.message || '固件分析完成');
+
       // 保存到历史记录
       saveToHistory();
+
       // 启用分析结果导航
       navItems[3].disabled = false;
     } else {
-      message.error(result.message || '分析失败');
+      const errorMsg =
+        responseData.message || result?.message || '分析失败，未返回有效数据';
+      message.error(errorMsg);
+      console.error('分析失败:', result);
     }
   } catch (error) {
-    message.error('分析过程中发生错误');
+    const errorMsg =
+      error instanceof Error ? error.message : '分析过程中发生错误';
+    message.error(`分析失败: ${errorMsg}`);
     console.error('Firmware analysis error:', error);
   } finally {
     loading.value = false;
@@ -681,9 +747,7 @@ watch(
             :level="3"
             class="m-0 font-light tracking-wide text-gray-800"
           >
-            <span class="font-bold text-gray-900"
-              >密码算法安全分析</span
-            >
+            <span class="font-bold text-gray-900">密码算法安全分析</span>
           </Typography.Title>
         </div>
         <!-- 已删除基于数据流的密码规范检测技术 -->
@@ -1476,8 +1540,7 @@ watch(
                       </Typography.Text>
                       <pre
                         class="overflow-x-auto rounded bg-gray-50 p-3 text-sm text-gray-700"
-                        >{{ item.codeSnippet }}</pre
-                      >
+                        >{{ item.codeSnippet }}</pre>
                     </div>
                   </Card>
                 </List.Item>
@@ -1516,8 +1579,7 @@ watch(
                       <span
                         v-if="item.isLeaf"
                         class="node-icon mr-2 text-indigo-500"
-                        >📄</span
-                      >
+                        >📄</span>
                       <span class="node-title flex-1 truncate text-gray-800">{{
                         item.title
                       }}</span>
@@ -1557,9 +1619,7 @@ watch(
               class="text-2xl text-indigo-600"
             />
             <Typography.Title :level="4" class="m-0 font-light text-gray-800">
-              <span class="font-bold text-gray-900"
-                >密码算法安全分析</span
-              >
+              <span class="font-bold text-gray-900">密码算法安全分析</span>
             </Typography.Title>
           </div>
           <div class="flex space-x-6">

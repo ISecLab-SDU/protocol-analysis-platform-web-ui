@@ -1,60 +1,42 @@
 import { message } from 'ant-design-vue';
 
+import { baseRequestClient } from './request';
+
 // 分析固件的API函数 - 适配前端传入的参数结构
-export const analyzeFirmware = async (params: {
+export async function analyzeFirmware(params: {
+  file: File;
   fileName: string;
   fileSize: number;
-}): Promise<any> => {
-  // 模拟API调用
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      // 返回模拟的分析结果，使用functions字段以匹配前端期望
-      resolve({
-        success: true,
-        data: {
-          functions: [
-            {
-              functionName: 's_ecb DES_ecb_encrypt',
-              issueType: 'ECB模式使用',
-              severity: 'high', // 使用英文以匹配getSeverityColor函数
-              parameters:
-                'const_DES_cblock *input, DES_cblock *output, DES_key_schedule *ks, int enc',
-              description:
-                '使用了不安全的ECB加密模式，该模式在加密相同明文时会产生相同密文',
-              codeSnippet: 'DES_ecb_encrypt(input, output, ks, enc);',
-            },
-            {
-              functionName: 's_func DES_ecb_encrypt',
-              issueType: 'ECB模式使用',
-              severity: 'high',
-              parameters:
-                'const_DES_cblock *input, DES_cblock *output, DES_key_schedule *ks, int enc',
-              description:
-                '使用了不安全的ECB加密模式，该模式在加密相同明文时会产生相同密文',
-              codeSnippet: 'DES_ecb_encrypt(input, output, ks, enc);',
-            },
-            {
-              functionName: 'const_key DES_key_sched',
-              issueType: '弱密钥使用',
-              severity: 'medium',
-              parameters: 'const_DES_cblock *key, DES_key_schedule *schedule',
-              description: '使用了可能较弱的DES密钥长度（56位）和固定密钥值',
-              codeSnippet: 'DES_key_sched(key, schedule);',
-            },
-            {
-              functionName: 's_func DES_key_sched',
-              issueType: '弱密钥使用',
-              severity: 'medium',
-              parameters: 'const_DES_cblock *key, DES_key_schedule *schedule',
-              description: '使用了可能较弱的DES密钥长度（56位）',
-              codeSnippet: 'DES_key_sched(key, schedule);',
-            },
-          ],
+}): Promise<any> {
+  const { fileName, fileSize, file } = params;
+
+  // 调用后端API上传文件并进行分析
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('fileName', fileName);
+    formData.append('fileSize', fileSize.toString());
+
+    // 使用baseRequestClient以获取完整的响应对象，而不是只获取data部分
+    // 增加timeout设置，适应固件分析的长时间处理
+    const response = await baseRequestClient.post(
+      '/firmware/analyze',
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
         },
-      });
-    }, 2000);
-  });
-};
+        timeout: 300_000, // 5分钟超时设置，足够处理大型固件
+      },
+    );
+
+    return response;
+  } catch (error) {
+    message.error('文件上传或分析失败');
+    console.error('固件分析错误:', error);
+    throw error; // 抛出错误让调用者处理
+  }
+}
 
 // 验证固件文件格式的函数
 export const isValidFirmwareFile = (file: File): boolean => {
