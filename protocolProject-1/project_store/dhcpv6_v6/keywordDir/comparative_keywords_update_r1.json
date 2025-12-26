@@ -1,0 +1,1041 @@
+{
+  "5. Client/Server Exchanges": {},
+  "4. Terminology": {},
+  "2. Requirements": {},
+  "5. Client/Server Exchanges -> 5.2. Client/Server Exchanges Involving Four Messages": {},
+  "5. Client/Server Exchanges -> 5.3. Server/Client Exchanges": {},
+  "7. DHCP Constants": {},
+  "1. Introduction -> 1.1. Relationship to Previous DHCPv6 Standards": {},
+  "6. Operational Models": {},
+  "6. Operational Models -> 6.4. DHCP for Customer Edge Routers": {},
+  "3. Background": {
+    "is dependent on": [
+      "build upon"
+    ],
+    "is consistent with": [
+      "compatibility with"
+    ]
+  },
+  "7. DHCP Constants -> 7.2. UDP Ports": {},
+  "1. Introduction": {},
+  "6. Operational Models -> 6.5. DHCP for Temporary Addresses": {},
+  "7. DHCP Constants -> 7.4. DHCP Option Codes": {},
+  "7. DHCP Constants -> 7.5. Status Codes": {},
+  "6. Operational Models -> 6.2. DHCP for Non-temporary Address Assignment": {},
+  "4. Terminology -> 4.1. IPv6 Terminology": {},
+  "1. Introduction -> 1.2. Relationship to DHCPv4": {
+    "is different from": [
+      "sufficiently different"
+    ],
+    "is not equal to": [
+      "sufficiently different"
+    ],
+    "is out of bounds": [
+      "out of scope"
+    ]
+  },
+  "10. Representation and Use of Domain Names": {},
+  "9. Relay Agent/Server Message Formats": {},
+  "9. Relay Agent/Server Message Formats -> 9.1. Relay-forward Message": {},
+  "7. DHCP Constants -> 7.1. Multicast Addresses": {
+    "is equal to": [
+      "is"
+    ],
+    "is identical to": [
+      "are members of"
+    ],
+    "is not equal to": [
+      "does not know"
+    ]
+  },
+  "7. DHCP Constants -> 7.3. DHCP Message Types": {},
+  "9. Relay Agent/Server Message Formats -> 9.2. Relay-reply Message": {
+    "is equal to": [
+      "copied from"
+    ],
+    "is identical to": [
+      "copied from"
+    ]
+  },
+  "6. Operational Models -> 6.1. Stateless DHCP": {
+    "is equal to": [
+      "is"
+    ],
+    "is identical to": [
+      "is"
+    ],
+    "is": [
+      "is"
+    ],
+    "requires": [
+      "requires"
+    ],
+    "are": [
+      "are"
+    ],
+    "is not equal to": [
+      "is not"
+    ],
+    "is not": [
+      "is not"
+    ],
+    "is different from": [
+      "is not"
+    ],
+    "does not match": [
+      "is not"
+    ]
+  },
+  "11. DHCP Unique Identifier (DUID) -> 11.5. DUID Based on Universally Unique Identifier (DUID-UUID)": {},
+  "7. DHCP Constants -> 7.6. Transmission and Retransmission Parameters": {},
+  "8. Client/Server Message Formats": {
+    "is identical to": [
+      "share an identical"
+    ],
+    "is between X and Y": [
+      "between X and Y"
+    ]
+  },
+  "7. DHCP Constants -> 7.7. Representation of Time Values and \"Infinity\" as a Time Value": {
+    "is equal to": [
+      "amounts to"
+    ],
+    "is identical to": [
+      "amounts to"
+    ]
+  },
+  "12. Identity Association -> 12.1. Identity Associations for Address Assignment": {},
+  "12. Identity Association": {
+    "is consistent with": [
+      "consistent"
+    ]
+  },
+  "11. DHCP Unique Identifier (DUID) -> 11.1. DUID Contents": {
+    "is between X and Y": [
+      "at least 1 octet and at most 128 octets"
+    ],
+    "is consistent with": [
+      "is shown below"
+    ],
+    "follows": [
+      "followed by"
+    ]
+  },
+  "6. Operational Models -> 6.6. Multiple Addresses and Prefixes": {
+    "is equal to": [
+      "at most one"
+    ],
+    "is identical to": [
+      "same"
+    ],
+    "is different from": [
+      "multiple"
+    ],
+    "is not equal to": [
+      "multiple"
+    ],
+    "is dependent on": [
+      "up to"
+    ],
+    "is correlated with": [
+      "recommended that"
+    ]
+  },
+  "13. Assignment to an IA -> 13.3. Assignment of Prefixes for IA_PD": {},
+  "11. DHCP Unique Identifier (DUID) -> 11.4. DUID Based on Link-Layer Address (DUID-LL)": {},
+  "12. Identity Association -> 12.2. Identity Associations for Prefix Delegation": {
+    "is different from": [
+      "different from"
+    ]
+  },
+  "6. Operational Models -> 6.3. DHCP for Prefix Delegation": {},
+  "11. DHCP Unique Identifier (DUID) -> 11.3. DUID Assigned by Vendor Based on Enterprise Number (DUID-EN)": {},
+  "14. Transmission of Messages by a Client": {},
+  "16. Message Validation -> 16.2. Solicit Message": {},
+  "16. Message Validation -> 16.1. Use of Transaction IDs": {},
+  "11. DHCP Unique Identifier (DUID)": {
+    "is equal to": [
+      "compare DUIDs for equality"
+    ],
+    "is identical to": [
+      "compare DUIDs for equality"
+    ],
+    "is not equal to": [
+      "compare DUIDs for equality"
+    ]
+  },
+  "16. Message Validation -> 16.7. Rebind Message": {},
+  "16. Message Validation -> 16.14. Relay-reply Message": {},
+  "16. Message Validation -> 16.5. Confirm Message": {},
+  "16. Message Validation -> 16.13. Relay-forward Message": {},
+  "16. Message Validation -> 16.4. Request Message": {
+    "matches": [
+      "do not match"
+    ],
+    "does not match": [
+      "do not match"
+    ]
+  },
+  "5. Client/Server Exchanges -> 5.1. Client/Server Exchanges Involving Two Messages": {
+    "is equal to": [
+      "unable to extend"
+    ],
+    "is different from": [
+      "unable to extend"
+    ],
+    "is more likely than": [
+      "likely that there is only one server"
+    ],
+    "has a higher probability than": [
+      "likely that there is only one server"
+    ],
+    "is consistent with": [
+      "willing to commit"
+    ],
+    "does not match": [
+      "unable to extend"
+    ]
+  },
+  "16. Message Validation -> 16.3. Advertise Message": {
+    "matches": [
+      "does not match"
+    ],
+    "does not match": [
+      "does not match"
+    ]
+  },
+  "11. DHCP Unique Identifier (DUID) -> 11.2. DUID Based on Link-Layer Address Plus Time (DUID-LLT)": {
+    "is identical to": [
+      "same"
+    ],
+    "is different from": [
+      "different"
+    ],
+    "is not equal to": [
+      "unlikely"
+    ],
+    "is more likely than": [
+      "unlikely"
+    ]
+  },
+  "13. Assignment to an IA -> 13.2. Assignment of Temporary Addresses": {
+    "is equal to": [
+      "no different for"
+    ],
+    "is identical to": [
+      "no different for"
+    ],
+    "is not equal to": [
+      "is no different for"
+    ]
+  },
+  "14. Transmission of Messages by a Client -> 14.1. Rate Limiting": {
+    "is equal to": [
+      "same"
+    ],
+    "is identical to": [
+      "same"
+    ],
+    "is different from": [
+      "different"
+    ],
+    "is greater than": [
+      "exceeds"
+    ],
+    "exceeds": [
+      "exceeds"
+    ]
+  },
+  "13. Assignment to an IA -> 13.1. Selecting Addresses for Assignment to an IA_NA": {},
+  "17. Client Source Address and Interface Selection": {
+    "is dependent on": [
+      "depending on"
+    ]
+  },
+  "17. Client Source Address and Interface Selection -> 17.1. Source Address and Interface Selection for Address Assignment": {},
+  "17. Client Source Address and Interface Selection -> 17.2. Source Address and Interface Selection for Prefix Delegation": {},
+  "16. Message Validation -> 16.12. Information-request Message": {
+    "does not match": [
+      "does not match"
+    ]
+  },
+  "16. Message Validation -> 16.9. Release Message": {
+    "does not match": [
+      "do not match"
+    ]
+  },
+  "16. Message Validation -> 16.8. Decline Message": {
+    "matches": [
+      "do not match"
+    ],
+    "does not match": [
+      "do not match"
+    ]
+  },
+  "16. Message Validation -> 16.6. Renew Message": {
+    "matches": [
+      "do not match"
+    ],
+    "does not match": [
+      "matches"
+    ]
+  },
+  "16. Message Validation -> 16.10. Reply Message": {
+    "matches": [
+      "match"
+    ],
+    "does not match": [
+      "does not match"
+    ]
+  },
+  "18. DHCP Configuration Exchanges -> 18.1. A Single Exchange for Multiple IA Options": {},
+  "15. Reliability of Client-Initiated Message Exchanges": {},
+  "4. Terminology -> 4.2. DHCP Terminology": {
+    "is consistent with": [
+      "consistent with"
+    ]
+  },
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.2. Creation and Transmission of Request Messages": {},
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.10. Receipt of Reply Messages -> 18.2.10.2. Reply for Release and Decline": {},
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.10. Receipt of Reply Messages -> 18.2.10.4. Reply for Information-request": {},
+  "16. Message Validation": {
+    "is equal to": [
+      "is of use to"
+    ],
+    "is not equal to": [
+      "are invalid for"
+    ],
+    "is greater than": [
+      "exceeds"
+    ],
+    "is less than": [
+      "falls within"
+    ],
+    "is between X and Y": [
+      "falls within"
+    ],
+    "is out of bounds": [
+      "are invalid for"
+    ],
+    "is dependent on": [
+      "as appropriate"
+    ],
+    "is consistent with": [
+      "is critical to"
+    ],
+    "contradicts": [
+      "MUST NOT"
+    ]
+  },
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.3. Creation and Transmission of Confirm Messages": {
+    "is equal to": [
+      "set to"
+    ],
+    "is between X and Y": [
+      "between"
+    ]
+  },
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior": {
+    "is more likely than": [
+      "more likely"
+    ]
+  },
+  "16. Message Validation -> 16.11. Reconfigure Message": {
+    "is equal to": [
+      "is not"
+    ],
+    "does not match": [
+      "does not include",
+      "does not include",
+      "does not include",
+      "does not include"
+    ],
+    "is not equal to": [
+      "is not"
+    ]
+  },
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.8. Creation and Transmission of Decline Messages": {},
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.11. Receipt of Reconfigure Messages": {},
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.10. Receipt of Reply Messages -> 18.2.10.3. Reply for Confirm": {
+    "is equal to": [
+      "can use"
+    ],
+    "is different from": [
+      "ignore"
+    ],
+    "is dependent on": [
+      "in response to"
+    ]
+  },
+  "18. DHCP Configuration Exchanges": {},
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.5. Creation and Transmission of Rebind Messages": {
+    "is equal to": [
+      "will only be reached if"
+    ],
+    "is different from": [
+      "with the following differences"
+    ],
+    "is dependent on": [
+      "which will only be reached if",
+      "If all leases for an IA have expired"
+    ],
+    "follows": [
+      "according to Section 15"
+    ]
+  },
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.6. Creation and Transmission of Information-request Messages": {
+    "is equal to": [
+      "set to"
+    ],
+    "is greater than": [
+      "exceeds"
+    ],
+    "is less than": [
+      "falls within"
+    ]
+  },
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.9. Receipt of Advertise Messages": {
+    "is greater than": [
+      "highest"
+    ],
+    "is less than": [
+      "less preferred"
+    ],
+    "is dependent on": [
+      "based upon"
+    ]
+  },
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.10. Receipt of Reply Messages": {
+    "is equal to": [
+      "matches"
+    ],
+    "is different from": [
+      "does not match"
+    ],
+    "is not equal to": [
+      "does not match"
+    ]
+  },
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.6. Receipt of Information-request Messages": {},
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.10. Transmission of Advertise and Reply Messages": {},
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.4. Creation and Transmission of Renew Messages": {
+    "is equal to": [
+      "set to"
+    ],
+    "is different from": [
+      "no longer"
+    ],
+    "is greater than": [
+      "not later than"
+    ],
+    "is less than": [
+      "not later than"
+    ],
+    "exceeds": [
+      "not later than"
+    ],
+    "follows": [
+      "follow"
+    ],
+    "is consistent with": [
+      "according to"
+    ]
+  },
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.1. Creation and Transmission of Solicit Messages": {
+    "is greater than": [
+      "strictly greater than"
+    ],
+    "is less than": [
+      "before"
+    ],
+    "occurs more frequently than": [
+      "more on"
+    ]
+  },
+  "14. Transmission of Messages by a Client -> 14.2. Client Behavior when T1 and/or T2 Are 0": {
+    "is equal to": [
+      "set to 0"
+    ],
+    "is not equal to": [
+      "are not completely discretionary"
+    ],
+    "does not match": [
+      "does not contain"
+    ],
+    "is different from": [
+      "left to the discretion of"
+    ],
+    "is greater than": [
+      "exceeds"
+    ],
+    "is less than": [
+      "falls within"
+    ],
+    "exceeds": [
+      "violate"
+    ],
+    "is between X and Y": [
+      "between"
+    ],
+    "is dependent on": [
+      "are left to the discretion of"
+    ],
+    "is proportional to": [
+      "rate-limiting"
+    ],
+    "follows": [
+      "are left to the discretion of"
+    ],
+    "precedes": [
+      "before"
+    ],
+    "occur before": [
+      "before"
+    ],
+    "is consistent with": [
+      "handled in one exchange"
+    ],
+    "contradicts": [
+      "violate"
+    ],
+    "is more likely than": [
+      "more likely"
+    ],
+    "occurs more frequently than": [
+      "more frequently"
+    ],
+    "has a higher probability than": [
+      "higher probability"
+    ]
+  },
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior": {
+    "is equal to": [
+      "same order"
+    ],
+    "is identical to": [
+      "same order"
+    ],
+    "is consistent with": [
+      "same order"
+    ]
+  },
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.7. Receipt of Release Messages": {
+    "is equal to": [
+      "copying"
+    ],
+    "is identical to": [
+      "copying"
+    ],
+    "matches": [
+      "copying"
+    ]
+  },
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.1. Receipt of Solicit Messages": {
+    "is not equal to": [
+      "does not need to"
+    ],
+    "is dependent on": [
+      "is configured"
+    ],
+    "is equal to": [
+      "as though"
+    ]
+  },
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.3. Receipt of Confirm Messages": {
+    "is equal to": [
+      "matches"
+    ],
+    "is identical to": [
+      "matches"
+    ],
+    "is different from": [
+      "does not match"
+    ],
+    "is not equal to": [
+      "does not match"
+    ],
+    "is dependent on": [
+      "regardless of"
+    ],
+    "is consistent with": [
+      "appropriate for"
+    ],
+    "contradicts": [
+      "not allowed"
+    ]
+  },
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.7. Creation and Transmission of Release Messages": {
+    "is equal to": [
+      "is"
+    ],
+    "is identical to": [
+      "is"
+    ],
+    "is different from": [
+      "MUST NOT"
+    ],
+    "is not equal to": [
+      "MUST NOT"
+    ],
+    "is greater than": [
+      "more"
+    ],
+    "exceeds": [
+      "more"
+    ],
+    "is more likely than": [
+      "more"
+    ],
+    "has a higher probability than": [
+      "more"
+    ],
+    "is less than": [
+      "less"
+    ],
+    "implies": [
+      "means"
+    ],
+    "is consistent with": [
+      "as described in"
+    ]
+  },
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.8. Receipt of Decline Messages": {
+    "is equal to": [
+      "matches"
+    ],
+    "is identical to": [
+      "copying"
+    ],
+    "is different from": [
+      "ignores"
+    ],
+    "is dependent on": [
+      "determines"
+    ],
+    "follows": [
+      "After"
+    ]
+  },
+  "18. DHCP Configuration Exchanges -> 18.4. Reception of Unicast Messages": {
+    "is not equal to": [
+      "has not sent"
+    ],
+    "is dependent on": [
+      "is allowed only if"
+    ]
+  },
+  "20. Authentication of DHCP Messages": {},
+  "19. Relay Agent Behavior -> 19.2. Relaying a Relay-reply Message": {},
+  "19. Relay Agent Behavior -> 19.1. Relaying a Client Message or a Relay-forward Message": {
+    "is equal to": [
+      "copies"
+    ],
+    "matches": [
+      "copies"
+    ],
+    "is identical to": [
+      "copies"
+    ]
+  },
+  "20. Authentication of DHCP Messages -> 20.1. Security of Messages Sent between Servers and Relay Agents": {},
+  "19. Relay Agent Behavior -> 19.1. Relaying a Client Message or a Relay-forward Message -> 19.1.3. Relay Agent Behavior with Prefix Delegation": {
+    "is equal to": [
+      "in the same way as"
+    ],
+    "is dependent on": [
+      "may need"
+    ]
+  },
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.9. Creation of Advertise Messages": {},
+  "19. Relay Agent Behavior": {
+    "is equal to": [
+      "forward"
+    ]
+  },
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.12. Refreshing Configuration Information": {
+    "is equal to": [
+      "is set as for"
+    ],
+    "is identical to": [
+      "is set as for"
+    ],
+    "is different from": [
+      "with the exception that"
+    ],
+    "is not equal to": [
+      "with the exception that"
+    ],
+    "is greater than": [
+      "exceeds"
+    ],
+    "is less than": [
+      "at most"
+    ],
+    "exceeds": [
+      "exceeds"
+    ],
+    "falls within": [
+      "at most"
+    ],
+    "is between X and Y": [
+      "at most"
+    ],
+    "is out of bounds": [
+      "at most"
+    ],
+    "is more likely than": [
+      "may"
+    ],
+    "occurs more frequently than": [
+      "may"
+    ],
+    "has a higher probability than": [
+      "may"
+    ]
+  },
+  "20. Authentication of DHCP Messages -> 20.4. Reconfiguration Key Authentication Protocol (RKAP)": {},
+  "19. Relay Agent Behavior -> 19.1. Relaying a Client Message or a Relay-forward Message -> 19.1.1. Relaying a Message from a Client": {
+    "is equal to": [
+      "set to"
+    ],
+    "is greater than": [
+      "exceeds"
+    ],
+    "is less than": [
+      "falls within"
+    ]
+  },
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.10. Receipt of Reply Messages ->": {},
+  "19. Relay Agent Behavior -> 19.1. Relaying a Client Message or a Relay-forward Message -> 19.1.2. Relaying a Message from a Relay Agent": {
+    "is greater than": [
+      "greater than"
+    ],
+    "is equal to": [
+      "equal to"
+    ],
+    "is not equal to": [
+      "different from"
+    ]
+  },
+  "20. Authentication of DHCP Messages -> 20.4. Reconfiguration Key Authentication Protocol (RKAP) -> 20.4.2. Server Considerations for RKAP": {},
+  "20. Authentication of DHCP Messages -> 20.4. Reconfiguration Key Authentication Protocol (RKAP) -> 20.4.3. Client Considerations for RKAP": {
+    "matches": [
+      "matches"
+    ]
+  },
+  "20. Authentication of DHCP Messages -> 20.2. Summary of DHCP Authentication": {
+    "is equal to": [
+      "matches"
+    ],
+    "is identical to": [
+      "matches"
+    ]
+  },
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.4. Receipt of Renew Messages": {
+    "matches": [
+      "matches"
+    ]
+  },
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.2. Receipt of Request Messages": {
+    "is equal to": [
+      "the same values"
+    ],
+    "is identical to": [
+      "copying"
+    ],
+    "is different from": [
+      "different"
+    ],
+    "is not equal to": [
+      "does not match"
+    ],
+    "is greater than": [
+      "exceeds"
+    ],
+    "is less than": [
+      "decreasing"
+    ],
+    "exceeds": [
+      "more complex than"
+    ]
+  },
+  "20. Authentication of DHCP Messages -> 20.4. Reconfiguration Key Authentication Protocol (RKAP) -> 20.4.1. Use of the Authentication Option in RKAP": {},
+  "19. Relay Agent Behavior -> 19.3. Construction of Relay-reply Messages": {},
+  "21. DHCP Options": {},
+  "21. DHCP Options -> 21.2. Client Identifier Option": {},
+  "20. Authentication of DHCP Messages -> 20.3. Replay Detection": {
+    "is greater than": [
+      "greater"
+    ]
+  },
+  "21. DHCP Options -> 21.3. Server Identifier Option": {},
+  "19. Relay Agent Behavior -> 19.4. Interaction between Relay Agents and Servers": {},
+  "21. DHCP Options -> 21.8. Preference Option": {},
+  "21. DHCP Options -> 21.10. Relay Message Option": {},
+  "21. DHCP Options -> 21.12. Server Unicast Option": {},
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.11. Creation and Transmission of Reconfigure Messages": {
+    "is equal to": [
+      "sets to"
+    ],
+    "is different from": [
+      "MUST NOT include"
+    ],
+    "is dependent on": [
+      "using",
+      "to which it can send"
+    ],
+    "follows": [
+      "causes",
+      "initiate"
+    ],
+    "is consistent with": [
+      "satisfying"
+    ]
+  },
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.5. Receipt of Rebind Messages": {
+    "matches": [
+      "matches"
+    ],
+    "is not equal to": [
+      "not allowed"
+    ],
+    "is different from": [
+      "not allowed"
+    ]
+  },
+  "21. DHCP Options -> 21.6. IA Address Option": {},
+  "21. DHCP Options -> 21.15. User Class Option": {},
+  "21. DHCP Options -> 21.16. Vendor Class Option": {},
+  "21. DHCP Options -> 21.7. Option Request Option": {
+    "is equal to": [
+      "equals"
+    ],
+    "is not equal to": [
+      "MUST NOT include"
+    ]
+  },
+  "21. DHCP Options -> 21.20. Reconfigure Accept Option": {},
+  "21. DHCP Options -> 21.9. Elapsed Time Option": {
+    "is equal to": [
+      "has a value of"
+    ],
+    "is greater than": [
+      "greater than"
+    ],
+    "is between X and Y": [
+      "from the time at which"
+    ]
+  },
+  "21. DHCP Options -> 21.18. Interface-Id Option": {},
+  "21. DHCP Options -> 21.19. Reconfigure Message Option": {
+    "is equal to": [
+      "has a value of",
+      "has value"
+    ],
+    "is identical to": [
+      "is"
+    ]
+  },
+  "21. DHCP Options -> 21.11. Authentication Option": {
+    "is equal to": [
+      "equals"
+    ],
+    "is different from": [
+      "has been obsoleted by"
+    ],
+    "is dependent on": [
+      "as specified by"
+    ]
+  },
+  "21. DHCP Options -> 21.4. Identity Association for Non-temporary Addresses Option": {},
+  "21. DHCP Options -> 21.13. Status Code Option": {
+    "is equal to": [
+      "equals"
+    ],
+    "is less than": [
+      "less than"
+    ]
+  },
+  "21. DHCP Options -> 21.14. Rapid Commit Option": {
+    "is equal to": [
+      "is"
+    ],
+    "is identical to": [
+      "is"
+    ],
+    "is": [
+      "is"
+    ],
+    "is not equal to": [
+      "not"
+    ],
+    "is different from": [
+      "not"
+    ],
+    "does not match": [
+      "not"
+    ],
+    "is more likely than": [
+      "could"
+    ],
+    "has a higher probability than": [
+      "could"
+    ]
+  },
+  "21. DHCP Options -> 21.17. Vendor-specific Information Option": {},
+  "21. DHCP Options -> 21.22. IA Prefix Option": {},
+  "23. Privacy Considerations": {
+    "is consistent with": [
+      "are mentioned in"
+    ],
+    "is not equal to": [
+      "does not define"
+    ]
+  },
+  "21. DHCP Options -> 21.21. Identity Association for Prefix Delegation Option": {},
+  "Appendix B. Appearance of Options in Message Types": {},
+  "21. DHCP Options -> 21.23. Information Refresh Time Option": {
+    "is less than": [
+      "smaller than"
+    ],
+    "is greater than": [
+      "higher than"
+    ]
+  },
+  "26. References -> 26.1. Normative References": {},
+  "25. Obsoleted Mechanisms": {
+    "is not equal to": [
+      "are now considered deprecated",
+      "are now obsolete",
+      "MUST NOT rely on them",
+      "MUST ignore any requested lifetime value",
+      "MUST ignore any T1/T2 values"
+    ]
+  },
+  "26. References -> 26.2. Informative References": {},
+  "21. DHCP Options -> 21.5. Identity Association for Temporary Addresses Option": {
+    "is equal to": [
+      "is 4 plus the length"
+    ],
+    "is identical to": [
+      "the same set of temporary addresses"
+    ],
+    "is different from": [
+      "separate from"
+    ],
+    "is not equal to": [
+      "4 octets less than"
+    ],
+    "is greater than": [
+      "more than"
+    ],
+    "is less than": [
+      "less than"
+    ],
+    "follows": [
+      "as defined in"
+    ],
+    "is consistent with": [
+      "as described in"
+    ]
+  },
+  "21. DHCP Options -> 21.24. SOL_MAX_RT Option": {
+    "is between X and Y": [
+      "must be in the range of 60 to 86400"
+    ],
+    "is out of bounds": [
+      "MUST ignore any SOL_MAX_RT option values that are less than 60 or more than 86400"
+    ]
+  },
+  "21. DHCP Options -> 21.25. INF_MAX_RT Option": {
+    "is equal to": [
+      "replaces"
+    ],
+    "is between X and Y": [
+      "must be in the range of 60 to 86400"
+    ],
+    "is out of bounds": [
+      "ignore any INF_MAX_RT option values that are less than 60 or more than 86400"
+    ],
+    "is dependent on": [
+      "applies only to the network interface on which the client received the INF_MAX_RT option"
+    ]
+  },
+  "Appendix C. Appearance of Options in the \"options\" Field of DHCP": {},
+  "24. IANA Considerations": {
+    "is equal to": [
+      "does not change"
+    ],
+    "is identical to": [
+      "does not define any new"
+    ],
+    "is different from": [
+      "does not define any new"
+    ],
+    "is not equal to": [
+      "does not define any new"
+    ],
+    "is greater than": [
+      "add",
+      "added"
+    ],
+    "exceeds": [
+      "add",
+      "added"
+    ],
+    "is between X and Y": [
+      "range"
+    ],
+    "is out of bounds": [
+      "range"
+    ],
+    "follows": [
+      "See"
+    ],
+    "is consistent with": [
+      "reference"
+    ]
+  },
+  "Appendix A. Summary of Changes": {
+    "is equal to": [
+      "matches"
+    ],
+    "is identical to": [
+      "matches"
+    ],
+    "is different from": [
+      "no longer applies"
+    ],
+    "does not match": [
+      "no longer applies"
+    ],
+    "is not equal to": [
+      "no longer applies"
+    ],
+    "is less than": [
+      "reduced from 32 to 8"
+    ],
+    "follows": [
+      "incorporates"
+    ],
+    "precedes": [
+      "previously in"
+    ],
+    "occur before": [
+      "previously in"
+    ],
+    "is consistent with": [
+      "incorporates",
+      "reflects"
+    ],
+    "contradicts": [
+      "discourages, rather than disallows"
+    ]
+  },
+  "21. DHCP Options -> 21.1. Format of DHCP Options": {
+    "error": "无效的JSON响应"
+  },
+  "22. Security Considerations": {
+    "error": "无效的JSON响应"
+  }
+}

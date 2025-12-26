@@ -1,0 +1,61 @@
+[
+    {
+        "rule": "When a client initiates a DHCPv6 configuration exchange by sending a Solicit message to request address or prefix bindings, it MUST NOT be actively using any of the addresses or delegated prefixes specified in the request. This requirement applies specifically during the server discovery phase when the client is seeking new bindings from DHCP servers. The client must ensure that any previously obtained bindings for the same addresses or prefixes have been properly released and are no longer in use before including them in the Solicit message. This prevents address/prefix conflicts and ensures clean state transitions when switching between servers or reacquiring bindings.",
+        "req_type": "Solicit",
+        "req_fields": [
+            "address bindings",
+            "prefix bindings"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "When a DHCPv6 client intends to use the two-message rapid assignment procedure (Solicit/Reply exchange) defined in Section 18.2.1 instead of the standard four-message exchange (Solicit/Advertise/Request/Reply), it MUST include the Rapid Commit option (Section 21.14) in its initial Solicit message. This rule applies specifically during the server discovery phase when the client seeks immediate address or prefix assignment without waiting for Advertise messages from multiple servers. The expected outcome is that servers supporting rapid commit will respond directly with a Reply message containing the requested bindings, bypassing the Advertise/Request exchange. This optimization requires both client willingness and server configuration to support rapid commit functionality.",
+        "req_type": "Solicit",
+        "req_fields": [
+            "Rapid Commit option"
+        ],
+        "res_type": "Reply",
+        "res_fields": [
+            "requested bindings"
+        ]
+    },
+    {
+        "rule": "During the DHCPv6 server discovery phase, when a client sends a Solicit message requesting address or prefix assignments through Identity Associations (IAs) and includes a Rapid Commit option, servers capable of fulfilling these assignments MUST respond with either an Advertise message (if proceeding with standard 4-message exchange) or a Reply message (if completing rapid commit 2-message exchange). This response is conditional on the server being configured to accept Rapid Commit options. The server's choice between Advertise and Reply depends on its rapid commit policy - if accepting rapid commit, it sends Reply to complete the assignment immediately; otherwise, it sends Advertise to continue with standard exchange. This rule applies specifically during initial configuration acquisition when the client is seeking address/prefix assignments and has opted for potential rapid commit optimization.",
+        "req_type": "Solicit",
+        "req_fields": [
+            "Identity Associations (IAs)",
+            "Rapid Commit option"
+        ],
+        "res_type": "Advertise or Reply",
+        "res_fields": []
+    },
+    {
+        "rule": "When a DHCPv6 server receives a message that violates protocol validation rules (such as containing options that are invalid for the message type, like an IA option in an Information-request message), the server MAY respond with either a Reply message (for messages requiring a Reply) or an Advertise message (for Solicit messages) to inform the client of the error. This response MUST include a Server Identifier option (Section 21.3), a Client Identifier option (Section 21.2) if present in the original message, and a Status Code option (Section 21.13) with status UnspecFail. This optional error notification mechanism allows servers to provide diagnostic feedback while maintaining protocol robustness, though servers may alternatively choose to silently discard invalid messages without response.",
+        "req_type": "Information-request, Solicit, messages requiring a Reply",
+        "req_fields": [
+            "IA option"
+        ],
+        "res_type": "Reply, Advertise",
+        "res_fields": [
+            "Server Identifier option",
+            "Client Identifier option",
+            "Status Code option"
+        ]
+    },
+    {
+        "rule": "During DHCPv6 message processing, when a server receives Solicit, Confirm, Rebind, or Information-request messages that are addressed directly to its Layer 3 unicast address rather than being sent to the appropriate multicast addresses (FF02::1:2 for link-local scope or FF05::1:3 for site-local scope), the server MUST discard these messages. This rule applies immediately upon message reception before any further processing occurs, as these message types are required by the protocol specification to be sent only to multicast addresses to ensure proper server discovery and network operation. The expected outcome is that unicast versions of these messages are silently dropped without generating any response, maintaining protocol integrity and preventing potential misconfiguration or security issues. This validation occurs as part of the initial message receipt phase, prior to option validation or other processing steps.",
+        "req_type": [
+            "Solicit",
+            "Confirm",
+            "Rebind",
+            "Information-request"
+        ],
+        "req_fields": [
+            "Layer 3 unicast address",
+            "multicast addresses (FF02::1:2, FF05::1:3)"
+        ],
+        "res_type": "",
+        "res_fields": []
+    }
+]

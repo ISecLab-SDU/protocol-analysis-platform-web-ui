@@ -1,0 +1,547 @@
+[
+    {
+        "rule": "If the size of the resultant message is less than or equal to both a local constraint and the maximum message size of the originator, the message is transmitted to the originator of the GetRequest-PDU.",
+        "req_type": "GetRequest-PDU",
+        "req_fields": [],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "If the error-status field of the Response-PDU is non-zero, the value fields of the variable bindings in the variable binding list are ignored.",
+        "req_type": "",
+        "req_fields": [],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "error-status",
+            "variable-bindings",
+            "value"
+        ]
+    },
+    {
+        "rule": "A non-zero value of the error-status field in a Response-PDU is used to indicate that an exception occurred to prevent the processing of the request.",
+        "req_type": "",
+        "req_fields": [],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "error-status"
+        ]
+    },
+    {
+        "rule": "All fields of the Response-PDU have the same values as the corresponding fields of the received request except as indicated below.",
+        "req_type": "GetRequest-PDU",
+        "req_fields": [
+            "all fields"
+        ],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "all fields"
+        ]
+    },
+    {
+        "rule": "The value of the request-id field in a Response-PDU takes the value of the request-id field in the request PDU to which it is a response.",
+        "req_type": "request PDU",
+        "req_fields": [
+            "request-id"
+        ],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "request-id"
+        ]
+    },
+    {
+        "rule": "Upon receipt of a Response-PDU, the receiving SNMPv2 entity presents the Response-PDU contents to the SNMPv2 application which generated the request with the same request-id value.",
+        "req_type": "",
+        "req_fields": [
+            "request-id"
+        ],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "contents"
+        ]
+    },
+    {
+        "rule": "Upon receipt of a GetRequest-PDU, the receiving SNMPv2 entity processes each variable binding in the variable-binding list to produce a Response-PDU.",
+        "req_type": "GetRequest-PDU",
+        "req_fields": [
+            "variable-binding list"
+        ],
+        "res_type": "Response-PDU",
+        "res_fields": []
+    },
+    {
+        "rule": "In these cases, a non-zero value of the Response-PDU's error-index field provides additional information by identifying which variable binding in the list caused the exception.",
+        "req_type": "",
+        "req_fields": [],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "error-index",
+            "variable binding"
+        ]
+    },
+    {
+        "rule": "A compliant SNMPv2 entity acting in a manager role must be able to properly receive and handle a Response-PDU with an error-status field equal to noSuchName, badValue, or readOnly.",
+        "req_type": "",
+        "req_fields": [],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "error-status"
+        ]
+    },
+    {
+        "rule": "If both the error-status field and the error-index field of the Response-PDU are non-zero, then the value of the error-index field is the index of the variable binding (in the variable-binding list of the corresponding request) for which the request failed.",
+        "req_type": "",
+        "req_fields": [
+            "variable-binding list"
+        ],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "error-status",
+            "error-index"
+        ]
+    },
+    {
+        "rule": "If the size of the resultant message is less than or equal to both a local constraint and the maximum message size of the originator, the message is transmitted to the originator of the GetRequest-PDU.",
+        "req_type": "GetRequest-PDU",
+        "req_fields": [],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "Upon receipt of a GetNextRequest-PDU, the receiving SNMPv2 entity processes each variable binding in the variable-binding list to produce a Response-PDU.",
+        "req_type": "GetNextRequest-PDU",
+        "req_fields": [
+            "variable-binding list"
+        ],
+        "res_type": "Response-PDU",
+        "res_fields": []
+    },
+    {
+        "rule": "This alternate Response-PDU is formatted with the same value in its request-id field as the received GetRequest-PDU, with the value of its error-status field set to `tooBig', the value of its error-index field set to zero, and an empty variable-bindings field.",
+        "req_type": "GetRequest-PDU",
+        "req_fields": [
+            "request-id"
+        ],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "request-id",
+            "error-status",
+            "error-index",
+            "variable-bindings"
+        ]
+    },
+    {
+        "rule": "If the processing of any variable binding fails for a reason other than listed above, then the Response-PDU is re-formatted with the same values in its request-id and variable-bindings fields as the received GetRequest-PDU, with the value of its error-status field set to `genErr', and the value of its error-index field is set to the index of the failed variable binding.",
+        "req_type": "GetRequest-PDU",
+        "req_fields": [
+            "request-id",
+            "variable-bindings"
+        ],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "request-id",
+            "variable-bindings",
+            "error-status",
+            "error-index"
+        ]
+    },
+    {
+        "rule": "All fields of the Response-PDU have the same values as the corresponding fields of the received request except as indicated below.",
+        "req_type": "GetNextRequest-PDU",
+        "req_fields": [
+            "all fields"
+        ],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "all fields"
+        ]
+    },
+    {
+        "rule": "If the size of the resultant message is less than or equal to both a local constraint and the maximum message size of the originator, the message is transmitted to the originator of the GetNextRequest-PDU.",
+        "req_type": "GetNextRequest-PDU",
+        "req_fields": [],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "Each variable binding is processed as follows: (1) The variable is located which is in the lexicographically ordered list of the names of all variables accessible by this request and whose name is the first lexicographic successor of the variable binding's name in the incoming GetNextRequest-PDU.",
+        "req_type": "GetNextRequest-PDU",
+        "req_fields": [
+            "variable binding",
+            "variable binding's name"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "If the size of the resultant message is less than or equal to both a local constraint and the maximum message size of the originator, the message is transmitted to the originator of the GetNextRequest-PDU.",
+        "req_type": "GetNextRequest-PDU",
+        "req_fields": [],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "If the size of the resultant message is less than or equal to both a local constraint and the maximum message size of the originator, it is transmitted to the originator of the InformRequest-PDU.",
+        "req_type": "InformRequest-PDU",
+        "req_fields": [],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "If the determined message size is greater than either a local constraint or the maximum message size of the originator, then an alternate Response-PDU is generated, transmitted to the originator of the InformRequest-PDU, and processing of the InformRequest-PDU terminates immediately thereafter.",
+        "req_type": "InformRequest-PDU",
+        "req_fields": [],
+        "res_type": "Response-PDU",
+        "res_fields": []
+    },
+    {
+        "rule": "Upon receipt of an InformRequest-PDU, the receiving SNMPv2 entity determines the size of a message encapsulating a Response-PDU with the same values in its request-id, error-status, error-index and variable-bindings fields as the received InformRequest-PDU.",
+        "req_type": "InformRequest-PDU",
+        "req_fields": [
+            "request-id",
+            "error-status",
+            "error-index",
+            "variable-bindings"
+        ],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "request-id",
+            "error-status",
+            "error-index",
+            "variable-bindings"
+        ]
+    },
+    {
+        "rule": "(2) If the requested variable binding's name does not lexicographically precede the name of any variable accessible by this request, i.e., there is no lexicographic successor, then the corresponding variable binding produced in the Response-PDU has its value field set to `endOfMibView', and its name field set to the variable binding's name in the request.",
+        "req_type": "GetNextRequest-PDU",
+        "req_fields": [
+            "variable binding's name"
+        ],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "value field",
+            "name field"
+        ]
+    },
+    {
+        "rule": "Upon receipt of a GetBulkRequest-PDU, the receiving SNMPv2 entity processes each variable binding in the variable-binding list to produce a Response-PDU with its request-id field having the same value as in the request.",
+        "req_type": "GetBulkRequest-PDU",
+        "req_fields": [
+            "variable-binding list",
+            "request-id"
+        ],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "request-id"
+        ]
+    },
+    {
+        "rule": "If the processing of any variable binding fails for a reason other than listed above, then the Response-PDU is re-formatted with the same values in its request-id and variable-bindings fields as the received GetNextRequest-PDU, with the value of its error-status field set to `genErr', and the value of its error-index field is set to the index of the failed variable binding.",
+        "req_type": "GetNextRequest-PDU",
+        "req_fields": [
+            "request-id",
+            "variable-bindings"
+        ],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "request-id",
+            "variable-bindings",
+            "error-status",
+            "error-index"
+        ]
+    },
+    {
+        "rule": "For the GetBulkRequest-PDU type, the successful processing of each variable binding in the request generates zero or more variable bindings in the Response-PDU.",
+        "req_type": "GetBulkRequest-PDU",
+        "req_fields": [
+            "variable binding"
+        ],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "variable binding"
+        ]
+    },
+    {
+        "rule": "The request-id shall have the same value as the received GetBulkRequest-PDU.",
+        "req_type": "GetBulkRequest-PDU",
+        "req_fields": [
+            "request-id"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "Otherwise, the receiving SNMPv2 entity: (1) presents the InformRequest-PDU contents to the appropriate SNMPv2 application; (2) generates a Response-PDU with the same values in its request-id and variable-bindings fields as the received InformRequest-PDU, with the value of its error-status field set to 'noError' and the value of its error-index field set to zero; and (3) transmits the generated Response-PDU to the originator of the InformRequest-PDU.",
+        "req_type": "InformRequest-PDU",
+        "req_fields": [
+            "request-id",
+            "variable-bindings"
+        ],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "request-id",
+            "variable-bindings",
+            "error-status",
+            "error-index"
+        ]
+    },
+    {
+        "rule": "That is, the one-to-one mapping between the variable bindings of the GetRequest-PDU, GetNextRequest- PDU, and SetRequest-PDU types and the resultant Response-PDUs does not apply for the mapping between the variable bindings of a GetBulkRequest-PDU and the resultant Response-PDU.",
+        "req_type": "GetBulkRequest-PDU",
+        "req_fields": [
+            "variable bindings"
+        ],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "variable bindings"
+        ]
+    },
+    {
+        "rule": "If the size of the resultant message is less than or equal to both a local constraint and the maximum message size of the originator, it is transmitted to the originator of the GetBulkRequest-PDU.",
+        "req_type": "GetBulkRequest-PDU",
+        "req_fields": [],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "If N is greater than zero, the first through the (N)-th variable bindings of the Response-PDU are each produced as follows: (1) The variable is located which is in the lexicographically ordered list of the names of all variables which are accessible by this request and whose name is the first lexicographic successor of the variable binding's name in the incoming GetBulkRequest-PDU.",
+        "req_type": "GetBulkRequest-PDU",
+        "req_fields": [
+            "variable bindings"
+        ],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "variable bindings"
+        ]
+    },
+    {
+        "rule": "(1) If the size of the message encapsulating the Response-PDU containing the requested number of variable bindings would be greater than either a local constraint or the maximum message size of the originator, then the response is generated with a lesser number of variable bindings.",
+        "req_type": "GetBulkRequest-PDU",
+        "req_fields": [
+            "variable bindings"
+        ],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "variable bindings"
+        ]
+    },
+    {
+        "rule": "(2) If the requested variable binding's name does not lexicographically precede the name of any variable accessible by this request, i.e., there is no lexicographic successor, then the corresponding variable binding produced in the Response-PDU has its value field set to `endOfMibView', and its name field set to the variable binding's name in the request.",
+        "req_type": "GetBulkRequest-PDU",
+        "req_fields": [
+            "variable binding's name"
+        ],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "variable binding's name",
+            "value field"
+        ]
+    },
+    {
+        "rule": "Consequently, the total number of requested variable bindings communicated by the request is given by N + (M * R), where N is the minimum of: a) the value of the non-repeaters field in the request, and b) the number of variable bindings in the request; M is the value of the max-repetitions field in the request; and R is the maximum of: a) number of variable bindings in the request - N, and b) zero.",
+        "req_type": "GetBulkRequest-PDU",
+        "req_fields": [
+            "non-repeaters",
+            "max-repetitions",
+            "variable bindings"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "If the determined message size is greater than either a local constraint or the maximum message size of the originator, then an alternate Response-PDU is generated, transmitted to the originator of the SetRequest-PDU, and processing of the SetRequest-PDU terminates immediately thereafter.",
+        "req_type": "SetRequest-PDU",
+        "req_fields": [],
+        "res_type": "Response-PDU",
+        "res_fields": []
+    },
+    {
+        "rule": "Upon receipt of a SetRequest-PDU, the receiving SNMPv2 entity determines the size of a message encapsulating a Response-PDU having the same values in its request-id and variable-bindings fields as the received SetRequest-PDU, and the largest possible sizes of the error-status and error-index fields.",
+        "req_type": "SetRequest-PDU",
+        "req_fields": [
+            "request-id",
+            "variable-bindings"
+        ],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "request-id",
+            "variable-bindings",
+            "error-status",
+            "error-index"
+        ]
+    },
+    {
+        "rule": "If the processing of any variable binding fails for a reason other than listed above, then the Response-PDU is re-formatted with the same values in its request-id and variable-bindings fields as the received GetBulkRequest-PDU, with the value of its error-status field set to `genErr', and the value of its error-index field is set to the index of the variable binding in the original request which corresponds to the failed variable binding.",
+        "req_type": "GetBulkRequest-PDU",
+        "req_fields": [
+            "request-id",
+            "variable-bindings"
+        ],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "request-id",
+            "variable-bindings",
+            "error-status",
+            "error-index"
+        ]
+    },
+    {
+        "rule": "If the size of the resultant message is less than or equal to both a local constraint and the maximum message size of the originator, the message is transmitted to the originator of the SetRequest-PDU.",
+        "req_type": "SetRequest-PDU",
+        "req_fields": [],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "All fields of the Response-PDU have the same values as the corresponding fields of the received request except as indicated below.",
+        "req_type": "SetRequest-PDU",
+        "req_fields": [
+            "all fields"
+        ],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "all fields"
+        ]
+    },
+    {
+        "rule": "This alternate Response-PDU is formatted with the same values in its request-id field as the received SetRequest-PDU, with the value of its error-status field set to `tooBig', the value of its error-index field set to zero, and an empty variable-bindings field.",
+        "req_type": "SetRequest-PDU",
+        "req_fields": [
+            "request-id"
+        ],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "request-id",
+            "error-status",
+            "error-index",
+            "variable-bindings"
+        ]
+    },
+    {
+        "rule": "For each iteration i, such that i is greater than zero and less than or equal to M, and for each repeated variable, r, such that r is greater than zero and less than or equal to R, the (N + ( (i-1) * R ) \\+ r)-th variable binding of the Response-PDU is produced as follows: (1) The variable which is in the lexicographically ordered list of the names of all variables which are accessible by this request and whose name is the (i)-th lexicographic successor of the (N + r)-th variable binding's name in the incoming GetBulkRequest-PDU is located and the variable binding's name and value fields are set to the name and value of the located variable.",
+        "req_type": "GetBulkRequest-PDU",
+        "req_fields": [
+            "variable binding's name",
+            "N",
+            "R",
+            "M"
+        ],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "variable binding's name",
+            "variable binding's value"
+        ]
+    },
+    {
+        "rule": "(Note that not all implementation strategies will generate this error.) (6) Otherwise, if the variable binding's value field specifies a value which could under no circumstances be assigned to the variable, then the value of the Response-PDU's error-status field is set to `wrongValue', and the value of its error-index field is set to the index of the failed variable binding.",
+        "req_type": "SetRequest-PDU",
+        "req_fields": [
+            "variable binding's value field"
+        ],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "error-status",
+            "error-index"
+        ]
+    },
+    {
+        "rule": "(5) Otherwise, if the variable binding's value field contains an ASN.1 encoding which is inconsistent with that field's ASN.1 tag, then the value of the Response-PDU's error-status field is set to `wrongEncoding', and the value of its error-index field is set to the index of the failed variable binding.",
+        "req_type": "SetRequest-PDU",
+        "req_fields": [
+            "variable binding's value field",
+            "ASN.1 tag"
+        ],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "error-status",
+            "error-index"
+        ]
+    },
+    {
+        "rule": "(3) Otherwise, if the variable binding's value field specifies, according to the ASN.1 language, a type which is inconsistent with that required for all variables which share the same OBJECT IDENTIFIER prefix as the variable binding's name, then the value of the Response-PDU's error-status field is set to `wrongType', and the value of its error-index field is set to the index of the failed variable binding.",
+        "req_type": "SetRequest-PDU",
+        "req_fields": [
+            "variable binding's name",
+            "variable binding's value field"
+        ],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "error-status",
+            "error-index"
+        ]
+    },
+    {
+        "rule": "(8) Otherwise, if the variable binding's name specifies a variable which does not exist but can not be created under the present circumstances (even though it could be created under other circumstances), then the value of the Response-PDU's error-status field is set to `inconsistentName', and the value of its error- index field is set to the index of the failed variable binding.",
+        "req_type": "SetRequest-PDU",
+        "req_fields": [
+            "variable binding's name"
+        ],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "error-status",
+            "error-index"
+        ]
+    },
+    {
+        "rule": "At the end of the first phase, if the validation of all variable bindings succeeded, then the value of the Response-PDU's error-status field is set to `noError' and the value of its error-index field is zero, and processing continues as follows.",
+        "req_type": "SetRequest-PDU",
+        "req_fields": [
+            "variable bindings"
+        ],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "error-status",
+            "error-index"
+        ]
+    },
+    {
+        "rule": "(4) Otherwise, if the variable binding's value field specifies, according to the ASN.1 language, a length which is inconsistent with that required for all variables which share the same OBJECT IDENTIFIER prefix as the variable binding's name, then the value of the Response-PDU's error-status field is set to `wrongLength', and the value of its error-index field is set to the index of the failed variable binding.",
+        "req_type": "SetRequest-PDU",
+        "req_fields": [
+            "variable binding's value field",
+            "variable binding's name",
+            "OBJECT IDENTIFIER prefix"
+        ],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "error-status",
+            "error-index"
+        ]
+    },
+    {
+        "rule": "(9) Otherwise, if the variable binding's name specifies a variable which exists but can not be modified no matter what new value is specified, then the value of the Response-PDU's error-status field is set to `notWritable', and the value of its error-index field is set to the index of the failed variable binding.",
+        "req_type": "SetRequest-PDU",
+        "req_fields": [
+            "variable binding's name",
+            "new value"
+        ],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "error-status",
+            "error-index"
+        ]
+    },
+    {
+        "rule": "(10) Otherwise, if the variable binding's value field specifies a value that could under other circumstances be held by the variable, but is presently inconsistent or otherwise unable to be assigned to the variable, then the value of the Response-PDU's error-status field is set to `inconsistentValue', and the value of its error-index field is set to the index of the failed variable binding.",
+        "req_type": "SetRequest-PDU",
+        "req_fields": [
+            "variable binding's value field"
+        ],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "error-status field",
+            "error-index field"
+        ]
+    },
+    {
+        "rule": "(12) If the processing of the variable binding fails for a reason other than listed above, then the value of the Response-PDU's error- status field is set to `genErr', and the value of its error-index field is set to the index of the failed variable binding.",
+        "req_type": "SetRequest-PDU",
+        "req_fields": [
+            "variable binding"
+        ],
+        "res_type": "Response-PDU",
+        "res_fields": [
+            "error-status",
+            "error-index"
+        ]
+    }
+]

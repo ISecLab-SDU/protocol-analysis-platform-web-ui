@@ -1,0 +1,343 @@
+{
+  "4. Terminology": {},
+  "1. Introduction": {},
+  "5. Client/Server Exchanges -> 5.3. Server/Client Exchanges": {},
+  "4. Terminology -> 4.2. DHCP Terminology": {},
+  "5. Client/Server Exchanges": {},
+  "3. Background": {},
+  "1. Introduction -> 1.1. Relationship to Previous DHCPv6 Standards": {},
+  "5. Client/Server Exchanges -> 5.2. Client/Server Exchanges Involving Four Messages": {},
+  "5. Client/Server Exchanges -> 5.1. Client/Server Exchanges Involving Two Messages": {},
+  "2. Requirements": {},
+  "1. Introduction -> 1.2. Relationship to DHCPv4": {},
+  "6. Operational Models -> 6.5. DHCP for Temporary Addresses": {},
+  "6. Operational Models -> 6.4. DHCP for Customer Edge Routers": {},
+  "7. DHCP Constants": {},
+  "6. Operational Models": {},
+  "6. Operational Models -> 6.2. DHCP for Non-temporary Address Assignment": {},
+  "6. Operational Models -> 6.1. Stateless DHCP": {},
+  "7. DHCP Constants -> 7.2. UDP Ports": {},
+  "7. DHCP Constants -> 7.4. DHCP Option Codes": {},
+  "6. Operational Models -> 6.6. Multiple Addresses and Prefixes": {},
+  "7. DHCP Constants -> 7.5. Status Codes": {},
+  "7. DHCP Constants -> 7.1. Multicast Addresses": {},
+  "7. DHCP Constants -> 7.3. DHCP Message Types": {},
+  "7. DHCP Constants -> 7.7. Representation of Time Values and \"Infinity\" as a Time Value": {},
+  "10. Representation and Use of Domain Names": {},
+  "11. DHCP Unique Identifier (DUID)": {},
+  "8. Client/Server Message Formats": {
+    "charts": [
+      "Figure 2: Client/Server Message Format\n0 1 2 3 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| msg-type | transaction-id |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| |\n. options .\n. (variable number and length) .\n| |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    ]
+  },
+  "4. Terminology -> 4.1. IPv6 Terminology": {},
+  "11. DHCP Unique Identifier (DUID) -> 11.1. DUID Contents": {
+    "charts": [
+      "Table 2: DUID Types\n+------+------------------------------------------------------+\n| Type | Description                                          |\n+------+------------------------------------------------------+\n| 1    | Link-layer address plus time                         |\n| 2    | Vendor-assigned unique ID based on Enterprise Number |\n| 3    | Link-layer address                                   |\n| 4    | Universally Unique Identifier (UUID) [RFC6355\"\")]   |\n+------+------------------------------------------------------+"
+    ]
+  },
+  "12. Identity Association -> 12.1. Identity Associations for Address Assignment": {},
+  "12. Identity Association": {},
+  "9. Relay Agent/Server Message Formats": {
+    "charts": [
+      "Figure 3: Relay Agent/Server Message Format\n0 1 2 3 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n|    msg-type   |   hop-count   |                               |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+                               |\n|                                                               |\n|                          link-address                         |\n|                                                               |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n|                                                               |\n|                          peer-address                         |\n|                                                               |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n|                      options (variable number and length)                       |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    ]
+  },
+  "11. DHCP Unique Identifier (DUID) -> 11.2. DUID Based on Link-Layer Address Plus Time (DUID-LLT)": {
+    "charts": [
+      "Figure 4: DUID-LLT Format\n 0 1 2 3 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| DUID-Type (1) | hardware type (16 bits)                       |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| time (32 bits)                                                |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n.                                                               .\n.                 link-layer address (variable length)          .\n.                                                               .\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    ]
+  },
+  "12. Identity Association -> 12.2. Identity Associations for Prefix Delegation": {},
+  "13. Assignment to an IA -> 13.2. Assignment of Temporary Addresses": {},
+  "11. DHCP Unique Identifier (DUID) -> 11.4. DUID Based on Link-Layer Address (DUID-LL)": {
+    "charts": [
+      "Figure 7: DUID-LL Format\n0 1 2 3 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| DUID-Type (3) | hardware type (16 bits) |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n. . . link-layer address (variable length) . . .\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    ]
+  },
+  "13. Assignment to an IA -> 13.1. Selecting Addresses for Assignment to an IA_NA": {},
+  "13. Assignment to an IA -> 13.3. Assignment of Prefixes for IA_PD": {},
+  "6. Operational Models -> 6.3. DHCP for Prefix Delegation": {
+    "charts": [
+      "Figure 1: Prefix Delegation Network\n______________________ \\ / \\ \\ | ISP core network | \\ \\\\__________ ___________/ | | | +-------+-------+ | | Aggregation | | ISP | device | | network | (delegating | | | router) | | +-------+-------+ | | / |Network link to / |subscriber premises / | +------+------+ \\ | CPE | \\ | (requesting | \\ | router) | | +----+---+----+ | | | | Subscriber \\---+-------------+-----+ +-----+------ | network | | | | +----+-----+ +-----+----+ +----+-----+ | |Subscriber| |Subscriber| |Subscriber| / | PC | | PC | | PC | / +----------+ +----------+ +----------+ /"
+    ]
+  },
+  "14. Transmission of Messages by a Client": {},
+  "14. Transmission of Messages by a Client -> 14.1. Rate Limiting": {},
+  "11. DHCP Unique Identifier (DUID) -> 11.3. DUID Assigned by Vendor Based on Enterprise Number (DUID-EN)": {
+    "charts": [
+      "Figure 5: DUID-EN Format\n0 1 2 3 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| DUID-Type (2) |               enterprise-number               |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n|                       enterprise-number (contd)               |\n|                               +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n|                               |        identifier             |\n.                               . (variable length)             .\n.                               .                               .\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+",
+      "Figure 6: DUID-EN Example\n+---+---+---+---+---+---+---+---+\n| 0 | 2 | 0 | 0 | 0 | 9| 12|192|\n+---+---+---+---+---+---+---+---+\n|132|211| 3 | 0 | 9 | 18|\n+---+---+---+---+---+---+"
+    ]
+  },
+  "16. Message Validation -> 16.1. Use of Transaction IDs": {},
+  "11. DHCP Unique Identifier (DUID) -> 11.5. DUID Based on Universally Unique Identifier (DUID-UUID)": {
+    "charts": [
+      "Figure 8: DUID-UUID Format\n0 1 2 3 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ | DUID-Type (4) | UUID (128 bits) | +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ | | | | | | -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ | | +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-"
+    ]
+  },
+  "16. Message Validation -> 16.2. Solicit Message": {},
+  "16. Message Validation": {},
+  "9. Relay Agent/Server Message Formats -> 9.1. Relay-forward Message": {
+    "charts": [
+      "Derived: Relay-forward message fields\nmsg-type RELAY-FORW (12). A 1-octet field. hop-count Number of relay agents that have already relayed this message. A 1-octet field. link-address An address that may be used by the server to identify the link on which the client is located. This is typically a globally scoped unicast address (i.e., GUA or ULA), but see the discussion inSection 19.1.1. A 16-octet field. peer-address The address of the client or relay agent from which the message to be relayed was received. A 16-octet field. options MUST include a Relay Message option (see Section 21.10); MAY include other options, such as the Interface-Id option (see Section 21.18), added by the relay agent. A variable-length field (34 octets less than the size of the message). See Section 13.1 for an explanation of how the link-address field is used."
+    ]
+  },
+  "7. DHCP Constants -> 7.6. Transmission and Retransmission Parameters": {
+    "charts": [
+      "Table 1: Transmission and Retransmission Parameters\n+-----------------+------------------+------------------------------+\n| Parameter       | Default          | Description                  |\n+-----------------+------------------+------------------------------+\n| SOL_MAX_DELAY   | 1 sec            | Max delay of first Solicit   |\n|                 |                  |                              |\n| SOL_TIMEOUT     | 1 sec            | Initial Solicit timeout      |\n|                 |                  |                              |\n| SOL_MAX_RT      | 3600 secs        | Max Solicit timeout value    |\n|                 |                  |                              |\n| REQ_TIMEOUT     | 1 sec            | Initial Request timeout      |\n|                 |                  |                              |\n| REQ_MAX_RT      | 30 secs          | Max Request timeout value    |\n|                 |                  |                              |\n| REQ_MAX_RC      | 10               | Max Request retry attempts   |\n|                 |                  |                              |\n| CNF_MAX_DELAY   | 1 sec            | Max delay of first Confirm   |\n|                 |                  |                              |\n| CNF_TIMEOUT     | 1 sec            | Initial Confirm timeout      |\n|                 |                  |                              |\n| CNF_MAX_RT      | 4 secs           | Max Confirm timeout          |\n|                 |                  |                              |\n| CNF_MAX_RD      | 10 secs          | Max Confirm duration         |\n|                 |                  |                              |\n| REN_TIMEOUT     | 10 secs          | Initial Renew timeout        |\n|                 |                  |                              |\n| REN_MAX_RT      | 600 secs         | Max Renew timeout value      |\n|                 |                  |                              |\n| REB_TIMEOUT     | 10 secs          | Initial Rebind timeout       |\n|                 |                  |                              |\n| REB_MAX_RT      | 600 secs         | Max Rebind timeout value     |\n|                 |                  |                              |\n| INF_MAX_DELAY   | 1 sec            | Max delay of first           |\n|                 |                  | Information-request          |\n|                 |                  |                              |\n| INF_TIMEOUT     | 1 sec            | Initial Information-request  |\n|                 |                  | timeout                      |\n|                 |                  |                              |\n| INF_MAX_RT      | 3600 secs        | Max Information-request      |\n|                 |                  | timeout value                |\n|                 |                  |                              |\n| REL_TIMEOUT     | 1 sec            | Initial Release timeout      |\n|                 |                  |                              |\n| REL_MAX_RC      | 4                | Max Release retry attempts   |\n|                 |                  |                              |\n| DEC_TIMEOUT     | 1 sec            | Initial Decline timeout      |\n|                 |                  |                              |\n| DEC_MAX_RC      | 4                | Max Decline retry attempts   |\n|                 |                  |                              |\n| REC_TIMEOUT     | 2 secs           | Initial Reconfigure timeout  |\n|                 |                  |                              |\n| REC_MAX_RC      | 8                | Max Reconfigure attempts     |\n|                 |                  |                              |\n| HOP_COUNT_LIMIT | 8                | Max hop count in a           |\n|                 |                  | Relay-forward message        |\n|                 |                  |                              |\n| IRT_DEFAULT     | 86400 secs (24   | Default information refresh  |\n|                 | hours)           | time                         |\n|                 |                  |                              |\n| IRT_MINIMUM     | 600 secs         | Min information refresh time |\n|                 |                  |                              |\n| MAX_WAIT_TIME   | 60 secs          | Max required time to wait    |\n|                 |                  | for a response               |\n+-----------------+------------------+------------------------------+"
+    ]
+  },
+  "14. Transmission of Messages by a Client -> 14.2. Client Behavior when T1 and/or T2 Are 0": {},
+  "16. Message Validation -> 16.5. Confirm Message": {},
+  "16. Message Validation -> 16.3. Advertise Message": {},
+  "16. Message Validation -> 16.4. Request Message": {},
+  "9. Relay Agent/Server Message Formats -> 9.2. Relay-reply Message": {
+    "charts": [
+      "Derived: Relay-reply message fields\nmsg-type RELAY-REPL (13). A 1-octet field. hop-count Copied from the Relay-forward message. A 1-octet field. link-address Copied from the Relay-forward message. A 16-octet field. peer-address Copied from the Relay-forward message. A 16-octet field. options MUST include a Relay Message option (see Section 21.10); MAY include other options, such as the Interface-Id option (see Section 21.18). A variable-length field (34 octets less than the size of the message)."
+    ]
+  },
+  "16. Message Validation -> 16.7. Rebind Message": {},
+  "16. Message Validation -> 16.6. Renew Message": {},
+  "16. Message Validation -> 16.8. Decline Message": {},
+  "16. Message Validation -> 16.10. Reply Message": {},
+  "16. Message Validation -> 16.13. Relay-forward Message": {},
+  "16. Message Validation -> 16.14. Relay-reply Message": {},
+  "17. Client Source Address and Interface Selection": {},
+  "16. Message Validation -> 16.12. Information-request Message": {},
+  "17. Client Source Address and Interface Selection -> 17.1. Source Address and Interface Selection for Address Assignment": {},
+  "18. DHCP Configuration Exchanges -> 18.1. A Single Exchange for Multiple IA Options": {},
+  "16. Message Validation -> 16.9. Release Message": {},
+  "17. Client Source Address and Interface Selection -> 17.2. Source Address and Interface Selection for Prefix Delegation": {},
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.4. Creation and Transmission of Renew Messages": {},
+  "16. Message Validation -> 16.11. Reconfigure Message": {},
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.1. Creation and Transmission of Solicit Messages": {},
+  "15. Reliability of Client-Initiated Message Exchanges": {
+    "charts": [
+      "Derived: Retransmission parameters\nRT Retransmission timeout IRT Initial retransmission time MRC Maximum retransmission count MRT Maximum retransmission time MRD Maximum retransmission duration RAND Randomization factor"
+    ]
+  },
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.7. Creation and Transmission of Release Messages": {},
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.10. Receipt of Reply Messages": {},
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior": {},
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.10. Receipt of Reply Messages -> 18.2.10.2. Reply for Release and Decline": {},
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.9. Receipt of Advertise Messages": {},
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.2. Creation and Transmission of Request Messages": {},
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.10. Receipt of Reply Messages ->": {},
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.10. Receipt of Reply Messages -> 18.2.10.4. Reply for Information-request": {},
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.8. Creation and Transmission of Decline Messages": {
+    "charts": [
+      "Derived: Decline message transmission parameters\nIRT DEC_TIMEOUT MRT 0 MRC DEC_MAX_RC MRD 0"
+    ]
+  },
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.10. Receipt of Reply Messages -> 18.2.10.3. Reply for Confirm": {},
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.12. Refreshing Configuration Information": {},
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.11. Receipt of Reconfigure Messages": {},
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.5. Receipt of Rebind Messages": {},
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.4. Receipt of Renew Messages": {},
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.2. Receipt of Request Messages": {},
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.5. Creation and Transmission of Rebind Messages": {},
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.3. Creation and Transmission of Confirm Messages": {
+    "charts": [
+      "Derived: Confirm message transmission parameters\nIRT CNF_TIMEOUT MRT CNF_MAX_RT MRC 0 MRD CNF_MAX_RD"
+    ]
+  },
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.6. Creation and Transmission of Information-request Messages": {
+    "charts": [
+      "Derived: Transmission Parameters\nIRT INF_TIMEOUT MRT INF_MAX_RT MRC 0 MRD 0"
+    ]
+  },
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.3. Receipt of Confirm Messages": {},
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior": {},
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.6. Receipt of Information-request Messages": {},
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.1. Receipt of Solicit Messages": {},
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.9. Creation of Advertise Messages": {},
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.7. Receipt of Release Messages": {},
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.10. Transmission of Advertise and Reply Messages": {},
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.11. Creation and Transmission of Reconfigure Messages": {},
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.8. Receipt of Decline Messages": {},
+  "19. Relay Agent Behavior": {},
+  "19. Relay Agent Behavior -> 19.1. Relaying a Client Message or a Relay-forward Message -> 19.1.1. Relaying a Message from a Client": {},
+  "18. DHCP Configuration Exchanges -> 18.4. Reception of Unicast Messages": {},
+  "19. Relay Agent Behavior -> 19.1. Relaying a Client Message or a Relay-forward Message": {},
+  "19. Relay Agent Behavior -> 19.1. Relaying a Client Message or a Relay-forward Message -> 19.1.3. Relay Agent Behavior with Prefix Delegation": {},
+  "19. Relay Agent Behavior -> 19.1. Relaying a Client Message or a Relay-forward Message -> 19.1.2. Relaying a Message from a Relay Agent": {},
+  "20. Authentication of DHCP Messages -> 20.1. Security of Messages Sent between Servers and Relay Agents": {},
+  "19. Relay Agent Behavior -> 19.2. Relaying a Relay-reply Message": {},
+  "20. Authentication of DHCP Messages": {},
+  "19. Relay Agent Behavior -> 19.4. Interaction between Relay Agents and Servers": {},
+  "20. Authentication of DHCP Messages -> 20.3. Replay Detection": {},
+  "20. Authentication of DHCP Messages -> 20.4. Reconfiguration Key Authentication Protocol (RKAP)": {},
+  "20. Authentication of DHCP Messages -> 20.2. Summary of DHCP Authentication": {},
+  "20. Authentication of DHCP Messages -> 20.4. Reconfiguration Key Authentication Protocol (RKAP) -> 20.4.3. Client Considerations for RKAP": {},
+  "21. DHCP Options": {},
+  "20. Authentication of DHCP Messages -> 20.4. Reconfiguration Key Authentication Protocol (RKAP) -> 20.4.2. Server Considerations for RKAP": {},
+  "18. DHCP Configuration Exchanges": {
+    "charts": [
+      "Figure 9: Timeline Diagram of the Messages Exchanged between a Client and Two Servers for the Typical Lifecycle of One or More Leases\nServer Server (not selected) Client (selected)\nv v v\n| | |\n| | |\n| Begins initialization |\n| | |\n| start of | _____________/|\\_____________ |\n4-message |/ Solicit | Solicit \\|\nexchange | | |\n| Determines | Determines configuration |\nconfiguration | | |\n| |\\ | ____________/| | \\________ |\n/Advertise | | Advertise\\ |/\n| | \\ |\n| | | Collects Advertises |\n| | \\ |\n| | | Selects configuration |\n| | | |\n| _____________/|\\_____________ |\n|/ Request | Request \\|\n| | |\n| Commits configuration |\n| | |\nend of | | _____________/|\n4-message | |/ Reply |\nexchange | | |\n| Initialization complete |\n| | |\n| . . . . . . |\n| T1 (renewal) timer expires |\n| | |\n| 2-message | _____________/|\\_____________ |\nexchange |/ Renew | Renew \\|\n| | |\n| | Commits extended lease(s) |\n| | |\n| | _____________/|\n| |/ Reply |\n| . . . . . . |\n| | |\n| Graceful shutdown |\n| | |\n| 2-message | _____________/|\\_____________ |\nexchange |/ Release | Release \\|\n| | |\n| | Discards lease(s) |\n| | |\n| | _____________/|\n| |/ Reply |\n| | |\nv v v\nFigure 9: Timeline Diagram of the Messages Exchanged between a Client and Two Servers for the Typical Lifecycle of One or More Leases"
+    ]
+  },
+  "21. DHCP Options -> 21.2. Client Identifier Option": {
+    "charts": [
+      "Figure 13: Client Identifier Option Format\n0 1 2 3 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| OPTION_CLIENTID | option-len |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n. . . DUID . . (variable length) . . .\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    ]
+  },
+  "19. Relay Agent Behavior -> 19.3. Construction of Relay-reply Messages": {
+    "charts": [
+      "Figure 10: Relay-reply Example\nmsg-type: RELAY-REPL hop-count: 1 link-address: 0 peer-address: A Relay Message option containing the following: msg-type: RELAY-REPL hop-count: 0 link-address: address from link to which C is attached peer-address: C Relay Message option: <response from server>"
+    ]
+  },
+  "21. DHCP Options -> 21.1. Format of DHCP Options": {
+    "charts": [
+      "Figure 12: Option Format\n  0 1 2 3 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| option-code  | option-len   |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| option-data                                                  |\n|                       (option-len octets)                    |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    ]
+  },
+  "21. DHCP Options -> 21.7. Option Request Option": {
+    "charts": [
+      "Figure 18: Option Request Option Format\n0 1 2 3 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| OPTION_ORO | option-len |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| requested-option-code-1 | requested-option-code-2 |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| ... |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    ]
+  },
+  "21. DHCP Options -> 21.8. Preference Option": {
+    "charts": [
+      "Figure 19: Preference Option Format\n0 1 2 3 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| OPTION_PREFERENCE | option-len |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| pref-value |\n+-+-+-+-+-+-+-+-+-+-+-+-+"
+    ]
+  },
+  "21. DHCP Options -> 21.9. Elapsed Time Option": {
+    "charts": [
+      "Figure 20: Elapsed Time Option Format\n0 1 2 3 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n|   OPTION_ELAPSED_TIME         |          option-len           |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n|                          elapsed-time                         |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    ]
+  },
+  "21. DHCP Options -> 21.11. Authentication Option": {
+    "charts": [
+      "Figure 22: Authentication Option Format\n0 1 2 3 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| OPTION_AUTH | option-len |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| protocol | algorithm | RDM | |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| |\n| replay detection (64 bits) +-+-+-+-+-+-+-+-+\n| |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| . authentication information . .\n. (variable length) .\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    ]
+  },
+  "21. DHCP Options -> 21.6. IA Address Option": {
+    "charts": [
+      "Figure 17: IA Address Option Format\n0 1 2 3 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n|          OPTION_IAADDR        |           option-len          |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n|                                                               |\n|                          IPv6-address                        |\n|                                                               |\n|                                                               |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n|                      preferred-lifetime                       |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n|                       valid-lifetime                          |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n|                      IAaddr-options                           |\n|                              ...                              |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    ]
+  },
+  "21. DHCP Options -> 21.12. Server Unicast Option": {
+    "charts": [
+      "Figure 23: Server Unicast Option Format\n  0 1 2 3 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1\n +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n | OPTION_UNICAST | option-len |\n +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n |                                                               |\n |                       server-address                         |\n |                                                               |\n |                                                               |\n +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    ]
+  },
+  "21. DHCP Options -> 21.3. Server Identifier Option": {
+    "charts": [
+      "Figure 14: Server Identifier Option Format\n0 1 2 3 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ | OPTION_SERVERID | option-len | +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ . . . DUID . . (variable length) . . . +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    ]
+  },
+  "21. DHCP Options -> 21.16. Vendor Class Option": {
+    "charts": [
+      "Figure 28: Vendor Class Option Format\n0 1 2 3 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| OPTION_VENDOR_CLASS | option-len |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| enterprise-number |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n. . . vendor-class-data . . . . . .\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+",
+      "Figure 29: Format of vendor-class-data Field\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-...-+-+-+-+-+-+-+\n| vendor-class-len | opaque-data |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-...-+-+-+-+-+-+-+"
+    ]
+  },
+  "21. DHCP Options -> 21.18. Interface-Id Option": {
+    "charts": [
+      "Figure 32: Interface-Id Option Format\n0 1 2 3 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| OPTION_INTERFACE_ID | option-len |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n. . . interface-id . . .\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    ]
+  },
+  "21. DHCP Options -> 21.14. Rapid Commit Option": {
+    "charts": [
+      "Figure 25: Rapid Commit Option Format\n0 1 2 3 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ | OPTION_RAPID_COMMIT | option-len | +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    ]
+  },
+  "21. DHCP Options -> 21.15. User Class Option": {
+    "charts": [
+      "Figure 26: User Class Option Format\n0 1 2 3 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| OPTION_USER_CLASS | option-len |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n. . . user-class-data . . .\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+",
+      "Figure 27: Format of user-class-data Field\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-...-+-+-+-+-+-+-+\n| user-class-len | opaque-data |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-...-+-+-+-+-+-+-+"
+    ]
+  },
+  "21. DHCP Options -> 21.5. Identity Association for Temporary Addresses Option": {
+    "charts": [
+      "Figure 16: Identity Association for Temporary Addresses Option Format\n0 1 2 3 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| OPTION_IA_TA  |  option-len   |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n|                          IAID (4 octets)                      |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n|                                                               |\n.                       IA_TA-options                          .\n.                                                               .\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    ]
+  },
+  "21. DHCP Options -> 21.10. Relay Message Option": {
+    "charts": [
+      "Figure 21: Relay Message Option Format\n0 1 2 3 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ | OPTION_RELAY_MSG | option-len | +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ | | . DHCP-relay-message . . . . . +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    ]
+  },
+  "21. DHCP Options -> 21.17. Vendor-specific Information Option": {
+    "charts": [
+      "Figure 30: Vendor-specific Information Option Format\n0 1 2 3 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| OPTION_VENDOR_OPTS | option-len |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| enterprise-number |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n. . . vendor-option-data . . .\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+",
+      "Figure 31: Vendor-specific Options Format\n0 1 2 3 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| sub-opt-code | sub-option-len |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n. . . sub-option-data . . .\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    ]
+  },
+  "21. DHCP Options -> 21.13. Status Code Option": {
+    "charts": [
+      "Figure 24: Status Code Option Format\n0 1 2 3 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| OPTION_STATUS_CODE | option-len |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| status-code | |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ |\n. . . status-message . . . \n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+",
+      "Table 3: Status Code Definitions\n+---------------+------+--------------------------------------------+\n| Name          | Code | Description                                |\n+---------------+------+--------------------------------------------+\n| Success       | 0    | Success.                                   |\n|               |      |                                            |\n| UnspecFail    | 1    | Failure, reason unspecified; this status   |\n|               |      | code is sent by either a client or a       |\n|               |      | server to indicate a failure not           |\n|               |      | explicitly specified in this document.     |\n|               |      |                                            |\n| NoAddrsAvail  | 2    | The server has no addresses available to   |\n|               |      | assign to the IA(s).                       |\n|               |      |                                            |\n| NoBinding     | 3    | Client record (binding) unavailable.       |\n|               |      |                                            |\n| NotOnLink     | 4    | The prefix for the address is not          |\n|               |      | appropriate for the link to which the      |\n|               |      | client is attached.                        |\n|               |      |                                            |\n| UseMulticast  | 5    | Sent by a server to a client to force the  |\n|               |      | client to send messages to the server      |\n|               |      | using the                                 |\n|               |      | All_DHCP_Relay_Agents_and_Servers         |\n|               |      | multicast address.                         |\n|               |      |                                            |\n| NoPrefixAvail | 6    | The server has no prefixes available to    |\n|               |      | assign to the IA_PD(s).                    |\n+---------------+------+--------------------------------------------+"
+    ]
+  },
+  "22. Security Considerations": {},
+  "23. Privacy Considerations": {},
+  "21. DHCP Options -> 21.21. Identity Association for Prefix Delegation Option": {
+    "charts": [
+      "Figure 35: Identity Association for Prefix Delegation Option Format\n0 1 2 3 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| OPTION_IA_PD  | option-len    |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| IAID (4 octets)               |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| T1                            |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| T2                            |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n.                                                               .\n.                         IA_PD-options                        .\n.                                                               .\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    ]
+  },
+  "21. DHCP Options -> 21.19. Reconfigure Message Option": {
+    "charts": [
+      "Figure 33: Reconfigure Message Option Format\n0 1 2 3 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| OPTION_RECONF_MSG | option-len |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| msg-type |\n+-+-+-+-+-+-+-+"
+    ]
+  },
+  "21. DHCP Options -> 21.4. Identity Association for Non-temporary Addresses Option": {
+    "charts": [
+      "Figure 15: Identity Association for Non-temporary Addresses Option Format\n0 1 2 3 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| OPTION_IA_NA | option-len |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| IAID (4 octets) |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| T1 |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| T2 |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| |\n. IA_NA-options .\n. .\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    ]
+  },
+  "21. DHCP Options -> 21.20. Reconfigure Accept Option": {
+    "charts": [
+      "Figure 34: Reconfigure Accept Option Format\n0 1 2 3 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| OPTION_RECONF_ACCEPT | option-len |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    ]
+  },
+  "25. Obsoleted Mechanisms": {},
+  "Appendix A. Summary of Changes": {},
+  "26. References -> 26.2. Informative References": {},
+  "26. References -> 26.1. Normative References": {},
+  "21. DHCP Options -> 21.23. Information Refresh Time Option": {
+    "charts": [
+      "Figure 37: Information Refresh Time Option Format\n0 1 2 3 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n|OPTION_INFORMATION_REFRESH_TIME| option-len |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| information-refresh-time |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    ]
+  },
+  "21. DHCP Options -> 21.22. IA Prefix Option": {
+    "charts": [
+      "Figure 36: IA Prefix Option Format\n0 1 2 3 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n|          OPTION_IAPREFIX      |           option-len          |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n|                      preferred-lifetime                       |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n|                         valid-lifetime                        |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| prefix-length |                                               |\n+-+-+-+-+-+-+-+-+-+-+-+         IPv6-prefix                     |\n|                        (16 octets)                            |\n|                                                               |\n|                                                               |\n|                                                               |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n|                                                               |\n+-+-+-+-+-+-+-+-+-+-+-+         IAprefix-options                |\n|                        ...                                    |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    ]
+  },
+  "20. Authentication of DHCP Messages -> 20.4. Reconfiguration Key Authentication Protocol (RKAP) -> 20.4.1. Use of the Authentication Option in RKAP": {
+    "charts": [
+      "Figure 11: RKAP Authentication Information Type\n0 1 2 3 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| Type | Value (128 bits) |\n+-+-+-+-+-+-+-+\n| . . . . .\n+-+-+-+-+-+-+-+\n|\n|\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+",
+      "Derived: Type Field Values\n1 Reconfigure key value (used in the Reply message). 2 HMAC-MD5 digest of the message (used in the Reconfigure message). A 1-octet field. Value Data as defined by the Type field. A 16-octet field."
+    ]
+  },
+  "21. DHCP Options -> 21.25. INF_MAX_RT Option": {
+    "charts": [
+      "Figure 39: INF_MAX_RT Option Format\n0 1 2 3 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| OPTION_INF_MAX_RT | option-len |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| INF_MAX_RT value |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    ]
+  },
+  "21. DHCP Options -> 21.24. SOL_MAX_RT Option": {
+    "charts": [
+      "Figure 38: SOL_MAX_RT Option Format\n0 1 2 3 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| OPTION_SOL_MAX_RT | option-len |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n| SOL_MAX_RT value |\n+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+    ]
+  },
+  "Appendix C. Appearance of Options in the \"options\" Field of DHCP": {
+    "charts": [
+      "Derived: Appearance of Options in DHCP Options Field\nTop- IA_NA/ RELAY- RELAY-\nLevel IA_TA IAADDR IA_PD IAPREFIX FORW REPL\nClient ID *\nServer ID *\nIA_NA/IA_TA *\nIAADDR *\nIA_PD *\nIAPREFIX *\nORO *\nPreference *\nElapsed Time *\nRelay Message *\n* Authentic.\nServer Uni.\nStatus Code *\n* *\nRapid Comm.\nUser Class *\nVendor Class *\nVendor Info.\n* *\nInterf. ID *\n* Reconf. MSG.\nReconf. Accept *\nInfo Refresh Time *\nSOL_MAX_RT *\nINF_MAX_RT *"
+    ]
+  },
+  "Appendix B. Appearance of Options in Message Types": {
+    "charts": [
+      "Derived: Options in message types part 1\nClient Server IA_NA/ Elap. Relay Server ID ID IA_TA IA_PD ORO Pref Time Msg. Auth. Unicast Solicit * * * * * Advert. * * * * * Request * * * * * * Confirm * * * Renew * * * * * * Rebind * * * * * Decline * * * * * Release * * * * * Reply * * * * * * Reconf. * * * Inform. * (see note) * * R-forw. * R-repl. * NOTE: The Server Identifier option (seeSection 21.3) is only included in Information-request messages that are sent in response to a Reconfigure (see Section 18.2.6).",
+      "Derived: Options in message types part 2\nInfo Status Rap. User Vendor Vendor Inter. Recon. Recon. Refresh Code Comm. Class Class Spec. ID Msg. Accept Time Solicit * * * * * Advert. * * * * * Request * * * * Confirm * * * Renew * * * * Rebind * * * * Decline * * * Release * * * Reply * * * * * * * Reconf. * Inform. * * * * R-forw. * * R-repl. * *",
+      "Derived: SOL_MAX_RT and INF_MAX_RT options\nSOL_MAX_RT INF_MAX_RT Solicit Advert. * Request Confirm Renew Rebind Decline Release Reply * * Reconf. Inform. R-forw. R-repl."
+    ]
+  },
+  "24. IANA Considerations": {
+    "charts": [
+      "Table 4: Updated Options\n+---------+--------------------------+------------------+-----------+\n| Option  | Option Name (\"OPTION\"    | Client ORO (1)   | Singleton |\n|         | prefix removed)          |                 | Option    |\n+---------+--------------------------+------------------+-----------+\n| 1      | CLIENTID                | No               | Yes       |\n| 2      | SERVERID                | No               | Yes       |\n| 3      | IA_NA                   | No               | No        |\n| 4      | IA_TA                   | No               | No        |\n| 5      | IAADDR                  | No               | No        |\n| 6      | ORO                     | No               | Yes       |\n| 7      | PREFERENCE              | No               | Yes       |\n| 8      | ELAPSED_TIME            | No               | Yes       |\n| 9      | RELAY_MSG               | No               | Yes       |\n| 11     | AUTH                    | No               | Yes       |\n| 12     | UNICAST                 | No               | Yes       |\n| 13     | STATUS_CODE             | No               | Yes       |\n| 14     | RAPID_COMMIT            | No               | Yes       |\n| 15     | USER_CLASS              | No               | Yes       |\n| 16     | VENDOR_CLASS            | No               | No (2)    |\n| 17     | VENDOR_OPTS             | Optional         | No (2)    |\n| 18     | INTERFACE_ID            | No               | Yes       |\n| 19     | RECONF_MSG              | No               | Yes       |\n| 20     | RECONF_ACCEPT           | No               | Yes       |\n| 21     | SIP_SERVER_D            | Yes              | Yes       |\n| 22     | SIP_SERVER_A            | Yes              | Yes       |\n| 23     | DNS_SERVERS             | Yes              | Yes       |\n| 24     | DOMAIN_LIST             | Yes              | Yes       |\n| 25     | IA_PD                   | No               | No        |\n| 26     | IAPREFIX                | No               | No        |\n| 27     | NIS_SERVERS             | Yes              | Yes       |\n| 28     | NISP_SERVERS            | Yes              | Yes       |\n| 29     | NIS_DOMAIN_NAME         | Yes              | Yes       |\n| 30     | NISP_DOMAIN_NAME        | Yes              | Yes       |\n| 31     | SNTP_SERVERS            | Yes              | Yes       |\n| 32     | INFORMATION_REFRESH_TIME| Required for     | Yes       |\n|        |                          | Information-     |           |\n|        |                          | request          |           |\n| 33     | BCMCS_SERVER_D          | Yes              | Yes       |\n| 34     | BCMCS_SERVER_A          | Yes              | Yes       |\n| 36     | GEOCONF_CIVIC           | Yes              | Yes       |\n| 37     | REMOTE_ID               | No               | Yes       |\n| 38     | SUBSCRIBER_ID           | No               | Yes       |\n| 39     | CLIENT_FQDN             | Yes              | Yes       |\n| 40     | PANA_AGENT              | Yes              | Yes       |\n| 41     | NEW_POSIX_TIMEZONE      | Yes              | Yes       |\n| 42     | NEW_TZDB_TIMEZONE       | Yes              | Yes       |\n| 43     | ERO                     | No               | Yes       |\n| 44     | LQ_QUERY                | No               | Yes       |\n| 45     | CLIENT_DATA             | No               | Yes       |\n| 46     | CLT_TIME                | No               | Yes       |\n| 47     | LQ_RELAY_DATA           | No               | Yes       |\n| 48     | LQ_CLIENT_LINK          | No               | Yes       |\n| 49     | MIP6_HNIDF              | Yes              | Yes       |\n| 50     | MIP6_VDINF              | Yes              | Yes       |\n| 51     | V6_LOST                 | Yes              | Yes       |\n| 52     | CAPWAP_AC_V6            | Yes              | Yes       |\n| 53     | RELAY_ID                | No               | Yes       |\n| 54     | IPv6_Address-MoS        | Yes              | Yes       |\n| 55     | IPv6_FQDN-MoS           | Yes              | Yes       |\n| 56     | NTP_SERVER              | Yes              | Yes       |\n| 57     | V6_ACCESS_DOMAIN        | Yes              | Yes       |\n| 58     | SIP_UA_CS_LIST          | Yes              | Yes       |\n| 59     | OPT_BOOTFILE_URL        | Yes              | Yes       |\n| 60     | OPT_BOOTFILE_PARAM      | Yes              | Yes       |\n| 61     | CLIENT_ARCH_TYPE        | No               | Yes       |\n| 62     | NII                     | Yes              | Yes       |\n| 63     | GEOLOCATION             | Yes              | Yes       |\n| 64     | AFTR_NAME               | Yes              | Yes       |\n| 65     | ERP_LOCAL_DOMAIN_NAME   | Yes              | Yes       |\n| 66     | RSOO                    | No               | Yes       |\n| 67     | PD_EXCLUDE              | Yes              | Yes       |\n| 68     | VSS                     | No               | Yes       |\n| 69     | MIP6_IDINF              | Yes              | Yes       |\n| 70     | MIP6_UDINF              | Yes              | Yes       |\n| 71     | MIP6_HNP                | Yes              | Yes       |\n| 72     | MIP6_HAA                | Yes              | Yes       |\n| 73     | MIP6_HAF                | Yes              | Yes       |\n| 74     | RDNSS_SELECTION         | Yes              | No        |\n| 75     | KRB_PRINCIPAL_NAME      | Yes              | Yes       |\n| 76     | KRB_REALM_NAME          | Yes              | Yes       |\n| 77     | KRB_DEFAULT_REALM_NAME  | Yes              | Yes       |\n| 78     | KRB_KDC                 | Yes              | Yes       |\n| 79     | CLIENT_LINKLAYER_ADDR   | No               | Yes       |\n| 80     | LINK_ADDRESS            | No               | Yes       |\n| 81     | RADIUS                  | No               | Yes       |\n| 82     | SOL_MAX_RT              | Required for     | Yes       |\n|        |                          | Solicit          |           |\n| 83     | INF_MAX_RT              | Required for     | Yes       |\n|        |                          | Information-     |           |\n|        |                          | request          |           |\n| 84     | ADDRSEL                 | Yes              | Yes       |\n| 85     | ADDRSEL_TABLE           | Yes              | Yes       |\n| 86     | V6_PCP_SERVER           | Yes              | No        |\n| 87     | DHCPV4_MSG              | No               | Yes       |\n| 88     | DHCP4_O_DHCP6_SERVER    | Yes              | Yes       |\n| 89     | S46_RULE                | No               | No (3)    |\n| 90     | S46_BR                  | No               | No        |\n| 91     | S46_DMR                 | No               | Yes       |\n| 92     | S46_V4V6BIND            | No               | Yes       |\n| 93     | S46_PORTPARAMS          | No               | Yes       |\n| 94     | S46_CONT_MAPE           | Yes              | No        |\n| 95     | S46_CONT_MAPT           | Yes              | Yes       |\n| 96     | S46_CONT_LW             | Yes              | Yes       |\n| 97     | 4RD                     | Yes              | Yes       |\n| 98     | 4RD_MAP_RULE            | Yes              | Yes       |\n| 99     | 4RD_NON_MAP_RULE        | Yes              | Yes       |\n| 100    | LQ_BASE_TIME            | No               | Yes       |\n| 101    | LQ_START_TIME           | No               | Yes       |\n| 102    | LQ_END_TIME             | No               | Yes       |\n| 103    | DHCP Captive-Portal     | Yes              | Yes       |\n| 104    | MPL_PARAMETERS          | Yes              | No        |\n| 105    | ANI_ATT                 | No               | Yes       |\n| 106    | ANI_NETWORK_NAME        | No               | Yes       |\n| 107    | ANI_AP_NAME             | No               | Yes       |\n| 108    | ANI_AP_BSSID            | No               | Yes       |\n| 109    | ANI_OPERATOR_ID         | No               | Yes       |\n| 110    | ANI_OPERATOR_REALM      | No               | Yes       |\n| 111    | S46_PRIORITY            | Yes              | Yes       |\n| 112    | MUD_URL_V6              | No               | Yes       |\n| 113    | V6_PREFIX64             | Yes              | No        |\n| 114    | F_BINDING_STATUS        | No               | Yes       |\n| 115    | F_CONNECT_FLAGS         | No               | Yes       |\n| 116    | F_DNS_REMOVAL_INFO      | No               | Yes       |\n| 117    | F_DNS_HOST_NAME         | No               | Yes       |\n| 118    | F_DNS_ZONE_NAME         | No               | Yes       |\n| 119    | F_DNS_FLAGS             | No               | Yes       |\n| 120    | F_EXPIRATION_TIME       | No               | Yes       |\n| 121    | F_MAX_UNACKED_BNDUPD    | No               | Yes       |\n| 122    | F_MCLT                  | No               | Yes       |\n| 123    | F_PARTNER_LIFETIME      | No               | Yes       |\n| 124    | F_PARTNER_LIFETIME_SENT | No               | Yes       |\n| 125    | F_PARTNER_DOWN_TIME     | No               | Yes       |\n| 126    | F_PARTNER_RAW_CLT_TIME  | No               | Yes       |\n| 127    | F_PROTOCOL_VERSION      | No               | Yes       |\n| 128    | F_KEEPALIVE_TIME        | No               | Yes       |\n| 129    | F_RECONFIGURE_DATA      | No               | Yes       |\n| 130    | F_RELATIONSHIP_NAME     | No               | Yes       |\n| 131    | F_SERVER_FLAGS          | No               | Yes       |\n| 132    | F_SERVER_STATE          | No               | Yes       |\n| 133    | F_START_TIME_OF_STATE   | No               | Yes       |\n| 134    | F_STATE_EXPIRATION_TIME | No               | Yes       |\n| 135    | RELAY_PORT              | No               | Yes       |\n| 143    | IPv6_Address-ANDSF      | Yes              | Yes       |\n+---------+--------------------------+------------------+-----------+"
+    ]
+  }
+}

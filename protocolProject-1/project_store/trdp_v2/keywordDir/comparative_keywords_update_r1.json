@@ -1,0 +1,232 @@
+{
+  "Train Real-Time Data Protocol (TRDP) -> A.5 Communication Identifier (ComId) -> Table A.2 芒聙聯 Reserved ComIds": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.3 TRDP FCS computation": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.4 Interaction between TRDP user and TRDP Layer -> Figure A.4 芒聙聯 TRDP service model": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.3 Communication pattern": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.1 General -> Figure A.1 芒聙聯 Overview of the protocol stack": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.2 Lower Layers -> A.2.1 Data link layer": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.3 TRDP FCS computation -> Figure A.3 芒聙聯 FCS Table": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.4 Interaction between TRDP user and TRDP Layer": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.2 Lower Layers": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.3 Communication pattern -> Figure A.10 芒聙聯 PD pull pattern (multipoint to multipoint, sink does not know source)": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.2 Roles": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.1 General": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.2 Lower Layers -> A.2.2 Network Layer": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.3 Communication pattern -> Figure A.5 芒聙聯 PD push pattern (point to point)": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.2 Lower Layers -> A.2.3 Transport Layer": {
+    "exceeds": [
+      "exceeding"
+    ]
+  },
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.6 Interaction between application and TRDP protocol layer": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.3 Communication pattern -> Figure A.6 芒聙聯 PD push pattern (point to multipoint)": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.3 Communication pattern -> Figure A.9 芒聙聯 PD pull pattern (point to multipoint, sink knows source)": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.3 Communication pattern -> Figure A.7 芒聙聯 PD pull pattern (point to point, sink knows source)": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.2 Lower Layers -> A.2.3 Transport Layer -> Table A.1 芒聙聯 UDP/TCP port assignments (well known ports)": {
+    "is different from": [
+      "different from"
+    ],
+    "is not equal to": [
+      "different from"
+    ]
+  },
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.1 Communication model": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.3 TRDP FCS computation -> Figure A.2 芒聙聯 FCS Computation": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.4 Addressing": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.5 Communication Identifier (ComId)": {
+    "is equal to": [
+      "set to"
+    ],
+    "is dependent on": [
+      "dependent on"
+    ]
+  },
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.3 Communication pattern -> Figure A.8 芒聙聯 PD pull pattern (multipoint to point, sink does not know source)": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.3 Communication pattern -> A.6.3.1 Push communication pattern": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.6 Interaction between application and TRDP protocol layer -> A.6.6.1 Service primitives": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.5 PD-PDU": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.6 Interaction between application and TRDP protocol layer -> Figure A.14 芒聙聯 Interaction sequence chart for PD push pattern, used for application": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.3 Communication pattern -> A.6.3.2 Pull communication pattern": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.5 PD-PDU -> Figure A.11 芒聙聯 PD-PDU": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.6 Interaction between application and TRDP protocol layer -> Figure A.12 芒聙聯 Interaction sequence chart for PD pull pattern": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.6 Interaction between application and TRDP protocol layer -> Figure A.13 芒聙聯 Interaction sequence chart for PD push pattern used for TRDP layer": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.6 Interaction between application and TRDP protocol layer -> A.6.6.2 PD User access": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.8 State Machine -> Figure A.16 芒聙聯 PD State diagram publisher": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.8 State Machine": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.6 Interaction between application and TRDP protocol layer -> Figure A.15 芒聙聯 Interaction sequence chart for redundant PD handling": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.8 State Machine -> Table A.8 芒聙聯 PD publisher state diagram 芒聙聯 actions": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.8 State Machine -> Table A.7 芒聙聯 PD publisher state diagram 芒聙聯 triggers": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.7 Topography counter check": {
+    "is equal to": [
+      "matches"
+    ],
+    "is different from": [
+      "does not match"
+    ]
+  },
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.8 State Machine -> Table A.9 芒聙聯 PD publisher state diagram 芒聙聯 states": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.8 State Machine -> Figure A.17 芒聙聯 PD State diagram requester": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.8 State Machine -> A.6.8.1 Publishing PD-PDU(data)": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.8 State Machine -> A.6.8.3 Receiving PD-PDU (PD reply/data)": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.6 Interaction between application and TRDP protocol layer -> A.6.6.5 PD Redundancy Handling": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.8 State Machine -> Table A.6 芒聙聯 PD publisher state diagram 芒聙聯 guards": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.8 State Machine -> Table A.11 芒聙聯 PD requester state diagram 芒聙聯 triggers": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.8 State Machine -> A.6.8.2 Request publishing of PD-PDU (PD request)": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.8 State Machine -> Table A.10 芒聙聯 PD publisher state diagram 芒聙聯 guards": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.8 State Machine -> Table A.12 芒聙聯 PD requester state diagram 芒聙聯 actions": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.7 Topography counter check -> Table A.5 芒聙聯 Topography counter check": {
+    "is equal to": [
+      "equals"
+    ]
+  },
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.8 State Machine -> Figure A.18 芒聙聯 PD State diagram subscriber": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.6 Interaction between application and TRDP protocol layer -> A.6.6.4 Interaction sequence 芒聙聯 PD Push Pattern": {
+    "matches": [
+      "matching to"
+    ],
+    "is different from": [
+      "marked as invalid"
+    ]
+  },
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.5 PD-PDU -> Table A.3 芒聙聯 PD-PDU parameters": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.8 State Machine -> Table A.17 芒聙聯 PD subscriber state diagram 芒聙聯 states": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.8 State Machine -> Table A.14 芒聙聯 PD subscriber state diagram 芒聙聯 triggers": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.1 Communication model -> Figure A.19 芒聙聯 Message data transfer options": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.8 State Machine -> Table A.13 芒聙聯 PD requester state diagram 芒聙聯 states": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.3 Communication pattern": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.6 Interaction between application and TRDP layer": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.8 State Machine -> Table A.15 芒聙聯 PD subscriber state diagram 芒聙聯 guards": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.5 MD-PDU -> Figure A.20 芒聙聯 MD-PDU": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.8 State Machine -> Table A.16 芒聙聯 PD subscriber state diagram 芒聙聯 actions": {
+    "is equal to": [
+      "equal to"
+    ]
+  },
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.6 Interaction between application and TRDP protocol layer -> A.6.6.3 Interaction sequence 芒聙聯 PD Pull Pattern": {
+    "matches": [
+      "matching"
+    ],
+    "is equal to": [
+      "is 0"
+    ]
+  },
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.5 MD-PDU": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.3 Communication pattern -> A.7.3.2 Pull communication pattern": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.2 Roles": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.3 Communication pattern -> A.7.3.1 Push communication pattern": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.6 Interaction between application and TRDP layer -> A.7.6.1 Service primitives": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.1 Communication model": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.4 Addressing": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.8 MD protocol state machine": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.8 MD protocol state machine -> Table A.22 芒聙聯 MD caller state diagram 芒聙聯 triggers": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.6 Interaction between application and TRDP layer -> A.7.6.2 Interaction sequence": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.8 MD protocol state machine -> Figure A.22 芒聙聯 TRDP layer MD caller state chart": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.6 Interaction between application and TRDP layer -> Figure A.21 芒聙聯 Interaction sequence chart": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.8 MD protocol state machine -> Table A.24 芒聙聯 MD caller state diagram 芒聙聯 actions": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.8 MD protocol state machine -> Table A.25 芒聙聯 MD caller state diagram 芒聙聯 states": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.8 MD protocol state machine -> Figure A.23 芒聙聯 TRDP layer MD replier state chart": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.7 Topography counter check": {
+    "is equal to": [
+      "match"
+    ],
+    "matches": [
+      "match"
+    ]
+  },
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.7 Topography counter check -> Table A.21 芒聙聯 Topography counter check": {
+    "is equal to": [
+      "set to"
+    ],
+    "matches": [
+      "comparing"
+    ]
+  },
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.6 Interaction between application and TRDP layer -> A.7.6.3 Filtering rules": {
+    "is equal to": [
+      "may be received by"
+    ]
+  },
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.8 MD protocol state machine -> Table A.29 芒聙聯 MD replier state diagram 芒聙聯 states": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.6 Interaction between application and TRDP layer -> Table A.20 芒聙聯 TRDP service primitives 芒聙聯 Replier": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.8 MD protocol state machine -> Table A.32 芒聙聯 MD receiver state diagram 芒聙聯 actions": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.8 MD protocol state machine -> Table A.33 芒聙聯 MD receiver state diagram 芒聙聯 states": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.8 MD protocol state machine -> Table A.27 芒聙聯 MD replier state diagram 芒聙聯 guards": {
+    "exists": [
+      "existsReplySession",
+      "existsListener"
+    ]
+  },
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.6 Interaction between application and TRDP layer -> Table A.19 芒聙聯 TRDP service primitives 芒聙聯 Caller": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.8 MD protocol state machine -> Table A.31 芒聙聯 MD receiver state diagram 芒聙聯 guards": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.8 MD protocol state machine -> Table A.23 芒聙聯 MD caller state diagram 芒聙聯 guards": {
+    "is equal to": [
+      "equals"
+    ],
+    "matches": [
+      "match"
+    ],
+    "is not equal to": [
+      "does not equal"
+    ]
+  },
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.8 MD protocol state machine -> Table A.28 芒聙聯 MD replier state diagram 芒聙聯 actions": {
+    "is equal to": [
+      "is invalid"
+    ],
+    "is different from": [
+      "is not equal to"
+    ]
+  },
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.8 MD protocol state machine -> Table A.26 芒聙聯 MD replier state diagram 芒聙聯 triggers": {
+    "is equal to": [
+      "equals",
+      "equals",
+      "equals",
+      "equals"
+    ],
+    "matches": [
+      "filtering for"
+    ],
+    "is identical to": [
+      "equals",
+      "equals",
+      "equals",
+      "equals"
+    ]
+  },
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.8 MD protocol state machine -> Table A.30 芒聙聯 MD receiver state diagram 芒聙聯 triggers": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.6 Interaction between application and TRDP protocol layer -> Table A.4 芒聙聯 TRDP service primitives": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.5 MD-PDU -> Table A.18 芒聙聯 MD-PDU parameters": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.8 MD protocol state machine -> A.7.8.3 Handling of received messages (action mdHandleReceived)": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.8 Message data echo server (option)": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.9 TCP Connection Handling": {},
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.8 MD protocol state machine -> A.7.8.1 TRDP Layer 芒聙聯 Caller": {
+    "is equal to": [
+      "matches"
+    ],
+    "is different from": [
+      "does not match"
+    ]
+  },
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.8 MD protocol state machine -> A.7.8.2 TRDP Layer 芒聙聯 Replier (Listener)": {
+    "is equal to": [
+      "matches"
+    ],
+    "is different from": [
+      "different"
+    ],
+    "does not match": [
+      "different"
+    ]
+  },
+  "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.8 MD protocol state machine -> Figure A.24 芒聙聯 TRDP Layer MD telegram reception": {
+    "matches": [
+      "match"
+    ],
+    "does not match": [
+      "does not match"
+    ]
+  }
+}

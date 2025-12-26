@@ -1,0 +1,10 @@
+# protocolProject/config.toml
+[storage]
+root = "project_store"
+
+[llm]
+base_url = "https://api.deepseek.com/v1"
+model1 = "deepseek-chat"
+model2 = "deepseek-reasoner"
+max_workers = 12
+temperature = 0.1

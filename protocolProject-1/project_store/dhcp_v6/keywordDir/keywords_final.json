@@ -1,0 +1,30 @@
+{
+  "specify": [
+    "Solicit",
+    "Status Code",
+    "Rebind",
+    "Confirm",
+    "Server Identifier",
+    "Information-request",
+    "Reply",
+    "Client Identifier",
+    "UnspecFail",
+    "options field",
+    "Advertise"
+  ],
+  "modal": [
+    "MUST NOT",
+    "MUST",
+    "SHOULD",
+    "SHOULD NOT",
+    "must",
+    "is required to"
+  ],
+  "comparative": [
+    "different",
+    "does not match",
+    "other than",
+    "is identical to",
+    "compare DUIDs for equality"
+  ]
+}

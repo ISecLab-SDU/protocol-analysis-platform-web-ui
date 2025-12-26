@@ -1,0 +1,112 @@
+{
+  "5. Security Considerations": {},
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.6. The SNMPv2-Trap-PDU": {},
+  "4. Protocol Specification -> 4.2. PDU Processing": {},
+  "1.1. A Note on Terminology": {},
+  "2. Overview -> 2.1. Roles of Protocol Entities": {},
+  "2. Overview -> 2.2. Management Information": {},
+  "2. Overview -> 2.4. Retransmission of Requests": {},
+  "2. Overview -> 2.6. Transport Mappings": {},
+  "2. Overview -> 2.5. Message Sizes": {},
+  "2. Overview -> 2.3. Access to Management Information": {},
+  "6. Editor's Address": {},
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.4. The Response-PDU": {
+    "is equal to": [
+      "equal to"
+    ],
+    "is greater than": [
+      "greater than"
+    ],
+    "is less than": [
+      "less than"
+    ]
+  },
+  "3. Definitions": {},
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.1. The GetRequest-PDU": {
+    "matches": [
+      "exactly matches"
+    ],
+    "does not match": [
+      "does not have an OBJECT IDENTIFIER prefix which exactly matches"
+    ]
+  },
+  "4. Protocol Specification -> 4.1. Common Constructs": {
+    "is equal to": [
+      "takes the value of"
+    ],
+    "is identical to": [
+      "takes the value of"
+    ],
+    "is different from": [
+      "a different"
+    ],
+    "is not equal to": [
+      "a different"
+    ],
+    "is greater than": [
+      "exceeds"
+    ],
+    "exceeds": [
+      "exceeds"
+    ]
+  },
+  "7. Acknowledgements": {},
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.3. The GetBulkRequest-PDU -> 4.2.3.1. Another Example of Table Traversal": {},
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.2. The GetNextRequest-PDU": {
+    "is equal to": [
+      "same values as"
+    ],
+    "follows": [
+      "Upon receipt of"
+    ],
+    "precedes": [
+      "lexicographically precede"
+    ]
+  },
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.2. The GetNextRequest-PDU -> 4.2.2.1. Example of Table Traversal": {
+    "is equal to": [
+      "as if"
+    ],
+    "is identical to": [
+      "as if"
+    ],
+    "follows": [
+      "begins by",
+      "continues with"
+    ],
+    "precedes": [
+      "begins by",
+      "continues with"
+    ]
+  },
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.3. The GetBulkRequest-PDU": {
+    "is equal to": [
+      "same value as"
+    ],
+    "is less than": [
+      "less than"
+    ],
+    "is greater than": [
+      "greater than"
+    ],
+    "is between X and Y": [
+      "greater than zero and less than or equal to"
+    ]
+  },
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.7. The InformRequest-PDU": {
+    "is equal to": [
+      "same values in its request-id, error-status, error-index and variable-bindings fields as the received InformRequest-PDU",
+      "same values in its request-id field as the received InformRequest-PDU",
+      "same values in its request-id and variable-bindings fields as the received InformRequest-PDU"
+    ],
+    "is greater than": [
+      "greater than either a local constraint or the maximum message size of the originator"
+    ],
+    "is less than": [
+      "less than or equal to both a local constraint and the maximum message size of the originator"
+    ]
+  },
+  "4. Protocol Specification -> 4.2. PDU Processing -> 4.2.5. The SetRequest-PDU": {
+    "error": "无效的JSON响应"
+  }
+}

@@ -1,0 +1,1022 @@
+{
+    "5. Client/Server Exchanges -> 5.3. Server/Client Exchanges": [
+        "A server that has previously communicated with a client and negotiated for the client to listen for Reconfigure messages may send the client a Reconfigure message to initiate the client to update its configuration by sending an Information-request, Renew, or Rebind message.",
+        "The Reconfigure message mechanism can be used to expedite configuration changes to a client, such as the need to renumber a network (see RFC6879)."
+    ],
+    "5. Client/Server Exchanges -> 5.2. Client/Server Exchanges Involving Four Messages": [
+        "The client sends a Solicit message to the All_DHCP_Relay_Agents_and_Servers multicast address to find available DHCP servers.",
+        "The server responds with a Reply message that contains the confirmed addresses, delegated prefixes, and configuration."
+    ],
+    "1. Introduction -> 1.1. Relationship to Previous DHCPv6 Standards": [
+        "The initial specification of DHCPv6 was defined in RFC3315, and a number of follow-up documents were published over the years: RFC3633 (IPv6 Prefix Options for Dynamic Host Configuration Protocol version 6), RFC3736 (Stateless Dynamic Host Configuration Protocol Service for IPv6), RFC4242 (Information Refresh Time Option for Dynamic Host Configuration Protocol for IPv6), RFC7083 (Modification to Default Values of SOL_MAX_RT and INF_MAX_RT), RFC7283 (Handling Unknown DHCPv6 Messages), and RFC7550 (Issues and Recommendations with Multiple Stateful DHCPv6 Options)."
+    ],
+    "6. Operational Models -> 6.1. Stateless DHCP": [
+        "Stateless DHCP is the simplest and most basic operation for DHCP and requires a client (and a server) to support only two messages -- Information-request and Reply.",
+        "Note that DHCP servers and relay agents typically also need to support the Relay-forward and Relay-reply messages to accommodate operation when clients and servers are not on the same link."
+    ],
+    "1. Introduction": [
+        "DHCPv6 can provide a device with addresses assigned by a DHCPv6 server and other configuration information; the addresses and configuration information are carried in options.",
+        "DHCPv6 can be extended through the definition of new options to carry configuration information not specified in this document.",
+        "DHCP can also be used just to provide other configuration options (i.e., no addresses or prefixes).",
+        "Providing only configuration options without addresses or prefixes implies that the server does not have to track any state; thus, this mode is called \"stateless DHCPv6\"."
+    ],
+    "7. DHCP Constants -> 7.4. DHCP Option Codes": [
+        "DHCP makes extensive use of options in messages; some of these options are defined later, in Section 21.",
+        "Additional options are defined in other documents or may be defined in the future (see [RFC7227] for guidance on new option definitions)."
+    ],
+    "7. DHCP Constants -> 7.5. Status Codes": [
+        "If the Status Code option (see Section 21.13) does not appear in a message in which the option could appear, the status of the message is assumed to be Success."
+    ],
+    "5. Client/Server Exchanges -> 5.1. Client/Server Exchanges Involving Two Messages": [
+        "To obtain other configuration information, the client first sends an Information-request message to the All_DHCP_Relay_Agents_and_Servers multicast address.",
+        "Servers respond with a Reply message containing the other configuration information for the client.",
+        "To request the expedited two-message exchange, the client sends a Solicit message to the All_DHCP_Relay_Agents_and_Servers multicast address requesting the assignment of addresses and/or delegated prefixes and other configuration information.",
+        "The Solicit message includes an indication (the Rapid Commit option; see Section 21.14) that the client is willing to accept an immediate Reply message from the server.",
+        "The server that is willing to commit the assignment of addresses and/or delegated prefixes to the client immediately responds with a Reply message.",
+        "The configuration information and the addresses and/or delegated prefixes in the Reply message are then immediately available for use by the client.",
+        "To request an extension of the lifetimes assigned to an address or delegated prefix, the client sends a Renew message to the server.",
+        "The server sends a Reply message to the client with the new lifetimes, allowing the client to continue to use the address or delegated prefix without interruption."
+    ],
+    "6. Operational Models -> 6.6. Multiple Addresses and Prefixes": [
+        "During typical operation, a client sends one instance of an IA_NA option and the server assigns at most one address from each prefix assigned to the link to which the client is attached.",
+        "A client can explicitly request multiple addresses by sending multiple IA_NA options (and/or IA_TA options; see Section 21.5).",
+        "A client can send multiple IA_NA (and/or IA_TA) options in its initial transmissions.",
+        "Alternatively, a client can send an extra Request message with additional new IA_NA (and/or IA_TA) options (or include them in a Renew message).",
+        "In principle, DHCP allows a client to request new prefixes to be delegated by sending additional IA_PD options (see Section 21.21).",
+        "For more information on how the server distinguishes between IA option instances, see Section 12."
+    ],
+    "7. DHCP Constants -> 7.7. Representation of Time Values and \"Infinity\" as a Time Value": [
+        "A client will never attempt to use a Rebind message to locate a different server to extend the lifetimes of any addresses in an IA with T2 set to 0xffffffff."
+    ],
+    "9. Relay Agent/Server Message Formats -> 9.2. Relay-reply Message": [
+        "The message type is RELAY-REPL (13).",
+        "The hop-count is copied from the Relay-forward message.",
+        "The link-address is copied from the Relay-forward message.",
+        "The options field must include a Relay Message option (see Section 21.10) and may include other options, such as the Interface-Id option (see Section 21.18)."
+    ],
+    "9. Relay Agent/Server Message Formats": [
+        "All values in the message header and in options are in network byte order.",
+        "Options are stored serially in the \"options\" field, with no padding between the options.",
+        "There are two relay agent messages (Relay-forward and Relay-reply), which share the following format: The message format includes fields for message type, hop count, link address, and peer address.",
+        "Removed Removed The message includes options of variable number and length."
+    ],
+    "8. Client/Server Message Formats": [
+        "All DHCP messages sent between clients and servers share an identical fixed-format header and a variable-format area for options.",
+        "All values in the message header and in options are in network byte order.",
+        "Options are stored serially in the \"options\" field, with no padding between the options.",
+        "Options field The options field contains a variable number of options with variable lengths.",
+        "The msg-type field identifies the DHCP message type; the available message types are listed in Section 7.3.",
+        "The msg-type field is a 1-octet field.",
+        "The transaction-id field contains the transaction ID for this message exchange.",
+        "The options field contains options carried in this message; options are described in Section 21.",
+        "The options field is a variable-length field that is 4 octets less than the size of the message."
+    ],
+    "9. Relay Agent/Server Message Formats -> 9.1. Relay-forward Message": [
+        "The message type is RELAY-FORW (12).",
+        "The options field MUST include a Relay Message option (see Section 21.10); MAY include other options, such as the Interface-Id option (see Section 21.18), added by the relay agent.",
+        "See Section 13.1 for an explanation of how the link-address field is used."
+    ],
+    "7. DHCP Constants -> 7.3. DHCP Message Types": [
+        "SOLICIT (1) A client sends a Solicit message to locate servers.",
+        "ADVERTISE (2) A server sends an Advertise message to indicate that it is available for DHCP service, in response to a Solicit message received from a client.",
+        "RENEW (5) A client sends a Renew message to the server that originally provided the client's leases and configuration parameters to extend the lifetimes on the leases assigned to the client and to update other configuration parameters.",
+        "REBIND (6) A client sends a Rebind message to any available server to extend the lifetimes on the leases assigned to the client and to update other configuration parameters; this message is sent after a client receives no response to a Renew message.",
+        "REPLY (7) A server sends a Reply message containing assigned leases and configuration parameters in response to a Solicit, Request, Renew, or Rebind message received from a client.",
+        "A server sends a Reply message containing configuration parameters in response to an Information-request message.",
+        "A server sends a Reply message in response to a Confirm message confirming or denying that the addresses assigned to the client are appropriate to the link to which the client is connected.",
+        "A server sends a Reply message to acknowledge receipt of a Release or Decline message.",
+        "RELEASE (8) A client sends a Release message to the server that assigned leases to the client to indicate that the client will no longer use one or more of the assigned leases.",
+        "DECLINE (9) A client sends a Decline message to a server to indicate that the client has determined that one or more addresses assigned by the server are already in use on the link to which the client is connected.",
+        "RECONFIGURE (10) A server sends a Reconfigure message to a client to inform the client that the server has new or updated configuration parameters and that the client is to initiate a Renew/Reply, Rebind/Reply, or Information-request/Reply transaction with the server in order to receive the updated information.",
+        "INFORMATION-REQUEST (11) A client sends an Information-request message to a server to request configuration parameters without the assignment of any leases to the client.",
+        "RELAY-FORW (12) A relay agent sends a Relay-forward message to relay messages to servers, either directly or through another relay agent.",
+        "The received message -- either a client message or a Relay-forward message from another relay agent -- is encapsulated in an option in the Relay-forward message.",
+        "RELAY-REPL (13) A server sends a Relay-reply message to a relay agent containing a message that the relay agent delivers to a client.",
+        "The server encapsulates the client message as an option in the Relay-reply message, which the relay agent extracts and relays to the client."
+    ],
+    "7. DHCP Constants -> 7.6. Transmission and Retransmission Parameters": [
+        "The table presents transmission and retransmission parameters including: SOL_MAX_DELAY (1 sec, max delay of first Solicit), SOL_TIMEOUT (1 sec, initial Solicit timeout), SOL_MAX_RT (3600 secs, max Solicit timeout value), REQ_TIMEOUT (1 sec, initial Request timeout), REQ_MAX_RT (30 secs, max Request timeout value), REQ_MAX_RC (10, max Request retry attempts), CNF_MAX_DELAY (1 sec, max delay of first Confirm), CNF_TIMEOUT (1 sec, initial Confirm timeout), CNF_MAX_RT (4 secs, max Confirm timeout), CNF_MAX_RD (10 secs, max Confirm duration), REN_TIMEOUT (10 secs, initial Renew timeout), REN_MAX_RT (600 secs, max Renew timeout value), REB_TIMEOUT (10 secs, initial Rebind timeout), REB_MAX_RT (600 secs, max Rebind timeout value), INF_MAX_DELAY (1 sec, max delay of first Information-request), INF_TIMEOUT (1 sec, initial Information-request timeout), INF_MAX_RT (3600 secs, max Information-request timeout value), REL_TIMEOUT (1 sec, initial Release timeout), REL_MAX_RC (4, max Release retry attempts), DEC_TIMEOUT (1 sec, initial Decline timeout), DEC_MAX_RC (4, max Decline retry attempts), REC_TIMEOUT (2 secs, initial Reconfigure timeout), REC_MAX_RC (8, max Reconfigure attempts), HOP_COUNT_LIMIT (8, max hop count in a Relay-forward message), IRT_DEFAULT (86400 secs/24 hours, default information refresh time), IRT_MINIMUM (600 secs, min information refresh time), MAX_WAIT_TIME (60 secs, max required time to wait for a response)."
+    ],
+    "11. DHCP Unique Identifier (DUID)": [
+        "If the capability to obtain a client's link-layer address is required, it is recommended to rely on the Client Link-Layer Address option instead [RFC6939]."
+    ],
+    "12. Identity Association -> 12.1. Identity Associations for Address Assignment": [
+        "The configuration information in an IA_NA option consists of one or more IPv6 addresses along with the T1 and T2 values for the IA.",
+        "The configuration information in an IA_TA option consists of one or more IPv6 addresses."
+    ],
+    "12. Identity Association": [
+        "If the client wishes to obtain a distinctly new address or prefix and deprecate the existing one, the client sends a Release message to the server for the IAs using the original IAID."
+    ],
+    "12. Identity Association -> 12.2. Identity Associations for Prefix Delegation": [
+        "The configuration information in an IA_PD option consists of one or more prefixes along with the T1 and T2 values for the IA_PD."
+    ],
+    "6. Operational Models -> 6.3. DHCP for Prefix Delegation": [
+        "The prefix delegation options can be used in conjunction with other DHCP options carrying other configuration information to the client."
+    ],
+    "14. Transmission of Messages by a Client": [
+        "An individual server is indicated by specifying that server's DUID in a Server Identifier option in the client's message.",
+        "All servers are indicated when the Server Identifier option is not supplied."
+    ],
+    "16. Message Validation -> 16.2. Solicit Message": [
+        "Clients MUST discard any received Solicit messages.",
+        "Servers MUST discard any Solicit messages that do not include a Client Identifier option or that do include a Server Identifier option."
+    ],
+    "14. Transmission of Messages by a Client -> 14.1. Rate Limiting": [
+        "One example is that a client obtains an address or delegated prefix but does not like the response, so it reverts back to the Solicit procedure, discovers the same (sole) server, requests an address or delegated prefix, and gets the same address or delegated prefix as before (as the server has this previously requested lease assigned to this client)."
+    ],
+    "16. Message Validation -> 16.1. Use of Transaction IDs": [
+        "A client SHOULD generate a random number that cannot easily be guessed or predicted to use as the transaction ID for each new message it sends.",
+        "A client MUST leave the transaction ID unchanged in retransmissions of a message."
+    ],
+    "16. Message Validation -> 16.3. Advertise Message": [
+        "Clients MUST discard any received Advertise message that meets any of the following conditions: the message does not include a Server Identifier option (see Section 21.3).",
+        "the message does not include a Client Identifier option (see Section 21.2).",
+        "the contents of the Client Identifier option do not match the client's DUID.",
+        "the \"transaction-id\" field value does not match the value the client used in its Solicit message.",
+        "Servers and relay agents MUST discard any received Advertise messages."
+    ],
+    "16. Message Validation -> 16.4. Request Message": [
+        "Clients MUST discard any received Request messages.",
+        "Servers MUST discard any received Request message that meets any of the following conditions: the message does not include a Server Identifier option (see Section 21.3).",
+        "The contents of the Server Identifier option do not match the server's DUID.",
+        "The message does not include a Client Identifier option (see Section 21.2)."
+    ],
+    "16. Message Validation": [
+        "This section describes which options are valid in which kinds of message types and explains what to do when a client or server receives a message that contains known options that are invalid for that message.",
+        "For example, an IA option is not allowed to appear in an Information-request message.",
+        "If a server receives a message that the server considers invalid, the server MAY send a Reply message (or Advertise message, as appropriate) with a Server Identifier option (see Section 21.3), a Client Identifier option (see Section 21.2) (if one was included in the message), and a Status Code option (see Section 21.13) with status UnspecFail.",
+        "Clients, relay agents, and servers MUST NOT discard messages that contain unknown options (or instances of vendor options with unknown enterprise-number values).",
+        "Unknown options should be ignored as if they were not present.",
+        "Ignoring unknown options is critical to provide for future extensions of DHCP.",
+        "A server MUST discard any Solicit, Confirm, Rebind, or Information-request messages it receives with a Layer 3 unicast destination address.",
+        "A client or server MUST discard any received DHCP messages with an unknown message type."
+    ],
+    "14. Transmission of Messages by a Client -> 14.2. Client Behavior when T1 and/or T2 Are 0": [
+        "If the client received multiple IA options, the client SHOULD pick renew and/or rebind transmission times so all IA options are handled in one exchange, if possible."
+    ],
+    "16. Message Validation -> 16.7. Rebind Message": [
+        "Clients MUST discard any received Rebind messages.",
+        "Servers MUST discard any received Rebind messages that do not include a Client Identifier option (see Section 21.2) or that do include a Server Identifier option (see Section 21.3)."
+    ],
+    "16. Message Validation -> 16.13. Relay-forward Message": [
+        "Clients MUST discard any received Relay-forward messages."
+    ],
+    "16. Message Validation -> 16.5. Confirm Message": [
+        "Clients MUST discard any received Confirm messages.",
+        "Servers MUST discard any received Confirm messages that do not include a Client Identifier option (see Section 21.2) or that do include a Server Identifier option (see Section 21.3)."
+    ],
+    "16. Message Validation -> 16.14. Relay-reply Message": [
+        "Clients and servers MUST discard any received Relay-reply messages."
+    ],
+    "16. Message Validation -> 16.8. Decline Message": [
+        "Clients MUST discard any received Decline messages.",
+        "Servers MUST discard any received Decline message that meets any of the following conditions: the message does not include a Server Identifier option (see Section 21.3).",
+        "The contents of the Server Identifier option do not match the server's identifier.",
+        "The message does not include a Client Identifier option (see Section 21.2)."
+    ],
+    "16. Message Validation -> 16.9. Release Message": [
+        "Clients MUST discard any received Release messages.",
+        "Servers MUST discard any received Release message that meets any of the following conditions: the message does not include a Server Identifier option (see Section 21.3).",
+        "The contents of the Server Identifier option do not match the server's identifier.",
+        "The message does not include a Client Identifier option (see Section 21.2)."
+    ],
+    "16. Message Validation -> 16.12. Information-request Message": [
+        "Clients MUST discard any received Information-request messages.",
+        "Servers MUST discard any received Information-request message that meets any of the following conditions: the message includes a Server Identifier option (see Section 21.3), and the DUID in the option does not match the server's DUID.",
+        "Servers MUST discard any received Information-request message that includes an IA option."
+    ],
+    "13. Assignment to an IA -> 13.1. Selecting Addresses for Assignment to an IA_NA": [
+        "If the server receives the message from a forwarding relay agent, then the client is on the same link as the one to which the interface, identified by the link-address field in the message from the relay agent, is attached.",
+        "According to [RFC6221], the server MUST ignore any link-address field whose value is zero.",
+        "The link-address field in this case may come from any of the Relay-forward messages encapsulated in the received Relay-forward message, and in general the most encapsulated Relay-forward message (closest to the client) has the most useful value.",
+        "Other information in options supplied by the client, for example, IA Address options (see Section 21.6) that include the client's requests for specific addresses.",
+        "Other information in options supplied by the relay agent."
+    ],
+    "16. Message Validation -> 16.6. Renew Message": [
+        "Clients MUST discard any received Renew messages.",
+        "Servers MUST discard any received Renew message that meets any of the following conditions: the message does not include a Server Identifier option (see Section 21.3).",
+        "The contents of the Server Identifier option do not match the server's identifier.",
+        "The message does not include a Client Identifier option (see Section 21.2)."
+    ],
+    "16. Message Validation -> 16.10. Reply Message": [
+        "Clients MUST discard any received Reply message that meets any of the following conditions: the message does not include a Server Identifier option (see Section 21.3).",
+        "The \"transaction-id\" field in the Reply message does not match the value used in the original message.",
+        "If the client included a Client Identifier option (see Section 21.2) in the original message, the Reply message MUST include a Client Identifier option, and the contents of the Client Identifier option MUST match the DUID of the client.",
+        "If the client did not include a Client Identifier option in the original message, the Reply message MUST NOT include a Client Identifier option.",
+        "Servers and relay agents MUST discard any received Reply messages."
+    ],
+    "17. Client Source Address and Interface Selection -> 17.1. Source Address and Interface Selection for Address Assignment": [
+        "When a client sends a DHCP message directly to a server using unicast (after receiving the Server Unicast option (see Section 21.12) from that server), the source address in the header of the IPv6 datagram MUST be an address assigned to the interface for which the client is interested in obtaining configuration and that is suitable for use by the server in responding to the client."
+    ],
+    "17. Client Source Address and Interface Selection -> 17.2. Source Address and Interface Selection for Prefix Delegation": [
+        "When a client sends a DHCP message directly to a server using unicast (after receiving the Server Unicast option (see Section 21.12) from that server), the source address SHOULD be an address that is from the upstream interface and that is suitable for use by the server in responding to the client."
+    ],
+    "16. Message Validation -> 16.11. Reconfigure Message": [
+        "Servers and relay agents MUST discard any received Reconfigure messages.",
+        "Clients MUST discard any Reconfigure message that meets any of the following conditions: the message was not unicast to the client.",
+        "The message does not include a Server Identifier option (see Section 21.3).",
+        "The message does not include a Client Identifier option (see Section 21.2) that contains the client's DUID.",
+        "The message does not include a Reconfigure Message option (see Section 21.19).",
+        "The Reconfigure Message option msg-type is not a valid value."
+    ],
+    "18. DHCP Configuration Exchanges -> 18.1. A Single Exchange for Multiple IA Options": [
+        "This document assumes that a client SHOULD use a single transaction for all of the IA options required on an interface; using a single transaction simplifies the client implementation and reduces the potential number of transactions required (for the background on this design choice, refer to Section 4 of RFC7550).",
+        "To facilitate a client's use of a single transaction for all IA options, servers MUST return the same T1/T2 values for all IA options in a Reply (see Sections 18.3.2, 18.3.4, and 18.3.5) so that the client will generate a single transaction when renewing or rebinding its leases."
+    ],
+    "4. Terminology -> 4.2. DHCP Terminology": [
+        "A container option is an option that encapsulates other options (for example, the IA_NA option (see Section 21.4) may contain IA Address options (see Section 21.6)).",
+        "For example, the IA Address option is contained in IA_NA or IA_TA options (see Section 21.5).",
+        "IA option(s) are, at the time of writing this document, one or more IA_NA, IA_TA, and/or IA_PD options.",
+        "The Reconfigure key is used to provide security for Reconfigure messages (see Section 7.3 for the list of available message types).",
+        "In particular, the client updates the value of the Elapsed Time option in the retransmitted message.",
+        "Most options are singletons.",
+        "T1 is expressed as an absolute value in messages (in seconds), is conveyed within IA containers (currently the IA_NA and IA_PD options), and is interpreted as a time interval since the packet's reception.",
+        "The value stored in the T1 field in IA options is referred to as the T1 value.",
+        "T2 is expressed as an absolute value in messages (in seconds), is conveyed within IA containers (currently the IA_NA and IA_PD options), and is interpreted as a time interval since the packet's reception.",
+        "The value stored in the T2 field in IA options is referred to as the T2 value.",
+        "A transaction ID is an opaque value used to match responses with replies initiated by either a client or a server."
+    ],
+    "15. Reliability of Client-Initiated Message Exchanges": [
+        "Note that the procedure described in this section is slightly modified when used with the Solicit message.",
+        "The client MUST update an \"elapsed-time\" value within an Elapsed Time option (see Section 21.9) in the retransmitted message.",
+        "In some cases, the client may also need to modify values in IA Address options (see Section 21.6) or IA Prefix options (see Section 21.22) if a valid lifetime for any of the client's leases expires before retransmission.",
+        "Of course, a client MUST listen for a Reconfigure if it has negotiated for its use with the server."
+    ],
+    "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.3. Creation and Transmission of Confirm Messages": [
+        "The client uses a Confirm message when the client has only addresses (no delegated prefixes) assigned by a DHCP server to determine if the client is still connected to the same link when the client detects a change in network information as described in Section 18.2.12.",
+        "The client generates a transaction ID and inserts this value in the \"transaction-id\" field.",
+        "The client MUST include a Client Identifier option (see Section 21.2) to identify itself to the server.",
+        "The client MUST include an Elapsed Time option (see Section 21.9) to indicate how long the client has been trying to complete the current DHCP message exchange.",
+        "The client includes IA options for all of the IAs assigned to the interface for which the Confirm message is being sent.",
+        "The IA options include all of the addresses the client currently has associated with those IAs.",
+        "The client SHOULD set the T1 and T2 fields in any IA_NA options (see Section 21.4) and the preferred-lifetime and valid-lifetime fields in the IA Address options (see Section 21.6) to 0, as the server will ignore these fields.",
+        "The first Confirm message from the client on the interface MUST be delayed by a random amount of time between 0 and CNF_MAX_DELAY."
+    ],
+    "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.5. Creation and Transmission of Rebind Messages": [
+        "At time T2 (which will only be reached if the server to which the Renew message was sent starting at time T1 has not responded), the client initiates a Rebind/Reply message exchange with any available server.",
+        "A Rebind message is also used to verify delegated prefix bindings but with different retransmission parameters as described in Section 18.2.3.",
+        "The client constructs the Rebind message as described in Section 18.2.4, with the following differences: The client sets the \"msg-type\" field to REBIND.",
+        "The client does not include the Server Identifier option (see Section 21.3) in the Rebind message.",
+        "The client transmits the Rebind message according to Section 15, using the following parameters: IRT REB_TIMEOUT, MRT REB_MAX_RT, MRC 0, MRD remaining time until valid lifetimes of all leases in all IAs have expired.",
+        "If all leases for an IA have expired, the client may choose to include this IA in subsequent Rebind messages to indicate that the client is interested in assignment of leases to this IA.",
+        "The message exchange is terminated when the valid lifetimes of all leases across all IAs have expired, at which time the client uses the Solicit message to locate a new DHCP server and sends a Request for the expired IAs to the new server.",
+        "If the terminated Rebind exchange was initiated as a result of receiving a Reconfigure message, the client ignores and discards the Reconfigure message."
+    ],
+    "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.2. Creation and Transmission of Request Messages": [
+        "The client includes one or more IA options in the Request message.",
+        "The server then returns leases and other information about the IAs to the client in IA options in a Reply message.",
+        "The client generates a transaction ID and inserts this value in the \"transaction-id\" field.",
+        "The client MUST include the identifier of the destination server in a Server Identifier option (see Section 21.3).",
+        "The client MUST include a Client Identifier option (see Section 21.2) to identify itself to the server.",
+        "The client adds any other appropriate options, including one or more IA options.",
+        "The client MUST include an Elapsed Time option (see Section 21.9) to indicate how long the client has been trying to complete the current DHCP message exchange.",
+        "The client MUST include an Option Request option (see Section 21.7) to request the SOL_MAX_RT option (see Section 21.24) and any other options the client is interested in receiving.",
+        "The client MAY additionally include instances of those options that are identified in the Option Request option, with data values as hints to the server about parameter values the client would like to have returned.",
+        "The client includes a Reconfigure Accept option (see Section 21.20) if the client is willing to accept Reconfigure messages from the server."
+    ],
+    "18. DHCP Configuration Exchanges -> 18.2. Client Behavior": [
+        "A client uses the Solicit message to discover DHCP servers configured to assign leases or return other configuration parameters on the link to which the client is attached.",
+        "A client uses Request, Renew, Rebind, Release, and Decline messages during the normal lifecycle of addresses and delegated prefixes.",
+        "When a client detects that it may have moved to a new link, it uses Confirm if it only has addresses and Rebind if it has delegated prefixes (and addresses).",
+        "The client uses Information-request messages when it needs configuration information but no addresses and no prefixes.",
+        "When a client requests multiple IA option types or multiple instances of the same IA types in a Solicit, Request, Renew, or Rebind, it is possible that the available server(s) may only be configured to offer a subset of them.",
+        "Thus, it is more likely that the client will get all configuration if it continues, in each subsequent configuration exchange, to request all the configuration information it is programmed to try to obtain, including any stateful configuration options for which no results were returned in previous message exchanges.",
+        "Upon receipt of a Reconfigure message from the server, a client responds with a Renew, Rebind, or Information-request message as indicated by the Reconfigure Message option (see Section 21.19).",
+        "The client SHOULD be suspicious of the Reconfigure message (Reconfigure messages may be faked), and the client MUST NOT abandon any resources it might have already obtained.",
+        "The client SHOULD treat the Reconfigure message as if the T1 timer had expired.",
+        "The client will expect the server to send IAs and/or other configuration information to the client in a Reply message.",
+        "If the client has a source address of sufficient scope that can be used by the server as a return address and the client has received a Server Unicast option (see Section 21.12) from the server, the client SHOULD unicast any Request, Renew, Release, and Decline messages to the server.",
+        "However, requiring the client to relay all DHCP messages through a relay agent enables the inclusion of relay agent options in all messages sent by the client.",
+        "The server should enable the use of unicast only when relay agent options will not be used."
+    ],
+    "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.10. Receipt of Reply Messages -> 18.2.10.2. Reply for Release and Decline": [
+        "When the client receives a valid Reply message in response to a Release message, the client considers the Release event completed, regardless of the Status Code option (see Section 21.13) returned by the server.",
+        "When the client receives a valid Reply message in response to a Decline message, the client considers the Decline event completed, regardless of the Status Code option(s) returned by the server."
+    ],
+    "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.10. Receipt of Reply Messages -> 18.2.10.4. Reply for Information-request": [
+        "Refer to Section 21.23 for details on how the Information Refresh Time option should be handled by the client, regardless of whether this option is present in the Reply."
+    ],
+    "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.6. Creation and Transmission of Information-request Messages": [
+        "The client uses an Information-request message to obtain configuration information without having addresses and/or delegated prefixes assigned to it.",
+        "The client generates a transaction ID and inserts this value in the \"transaction-id\" field.",
+        "The client SHOULD include a Client Identifier option (see Section 21.2) to identify itself to the server (however, see Section 4.3.1 of RFC7844 for reasons why a client may not want to include the Client Identifier option).",
+        "If the client does not include a Client Identifier option, the server will not be able to return any client-specific options to the client, or the server may choose not to respond to the message at all.",
+        "The client MUST include an Elapsed Time option (see Section 21.9) to indicate how long the client has been trying to complete the current DHCP message exchange.",
+        "The client MUST include an Option Request option (see Section 21.7) to request the INF_MAX_RT option (see Section 21.25), the Information Refresh Time option (see Section 21.23), and any other options the client is interested in receiving.",
+        "The client MAY include options with data values as hints to the server about parameter values the client would like to have returned.",
+        "When responding to a Reconfigure, the client includes a Server Identifier option (see Section 21.3) with the identifier from the Reconfigure message to which the client is responding.",
+        "The first Information-request message from the client on the interface MUST be delayed by a random amount of time between 0 and INF_MAX_DELAY."
+    ],
+    "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.10. Receipt of Reply Messages -> 18.2.10.3. Reply for Confirm": [
+        "If the client receives any Reply messages that indicate a status of Success (explicit or implicit), the client can use the addresses in the IA and ignore any messages that indicate a NotOnLink status.",
+        "When the client only receives one or more Reply messages with the NotOnLink status in response to a Confirm message, the client performs DHCP server discovery as described in Section 18."
+    ],
+    "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.8. Creation and Transmission of Decline Messages": [
+        "If a client detects that one or more addresses assigned to it by a server are already in use by another node, the client sends a Decline message to the server to inform it that the address is suspect.",
+        "The Decline message is not used in prefix delegation; thus, the client MUST NOT include IA_PD options (see Section 21.21) in the Decline message.",
+        "The client generates a transaction ID and places this value in the \"transaction-id\" field.",
+        "The client places the identifier of the server that allocated the address(es) in a Server Identifier option (see Section 21.3).",
+        "The client MUST include a Client Identifier option (see Section 21.2) to identify itself to the server.",
+        "The client MUST include an Elapsed Time option (see Section 21.9) to indicate how long the client has been trying to complete the current DHCP message exchange.",
+        "The client includes options containing the IAs for the addresses it is declining in the \"options\" field.",
+        "The client MUST NOT use any of the addresses it is declining as the source address in the Decline message or in any subsequently transmitted message.",
+        "If addresses are declined but the Reply from a DHCP server is lost, the client will retransmit the Decline message, and the server may respond with a Reply indicating a status of NoBinding.",
+        "Therefore, the client does not treat a Reply message with a status of NoBinding in a Decline message exchange as if it indicates an error.",
+        "The client SHOULD NOT send a Release message for other bindings it may have received just because it sent a Decline message.",
+        "The client SHOULD treat the failure to acquire a binding (due to the conflict) as equivalent to not having received the binding, insofar as how it behaves when sending Renew and Rebind messages."
+    ],
+    "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.7. Creation and Transmission of Release Messages": [
+        "To release one or more leases, a client sends a Release message to the server.",
+        "The client generates a transaction ID and places this value in the \"transaction-id\" field.",
+        "The client places the identifier of the server that allocated the lease(s) in a Server Identifier option (see Section 21.3).",
+        "The client MUST include a Client Identifier option (see Section 21.2) to identify itself to the server.",
+        "The client MUST include an Elapsed Time option (see Section 21.9) to indicate how long the client has been trying to complete the current DHCP message exchange.",
+        "The client includes options containing the IAs for the leases it is releasing in the \"options\" field.",
+        "The client MUST stop using all of the leases being released before the client begins the Release message exchange process.",
+        "For a delegated prefix, stopping use means the prefix MUST have been advertised with a Preferred Lifetime and a Valid Lifetime of 0 in a Router Advertisement message as described in part (e) of Section 5.5.3 of RFC4862; also see requirement L-13 in Section 4.3 of RFC7084.",
+        "The client MUST NOT use any of the addresses it is releasing as the source address in the Release message or in any subsequently transmitted message.",
+        "Because Release messages may be lost, the client should retransmit the Release if no Reply is received.",
+        "If leases are released but the Reply from a DHCP server is lost, the client will retransmit the Release message, and the server may respond with a Reply indicating a status of NoBinding.",
+        "Therefore, the client does not treat a Reply message with a status of NoBinding in a Release message exchange as if it indicates an error."
+    ],
+    "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.4. Creation and Transmission of Renew Messages": [
+        "To extend the preferred and valid lifetimes for the leases assigned to the IAs and obtain new addresses or delegated prefixes for IAs, the client sends a Renew message to the server from which the leases were obtained; the Renew message includes IA options for the IAs whose lease lifetimes are to be extended.",
+        "The client includes IA Address options (see Section 21.6) within IA_NA (see Section 21.4) and IA_TA (see Section 21.5) options for the addresses assigned to the IAs.",
+        "The client includes IA Prefix options (see Section 21.22) within IA_PD options (see Section 21.21) for the delegated prefixes assigned to the IAs.",
+        "However, as the client SHOULD renew/rebind all IAs from the server at the same time, the client MUST select T1 and T2 times from all IA options that will guarantee that the client initiates transmissions of Renew/Rebind messages not later than at the T1/T2 times associated with any of the client's bindings (earliest T1/T2).",
+        "At time T1, the client initiates a Renew/Reply message exchange to extend the lifetimes on any leases in the IA.",
+        "A client MUST also initiate a Renew/Reply message exchange before time T1 if the client's link-local address used in previous interactions with the server is no longer valid and the client is willing to receive Reconfigure messages.",
+        "If T1 or T2 had been set to 0 by the server (for an IA_NA or IA_PD) or there are no T1 or T2 times (for an IA_TA) in a previous Reply, the client may, at its discretion, send a Renew or Rebind message, respectively.",
+        "The client generates a transaction ID and inserts this value in the \"transaction-id\" field.",
+        "The client MUST include a Server Identifier option (see Section 21.3) in the Renew message, identifying the server with which the client most recently communicated.",
+        "The client MUST include a Client Identifier option (see Section 21.2) to identify itself to the server.",
+        "The client adds any appropriate options, including one or more IA options.",
+        "The client MUST include an Elapsed Time option (see Section 21.9) to indicate how long the client has been trying to complete the current DHCP message exchange.",
+        "The client MUST NOT include addresses and prefixes in any IA option that the client did not obtain from the server or that are no longer valid (that have a valid lifetime of 0).",
+        "The client SHOULD NOT include an IA Prefix option with the \"IPv6-prefix\" field set to 0 unless the client is supplying a hint for the prefix length.",
+        "The client includes an Option Request option (see Section 21.7) to request the SOL_MAX_RT option (see Section 21.24) and any other options the client is interested in receiving.",
+        "The client MAY include options with data values as hints to the server about parameter values the client would like to have returned.",
+        "While the client is responding to a Reconfigure, the client ignores and discards any additional Reconfigure messages it may receive.",
+        "The message exchange is terminated when the earliest time T2 is reached, at which point the client begins the Rebind message exchange (see Section 18.2.5)."
+    ],
+    "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.9. Receipt of Advertise Messages": [
+        "Upon receipt of one or more valid Advertise messages, the client selects one or more Advertise messages based upon the following criteria.",
+        "Advertise messages with the highest server preference value SHOULD be preferred over all other Advertise messages.",
+        "The client MAY choose a less preferred server if that server has a better set of advertised parameters, such as the available set of IAs, as well as the set of other configuration options advertised.",
+        "Within a group of Advertise messages with the same server preference value, a client MAY select those servers whose Advertise messages advertise information of interest to the client.",
+        "The client MUST process any SOL_MAX_RT option (see Section 21.24) and INF_MAX_RT option (see Section 21.25) present in an Advertise message, even if the message contains a Status Code option (see Section 21.13) indicating a failure, and the Advertise message will be discarded by the client.",
+        "A client SHOULD only update its SOL_MAX_RT and INF_MAX_RT values if all received Advertise messages that contained the corresponding option specified the same value; otherwise, the client should use the default value (see Section 7.6).",
+        "The client MUST ignore any Advertise message that contains no addresses (IA Address options (see Section 21.6) encapsulated in IA_NA options (see Section 21.4) or IA_TA options (see Section 21.5)) and no delegated prefixes (IA Prefix options (see Section 21.22) encapsulated in IA_PD options (see Section 21.21)), with the exception that the client MUST process an included SOL_MAX_RT option and MUST process an included INF_MAX_RT option.",
+        "The client ignoring an Advertise message MUST NOT restart the Solicit retransmission timer."
+    ],
+    "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.10. Receipt of Reply Messages": [
+        "Upon the receipt of a valid Reply message in response to a Solicit with a Rapid Commit option (see Section 21.14), Request, Confirm, Renew, Rebind, or Information-request message, the client extracts the top-level Status Code option (see Section 21.13) if present.",
+        "The client MUST process any SOL_MAX_RT option (see Section 21.24) and INF_MAX_RT option (see Section 21.25) present in a Reply message, even if the message contains a Status Code option indicating a failure.",
+        "If the client receives a Reply message with a status code of UnspecFail, the server is indicating that it was unable to process the client's message due to an unspecified failure condition.",
+        "If the client receives a Reply message with a status code of UseMulticast, the client records the receipt of the message and sends subsequent messages to the server through the interface on which the message was received using multicast.",
+        "The client MAY choose to report any status code or message from the Status Code option in the Reply message.",
+        "When a client received a configuration option in an earlier Reply and then sends a Renew, Rebind, or Information-request and the requested option is not present in the Reply, the client SHOULD stop using the previously received configuration information.",
+        "This behavior does not apply to any IA options, as their processing is described in detail in the next section.",
+        "When a client receives a requested option that has an updated value from what was previously received, the client SHOULD make use of that updated value as soon as possible for its configuration information."
+    ],
+    "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.11. Receipt of Reconfigure Messages": [
+        "A client receives Reconfigure messages sent to UDP port 546 on interfaces for which it has acquired configuration information through DHCP.",
+        "Upon receipt of a valid Reconfigure message, the client responds with a Renew message, a Rebind message, or an Information-request message as indicated by the Reconfigure Message option (see Section 21.19).",
+        "The client ignores the \"transaction-id\" field in the received Reconfigure message.",
+        "While the transaction is in progress, the client discards any Reconfigure messages it receives.",
+        "The Reconfigure message acts as a trigger that signals the client to complete a successful message exchange.",
+        "Once the client has received a Reconfigure message, the client proceeds with the message exchange (retransmitting the Renew, Rebind, or Information-request message if necessary); the client MUST ignore any additional Reconfigure messages until the exchange is complete.",
+        "Duplicate Reconfigure messages will be ignored because the client will begin the exchange after the receipt of the first Reconfigure message.",
+        "Retransmitted Reconfigure messages will either (1) trigger the exchange (if the first Reconfigure message was not received by the client) or (2) be ignored.",
+        "The server MAY discontinue retransmission of Reconfigure messages to the client once the server receives the Renew, Rebind, or Information-request message from the client.",
+        "It might be possible for a duplicate or retransmitted Reconfigure message to be sufficiently delayed (and delivered out of order) that it arrives at the client after the exchange (initiated by the original Reconfigure message) has been completed."
+    ],
+    "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.12. Refreshing Configuration Information": [
+        "When the client detects that the client may have moved to a new link and the client has obtained addresses and no delegated prefixes from a server, the client SHOULD initiate a Confirm/Reply message exchange.",
+        "Any responding servers will indicate whether those addresses are appropriate for the link to which the client is attached with the status in the Reply message the server returns to the client.",
+        "If the client has any valid delegated prefixes obtained from the DHCP server, the client MUST initiate a Rebind/Reply message exchange as described in Section 18.2.5, with the exception that the retransmission parameters should be set as for the Confirm message (see Section 18.2.3).",
+        "The client includes IA_NAs, IA_TAs, and IA_PDs, along with the associated leases, in its Rebind message.",
+        "If the client has only obtained network information using Information-request/Reply message exchanges, the client MUST initiate an Information-request/Reply message exchange as described in Section 18.2.6.",
+        "If not associated with one of the above-mentioned conditions, a client SHOULD initiate a Renew/Reply exchange (as if the T1 time expired) as described in Section 18.2.4 or an Information-request/ Reply exchange as described in Section 18.2.6 if the client detects a significant change regarding the prefixes available on the link (when new prefixes are added or existing prefixes are deprecated), as this may indicate a configuration change."
+    ],
+    "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.1. Receipt of Solicit Messages": [
+        "See Section 18.4 for details regarding the handling of Solicit messages received via unicast.",
+        "Unicast transmission of Solicit messages is not allowed, regardless of whether the Server Unicast option (see Section 21.12) is configured or not.",
+        "If the server is not permitted to respond to the client, the server discards the Solicit message.",
+        "For example, if the administrative policy for the server is that it may only respond to a client that is willing to accept a Reconfigure message, if the client does not include a Reconfigure Accept option (see Section 21.20) in the Solicit message, the server discards the Solicit message.",
+        "If (1) the server is permitted to respond to the client, (2) the client has not included a Rapid Commit option (see Section 21.14) in the Solicit message, or (3) the server has not been configured to respond with committed assignments of leases and other resources, the server sends an Advertise message to the client as described in Section 18.3.9.",
+        "If the client has included a Rapid Commit option in the Solicit message and the server has been configured to respond with committed assignments of leases and other resources, the server responds to the Solicit with a Reply message.",
+        "The server produces the Reply message as though it had received a Request message as described in Section 18.3.2.",
+        "The server transmits the Reply message as described in Section 18.3.10.",
+        "The server MUST commit the assignment of any addresses and delegated prefixes or other configuration information before sending a Reply message to a client.",
+        "In this case, the server includes a Rapid Commit option in the Reply message to indicate that the Reply is in response to a Solicit message.",
+        "When using the Solicit/Reply message exchange, the server commits the assignment of any leases before sending the Reply message.",
+        "The client can assume that it has been assigned the leases in the Reply message and does not need to send a Request message for those leases.",
+        "Typically, servers that are configured to use the Solicit/Reply message exchange will be deployed so that only one server will respond to a Solicit message."
+    ],
+    "18. DHCP Configuration Exchanges": [
+        "Some of the more common reasons for a client to initiate the configuration exchange are: as part of the operating system configuration/bootstrap process, when requested to do so by the application layer (through an operating-system-specific API), when a Router Advertisement indicates that DHCPv6 is available for address configuration (see Section 4.2 of RFC4861), as required to extend the lifetime of address(es) and/or delegated prefix(es), using Renew and Rebind messages, or upon the receipt of a Reconfigure message, when requested to do so by a server.",
+        "The client then transmits a Solicit message containing the IA options describing the IAs.",
+        "The client MUST NOT be using any of the addresses or delegated prefixes for which it tries to obtain the bindings by sending the Solicit message.",
+        "To obtain configuration information, the client first sends an Information-request message (see Section 18.2.6) to the All_DHCP_Relay_Agents_and_Servers multicast address.",
+        "Servers respond with a Reply message containing the configuration information for the client (see Section 18.3.6).",
+        "The client does this by sending the Solicit message (see Section 18.2.1) to the All_DHCP_Relay_Agents_and_Servers multicast address and collecting Advertise messages from the servers that respond to the client's message; the client then selects a server from which it wants to obtain configuration information.",
+        "A client willing to perform the Solicit/Reply message exchange described in Section 18.2.1 includes a Rapid Commit option (see Section 21.14) in its Solicit message.",
+        "Servers that can assign addresses or delegated prefixes to the IAs respond to the client with an Advertise message or Reply message if the client included a Rapid Commit option and the server is configured to accept it.",
+        "A server may initiate a message exchange with a client by sending a Reconfigure message to cause the client to send a Renew, Rebind, or Information-request message to refresh its configuration information as soon as the Reconfigure message is received by the client.",
+        "This starts with the four-message Solicit/Advertise/ Request/Reply exchange to obtain the lease(s), followed by a two-message Renew/Reply exchange to extend the lifetime on the lease(s), and then ends with a two-message Release/Reply exchange to end the client's use of the lease(s)."
+    ],
+    "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.3. Receipt of Confirm Messages": [
+        "Unicast transmission of Confirm messages is not allowed, regardless of whether the Server Unicast option (see Section 21.12) is configured or not.",
+        "If the server is unable to perform this test (for example, the server does not have information about prefixes on the link to which the client is connected) or there were no addresses in any of the IAs sent by the client, the server MUST NOT send a Reply to the client.",
+        "The server ignores the T1 and T2 fields in the IA options and the preferred-lifetime and valid-lifetime fields in the IA Address options (see Section 21.6).",
+        "The server constructs a Reply message by setting the \"msg-type\" field to REPLY and copying the transaction ID from the Confirm message into the \"transaction-id\" field.",
+        "The server MUST include in the Reply message a Server Identifier option (see Section 21.3) containing the server's DUID and the Client Identifier option (see Section 21.2) from the Confirm message.",
+        "The server includes a Status Code option (see Section 21.13) indicating the status of the Confirm message."
+    ],
+    "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.1. Creation and Transmission of Solicit Messages": [
+        "The client generates a transaction ID and inserts this value in the \"transaction-id\" field.",
+        "The client MUST include a Client Identifier option (see Section 21.2) to identify itself to the server.",
+        "The client includes IA options for any IAs to which it wants the server to assign leases.",
+        "The client MUST include an Elapsed Time option (see Section 21.9) to indicate how long the client has been trying to complete the current DHCP message exchange.",
+        "The client uses IA_NA options (see Section 21.4) to request the assignment of non-temporary addresses, IA_TA options (see Section 21.5) to request the assignment of temporary addresses, and IA_PD options (see Section 21.21) to request prefix delegation.",
+        "IA_NA, IA_TA, or IA_PD options, or a combination of all, can be included in DHCP messages.",
+        "The client MAY include addresses in IA Address options (see Section 21.6) encapsulated within IA_NA and IA_TA options as hints to the server about the addresses for which the client has a preference.",
+        "The client MAY include values in IA Prefix options (see Section 21.22) encapsulated within IA_PD options as hints for the delegated prefix and/or prefix length for which the client has a preference.",
+        "The client MUST include an Option Request option (ORO) (see Section 21.7) to request the SOL_MAX_RT option (see Section 21.24) and any other options the client is interested in receiving.",
+        "The client MAY additionally include instances of those options that are identified in the Option Request option, with data values as hints to the server about parameter values the client would like to have returned.",
+        "The client includes a Reconfigure Accept option (see Section 21.20) if the client is willing to accept Reconfigure messages from the server.",
+        "The client MUST NOT include any other options in the Solicit message, except as specifically allowed in the definition of individual options.",
+        "The first Solicit message from the client on the interface SHOULD be delayed by a random amount of time between 0 and SOL_MAX_DELAY.",
+        "This random delay helps desynchronize clients that start a DHCP session at the same time, such as after recovery from a power failure or after a router outage after seeing that DHCP is available in Router Advertisement messages (see [Section 4.2 of [RFC4861]](https://www.rfc-editor.org/rfc/rfc4861#section-4.2)).",
+        "A client that wishes to use the Rapid Commit two-message exchange includes a Rapid Commit option (see Section 21.14) in its Solicit message.",
+        "The client will discard any Reply messages that do not contain the Rapid Commit option.",
+        "Upon receipt of a valid Reply with the Rapid Commit option, the client processes the message as described in Section 18.2.10.",
+        "At the end of the first RT period, if no suitable Reply messages are received but the client has valid Advertise messages, then the client processes the Advertise as described in Section 18.2.9.",
+        "If the client subsequently receives a valid Reply message that includes a Rapid Commit option, it does one of the following: processes the Reply message as described in Section 18.2.10 and discards any Reply messages received in response to the Request message, or processes any Reply messages received in response to the Request message and discards the Reply message that includes the Rapid Commit option.",
+        "If the client is waiting for an Advertise message, the mechanism described in Section 15 is modified as follows for use in the transmission of Solicit messages.",
+        "A client MUST collect valid Advertise messages for the first RT seconds, unless it receives a valid Advertise message with a preference value of 255.",
+        "The preference value is carried in the Preference option (see Section 21.8).",
+        "Any valid Advertise that does not include a Preference option is considered to have a preference value of 0.",
+        "If the client receives a valid Advertise message that includes a Preference option with a preference value of 255, the client immediately begins a client-initiated message exchange (as described in Section 18.2.2) by sending a Request message to the server from which the Advertise message was received.",
+        "If the client receives a valid Advertise message that does not include a Preference option with a preference value of 255, the client continues to wait until the first RT elapses.",
+        "If the first RT elapses and the client has received a valid Advertise message, the client SHOULD continue with a client-initiated message exchange by sending a Request message."
+    ],
+    "18. DHCP Configuration Exchanges -> 18.3. Server Behavior": [
+        "A server sends an Advertise message in response to each valid Solicit message it receives to announce the availability of the server to the client.",
+        "In most cases, the server will send a Reply in response to Request, Confirm, Renew, Rebind, Decline, Release, and Information-request messages sent by a client.",
+        "The server will also send a Reply in response to a Solicit with a Rapid Commit option (see Section 21.14) when the server is configured to respond with committed lease assignments.",
+        "These Advertise and Reply messages MUST always contain the Server Identifier option (see Section 21.3) containing the server's DUID and the Client Identifier option (see Section 21.2) from the client message if one was present.",
+        "In most response messages, the server includes options containing configuration information for the client.",
+        "If the client included an Option Request option (see Section 21.7) in its message, the server includes options in the response message containing configuration parameters for all of the options identified in the Option Request option that the server has been configured to return to the client.",
+        "The server MAY return additional options to the client if the server has been configured to do so.",
+        "Any message sent from a client may arrive at the server encapsulated in one or more Relay-forward messages.",
+        "The server MUST use the received message to construct the proper Relay-reply message to allow the response to the received message to be relayed through the same relay agents (in reverse order) as the original client message; see Section 19.3 for more details.",
+        "The server may also need to record the relay agent information with each client in case the relay agent information is needed to send a Reconfigure message at a later time, unless the server has been configured with addresses that can be used to send Reconfigure messages directly to the client (see Section 18.3.11).",
+        "By sending Reconfigure messages, the server MAY initiate a configuration exchange to cause DHCP clients to obtain new addresses, prefixes, and other configuration information.",
+        "For example, an administrator may use a server-initiated configuration exchange when links in the DHCP domain are to be renumbered or when other configuration options are updated, perhaps because servers are moved, added, or removed.",
+        "When a client receives a Reconfigure message from the server, the client initiates sending a Renew, Rebind, or Information-request message as indicated by msg-type in the Reconfigure Message option (see Section 21.19).",
+        "The server sends IAs and/or other configuration information to the client in a Reply message.",
+        "The server MAY include options containing the IAs and new values for other configuration parameters in the Reply message, even if those IAs and parameters were not requested in the client's message."
+    ],
+    "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.6. Receipt of Information-request Messages": [
+        "See Section 18.4 for details regarding the handling of Information-request messages received via unicast.",
+        "When the server receives an Information-request message, the client is requesting configuration information that does not include the assignment of any leases.",
+        "The server constructs a Reply message by setting the \"msg-type\" field to REPLY and copying the transaction ID from the Information-request message into the \"transaction-id\" field.",
+        "The server MUST include a Server Identifier option (see Section 21.3) containing the server's DUID in the Reply message.",
+        "If the client included a Client Identifier option (see Section 21.2) in the Information-request message, the server copies that option to the Reply message.",
+        "The server includes options containing configuration information to be returned to the client as described in Section 18.3.",
+        "The server MAY include additional options that were not requested by the client in the Information-request message.",
+        "If the Information-request message received from the client did not include a Client Identifier option, the server SHOULD respond with a Reply message containing any configuration parameters that are not determined by the client's identity.",
+        "If the server chooses not to respond, the client may continue to retransmit the Information-request message indefinitely."
+    ],
+    "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.7. Receipt of Release Messages": [
+        "See Section 18.4 for details regarding the handling of Release messages received via unicast.",
+        "The server constructs a Reply message by setting the \"msg-type\" field to REPLY and copying the transaction ID from the Release message into the \"transaction-id\" field.",
+        "Upon the receipt of a valid Release message, the server examines the IAs and the leases in the IAs for validity.",
+        "After all the leases have been processed, the server generates a Reply message and includes a Status Code option (see Section 21.13) with the value Success, a Server Identifier option (see Section 21.3) with the server's DUID, and a Client Identifier option (see Section 21.2) with the client's DUID.",
+        "For each IA in the Release message for which the server has no binding information, the server adds an IA option using the IAID from the Release message and includes a Status Code option with the value NoBinding in the IA option.",
+        "No other options are included in the IA option."
+    ],
+    "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.10. Transmission of Advertise and Reply Messages": [
+        "If the original message was received directly by the server, the server unicasts the Advertise or Reply message directly to the client using the address in the source address field from the IP datagram in which the original message was received.",
+        "The Advertise or Reply message MUST be unicast through the interface on which the original message was received.",
+        "If the original message was received in a Relay-forward message, the server constructs a Relay-reply message with the Reply message in the payload of a Relay Message option (see Section 21.10).",
+        "If the Relay-forward messages included an Interface-Id option (see Section 21.18), the server copies that option to the Relay-reply message.",
+        "The server unicasts the Relay-reply message directly to the relay agent using the address in the source address field from the IP datagram in which the Relay-forward message was received.",
+        "See Section 19.3 for more details on the construction of Relay-reply messages."
+    ],
+    "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.8. Receipt of Decline Messages": [
+        "See Section 18.4 for details regarding the handling of Decline messages received via unicast.",
+        "Upon the receipt of a valid Decline message, the server examines the IAs and the addresses in the IAs for validity.",
+        "The client has found any addresses in the Decline messages to be already in use on its link.",
+        "Local policy on the server determines when the addresses identified in a Decline message may be made available for assignment.",
+        "After all the addresses have been processed, the server generates a Reply message by setting the \"msg-type\" field to REPLY and copying the transaction ID from the Decline message into the \"transaction-id\" field.",
+        "The server includes a Status Code option (see Section 21.13) with the value Success, a Server Identifier option (see Section 21.3) with the server's DUID, and a Client Identifier option (see Section 21.2) with the client's DUID.",
+        "For each IA in the Decline message for which the server has no binding information, the server adds an IA option using the IAID from the Decline message and includes a Status Code option with the value NoBinding in the IA option.",
+        "No other options are included in the IA option."
+    ],
+    "18. DHCP Configuration Exchanges -> 18.4. Reception of Unicast Messages": [
+        "For example, unicast transmission is not allowed for Solicit, Confirm, and Rebind messages (see Sections 18.3.1, 18.3.3, and 18.3.5, respectively), even if the Server Unicast option (see Section 21.12) is configured.",
+        "For Request, Renew, Information-request, Release, and Decline messages, unicast transmission is allowed only if the Server Unicast option is configured.",
+        "When the server receives a message via unicast from a client to which the server has not sent a Server Unicast option (or is not currently configured to do so), the server discards that message and responds with an Advertise (when responding to a Solicit message) or Reply message (when responding to any other messages) containing a Status Code option (see Section 21.13) with the value UseMulticast, a Server Identifier option (see Section 21.3) containing the server's DUID, the Client Identifier option (see Section 21.2) from the client message (if any), and no other options."
+    ],
+    "19. Relay Agent Behavior": [
+        "If the relay agent receives a message other than Relay-forward and Relay-reply and the relay agent does not recognize the message type, the relay agent MUST forward the message as described in Section 19.1.1."
+    ],
+    "19. Relay Agent Behavior -> 19.1. Relaying a Client Message or a Relay-forward Message": [
+        "When a relay agent receives a Relay-forward message, a recognized message type for which the relay agent is not the intended target, or an unrecognized message type [RFC7283], the relay agent constructs a new Relay-forward message.",
+        "The relay agent adds to the Relay-forward message any other options the relay agent is configured to include."
+    ],
+    "19. Relay Agent Behavior -> 19.1. Relaying a Client Message or a Relay-forward Message -> 19.1.3. Relay Agent Behavior with Prefix Delegation": [
+        "A relay agent forwards messages containing prefix delegation options in the same way as the relay agent would relay addresses (i.e., per Sections 19.1.1 and 19.1.2)."
+    ],
+    "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.2. Receipt of Request Messages": [
+        "The server constructs a Reply message by setting the \"msg-type\" field to REPLY and copying the transaction ID from the Request message into the \"transaction-id\" field.",
+        "The server MUST include in the Reply message a Server Identifier option (see Section 21.3) containing the server's DUID and the Client Identifier option (see Section 21.2) from the Request message.",
+        "For each IA_NA option (see Section 21.4) and IA_TA option (see Section 21.5) in the Request message, the server checks if the prefixes of included addresses are appropriate for the link to which the client is connected.",
+        "If any of the prefixes of the included addresses are not appropriate for the link to which the client is connected, the server MUST return the IA to the client with a Status Code option (see Section 21.13) with the value NotOnLink.",
+        "If the server does not send the NotOnLink status code but it cannot assign any IP addresses to an IA, the server MUST return the IA option in the Reply message with no addresses in the IA and a Status Code option containing status code NoAddrsAvail in the IA.",
+        "For any IA_PD option (see Section 21.21) in the Request message to which the server cannot assign any delegated prefixes, the server MUST return the IA_PD option in the Reply message with no prefixes in the IA_PD and with a Status Code option containing status code NoPrefixAvail in the IA_PD.",
+        "The server MAY assign different addresses and/or delegated prefixes to an IA than those included within the IA of the client's Request message.",
+        "The T1/T2 times set in each applicable IA option for a Reply MUST be the same values across all IAs.",
+        "The server MUST determine the T1/T2 times across all of the applicable client's bindings in the Reply.",
+        "The server SHOULD include a Reconfigure Accept option (see Section 21.20) if the server policy enables the reconfigure mechanism and the client supports it.",
+        "Currently, sending this option in a Reply is technically redundant, as the use of the reconfiguration mechanism requires authentication; at present, the only defined mechanism is RKAP (see Section 20.4), and the presence of the reconfigure key signals support for the acceptance of Reconfigure messages.",
+        "The server includes other options containing configuration information to be returned to the client as described in Section 18.3.",
+        "If the server finds that the client has included an IA in the Request message for which the server already has a binding that associates the IA with the client, the server sends a Reply message with existing bindings, possibly with updated lifetimes.",
+        "The server may update the bindings according to its local policies, but the server SHOULD generate the response again and not simply retransmit previously sent information, even if the \"transaction-id\" field value matches a previous transmission."
+    ],
+    "19. Relay Agent Behavior -> 19.1. Relaying a Client Message or a Relay-forward Message -> 19.1.2. Relaying a Message from a Relay Agent": [
+        "If the message received by the relay agent is a Relay-forward message and the hop-count value in the message is greater than or equal to HOP_COUNT_LIMIT, the relay agent discards the received message.",
+        "The relay agent copies the source address from the IP datagram in which the message was received into the peer-address field in the Relay-forward message and sets the hop-count field to the value of the hop-count field in the received message incremented by 1.",
+        "If the source address from the IP datagram header of the received message is a globally scoped unicast address (i.e., GUA or ULA), the relay agent sets the link-address field to 0; otherwise, the relay agent sets the link-address field to a globally scoped unicast address (i.e., GUA or ULA) assigned to the interface on which the message was received or includes an Interface-Id option (see Section 21.18) to identify the interface on which the message was received."
+    ],
+    "20. Authentication of DHCP Messages": [
+        "This document introduces two security mechanisms for the authentication of DHCP messages: (1) authentication (and encryption) of messages sent between servers and relay agents using IPsec and (2) protection against misconfiguration of a client caused by a Reconfigure message sent by a malicious DHCP server."
+    ],
+    "19. Relay Agent Behavior -> 19.2. Relaying a Relay-reply Message": [
+        "The relay agent processes any options included in the Relay-reply message in addition to the Relay Message option (see Section 21.10).",
+        "The relay agent extracts the message from the Relay Message option and relays it to the address contained in the peer-address field of the Relay-reply message.",
+        "If the Relay-reply message includes an Interface-Id option (see Section 21.18), the relay agent relays the message from the server to the client on the link identified by the Interface-Id option.",
+        "Otherwise, if the link-address field is not set to 0, the relay agent relays the message on the link identified by the link-address field.",
+        "If the relay agent receives a Relay-reply message, it MUST process the message as defined above, regardless of the type of message encapsulated in the Relay Message option."
+    ],
+    "19. Relay Agent Behavior -> 19.1. Relaying a Client Message or a Relay-forward Message -> 19.1.1. Relaying a Message from a Client": [
+        "If the relay agent received the message to be relayed from a client, the relay agent places a globally scoped unicast address (i.e., GUA or ULA) from a prefix assigned to the link on which the client should be assigned leases into the link-address field.",
+        "If such an address is not available, the relay agent may set the link-address field to a link-local address from the interface on which the original message was received.",
+        "Setting the link-address field to a link-local address is not recommended, as it may require that additional information be provided in the server configuration.",
+        "The address in the link-address field will be used by the server to determine the link from which the client should be assigned leases and other configuration information.",
+        "The hop-count value in the Relay-forward message is set to 0.",
+        "If the relay agent cannot use the address in the link-address field to identify the interface through which the response to the client will be relayed, the relay agent MUST include an Interface-Id option (see Section 21.18) in the Relay-forward message.",
+        "The server will include the Interface-Id option in its Relay-reply message.",
+        "The relay agent sets the link-address field as described earlier in this subsection, regardless of whether the relay agent includes an Interface-Id option in the Relay-forward message."
+    ],
+    "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.9. Creation of Advertise Messages": [
+        "The server sets the \"msg-type\" field to ADVERTISE and copies the contents of the \"transaction-id\" field from the Solicit message received from the client to the Advertise message.",
+        "The server includes its server identifier in a Server Identifier option (seeSection 21.3) and copies the Client Identifier option (see Section 21.2) from the Solicit message into the Advertise message.",
+        "The server MAY add a Preference option (see Section 21.8) to carry the preference value for the Advertise message.",
+        "The server includes a Reconfigure Accept option (see Section 21.20) if the server wants to indicate that it supports the Reconfigure mechanism.",
+        "The information about the Reconfigure Accept option may be used by the client during the server selection process.",
+        "The server includes the options the server will return to the client in a subsequent Reply message.",
+        "The information in these options may be used by the client in the selection of a server if the client receives more than one Advertise message.",
+        "The server MUST include options in the Advertise message containing configuration parameters for all of the options identified in the Option Request option (see Section 21.7) in the Solicit message that the server has been configured to return to the client.",
+        "If the Option Request option includes a container option, the server MUST include all the options that are eligible to be encapsulated in the container.",
+        "The Option Request option MAY be used to signal support for a feature even when that option is encapsulated, as in the case of the Prefix Exclude option [RFC6603].",
+        "In the case where the Option Request option is used to signal support for a feature when that option is encapsulated, special processing is required by the server.",
+        "The server MAY return additional options to the client if it has been configured to do so.",
+        "The server MUST include IA options in the Advertise message containing any addresses and/or delegated prefixes that would be assigned to IAs contained in the Solicit message from the client.",
+        "If the client has included addresses in the IA Address options (see Section 21.6) in the Solicit message, the server MAY use those addresses as hints about the addresses that the client would like to receive.",
+        "If the client has included IA Prefix options (see Section 21.22), the server MAY use the prefix contained in the \"IPv6-prefix\" field and/or the prefix length contained in the \"prefix-length\" field as hints about the prefixes the client would like to receive.",
+        "If the server is not going to assign an address or delegated prefix received as a hint in the Solicit message, the server MUST NOT include this address or delegated prefix in the Advertise message.",
+        "If the server will not assign any addresses to an IA_NA or IA_TA in subsequent Request messages from the client, the server MUST include the IA option in the Advertise message with no addresses in that IA and a Status Code option (see Section 21.13) encapsulated in the IA option containing status code NoAddrsAvail.",
+        "If the server will not assign any prefixes to an IA_PD in subsequent Request messages from the client, the server MUST include the IA_PD option (see Section 21.21) in the Advertise message with no prefixes in the IA_PD option and a Status Code option encapsulated in the IA_PD containing status code NoPrefixAvail."
+    ],
+    "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.11. Creation and Transmission of Reconfigure Messages": [
+        "The server sets the \"msg-type\" field to RECONFIGURE and sets the \"transaction-id\" field to 0.",
+        "The server includes a Server Identifier option (see Section 21.3) containing the server's DUID and a Client Identifier option (see Section 21.2) containing the client's DUID in the Reconfigure message.",
+        "Because of the risk of denial-of-service (DoS) attacks against DHCP clients, the use of a security mechanism is mandated in Reconfigure messages.",
+        "The server MUST use DHCP authentication in the Reconfigure message (see Section 20.4).",
+        "The server MUST include a Reconfigure Message option (see Section 21.19) to select whether the client responds with a Renew message, a Rebind message, or an Information-request message.",
+        "The server MUST NOT include any other options in the Reconfigure message, except as specifically allowed in the definition of individual options.",
+        "A server sends each Reconfigure message to a single DHCP client, using an IPv6 unicast address of sufficient scope belonging to the DHCP client.",
+        "If the server does not have an address to which it can send the Reconfigure message directly to the client, the server uses a Relay-reply message (as described in Section 19.3) to send the Reconfigure message to a relay agent that will relay the message to the client.",
+        "The server may initiate the reconfiguration of multiple clients concurrently; for example, a server may send a Reconfigure message to additional clients while previous reconfiguration message exchanges are still in progress.",
+        "The Reconfigure message causes the client to initiate a Renew/Reply, Rebind/Reply, or Information-request/Reply message exchange with the server.",
+        "The server interprets the receipt of a Renew, Rebind, or Information-request message (whichever was specified in the original Reconfigure message) from the client as satisfying the Reconfigure message request.",
+        "When transmitting the Reconfigure message, the server sets the retransmission time (RT) to REC_TIMEOUT.",
+        "If the server does not receive a Renew, Rebind, or Information-request message from the client before the RT elapses, the server retransmits the Reconfigure message, doubles the RT value, and waits again."
+    ],
+    "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.4. Receipt of Renew Messages": [
+        "See Section 18.4 for details regarding the handling of Renew messages received via unicast.",
+        "For each IA in the Renew message from a client, the server locates the client's binding and verifies that the information in the IA from the client matches the information stored for that client.",
+        "If the server chooses to include the IA Address or IA Prefix option for such an address or delegated prefix, the server SHOULD set T1 and T2 values to the valid lifetime for the IA option unless the server also includes other addresses or delegated prefixes that the server is able to extend for the IA.",
+        "For each IA for which the server cannot find a client entry, the server has the following choices, depending on the server's policy and configuration information: - If the server is configured to create new bindings as a result of processing Renew messages, the server SHOULD create a binding and return the IA with assigned addresses or delegated prefixes with lifetimes and, if applicable, T1/T2 times and other information requested by the client.",
+        "- If the server is configured to create new bindings as a result of processing Renew messages but the server will not assign any leases to an IA, the server returns the IA option containing a Status Code option (see Section 21.13) with the NoAddrsAvail or NoPrefixAvail status code and a status message for a user.",
+        "- If the server does not support creation of new bindings for the client sending a Renew message or if this behavior is disabled according to the server's policy or configuration information, the server returns the IA option containing a Status Code option with the NoBinding status code and a status message for a user.",
+        "The server constructs a Reply message by setting the \"msg-type\" field to REPLY and copying the transaction ID from the Renew message into the \"transaction-id\" field.",
+        "The server MUST include in the Reply message a Server Identifier option (see Section 21.3) containing the server's DUID and the Client Identifier option (see Section 21.2) from the Renew message.",
+        "The server includes other options containing configuration information to be returned to the client as described in Section 18.3.",
+        "The server MAY include options containing the IAs and values for other configuration parameters, even if those parameters were not requested in the Renew message.",
+        "The T1/T2 values set in each applicable IA option for a Reply MUST be the same across all IAs.",
+        "The server MUST determine the T1/T2 values across all of the applicable client's bindings in the Reply."
+    ],
+    "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.10. Receipt of Reply Messages ->": [
+        "If the client receives a NotOnLink status from the server in response to a Solicit (with a Rapid Commit option; see Section 21.14) or a Request, the client can either reissue the message without specifying any addresses or restart the DHCP server discovery process (see Section 18).",
+        "If the Reply message was received in response to a Solicit (with a Rapid Commit option), Request, Renew, or Rebind message, the client updates the information it has recorded about Identity Associations (IAs) from the IA options contained in the Reply message: Calculate T1 and T2 times (based on T1 and T2 values sent in the packet and the packet reception time), if appropriate for the IA type.",
+        "If the client can operate with the addresses and/or prefixes obtained from the server: The client uses the addresses, delegated prefixes, and other information from any Identity Associations (IAs) that do not contain a Status Code option with the NoAddrsAvail or NoPrefixAvail status code.",
+        "The client MAY include the IAs for which it received the NoAddrsAvail or NoPrefixAvail status code, with no addresses or prefixes, in subsequent Renew and Rebind messages sent to the server, to retry obtaining the addresses or prefixes for these IAs.",
+        "The client MUST perform duplicate address detection as per Section 5.4 of RFC4862, which does list some exceptions, on each of the received addresses in any Identity Associations (IAs) on which it has not performed duplicate address detection during processing of any of the previous Reply messages from the server.",
+        "If any of the addresses are found to be in use on the link, the client sends a Decline message to the server for those addresses as described in Section 18.2.8.",
+        "If the Reply message contains any Identity Associations (IAs) but the client finds no usable addresses and/or delegated prefixes in any of these IAs, the client may either try another server (perhaps restarting the DHCP server discovery process) or use the Information-request message to obtain other configuration information only.",
+        "When the client receives a Reply message in response to a Renew or Rebind message, the client: Sends a Request message to the server that responded if any of the Identity Associations (IAs) in the Reply message contain the NoBinding status code.",
+        "The client places IA options in this message for all Identity Associations (IAs).",
+        "Sends a Renew or Rebind message if any of the Identity Associations (IAs) are not in the Reply message, but as this likely indicates that the server that responded does not support that IA type, sending immediately is unlikely to produce a different result.",
+        "Therefore, the client MUST rate-limit its transmissions (see Section 14.1) and MAY just wait for the normal retransmission time (as if the Reply message had not been received)."
+    ],
+    "20. Authentication of DHCP Messages -> 20.2. Summary of DHCP Authentication": [
+        "Authentication of DHCP messages is accomplished through the use of the Authentication option (see Section 21.11).",
+        "The authentication information carried in the Authentication option can be used to reliably identify the source of a DHCP message and to confirm that the contents of the DHCP message have not been tampered with.",
+        "The Authentication option provides a framework for multiple authentication protocols.",
+        "Any DHCP message MUST NOT include more than one Authentication option.",
+        "The protocol field in the Authentication option identifies the specific protocol used to generate the authentication information carried in the option.",
+        "The algorithm field identifies a specific algorithm within the authentication protocol; for example, the algorithm field specifies the hash algorithm used to generate the Message Authentication Code (MAC) in the Authentication option."
+    ],
+    "20. Authentication of DHCP Messages -> 20.4. Reconfiguration Key Authentication Protocol (RKAP)": [
+        "RKAP provides protection against misconfiguration of a client caused by a Reconfigure message sent by a malicious DHCP server.",
+        "The client records the reconfigure key for use in authenticating subsequent Reconfigure messages from that server.",
+        "The server then includes a Hashed Message Authentication Code (HMAC) computed from the reconfigure key in subsequent Reconfigure messages.",
+        "Both the reconfigure key sent from the server to the client and the HMAC in subsequent Reconfigure messages are carried as the authentication information in an Authentication option (see Section 21.11).",
+        "RKAP is used (initiated by the server) only if the client and server have negotiated to use Reconfigure messages."
+    ],
+    "20. Authentication of DHCP Messages -> 20.4. Reconfiguration Key Authentication Protocol (RKAP) -> 20.4.3. Client Considerations for RKAP": [
+        "The client will receive a reconfigure key from the server in an Authentication option (see Section 21.11) in the initial Reply message from the server.",
+        "The client records the reconfigure key for use in authenticating subsequent Reconfigure messages.",
+        "To authenticate a Reconfigure message, the client computes an HMAC-MD5 over the Reconfigure message, with zeroes substituted for the HMAC-MD5 field, using the reconfigure key received from the server.",
+        "If the computed HMAC-MD5 matches the value in the Authentication option, the client accepts the Reconfigure message."
+    ],
+    "20. Authentication of DHCP Messages -> 20.4. Reconfiguration Key Authentication Protocol (RKAP) -> 20.4.2. Server Considerations for RKAP": [
+        "The server selects a reconfigure key for a client during the Request/Reply, Solicit/Reply, or Information-request/Reply message exchange.",
+        "The server records the reconfigure key and transmits the reconfigure key to the client in an Authentication option (see Section 21.11) in the Reply message.",
+        "To provide authentication for a Reconfigure message, the server selects a replay detection value according to the RDM selected by the server and computes an HMAC-MD5 of the Reconfigure message using the reconfigure key for the client.",
+        "The server computes the HMAC-MD5 over the entire DHCP Reconfigure message, including the Authentication option; the HMAC-MD5 field in the Authentication option is set to 0 for the HMAC-MD5 computation.",
+        "The server includes the HMAC-MD5 in the authentication information field in an Authentication option included in the Reconfigure message sent to the client."
+    ],
+    "19. Relay Agent Behavior -> 19.3. Construction of Relay-reply Messages": [
+        "A server uses a Relay-reply message to (1) return a response to a client if the original message from the client was relayed to the server in a Relay-forward message or (2) send a Reconfigure message to a client if the server does not have an address it can use to send the message directly to the client.",
+        "The server causes the response to be relayed through the same relay agents by creating a Relay-reply message that includes a Relay Message option (see Section 21.10) containing the message for the next relay agent in the return path to the client.",
+        "The contained Relay-reply message contains another Relay Message option to be sent to the next relay agent, and so on.",
+        "For example, if client C sent a message that was relayed by relay agent A to relay agent B and then to the server, the server would send the following Relay-reply message to relay agent B: message type is RELAY-REPLY, hop count is 1, link address is 0, peer address is A, Relay Message option containing the following: message type is RELAY-REPLY, hop count is 0, link address is address from link to which C is attached, peer address is C, Relay Message option contains response from server.",
+        "When sending a Reconfigure message to a client through a relay agent, the server creates a Relay-reply message that includes a Relay Message option containing the Reconfigure message for the next relay agent in the return path to the client.",
+        "The server sets the peer-address field in the Relay-reply message header to the address of the client and sets the link-address field as required by the relay agent to relay the Reconfigure message to the client."
+    ],
+    "20. Authentication of DHCP Messages -> 20.4. Reconfiguration Key Authentication Protocol (RKAP) -> 20.4.1. Use of the Authentication Option in RKAP": [
+        "The following fields are set in an Authentication option (see Section 21.11) for RKAP: protocol 3, algorithm 1, RDM 0.",
+        "Type of data in the Value field carried in this option: 1 Reconfigure key value (used in the Reply message).",
+        "2 HMAC-MD5 digest of the message (used in the Reconfigure message)."
+    ],
+    "20. Authentication of DHCP Messages -> 20.3. Replay Detection": [
+        "The RDM field of the Authentication option (see Section 21.11) determines the type of replay detection used in the replay detection field.",
+        "The strictly monotonically increasing 64-bit unsigned integer method MUST be supported by all Authentication option protocols.",
+        "A client that receives a message with the RDM field set to 0x00 MUST compare its replay detection field with the previous value sent by that same server (based on the Server Identifier option; see Section 21.3) and only accept the message if the received value is greater and record this as the new value.",
+        "If this is the first time a client processes an Authentication option sent by a server, the client MUST record the replay detection value and skip the replay detection check.",
+        "Failing to do so may cause clients to refuse Reconfigure messages sent by the server, effectively rendering the reconfigure mechanism useless."
+    ],
+    "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.5. Receipt of Rebind Messages": [
+        "See Section 18.4 for details regarding the handling of Rebind messages received via unicast.",
+        "Unicast transmission of Rebind messages is not allowed, regardless of whether the Server Unicast option (see Section 21.12) is configured or not.",
+        "When the server receives a Rebind message that contains an IA option from a client, it locates the client's binding and verifies that the information in the IA from the client matches the information stored for that client.",
+        "The Reply with lifetimes of 0 constitutes an explicit notification to the client that the specific addresses and delegated prefixes are no longer valid and MUST NOT be used by the client.",
+        "If the server chooses to not include any IAs containing IA Address or IA Prefix options with lifetimes of 0 and the server does not include any other IAs with leases and/or status codes, the server does not send a Reply message.",
+        "In this situation, the server discards the Rebind message.",
+        "Otherwise, for each IA for which the server cannot find a client entry, the server has the following choices, depending on the server's policy and configuration information: If the server is configured to create new bindings as a result of processing Rebind messages (also see the note below about the Rapid Commit option (Section 21.14)), the server SHOULD create a binding and return the IA with allocated leases with lifetimes and, if applicable, T1/T2 values and other information requested by the client.",
+        "If the server is configured to create new bindings as a result of processing Rebind messages but the server will not assign any leases to an IA, the server returns the IA option containing a Status Code option (see Section 21.13) with the NoAddrsAvail or NoPrefixAvail status code and a status message for a user.",
+        "If the server does not support creation of new bindings for the client sending a Rebind message or if this behavior is disabled according to the server's policy or configuration information, the server returns the IA option containing a Status Code option with the NoBinding status code and a status message for a user.",
+        "When the server creates new bindings for the IA, it is possible that other servers also create bindings as a result of receiving the same Rebind message; see the \"DISCUSSION\" text in Section 21.14.",
+        "Therefore, the server SHOULD only create new bindings during processing of a Rebind message if the server is configured to respond with a Reply message to a Solicit message containing the Rapid Commit option.",
+        "The server constructs a Reply message by setting the \"msg-type\" field to REPLY and copying the transaction ID from the Rebind message into the \"transaction-id\" field.",
+        "The server MUST include in the Reply message a Server Identifier option (see Section 21.3) containing the server's DUID and the Client Identifier option (see Section 21.2) from the Rebind message.",
+        "The server includes other options containing configuration information to be returned to the client as described in Section 18.3.",
+        "The server MAY include options containing the IAs and values for other configuration parameters, even if those IAs and parameters were not requested in the Rebind message.",
+        "The T1 or T2 values set in each applicable IA option for a Reply MUST be the same values across all IAs.",
+        "The server MUST determine the T1 or T2 values across all of the applicable client's bindings in the Reply."
+    ],
+    "21. DHCP Options": [
+        "All values in options are represented in network byte order.",
+        "This document describes the DHCP options defined as part of the base DHCP specification.",
+        "Other options may be defined in the future in separate documents.",
+        "See [RFC7227] for guidelines regarding the definition of new options.",
+        "Unless otherwise noted, each option may appear only in the options area of a DHCP message and may appear only once.",
+        "If an option does appear multiple times, each instance is considered separate and the data areas of the options MUST NOT be concatenated or otherwise combined.",
+        "Options that are allowed to appear only once are called \"singleton options\".",
+        "The only non-singleton options defined in this document are the IA_NA (see Section 21.4), IA_TA (see Section 21.5), Vendor Class (see Section 21.16), Vendor-specific Information (see Section 21.17), and IA_PD (see Section 21.21) options.",
+        "Also, IA Address (see Section 21.6) and IA Prefix (see Section 21.22) may appear in their respective IA options more than once."
+    ],
+    "21. DHCP Options -> 21.2. Client Identifier Option": [
+        "The Client Identifier option is used to carry a DUID (seeSection 11) that identifies the client.",
+        "The format of the Client Identifier option includes the OPTION_CLIENTID field and the option-len field.",
+        "The option-len field specifies the length of the DUID in octets."
+    ],
+    "21. DHCP Options -> 21.1. Format of DHCP Options": [
+        "The format of DHCP options is shown in Figure 12.",
+        "The option-len is an unsigned integer giving the length of the option-data field in this option in octets.",
+        "The option-len is a 2-octet field.",
+        "The option-data is a variable-length field where the length in octets is specified by option-len.",
+        "DHCP options are scoped by using encapsulation.",
+        "Some options apply generally to the client, some are specific to an IA, and some are specific to the addresses within an IA.",
+        "The cases where options are specific to an IA and specific to addresses within an IA are discussed in Sections 21.4, 21.5, and 21.6."
+    ],
+    "21. DHCP Options -> 21.3. Server Identifier Option": [
+        "The Server Identifier option is used to carry a DUID (seeSection 11) that identifies the server.",
+        "The format of the Server Identifier option includes fields for OPTION_SERVERID and option-len.",
+        "The option-len specifies the length of the DUID in octets."
+    ],
+    "19. Relay Agent Behavior -> 19.4. Interaction between Relay Agents and Servers": [
+        "Each relay is allowed to insert additional options on the encapsulation level it added but MUST NOT change anything in the packet being encapsulated.",
+        "Although multiple encapsulation levels make packet processing slightly more complex, this approach provides the major advantage of having a clear indication as to which relay inserted which option.",
+        "In certain cases, relays can add one or more options.",
+        "These options can be added for several reasons: First, relays can provide additional information about the client.",
+        "These options can be used by the server to determine its allocation policy.",
+        "A relay agent may include the Interface-Id option (see Section 21.18), which will be echoed back in the response.",
+        "The relay agent can include other options and ask the server to echo one or more of the options back in the response.",
+        "These options can then be used by the relay agent to send the response back to the client, or for other needs.",
+        "The client will never see these options.",
+        "Third, sometimes a relay is the best device to provide values for certain options.",
+        "The server may choose to not send the Reconfigure message directly to the client but rather to send it via relays."
+    ],
+    "21. DHCP Options -> 21.8. Preference Option": [
+        "The Preference option is sent by a server to a client to control the selection of a server by the client.",
+        "The format of the Preference option includes fields for OPTION_PREFERENCE, option-len, and pref-value.",
+        "The option-len field has a value of 1.",
+        "A server MAY include a Preference option in an Advertise message to control the selection of a server by the client.",
+        "See Section 18.2.9 for information regarding the use of the Preference option by the client and the interpretation of the Preference option data value."
+    ],
+    "21. DHCP Options -> 21.10. Relay Message Option": [
+        "The Relay Message option carries a DHCP message in a Relay-forward or Relay-reply message.",
+        "The format of the Relay Message option consists of the OPTION_RELAY_MSG code followed by the option-len field.",
+        "The option-len specifies the length of the DHCP-relay-message field.",
+        "DHCP-relay-message In a Relay-forward message, the received message, relayed verbatim to the next relay agent or server; in a Relay-reply message, the message to be copied and relayed to the relay agent or client whose address is in the peer-address field of the Relay-reply message.",
+        "The length in octets is specified by the option-len field."
+    ],
+    "21. DHCP Options -> 21.9. Elapsed Time Option": [
+        "The Elapsed Time Option format has an option-code of OPTION_ELAPSED_TIME (8), an option-len field, and an elapsed-time field.",
+        "The option-len field has a value of 2.",
+        "A client MUST include an Elapsed Time option in messages to indicate how long the client has been trying to complete a DHCP message exchange.",
+        "Servers and relay agents use the data value in the Elapsed Time option as input to policy that controls how a server responds to a client message.",
+        "For example, the Elapsed Time option allows a secondary DHCP server to respond to a request when a primary server has not answered in a reasonable time.",
+        "The client uses the value 0xffff to represent any elapsed-time values greater than the largest time value that can be represented in the Elapsed Time option."
+    ],
+    "21. DHCP Options -> 21.12. Server Unicast Option": [
+        "The server sends the Server Unicast option to a client to indicate to the client that the client is allowed to unicast messages to the server.",
+        "The format of the Server Unicast option consists of the following fields: option-code OPTION_UNICAST (12), option-len, and server-address.",
+        "The option-len field is 16.",
+        "When a client receives the Server Unicast option, where permissible and appropriate the client sends messages directly to the server using the address specified in the server-address field of the option.",
+        "When the server sends a Server Unicast option to the client, some messages from the client will not be relayed by relay agents and will not include relay agent options from the relay agents.",
+        "Therefore, a server should only send a Server Unicast option to a client when relay agents are not sending relay agent options.",
+        "A DHCP server rejects any messages sent inappropriately using unicast to ensure that messages are relayed by relay agents when relay agent options are in use."
+    ],
+    "21. DHCP Options -> 21.7. Option Request Option": [
+        "The Option Request option is used to identify a list of options in a message between a client and a server.",
+        "The Option Request option format includes fields for OPTION_ORO, option-len, and requested option codes.",
+        "The option code for the Option Request option is OPTION_ORO (6).",
+        "The option-len field equals 2 times the number of requested options.",
+        "Each requested-option-code-n field contains the option code for an option requested by the client.",
+        "Each option code is a 2-octet field containing an unsigned integer.",
+        "A client MUST include an Option Request option in a Solicit, Request, Renew, Rebind, or Information-request message to inform the server about options the client wants the server to send to the client.",
+        "For certain message types, some option codes MUST be included in the Option Request option; see Table 4 for details.",
+        "The Option Request option MUST NOT include the following options: Client Identifier, Server Identifier, IA_NA, IA_TA, IA_PD, IA Address, IA Prefix, Option Request, Elapsed Time, Preference, Relay Message, Authentication, Server Unicast, Status Code, Rapid Commit, User Class, Vendor Class, Interface-Id, Reconfigure Message, and Reconfigure Accept.",
+        "Other top-level options MUST appear in the Option Request option or they will not be sent by the server.",
+        "Only top-level options MAY appear in the Option Request option.",
+        "Options encapsulated in a container option SHOULD NOT appear in an Option Request option; see [RFC7598] for an example of container options.",
+        "However, options MAY be defined that specify exceptions to this restriction on including encapsulated options in an Option Request option.",
+        "For example, the Option Request option MAY be used to signal support for a feature even when that option is encapsulated, as in the case of the Prefix Exclude option [RFC6603]."
+    ],
+    "21. DHCP Options -> 21.14. Rapid Commit Option": [
+        "The Rapid Commit option is used to signal the use of the two-message exchange for address assignment.",
+        "The format of the Rapid Commit option consists of an option code field for OPTION_RAPID_COMMIT (14) and an option length field.",
+        "A client MAY include the Rapid Commit option in a Solicit message if the client is prepared to perform the Solicit/Reply message exchange described in Section 18.2.1.",
+        "A server MUST include the Rapid Commit option in a Reply message sent in response to a Solicit message when completing the Solicit/Reply message exchange.",
+        "Each server that responds with a Reply to a Solicit that includes a Rapid Commit option will commit the leases in the Reply message to the client but will not receive any confirmation that the client has received the Reply message.",
+        "Therefore, if more than one server responds to a Solicit that includes a Rapid Commit option, all but one server will commit leases that are not actually used by the client; this could result in incorrect address information in DNS if the DHCP servers update DNS [RFC4704 Client Fully Qualified Domain Name (FQDN) Option], and responses to leasequery requests [RFC5007] may include information on leases not in use by the client."
+    ],
+    "21. DHCP Options -> 21.11. Authentication Option": [
+        "The Authentication option carries authentication information to authenticate the identity and contents of DHCP messages.",
+        "The use of the Authentication option is described in Section 20.",
+        "The format of the Authentication option includes fields for OPTION_AUTH, option-len, protocol, algorithm, RDM, replay detection, and authentication information.",
+        "The option-code for the Authentication option is OPTION_AUTH (11).",
+        "The option-len field equals 11 plus the length of the authentication information field.",
+        "The protocol field specifies the authentication protocol used in this Authentication option.",
+        "The RDM field specifies the replay detection method used in this Authentication option.",
+        "The authentication information field contains the authentication information, as specified by the protocol and algorithm used in this Authentication option.",
+        "The authentication information field is variable in length and equals the value in the option-len field minus 11 octets."
+    ],
+    "21. DHCP Options -> 21.6. IA Address Option": [
+        "The IA Address option must be encapsulated in the IA_NA-options field of an IA_NA option (seeSection 21.4) or the IA_TA-options field of an IA_TA option (see Section 21.5).",
+        "The IAaddr-options field encapsulates those options that are specific to this address.",
+        "The format of the IA Address option includes fields for OPTION_IAADDR, option-len, IPv6-address, preferred-lifetime, and valid-lifetime.",
+        "Removed Removed The IAaddr-options field contains options associated with the address.",
+        "The option-len is 24 plus the length of the IAaddr-options field.",
+        "The IAaddr-options field contains options associated with this address.",
+        "The IAaddr-options field is variable in length, calculated as 24 octets less than the value in the option-len field.",
+        "The client SHOULD NOT send the IA Address option with an unspecified address (::).",
+        "The status of any operations involving this IA Address is indicated in a Status Code option in the IAaddr-options field, as specified in Section 21.13."
+    ],
+    "21. DHCP Options -> 21.19. Reconfigure Message Option": [
+        "A server includes a Reconfigure Message option in a Reconfigure message to indicate to the client whether the client responds with a Renew message, a Rebind message, or an Information-request message.",
+        "The format of the Reconfigure Message option includes an option-code field with value OPTION_RECONF_MSG (19), an option-len field, and a msg-type field.",
+        "The option-len field has a value of 1.",
+        "The msg-type field has value 5 for Renew message, 6 for Rebind message, or 11 for Information-request message.",
+        "The msg-type field is a 1-octet unsigned integer.",
+        "The Reconfigure Message option can only appear in a Reconfigure message."
+    ],
+    "21. DHCP Options -> 21.15. User Class Option": [
+        "The format of the User Class option consists of an option code field for OPTION_USER_CLASS followed by an option length field.",
+        "Removed Removed Removed Removed Removed The option code for the User Class option is OPTION_USER_CLASS with value 15.",
+        "The option-len field specifies the length of the user-class-data field.",
+        "The length, in octets, is specified by option-len.",
+        "The information contained in the data area of this option is contained in one or more opaque fields that represent the user class or classes of which the client is a member.",
+        "For example, the User Class option can be used to configure all clients of people in the accounting department with a different printer than clients of people in the marketing department.",
+        "The user class information carried in this option MUST be configurable on the client.",
+        "The data area of the User Class option MUST contain one or more instances of user-class-data information."
+    ],
+    "21. DHCP Options -> 21.20. Reconfigure Accept Option": [
+        "A client uses the Reconfigure Accept option to announce to the server whether the client is willing to accept Reconfigure messages, and a server uses the Reconfigure Accept option to tell the client whether or not to accept Reconfigure messages.",
+        "In the absence of the Reconfigure Accept option, the default behavior is that the client is unwilling to accept Reconfigure messages.",
+        "The format of the Reconfigure Accept option is: option-code OPTION_RECONF_ACCEPT (20), option-len 0."
+    ],
+    "21. DHCP Options -> 21.5. Identity Association for Temporary Addresses Option": [
+        "The IA_TA option format consists of the following fields: OPTION_IA_TA, option-len, IAID (4 octets), and IA_TA-options.",
+        "The IA_TA-options field contains options specific to this IA_TA.",
+        "The option-len field value is 4 plus the length of the IA_TA-options field.",
+        "The IA_TA-options field contains options associated with this IA_TA.",
+        "The IA_TA-options field is variable-length, containing 4 octets less than the value in the option-len field.",
+        "The IA_TA-options field encapsulates those options that are specific to this IA_TA.",
+        "For example, all of the IA Address options (see Section 21.6) carrying the addresses associated with this IA_TA are in the IA_TA-options field.",
+        "An IA_TA option may only appear in the options area of a DHCP message.",
+        "A DHCP message may contain multiple IA_TA options (though each must have a unique IAID).",
+        "The status of any operations involving this IA_TA is indicated in a Status Code option (see Section 21.13) in the IA_TA-options field.",
+        "A client MAY request that the valid lifetime on temporary addresses be extended by including the addresses in an IA_TA option sent in a Renew or Rebind message to a server."
+    ],
+    "21. DHCP Options -> 21.18. Interface-Id Option": [
+        "The relay agent MAY send the Interface-Id option to identify the interface on which the client message was received.",
+        "If a relay agent receives a Relay-reply message with an Interface-Id option, the relay agent relays the message to the client through the interface identified by the option.",
+        "The Interface-Id option format includes fields for OPTION_INTERFACE_ID and option-len.",
+        "Removed Removed The option code for the Interface-Id option is OPTION_INTERFACE_ID (18).",
+        "The option-len field specifies the length of the interface-id field.",
+        "The length, in octets, is specified by option-len.",
+        "The server MUST copy the Interface-Id option from the Relay-forward message into the Relay-reply message the server sends to the relay agent in response to the Relay-forward message.",
+        "The Interface-Id option MUST NOT appear in any message except a Relay-forward or Relay-reply message.",
+        "The interface-id value SHOULD be considered an opaque value, with policies based on exact match only; that is, the interface-id field SHOULD NOT be internally parsed by the server.",
+        "The interface-id value for an interface SHOULD be stable and remain unchanged -- for example, after the relay agent is restarted; if the interface-id value changes, a server will not be able to use the interface-id value reliably in parameter assignment policies."
+    ],
+    "21. DHCP Options -> 21.16. Vendor Class Option": [
+        "The information contained in the data area of the Vendor Class option is contained in one or more opaque fields that identify details of the hardware configuration.",
+        "The format of the Vendor Class option consists of the following fields: OPTION_VENDOR_CLASS, option-len, enterprise-number, and vendor-class-data.",
+        "The option-len field is 4 plus the length of the vendor-class-data field.",
+        "The vendor-class-data is a variable-length field that is 4 octets less than the value in the option-len field."
+    ],
+    "21. DHCP Options -> 21.13. Status Code Option": [
+        "The Status Code option returns a status indication related to the DHCP message or option in which it appears.",
+        "The Status Code option format consists of the following fields: OPTION_STATUS_CODE, option-len, status-code, and status-message.",
+        "The option-code for the Status Code option is OPTION_STATUS_CODE (13).",
+        "The option-len field equals 2 plus the length of the status-message field.",
+        "The status-message is a variable-length field that is 2 octets less than the value in the option-len field.",
+        "A Status Code option may appear in the \"options\" field of a DHCP message and/or in the \"options\" field of another option.",
+        "If the Status Code option does not appear in a message in which the option could appear, the status of the message is assumed to be Success."
+    ],
+    "21. DHCP Options -> 21.4. Identity Association for Non-temporary Addresses Option": [
+        "The format of the IA_NA option includes fields for OPTION_IA_NA, option-len, IAID, T1, and T2.",
+        "The IA_NA-options field contains options specific to this IA_NA.",
+        "The option-len is 12 plus the length of the IA_NA-options field.",
+        "The IA_NA-options field contains options associated with this IA_NA.",
+        "The IA_NA-options field is variable-length, calculated as 12 octets less than the value in the option-len field.",
+        "The IA_NA-options field encapsulates those options that are specific to this IA_NA.",
+        "For example, all of the IA Address options (see Section 21.6) carrying the addresses associated with this IA_NA are in the IA_NA-options field.",
+        "An IA_NA option may only appear in the options area of a DHCP message.",
+        "A DHCP message may contain multiple IA_NA options (though each must have a unique IAID).",
+        "The status of any operations involving this IA_NA is indicated in a Status Code option (see Section 21.13) in the IA_NA-options field.",
+        "If a client receives an IA_NA with T1 greater than T2 and both T1 and T2 are greater than 0, the client discards the IA_NA option and processes the remainder of the message as though the server had not included the invalid IA_NA option."
+    ],
+    "21. DHCP Options -> 21.25. INF_MAX_RT Option": [
+        "A DHCP server sends the INF_MAX_RT option to a client to override the default value of INF_MAX_RT.",
+        "The value of INF_MAX_RT in the option replaces the default value defined in Section 7.6.",
+        "One use for the INF_MAX_RT option is to set a higher value for INF_MAX_RT; this reduces the Information-request traffic from a client that has not received a response to its Information-request messages.",
+        "The format of the INF_MAX_RT option is shown in Figure 39.",
+        "The option code is OPTION_INF_MAX_RT (83).",
+        "A DHCP client MUST include the INF_MAX_RT option code in any Option Request option (see Section 21.7) it sends in an Information-request message.",
+        "The DHCP server MAY include the INF_MAX_RT option in any response it sends to a client that has included the INF_MAX_RT option code in an Option Request option.",
+        "The INF_MAX_RT option is a top-level option in the message to the client.",
+        "A DHCP client MUST ignore any INF_MAX_RT option values that are less than 60 or more than 86400.",
+        "If a DHCP client receives a message containing an INF_MAX_RT option that has a valid value for INF_MAX_RT, the client MUST set its internal INF_MAX_RT parameter to the value contained in the INF_MAX_RT option.",
+        "An updated INF_MAX_RT value applies only to the network interface on which the client received the INF_MAX_RT option."
+    ],
+    "25. Obsoleted Mechanisms": [
+        "Clients now SHOULD set lifetimes to 0 in IA Address and IA Prefix options, and servers MUST ignore any requested lifetime value.",
+        "Clients now SHOULD set the T1/T2 values to 0 in IA_NA and IA_PD options, and servers MUST ignore any T1/T2 values supplied by a client."
+    ],
+    "21. DHCP Options -> 21.24. SOL_MAX_RT Option": [
+        "One use for the SOL_MAX_RT option is to set a higher value for SOL_MAX_RT; this reduces the Solicit traffic from a client that has not received a response to its Solicit messages.",
+        "The SOL_MAX_RT option format consists of an option code field for OPTION_SOL_MAX_RT (82), an option length field, and a SOL_MAX_RT value field.",
+        "A DHCP client MUST include the SOL_MAX_RT option code in any Option Request option (see Section 21.7) it sends in a Solicit message.",
+        "The DHCP server MAY include the SOL_MAX_RT option in any response it sends to a client that has included the SOL_MAX_RT option code in an Option Request option.",
+        "A DHCP client MUST ignore any SOL_MAX_RT option values that are less than 60 or more than 86400.",
+        "If a DHCP client receives a message containing a SOL_MAX_RT option that has a valid value for SOL_MAX_RT, the client MUST set its internal SOL_MAX_RT parameter to the value contained in the SOL_MAX_RT option."
+    ],
+    "21. DHCP Options -> 21.17. Vendor-specific Information Option": [
+        "The Vendor-specific Information option format consists of the following fields: OPTION_VENDOR_OPTS, option-len, enterprise-number, and vendor-option-data.",
+        "The option code for the Vendor-specific Information option is OPTION_VENDOR_OPTS (17).",
+        "The option-len field equals 4 plus the length of the vendor-option-data field.",
+        "The vendor-option-data field contains vendor options that are interpreted by vendor-specific code on the clients and servers.",
+        "The vendor-option-data field is a variable-length field that is 4 octets less than the value in the option-len field.",
+        "The vendor-option-data field MUST be encoded as a sequence of code/length/value fields of format identical to the DHCP options (see Section 21.1).",
+        "The sub-option codes are defined by the vendor identified in the enterprise-number field and are not managed by IANA.",
+        "Each sub-option is formatted with the following fields: sub-opt-code, sub-option-len, and sub-option-data.",
+        "The sub-option-len field is an unsigned integer that gives the length of the sub-option-data field in octets.",
+        "The sub-option-len field is a 2-octet field.",
+        "The length of the sub-option-data field in octets is specified by the sub-option-len field.",
+        "Each instance of the option is interpreted according to the option codes defined by the vendor identified by the Enterprise Number in that option.",
+        "Servers and clients MUST NOT send more than one instance of the Vendor-specific Information option with the same Enterprise Number.",
+        "Each instance of the Vendor-specific Information option MAY contain multiple sub-options.",
+        "A client that is interested in receiving a Vendor-specific Information option must specify the Vendor-specific Information option in an Option Request option.",
+        "Servers only return Vendor-specific Information options if specified in Option Request options from clients and may use the Enterprise Numbers in the associated Vendor Class options to restrict the set of Enterprise Numbers in the Vendor-specific Information options returned.",
+        "Servers may return all configured Vendor-specific Information options.",
+        "Servers may use other information in the packet or in their configuration to determine which set of Enterprise Numbers in the Vendor-specific Information options to return."
+    ],
+    "21. DHCP Options -> 21.23. Information Refresh Time Option": [
+        "It is only used in Reply messages in response to Information-request messages.",
+        "This option is useful when the configuration parameters change or during a renumbering event, as clients running in the stateless mode will be able to update their configuration.",
+        "The format of the Information Refresh Time option consists of an option code field for OPTION_INFORMATION_REFRESH_TIME (32), an option length field, and an information refresh time field.",
+        "A DHCP client MUST request this option in the Option Request option (seeSection 21.7) when sending Information-request messages.",
+        "A client MUST NOT request this option in the Option Request option in any other messages.",
+        "A server sending a Reply to an Information-request message SHOULD include this option if it is requested in the Option Request option of the Information-request.",
+        "The option value MUST NOT be smaller than IRT_MINIMUM.",
+        "This option MUST only appear in the top-level options area of Reply messages.",
+        "If the Reply to an Information-request message does not contain this option, the client MUST behave as if the option with the value IRT_DEFAULT was provided.",
+        "A client MUST use the refresh time IRT_MINIMUM if it receives the option with a value less than IRT_MINIMUM.",
+        "If a client contacts the server to obtain new data or refresh some existing data before the refresh time expires, then it SHOULD also refresh all data covered by this option.",
+        "When the client detects that the refresh time has expired, it SHOULD try to update its configuration data by sending an Information-request as specified in Section 18.2.6, except that the client MUST delay sending the first Information-request by a random amount of time between 0 and INF_MAX_DELAY.",
+        "A client MAY have a maximum value for the refresh time, where that value is used whenever the client receives this option with a value higher than the maximum."
+    ],
+    "21. DHCP Options -> 21.22. IA Prefix Option": [
+        "The IA Prefix option must be encapsulated in the IA_PD-options field of an IA_PD option (see Section 21.21).",
+        "The IA Prefix option format includes: option-code OPTION_IAPREFIX, option-len, preferred-lifetime, valid-lifetime, prefix-length, and IPv6-prefix fields.",
+        "The option-len is 25 plus the length of the IAprefix-options field.",
+        "The IAprefix-options field contains options associated with this prefix.",
+        "The IAprefix-options is a variable-length field that is 25 octets less than the value in the option-len field.",
+        "The client SHOULD NOT send an IA Prefix option with 0 in the \"prefix-length\" field (and an unspecified value (::) in the \"IPv6-prefix\" field).",
+        "The status of any operations involving this IA Prefix option is indicated in a Status Code option (see Section 21.13) in the IAprefix-options field."
+    ],
+    "21. DHCP Options -> 21.21. Identity Association for Prefix Delegation Option": [
+        "The format of the IA_PD option is: OPTION_IA_PD, option-len, IAID (4 octets), T1, T2, and IA_PD-options.",
+        "IA_PD-options.",
+        "The option-len is 12 plus the length of the IA_PD-options field.",
+        "IA_PD-options are options associated with this IA_PD.",
+        "IA_PD-options is a variable-length field that is 12 octets less than the value in the option-len field.",
+        "The IA_PD-options field encapsulates those options that are specific to this IA_PD.",
+        "For example, all of the IA Prefix options (see Section 21.22) carrying the prefixes associated with this IA_PD are in the IA_PD-options field.",
+        "An IA_PD option may only appear in the options area of a DHCP message.",
+        "A DHCP message may contain multiple IA_PD options (though each must have a unique IAID).",
+        "The status of any operations involving this IA_PD is indicated in a Status Code option (see Section 21.13) in the IA_PD-options field.",
+        "If a client receives an IA_PD with T1 greater than T2 and both T1 and T2 are greater than 0, the client discards the IA_PD option and processes the remainder of the message as though the server had not included the IA_PD option."
+    ],
+    "Appendix B. Appearance of Options in Message Types": [
+        "The following tables indicate with a \"*\" the options that are allowed in each DHCP message type.",
+        "The Server Identifier option (see Section 21.3) is only included in Information-request messages that are sent in response to a Reconfigure message (see Section 18.2.6)."
+    ],
+    "22. Security Considerations": [
+        "A malicious DHCP server might cause a client to set its SOL_MAX_RT and INF_MAX_RT parameters to an unreasonably high value with the SOL_MAX_RT (see Section 21.24) and INF_MAX_RT (see Section 21.25) options; this may cause an undue delay in a client completing its DHCP protocol transaction in the case where no other valid response is received.",
+        "A malicious server can also send a Server Unicast option (see Section 21.12) to a client in an Advertise message, thus potentially causing the client to bypass relays and communicate only with the malicious server for subsequent Request and Renew messages.",
+        "A DHCP client may also be subject to attack through the receipt of a Reconfigure message from a malicious server that causes the client to obtain incorrect configuration information from that server.",
+        "Note that although a client sends its response (Renew, Rebind, or Information-request message) through a relay agent and, therefore, that response will only be received by servers to which DHCP messages are relayed, a malicious server could send a Reconfigure message to a client, followed (after an appropriate delay) by a Reply message that would be accepted by the client.",
+        "Thus, a malicious server that is not on the network path between the client and the server may still be able to mount a Reconfigure attack on a client.",
+        "The use of transaction IDs that are cryptographically sound and cannot easily be predicted will also reduce the probability that such an attack will be successful.",
+        "Because of the opportunity for attack through the Reconfigure message, a DHCP client MUST discard any Reconfigure message that does not include authentication or that does not pass the validation process for the authentication protocol.",
+        "RKAP, described in Section 20.4, provides protection against the use of a Reconfigure message by a malicious DHCP server to mount a DoS or man-in-the-middle attack on a client.",
+        "As mentioned above, one threat is that the RKAP key for a client can be learned (if the initial Solicit/Advertise/Request/Reply exchange is monitored) and trigger a premature reconfiguration, but this is relatively easily prevented by disallowing direct client-to-client communication on these networks or using [RFC7610] and [RFC7513]."
+    ],
+    "24. IANA Considerations": [
+        "The publication of this document does not change the assignment rules for new values for message types, option codes, DUID types, or status codes.",
+        "IANA has added two columns to the DHCPv6 \"Option Codes\" registry at https://www.iana.org/assignments/dhcpv6-parameters to indicate which options are allowed to appear in a client's Option Request option (see Section 21.7) and which options are singleton options (only allowed to appear once as a top-level or encapsulated option; see Section 16 of RFC7227).",
+        "Table 4 provides the data for the options assigned by IANA at the time of writing this document.",
+        "Table 4 provides the data for the options assigned by IANA at the time of writing this document.",
+        "The table shows option codes, option names, client ORO status, and singleton option status for various DHCPv6 options."
+    ],
+    "Appendix A. Summary of Changes": [
+        "Section 15 (\"Reliability of Client-Initiated Message Exchanges\") was expanded to clarify that the Elapsed Time option must be updated in retransmitted messages and that a client is not required to listen for DHCP traffic for the entire retransmission period.",
+        "The Option Request option is no longer optional for some messages (Solicit and Information-request), as RFC 7083 requires clients to request SOL_MAX_RT or INF_MAX_RT options.",
+        "The Reconfigure message should no longer contain IA_NA/IA_PD, ORO, or other options to indicate to the client what was reconfigured.",
+        "The client should request everything the client needs in the response to the Reconfigure message.",
+        "Clarified that a server may return different addresses in the Reply than requested by a client in the Request message.",
+        "Section 21 (\"DHCP Options\") was expanded to incorporate OPTION_IA_PD and OPTION_IAPREFIX from RFC 3633, the Information Refresh Time option (OPTION_INFORMATION_REFRESH_TIME) from RFC 4242, and the SOL_MAX_RT and INF_MAX_RT options from RFC 7083.",
+        "Some additional edits were made to clarify option handling, such as which options should not be in an Option Request option.",
+        "Appendices B (\"Appearance of Options in Message Types\") and C (\"Appearance of Options in the \"options\" Field of DHCP Options\") were updated to reflect the incorporated options from RFC 3633, RFC 4242, and RFC 7083.",
+        "Readers of this specification should visit https://www.iana.org/assignments/dhcpv6-parameters and https://datatracker.ietf.org/wg/dhc/ to learn of the RFCs that define DHCPv6 messages, options, status codes, and more."
+    ],
+    "26. References -> 26.2. Informative References": [
+        "Droms, \\\"IPv6 Prefix Options for Dynamic Host Configuration Protocol (DHCP) version 6\\\", RFC 3633, DOI 10.17487/RFC3633, December 2003, <<https://www.rfc-editor.org/info/rfc3633>>.\" }, { \"Original\": \"and R.\", \"Adjusted\": \"No change\" }, { \"Original\": \"Droms, \\\"IPv6 Prefix Options for Dynamic Host Configuration Protocol (DHCP) version 6\\\", RFC 3633, DOI 10.17487/RFC3633, December 2003, <<https://www.rfc-editor.org/info/rfc3633>>.\", \"Adjusted\": \"No change\" }, { \"Original\": \"[RFC3646] Droms, R., Ed., \\\"DNS Configuration options for Dynamic Host Configuration Protocol for IPv6 (DHCPv6)\\\", RFC 3646, DOI 10.17487/RFC3646, December 2003, <<https://www.rfc-editor.org/info/rfc3646>>.\", \"Adjusted\": \"No change\" }, { \"Original\": \"[RFC3736] Droms, R., \\\"Stateless Dynamic Host Configuration Protocol (DHCP) Service for IPv6\\\", RFC 3736, DOI 10.17487/RFC3736, April 2004, <<https://www.rfc-editor.org/info/rfc3736>>.\", \"Adjusted\": \"No change\" }, { \"Original\": \"[RFC3769] Miyakawa, S.\", \"Adjusted\": \"[RFC3769] Miyakawa, S."
+    ],
+    "Appendix C. Appearance of Options in the \"options\" Field of DHCP": [
+        "Appearance of Options in the \\\"options\\\" Field of DHCP\": [ { \"Original\": \"Options The following table indicates with a \\\"*\\\" where options defined in this document can appear as top-level options or can be encapsulated in other options defined in this document.\", \"Adjusted\": \"No change\" }, { \"Original\": \"Other RFCs may define additional situations where options defined in this document are encapsulated in other options.\", \"Adjusted\": \"No change\" }, { \"Original\": \"This table is informational.\", \"Adjusted\": \"No change\" }, { \"Original\": \"If it conflicts with text earlier in this document, that text should be considered authoritative.\", \"Adjusted\": \"If the table conflicts with text earlier in this document, the earlier text should be considered authoritative.\" }, { \"Original\": \"Top- IA_NA/ RELAY- RELAY- Level IA_TA IAADDR IA_PD IAPREFIX FORW REPL Client ID * Server ID * IA_NA/IA_TA * IAADDR * IA_PD * IAPREFIX * ORO * Preference * Elapsed Time * Relay Message * * Authentic.\", \"Adjusted\": \"The table shows option appearances with asterisks indicating where options can appear: Top-Level, IA_NA/IA_TA, IAADDR, IA_PD, IAPREFIX, RELAY-FORW, RELAY-REPL columns for Client ID, Server ID, IA_NA/IA_TA, IAADDR, IA_PD, IAPREFIX, ORO, Preference, Elapsed Time, Relay Message, Authentication, Server Unicast, Status Code, Rapid Commit, User Class, Vendor Class, Vendor Information, Interface ID, Reconfigure Message, Reconfigure Accept, Information Refresh Time, SOL_MAX_RT, INF_MAX_RT.\" }, { \"Original\": \"* Server Uni.\", \"Adjusted\": \"Server Unicast option appears in the table.\" }, { \"Original\": \"* Status Code * * * Rapid Comm.\", \"Adjusted\": \"Status Code and Rapid Commit options appear in multiple columns of the table.\" }, { \"Original\": \"* User Class * Vendor Class * Vendor Info.\", \"Adjusted\": \"User Class, Vendor Class, and Vendor Information options appear in the table.\" }, { \"Original\": \"* * * Interf.\", \"Adjusted\": \"Interface ID option appears in the table.\" }, { \"Original\": \"ID * * Reconf.\", \"Adjusted\": \"Interface ID and Reconfigure options appear in the table.\" }, { \"Original\": \"MSG.\", \"Adjusted\": \"Reconfigure Message option appears in the table.\" }, { \"Original\": \"* Reconf.\", \"Adjusted\": \"Reconfigure Accept option appears in the table.\" }, { \"Original\": \"Accept * Info Refresh Time * SOL_MAX_RT * INF_MAX_RT * Notes: Options asterisked in the \\\"Top-Level\\\" column appear in the \\\"options\\\" field of client messages (seeSection 8).\", \"Adjusted\": \"Reconfigure Accept, Information Refresh Time, SOL_MAX_RT, and INF_MAX_RT options appear in the table.",
+        "Options marked with asterisks in the Top-Level column appear in the options field of client messages (see Section 8).\" }, { \"Original\": \"Options asterisked in the \\\"RELAY-FORW\\\" and \\\"RELAY-REPL\\\" columns appear in the \\\"options\\\" field of the Relay-forward and Relay-reply messages (see Section 9).\", \"Adjusted\": \"No change\" }, { \"Original\": \"Acknowledgments This document is merely a refinement of earlier work by the authors of the following documents and would not be possible without their original work: \\\\- RFC 3315 (Ralph Droms, Jim Bound, Bernie Volz, Ted Lemon, Charles Perkins, and Mike Carney) \\\\- RFC 3633 (Ole Troan and Ralph Droms) \\\\- RFC 3736 (Ralph Droms) \\\\- RFC 4242 (Stig Venaas, Tim Chown, and Bernie Volz) \\\\- RFC 7083 (Ralph Droms) \\\\- RFC 7283 (Yong Cui, Qi Sun, and Ted Lemon) \\\\- RFC 7550 (Ole Troan, Bernie Volz, and Marcin Siodelski) A number of additional people have contributed to identifying issues with RFC 3315 and RFC 3633 and proposed resolutions to these issues as reflected in this document (listed here in no particular order): Ole Troan, Robert Marks, Leaf Yeh, Michelle Cotton, Pablo Armando, John Brzozowski, Suresh Krishnan, Hideshi Enokihara, Alexandru Petrescu, Yukiyo Akisada, Tatuya Jinmei, Fred Templin, and Christian Huitema.\", \"Adjusted\": \"Acknowledgments: This document is merely a refinement of earlier work by the authors of the following documents and would not be possible without their original work: RFC 3315 (Ralph Droms, Jim Bound, Bernie Volz, Ted Lemon, Charles Perkins, and Mike Carney), RFC 3633 (Ole Troan and Ralph Droms), RFC 3736 (Ralph Droms), RFC 4242 (Stig Venaas, Tim Chown, and Bernie Volz), RFC 7083 (Ralph Droms), RFC 7283 (Yong Cui, Qi Sun, and Ted Lemon), RFC 7550 (Ole Troan, Bernie Volz, and Marcin Siodelski)."
+    ]
+}

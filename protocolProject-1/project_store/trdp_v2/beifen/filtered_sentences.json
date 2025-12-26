@@ -1,0 +1,180 @@
+{
+    "Train Real-Time Data Protocol (TRDP) -> A.4 Interaction between TRDP user and TRDP Layer": [
+        "The TRDP layer shall provide services for process data and message data communication."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.1 Communication model": [
+        "The TRDP process data protocol defines the exchange of PD-PDUs for the transfer of process data.",
+        "PD-PDUs shall be cyclically transmitted or transmitted on request between a publisher and one or many subscribers."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.5 Communication Identifier (ComId) -> Table A.2 芒聙聯 Reserved ComIds": [
+        "ComId 3715 has an unspecified PDU service description."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.2 Lower Layers -> A.2.3 Transport Layer": [
+        "Any TRDP process data shall be sent with UDP.",
+        "TRDP process data packet size shall be specified."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.2 Lower Layers -> A.2.2 Network Layer": [
+        "NOTE 3: Depending on the safety and security concept, ordinary process data and message data might use different communication channels."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.2 Roles": [
+        "The communication partners in a process data transfer can have different roles: publisher is the source of process data, subscriber is the sink of process data, and requester requests the publisher to publish its process data."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.5 Communication Identifier (ComId)": [
+        "All TRDP communication uses a so called ComId transmitted in the header of each PDU.",
+        "The ComId is application dependent but should be standardized in the application profiles.",
+        "The ComId has a one-to-one relation with the data set structure.",
+        "The ComId shall be set to zero (ComId = 0) in the following cases: for PDUs with unspecified user dataset.",
+        "The ComIds 1..999 shall not be used by the application since they are reserved for specific purposes."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.3 Communication pattern -> Figure A.9 芒聙聯 PD pull pattern (point to multipoint, sink knows source)": [
+        "The IEC subscriber publisher requester exchanges PD-PDU replies and requests according to the PD pull pattern where the sink knows the source."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.3 Communication pattern -> Figure A.7 芒聙聯 PD pull pattern (point to point, sink knows source)": [
+        "The IEC publisher requester exchanges PD-PDU messages in a pattern of request and reply, as specified in IEC CD 61375-2-3 IEC 2024 document 9/3102/CD."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.3 Communication pattern -> Figure A.8 芒聙聯 PD pull pattern (multipoint to point, sink does not know source)": [
+        "The IEC publisher requester exchanges PD-PDU requests and replies in a pattern where PD-PDU requests are followed by multiple PD-PDU replies from the publisher."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.5 PD-PDU": [
+        "The structure of a PD-PDU is defined in Figure A.11 and in ASN.1 notation, with additional IEC subscriber, publisher, and requester roles for PD-PDU request and reply messages."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.6 Interaction between application and TRDP protocol layer -> A.6.6.1 Service primitives": [
+        "The TRDP layer shall provide a service for process data communication to the TRDP user."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.5 PD-PDU -> Figure A.11 芒聙聯 PD-PDU": [
+        "The PD_PDU record structure includes dataset, sequenceCounter, protocolVersion, etbTopoCnt, datasetLength, replyComId, msgType, 40 octets reserved, replyIpAddress, 24 octets headerFCS, and opTrnTopoCnt fields as defined in IEC CD 61375-2-3 IEC 2024."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.3 Communication pattern -> A.6.3.2 Pull communication pattern": [
+        "A dedicated subscriber is requesting the known publisher to send its PD-PDU.",
+        "Here, one dedicated subscriber is requesting one or multiple unknown publishers to send their PD-PDU data."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.8 State Machine -> Table A.7 芒聙聯 PD publisher state diagram 芒聙聯 triggers": [
+        "Triggers Description: PD.publish user called PD.publish service primitive continues publishing train-wide process data."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.8 State Machine -> Table A.8 芒聙聯 PD publisher state diagram 芒聙聯 actions": [
+        "txTime equals cycle time for sending process data as defined in PD.publish service."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.8 State Machine -> Table A.9 芒聙聯 PD publisher state diagram 芒聙聯 states": [
+        "States Description: CyclicOperation - The publisher sends PD-PDUs cyclically triggered by a timer"
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.8 State Machine -> A.6.8.2 Request publishing of PD-PDU (PD request)": [
+        "One dedicated subscriber or an independent communication device may request one or many PD-PDUs."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.8 State Machine -> Table A.6 芒聙聯 PD publisher state diagram 芒聙聯 guards": [
+        "Guards Description: pattern configured communication pattern for the PD-PDU exchange.",
+        "PolledOperation: [pattern == PULL] PD.putData / restartTimer(txTime)."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.8 State Machine -> Table A.11 芒聙聯 PD requester state diagram 芒聙聯 triggers": [
+        "Triggers Description: PD.request is a service primitive called by the application"
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.8 State Machine -> A.6.8.1 Publishing PD-PDU(data)": [
+        "A publisher shall publish PD-PDU(data) when: the defined time cycle terminates (push pattern, TRDP triggered cycle); the publisher receives an application request to send the data immediately (push pattern, application triggered); the publisher receives a request from a dedicated subscriber or an independent communication entity.",
+        "To not overload subscribers, the publisher of TRDP triggered pushed PD-PDU shall apply a rate limitation.",
+        "The publishing of PD-PDU(data) is defined with the state diagram depicted in Figure A.16.",
+        "NOTE 1: Sending application triggered cyclic PD-PDUs shall be restricted since there is no possibility to include rate control.",
+        "NOTE 2: If there is a pull request for a PD-PDU that is already published using the push pattern, the related reply is handled according to the protocol specifications."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.6 Interaction between application and TRDP protocol layer -> A.6.6.5 PD Redundancy Handling": [
+        "The sequence chart in Figure A.15 shows the sequence of the service primitives for redundancy handling The service primitives for redundancy handling shall be used in the same way by the publisher and subscriber If a redundant function enters the redundancy leader state, it shall call PD.setRed(LEADER) for all relevant process data If a redundant function enters the redundancy follower state, it shall call PD.setRed(!LEADER) for all relevant process data When starting TRDP, publishers of redundant process data (identified by a ComId marked as redundant) shall initialize the redundancy handling The TRDP protocol involves publishers and subscribers exchanging process data telegrams using service primitives such as PD.indicate(data), PD.publish, PD.indicate(timeout), PD.subscribe, PD.putData, and PD.poll"
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.6 Interaction between application and TRDP protocol layer -> A.6.6.4 Interaction sequence 芒聙聯 PD Push Pattern": [
+        "The PD push pattern can be used for any process data.",
+        "In Figure A.13 process data are prepared cyclically by the publisher and shall be given to the TRDP layer.",
+        "Any subscriber can subscribe for the process telegram using ComID and destination IP address.",
+        "Timeout supervision at subscriber TRDP layer shall be restarted after receiving the related process data."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.8 State Machine -> A.6.8.3 Receiving PD-PDU (PD reply/data)": [
+        "For an eventually related PD request see Figure A.17."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.8 State Machine -> Table A.12 芒聙聯 PD requester state diagram 芒聙聯 actions": [
+        "Time equals rxTime, which is the timeout value given in the PD.subscribe service primitive."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.8 State Machine -> Table A.13 芒聙聯 PD requester state diagram 芒聙聯 states": [
+        "Sending of the request telegram is triggered by the application using PD.request.",
+        "IEC PD.request Request Start IEC CD 61375-2-3 IEC 2024"
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.8 State Machine -> Table A.17 芒聙聯 PD subscriber state diagram 芒聙聯 states": [
+        "States Description: WaitForPD state waits until a new process telegram is received"
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.8 State Machine -> Table A.14 芒聙聯 PD subscriber state diagram 芒聙聯 triggers": [
+        "Triggers Description: PD.subscribe service primitive called by application to continue receiving train-wide published process data."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.5 PD-PDU -> Table A.3 芒聙聯 PD-PDU parameters": [
+        "sequenceCounter The sequence counter: Shall be managed for sending process telegrams, shall be managed (stored) for received process telegrams, shall be incremented with each sending of the process telegram, and can be used for communication layer surveillance to verify that the application is still updating its process data.",
+        "comId Identifier of the user dataset.",
+        "Shall be the primary information about the user data.",
+        "Shall be used only in a PD request.",
+        "If the reply is 0, the reply shall be sent as an unspecified PDU.",
+        "replyIpAddress The reply IP address for PD: shall be used for the reply.",
+        "dataset The user data."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.6 Interaction between application and TRDP protocol layer -> A.6.6.3 Interaction sequence 芒聙聯 PD Pull Pattern": [
+        "Also, a request for already cyclically published PDU shall be possible."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.8 State Machine -> Table A.16 芒聙聯 PD subscriber state diagram 芒聙聯 actions": [
+        "setDataInvalid - Sets the process data to initialized/invalid time equal to rxTime (timeout value given in PD.subscribe service primitive)."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.8 State Machine -> Table A.15 芒聙聯 PD subscriber state diagram 芒聙聯 guards": [
+        "Guards Description: The configured communication pattern for the PD-PDU exchange."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.5 MD-PDU -> Figure A.20 芒聙聯 MD-PDU": [
+        "MD_PDU is defined as a record containing request"
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.5 MD-PDU": [
+        "The structure of a MD-PDU is defined in Figure A.20 and subsequently in ASN.1 notation."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.8 MD protocol state machine -> Table A.22 芒聙聯 MD caller state diagram 芒聙聯 triggers": [
+        "Triggers Description: MD.request User called MD.request service primitive change of topography counters."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.7 Topography counter check": [
+        "Before sending a telegram, the topography counters of the telegram shall be checked against the expected values After reception of a telegram, the topography counter values shall be checked to ensure that they match the expected values The TRDP protocol involves a caller and replier (listener) using message types including MD.request, MD.addListener for request messages, MD.reply for reply messages, MD.indicate, MD.confirm for confirm messages, and MD.release as defined in IEC CD 61375-2-3"
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.6 Interaction between application and TRDP layer -> A.7.6.3 Filtering rules": [
+        "a) An empty destinationUri in MD telegrams shall be received by a listener regardless of any defined destinationUri.",
+        "f) MD telegrams with empty destinationUri may be received by several listeners with different filter parameters."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.8 MD protocol state machine -> Table A.23 芒聙聯 MD caller state diagram 芒聙聯 guards": [
+        "The guards description defines the sendType parameter of the MD request telegram as requested by the user in the MD.request service primitive.",
+        "The composite state caller processes MD.request through mdCallSession when sendType equals Mr, enters StateWaitForReply when sendType equals Mn, and leaves when missingReplies equals 0 AND missingConfirms equals 0.",
+        "The state machine starts from the caller state, processes MD.confirm when mpReceived occurs, restarts with mdHandleCallerTimeout when maxTimeoutCnt does not equal 0, and otherwise processes meReceived to closeCallSession."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.6 Interaction between application and TRDP layer -> Table A.19 芒聙聯 TRDP service primitives 芒聙聯 Caller": [
+        "MD.request service primitive parameters include: msgType for sending notification messages (Mn), and userReference which is returned with the MD.indication.",
+        "MD.indicate service primitive parameters include: userReference which was submitted with MD.request for reception of a query message (Mq), comId as defined in Table A.18 (set to 0 if unknown for error return), and userStatus for user status or error code."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.8 MD protocol state machine -> Table A.30 芒聙聯 MD receiver state diagram 芒聙聯 triggers": [
+        "Triggers Description: mdMessageReceived - An MD telegram has been received"
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.8 MD protocol state machine -> Table A.26 芒聙聯 MD replier state diagram 芒聙聯 triggers": [
+        "The MD replier state diagram triggers include: MD.addListener user called service primitive, reply timeout, message type equals Mr with exists true filtering for listener, message type equals Mr with exists false starting mdHandleRequest, message type equals Mr with exists true indicating data, message type equals Mr with exists false, reply type equals Mp, reply type equals Mq with entry indicating data, MD.reply leaving StateWaitForConfirm, opening reply session, mcReceived indicating data and leaving, timeout leaving, exit releasing data or timeout or abort, starting mdReplySession, CompositeStateReplier MD.addListener adding listener, starting replier with state equals StateWaitForConfirm or else condition, repeated equals true discarding message, mdAbort equals true or else condition, and IEC CD 61375-2-3 © IEC 2024 reference."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.6 Interaction between application and TRDP layer -> Table A.20 芒聙聯 TRDP service primitives 芒聙聯 Replier": [
+        "MD.readdListener service primitive parameters include Handle for this listener, etbTopoCnt actual value, opTrnTopoCnt actual value, sourceIpAddress IP source address generated from respective URIs, sourceIpAddress2 defining the upper IP address in case of an IP address range, and destinationIpAddress IP destination address generated from respective URIs."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.5 MD-PDU -> Table A.18 芒聙聯 MD-PDU parameters": [
+        "sequenceCounter: The sequence counter shall be incremented with each repetition and shall be returned with the reply message.",
+        "comId: Identifier of the user dataset.",
+        "datasetLength: Length of the user data set in number of octets from 0 to 65388.",
+        "dataset: The user data."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.8 MD protocol state machine -> Figure A.24 芒聙聯 TRDP Layer MD telegram reception": [
+        "The IEC CompositeStateReceiver processes mdMessageReceived and mdHandleReceived when exists equals TRUE."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.6 Process Data -> A.6.6 Interaction between application and TRDP protocol layer -> Table A.4 芒聙聯 TRDP service primitives": [
+        "Set to 0 reserved as defined in Table A.3 sourceIpAddress Source IP Address of the PD.",
+        "Set to 0 for application triggered Process Data datasetLength Actual user data length to be sent dataset Buffer with user data to be sent as redId Redundancy group ID.",
+        "Set to 0 if PD.rePublish: TRDP user to TRDP layer handle Handle which has been given by the etbTopoCnt as defined in Table A.3 opTrnTopoCnt as defined in Table A.3 sourceIpAddress Source IP Address of the Process Data.",
+        "destinationIpAddress Destination IP address to send the PD.unPublish: TRDP user to TRDP layer handle Handle which has been given by the PD.putData: TRDP user to TRDP layer handle Handle which has been given by the datasetLength Actual user data length to be sent dataset Buffer with user data to be sent as PD.setRed: TRDP user to TRDP layer redId Selects the redundancy group to be leader If TRUE, the service activates PD.getRed: TRDP user to TRDP layer redId Selects the redundancy group to be leader If TRUE, publishing is activated for PD.putDataImmediate: TRDP user to TRDP layer handle Handle which has been given by the txTime Absolute time to transmit or 0 for datasetLength Actual user data length to be sent dataset Buffer with user data to be sent as Requester PD.request: TRDP user to TRDP layer handle handle for this subscription of the reserved as defined in Table A.3 comId ComId to be sent, as defined in etbTopoCnt as defined in Table A.3 sourceIpAddress Source IP address destinationIpAddress Destination IP address to send the redId Redundancy ID.",
+        "Set to 0 if dataSet User data set to be sent, as defined datasetLength data set length to be sent, as replyComId as defined in Table A.3 Subscriber PD.subscribe: TRDP user to TRDP layer handle handle for this subscription; userRef Optional user reference for call callBackFunction Optional call back function.",
+        "sourceIpAddress2 Defines the upper IP address in destinationIpAddress IP destination address, generated timeout Timeout (rxTime) for Process Data to be timeoutBehaviour Optional behaviour in case of a PD_resubscribe: TRDP user to TRDP layer handle handle for this subscription; etbTopoCnt as defined in Table A.3 opTrnTopoCnt as defined in Table A.3 sourceIpAddress1 IP source address, generated out of Defines the lower IP address in sourceIpAddress2 Defines the upper IP address in destinationIpAddress IP destination address, generated PD.unsubscribe: TRDP user to TRDP layer handle handle returned by the TRDP layer PD.indicate: TRDP layer to TRDP user handle handle returned by the TRDP layer sourceIpAddress Received source IP address destinationIpAddress Received destination IP address, as sequenceCounter Received sequence counter, as protocolVersion Received protocol version, as msgType process data (Pd) comId Received ComId, as defined in etbTopoCnt Received topo count, as defined in opTrnTopoCnt Received topo count, as defined in replyIComId Received reply ComId, as defined in replyIpAddress Received reply IP address userRef User reference given in status 0 OK, != 0 NOK 1 timeout 6 no subscription timeoutBehaviour Optional behaviour in case of a reserved as defined in Table A.3 dataset Received user data, as defined in datasetLength Received user data size, as defined PD.get: TRDP user to TRDP layer handle handle returned by the TRDP layer sourceIpAddress Received source IP address destinationIpAddress Received destination IP sequenceCounter Received sequence counter, as protocolVersion Received protocol version, as msgType process data (Pd) comId Received ComId, as defined in etbTopoCnt Received topo count, as defined in opTrnTopoCnt Received topo count, as defined in replyIComId Received reply ComId, as defined in replyIpAddress Received reply IP address userRef User reference given in status 0 OK, != 0 NOK 1 timeout timeoutBehaviour Optional behaviour in case of a reserved as defined in Table A.3 dataset Received user data, as defined in datasetLength Received user data size, as defined"
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.8 MD protocol state machine -> A.7.8.1 TRDP Layer 芒聙聯 Caller": [
+        "A confirmation message shall not contain user data and shall be sent only as unicast."
+    ],
+    "Train Real-Time Data Protocol (TRDP) -> A.7 Message Data -> A.7.8 MD protocol state machine -> A.7.8.2 TRDP Layer 芒聙聯 Replier (Listener)": [
+        "Each TRDP user (replier) that wants to receive MD shall register as listener for MD.",
+        "After receiving the MD.reply from the TRDP user (listener), the TRDP layer shall send the reply message.",
+        "The MD.reply of a listener shall use as source IP address the IP address of the listener and as source URI the URI of the listener.",
+        "The topography counter values obtained in an MD.addListener service primitive shall be used for checking incoming messages."
+    ]
+}
