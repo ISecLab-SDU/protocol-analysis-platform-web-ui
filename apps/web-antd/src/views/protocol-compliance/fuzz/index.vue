@@ -3250,7 +3250,7 @@ async function stopSOLProcessWrapper() {
             oids: [
               `Docker容器已停止 (ID: ${solProcessId.value})`,
               `容器状态: ${result.data?.stop_results ? '已停止' : '部分停止'}`,
-              `输出文件已保留，可在 /home/hhh/下载/ProtocolGuardOutPut 查看结果`,
+              `输出文件已保留，可在 /home/lab426_system/ProtocolGuardOutPut 查看结果`,
             ],
             hex: '',
             result: 'success',

@@ -56,3 +56,5 @@ vite.config.ts.*
 
 *.sqlite3
 
+
+**/assertion_history/

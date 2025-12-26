@@ -1063,8 +1063,8 @@ def _strip_extension(filename: str) -> str:
 # SOL配置 - ProtocolGuard配置
 RTSP_CONFIG = {
     "script_path": None,  # 不再需要脚本文件
-    "shell_command": "docker run -d --privileged -v /home/hhh/下载/ProtocolGuardOutPut:/out/fuzz-output protocolguard:latest fuzz",  # ProtocolGuard启动命令（使用-d后台运行，移除--rm和-it）
-    "log_file_path": "/home/hhh/下载/ProtocolGuardOutPut/plot_data"  # ProtocolGuard日志文件路径
+    "shell_command": "docker run -d --privileged -v /home/lab426_system/ProtocolGuardOutPut:/out/fuzz-output protocolguard:latest fuzz",  # ProtocolGuard启动命令（使用-d后台运行，移除--rm和-it）
+    "log_file_path": "/home/lab426_system/ProtocolGuardOutPut/plot_data"  # ProtocolGuard日志文件路径
 }
 
 # MQTT协议配置 - MBFuzzer相关路径
