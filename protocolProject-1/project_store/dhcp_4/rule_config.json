@@ -1,0 +1,11 @@
+{
+  "paths": {
+    "paragraph_output": "project_store\\dhcp_4\\paragraphs_output.json",
+    "final_output": "project_store\\dhcp_4\\keywords_final.json",
+    "json_sentences": "project_store\\dhcp_4\\filtered_sentences.json",
+    "txt_sentences": "project_store\\dhcp_4\\matched_sentences.txt",
+    "excel_sentences": "project_store\\dhcp_4\\filtered_sentences.xlsx",
+    "table": "project_store\\dhcp_4\\tables.md",
+    "processed": "project_store\\dhcp_4\\processed_results.json"
+  }
+}

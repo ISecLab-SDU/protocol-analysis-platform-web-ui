@@ -1,0 +1,210 @@
+{
+  "DHCPDISCOVER": {
+    "op": {},
+    "htype": {},
+    "hlen": {},
+    "hops": {},
+    "xid": {},
+    "secs": {},
+    "flags": {},
+    "ciaddr": {},
+    "yiaddr": {},
+    "siaddr": {},
+    "giaddr": {},
+    "chaddr": {},
+    "sname": {},
+    "file": {},
+    "options": {
+      "magic_cookie": {},
+      "option_list": {
+        "option": {
+          "code": {},
+          "length": {},
+          "data": {}
+        }
+      }
+    }
+  },
+  "DHCPOFFER": {
+    "op": {},
+    "htype": {},
+    "hlen": {},
+    "hops": {},
+    "xid": {},
+    "secs": {},
+    "flags": {},
+    "ciaddr": {},
+    "yiaddr": {},
+    "siaddr": {},
+    "giaddr": {},
+    "chaddr": {},
+    "sname": {},
+    "file": {},
+    "options": {
+      "magic_cookie": {},
+      "option_list": {
+        "option": {
+          "code": {},
+          "length": {},
+          "data": {}
+        }
+      }
+    }
+  },
+  "DHCPREQUEST": {
+    "op": {},
+    "htype": {},
+    "hlen": {},
+    "hops": {},
+    "xid": {},
+    "secs": {},
+    "flags": {},
+    "ciaddr": {},
+    "yiaddr": {},
+    "siaddr": {},
+    "giaddr": {},
+    "chaddr": {},
+    "sname": {},
+    "file": {},
+    "options": {
+      "magic_cookie": {},
+      "option_list": {
+        "option": {
+          "code": {},
+          "length": {},
+          "data": {}
+        }
+      }
+    }
+  },
+  "DHCPDECLINE": {
+    "op": {},
+    "htype": {},
+    "hlen": {},
+    "hops": {},
+    "xid": {},
+    "secs": {},
+    "flags": {},
+    "ciaddr": {},
+    "yiaddr": {},
+    "siaddr": {},
+    "giaddr": {},
+    "chaddr": {},
+    "sname": {},
+    "file": {},
+    "options": {
+      "magic_cookie": {},
+      "option_list": {
+        "option": {
+          "code": {},
+          "length": {},
+          "data": {}
+        }
+      }
+    }
+  },
+  "DHCPACK": {
+    "op": {},
+    "htype": {},
+    "hlen": {},
+    "hops": {},
+    "xid": {},
+    "secs": {},
+    "flags": {},
+    "ciaddr": {},
+    "yiaddr": {},
+    "siaddr": {},
+    "giaddr": {},
+    "chaddr": {},
+    "sname": {},
+    "file": {},
+    "options": {
+      "magic_cookie": {},
+      "option_list": {
+        "option": {
+          "code": {},
+          "length": {},
+          "data": {}
+        }
+      }
+    }
+  },
+  "DHCPNAK": {
+    "op": {},
+    "htype": {},
+    "hlen": {},
+    "hops": {},
+    "xid": {},
+    "secs": {},
+    "flags": {},
+    "ciaddr": {},
+    "yiaddr": {},
+    "siaddr": {},
+    "giaddr": {},
+    "chaddr": {},
+    "sname": {},
+    "file": {},
+    "options": {
+      "magic_cookie": {},
+      "option_list": {
+        "option": {
+          "code": {},
+          "length": {},
+          "data": {}
+        }
+      }
+    }
+  },
+  "DHCPRELEASE": {
+    "op": {},
+    "htype": {},
+    "hlen": {},
+    "hops": {},
+    "xid": {},
+    "secs": {},
+    "flags": {},
+    "ciaddr": {},
+    "yiaddr": {},
+    "siaddr": {},
+    "giaddr": {},
+    "chaddr": {},
+    "sname": {},
+    "file": {},
+    "options": {
+      "magic_cookie": {},
+      "option_list": {
+        "option": {
+          "code": {},
+          "length": {},
+          "data": {}
+        }
+      }
+    }
+  },
+  "DHCPINFORM": {
+    "op": {},
+    "htype": {},
+    "hlen": {},
+    "hops": {},
+    "xid": {},
+    "secs": {},
+    "flags": {},
+    "ciaddr": {},
+    "yiaddr": {},
+    "siaddr": {},
+    "giaddr": {},
+    "chaddr": {},
+    "sname": {},
+    "file": {},
+    "options": {
+      "magic_cookie": {},
+      "option_list": {
+        "option": {
+          "code": {},
+          "length": {},
+          "data": {}
+        }
+      }
+    }
+  }
+}

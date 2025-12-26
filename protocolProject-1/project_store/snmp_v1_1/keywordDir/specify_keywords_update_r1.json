@@ -1,0 +1,252 @@
+{
+  "3. The SNMP Architecture": {},
+  "3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.6. Form and Meaning of References to Managed Objects -> 3.2.6.1. Resolution of Ambiguous MIB References": {},
+  "3. The SNMP Architecture -> 3.1. Goals of the Architecture": {},
+  "3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.6. Form and Meaning of References to Managed Objects": {},
+  "3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.4. Form and Meaning of Protocol Exchanges": {},
+  "3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.6. Form and Meaning of References to Managed Objects -> 3.2.6.2. Resolution of References across MIB Versions": {},
+  "1. Status of this Memo": {},
+  "3. The SNMP Architecture -> 3.2. Elements of the Architecture": {},
+  "3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.1. Scope of Management Information": {},
+  "3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.6. Form and Meaning of References to Managed Objects -> 3.2.6.3. Identification of Object Instances -> 3.2.6.3.1. ifTable Object Type Names": {},
+  "3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.6. Form and Meaning of References to Managed Objects -> 3.2.6.3. Identification of Object Instances -> 3.2.6.3.3. ipAddrTable Object Type Names": {},
+  "3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.6. Form and Meaning of References to Managed Objects -> 3.2.6.3. Identification of Object Instances -> 3.2.6.3.2. atTable Object Type Names": {},
+  "3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.3. Operations Supported on Management Information": {},
+  "3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.6. Form and Meaning of References to Managed Objects -> 3.2.6.3. Identification of Object Instances -> 3.2.6.3.4. ipRoutingTable Object Type Names": {},
+  "3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.6. Form and Meaning of References to Managed Objects -> 3.2.6.3. Identification of Object Instances -> 3.2.6.3.6. egpNeighTable Object Type Names": {},
+  "3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.2. Representation of Management Information": {},
+  "4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.6. The Trap-PDU -> 4.1.6.1. The coldStart Trap": {},
+  "3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.6. Form and Meaning of References to Managed Objects -> 3.2.6.3. Identification of Object Instances -> 3.2.6.3.5. tcpConnTable Object Type Names": {},
+  "4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.6. The Trap-PDU -> 4.1.6.2. The warmStart Trap": {},
+  "3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.6. Form and Meaning of References to Managed Objects -> 3.2.6.3. Identification of Object Instances": {
+    "GetNextRequest": [
+      "GetNextRequest-PDU"
+    ]
+  },
+  "2. Introduction": {},
+  "4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.6. The Trap-PDU -> 4.1.6.7. The enterpriseSpecific Trap": {},
+  "4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.6. The Trap-PDU -> 4.1.6.5. The authenticationFailure Trap": {},
+  "4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.6. The Trap-PDU -> 4.1.6.3. The linkDown Trap": {
+    "PDU": [
+      "Trap-PDU"
+    ],
+    "variable-bindings": [
+      "variable-bindings"
+    ],
+    "name": [
+      "name"
+    ],
+    "value": [
+      "value"
+    ]
+  },
+  "4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.3. The GetNextRequest-PDU": {},
+  "4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.6. The Trap-PDU -> 4.1.6.4. The linkUp Trap": {
+    "PDU": [
+      "Trap-PDU"
+    ],
+    "variable-bindings": [
+      "variable-bindings"
+    ],
+    "name": [
+      "name"
+    ],
+    "value": [
+      "value"
+    ]
+  },
+  "4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.4. The GetResponse-PDU": {
+    "GetRequest": [
+      "GetRequest-PDU"
+    ],
+    "GetNextRequest": [
+      "GetNextRequest-PDU"
+    ],
+    "GetResponse": [
+      "GetResponse-PDU"
+    ],
+    "SetRequest": [
+      "SetRequest-PDU"
+    ],
+    "PDU": [
+      "GetResponse-PDU",
+      "GetRequest-PDU",
+      "GetNextRequest-PDU",
+      "SetRequest-PDU"
+    ]
+  },
+  "4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.6. The Trap-PDU -> 4.1.6.6. The egpNeighborLoss Trap": {
+    "PDU": [
+      "Trap-PDU"
+    ],
+    "variable-bindings": [
+      "variable-bindings"
+    ],
+    "name": [
+      "name"
+    ],
+    "value": [
+      "value"
+    ]
+  },
+  "4. Protocol Specification": {
+    "GetRequest": [
+      "GetRequest-PDU"
+    ],
+    "GetNextRequest": [
+      "GetNextRequest-PDU"
+    ],
+    "GetResponse": [
+      "GetResponse-PDU"
+    ],
+    "SetRequest": [
+      "SetRequest-PDU"
+    ],
+    "Trap": [
+      "Trap-PDU"
+    ],
+    "version": [
+      "version identifier",
+      "version-1"
+    ],
+    "community": [
+      "community name",
+      "SNMP community name"
+    ],
+    "PDU": [
+      "protocol data unit"
+    ]
+  },
+  "4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.3. The GetNextRequest-PDU -> 4.1.3.1. Example of Table Traversal": {},
+  "6. Acknowledgements": {},
+  "4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.1. Common Constructs": {
+    "GetRequest": [
+      "GetRequest-PDU"
+    ],
+    "PDU": [
+      "PDU types"
+    ],
+    "request-id": [
+      "RequestID"
+    ],
+    "error-status": [
+      "ErrorStatus"
+    ],
+    "error-index": [
+      "ErrorIndex"
+    ],
+    "variable-bindings": [
+      "VarBindList",
+      "VarBind",
+      "variable binding",
+      "variable bindings",
+      "list of variable names and corresponding values"
+    ],
+    "name": [
+      "ObjectName"
+    ],
+    "value": [
+      "ObjectSyntax"
+    ]
+  },
+  "4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.2. The GetRequest-PDU": {
+    "GetRequest": [
+      "GetRequest-PDU"
+    ],
+    "PDU": [
+      "GetRequest-PDU",
+      "GetResponse-PDU"
+    ],
+    "GetResponse": [
+      "GetResponse-PDU"
+    ],
+    "name": [
+      "object's name",
+      "object name",
+      "name"
+    ]
+  },
+  "4. Protocol Specification -> 4.1. Elements of Procedure": {
+    "GetRequest": [
+      "GetRequest-PDU"
+    ],
+    "PDU": [
+      "PDUs"
+    ]
+  },
+  "4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.5. The SetRequest-PDU": {
+    "SetRequest": [
+      "SetRequest-PDU"
+    ],
+    "PDU": [
+      "SetRequest-PDU",
+      "GetResponse-PDU"
+    ],
+    "GetResponse": [
+      "GetResponse-PDU"
+    ]
+  },
+  "4. Protocol Specification -> 4.1. Elements of Procedure -> 4.1.6. The Trap-PDU": {
+    "Trap": [
+      "Trap-PDU"
+    ],
+    "PDU": [
+      "Trap-PDU"
+    ],
+    "enterprise": [
+      "enterprise"
+    ],
+    "agent-addr": [
+      "agent-addr"
+    ],
+    "generic-trap": [
+      "generic-trap"
+    ],
+    "specific-trap": [
+      "specific-trap"
+    ],
+    "time-stamp": [
+      "time-stamp"
+    ],
+    "variable-bindings": [
+      "variable-bindings"
+    ]
+  },
+  "5. Definitions": {
+    "PDU": [
+      "Protocol data units"
+    ],
+    "enterprise": [
+      "OBJECT IDENTIFIER"
+    ],
+    "agent-addr": [
+      "NetworkAddress"
+    ],
+    "time-stamp": [
+      "TimeTicks"
+    ],
+    "variable-bindings": [
+      "VarBindList"
+    ]
+  },
+  "3. The SNMP Architecture -> 3.2. Elements of the Architecture -> 3.2.5. Definition of Administrative Relationships": {
+    "community": [
+      "community name",
+      "community component"
+    ],
+    "variable-bindings": [
+      "variables"
+    ],
+    "name": [
+      "object type name",
+      "names of the object types"
+    ],
+    "value": [
+      "variables",
+      "variable"
+    ],
+    "Trap": [
+      "trap"
+    ]
+  }
+}

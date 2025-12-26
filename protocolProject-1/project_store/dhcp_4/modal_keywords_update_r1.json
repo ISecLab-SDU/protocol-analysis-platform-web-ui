@@ -1,0 +1,444 @@
+{
+  "1. Introduction -> 1.1 Changes to RFC 1541": {},
+  "1. Introduction -> 1.5 Terminology": {},
+  "3. The Client-Server Protocol -> 3.6 Use of DHCP in clients with multiple interfaces": {
+    "warning": "JSON parsed but format unexpected",
+    "data": "{\n    \"must use\": \"Mandatory\"\n}"
+  },
+  "1. Introduction -> 1.3 Problem definition and issues": {
+    "warning": "JSON parsed but format unexpected",
+    "data": "{\n    \"should be able to\": \"Recommended\",\n    \"should be\": \"Recommended\"\n}"
+  },
+  "3. The Client-Server Protocol -> 3.3 Interpretation and representation of time values": {
+    "Mandatory": [
+      "is reserved to represent"
+    ],
+    "Prohibited": [],
+    "Recommended": [
+      "may consider",
+      "may return"
+    ],
+    "Not Recommended": []
+  },
+  "3. The Client-Server Protocol -> 3.4 Obtaining parameters with externally configured network address": {
+    "Mandatory": [
+      "MUST NOT check for an existing lease"
+    ],
+    "Prohibited": [
+      "MUST NOT check for an existing lease"
+    ],
+    "Recommended": [
+      "SHOULD unicast the DHCPACK reply to the address given in the 'ciaddr' field",
+      "SHOULD check the network address in a DHCPINFORM message for consistency"
+    ]
+  },
+  "4. Specification of the DHCP client-server protocol": {},
+  "2. Protocol Summary -> 2.1 Configuration parameters repository": {
+    "Mandatory": [
+      "The protocol defines that the key will be (IP-subnet-number, hardware-address) unless the client explicitly supplies an identifier using the 'client identifier' option."
+    ]
+  },
+  "1. Introduction -> 1.4 Requirements": {
+    "Mandatory": [
+      "MUST",
+      "REQUIRED"
+    ],
+    "Prohibited": [
+      "MUST NOT"
+    ],
+    "Recommended": [
+      "SHOULD",
+      "RECOMMENDED"
+    ],
+    "Not Recommended": [
+      "SHOULD NOT"
+    ]
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.3 DHCP server behavior": {},
+  "3. The Client-Server Protocol -> 3.7 When clients should use DHCP": {
+    "Mandatory": [
+      "must immediately discontinue use of the previous network address"
+    ],
+    "Recommended": [
+      "SHOULD use DHCP to reacquire or verify its IP address and network parameters whenever the local network parameters may have changed"
+    ]
+  },
+  "3. The Client-Server Protocol": {
+    "must be included": [
+      "The first four octets of the 'options' field of the DHCP message contain the (decimal) values 99, 130, 83 and 99, respectively",
+      "One particular option - the \"DHCP message type\" option - must be included in every DHCP message"
+    ]
+  },
+  "2. Protocol Summary -> 2.2 Dynamic allocation of network addresses": {
+    "Mandatory": [],
+    "Prohibited": [],
+    "Recommended": [
+      "SHOULD probe the reused address before allocating the address",
+      "SHOULD probe the newly received address"
+    ],
+    "Not Recommended": []
+  },
+  "1. Introduction -> 1.2 Related Work": {},
+  "4. Specification of the DHCP client-server protocol -> 4.3 DHCP server behavior -> 4.3.3 DHCPDECLINE message": {
+    "MUST": [
+      "MUST mark the network address as not available"
+    ],
+    "SHOULD": [
+      "SHOULD notify the local system administrator of a possible configuration problem"
+    ]
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.3 DHCP server behavior -> 4.3.4 DHCPRELEASE message": {
+    "SHOULD": [
+      "SHOULD retain a record of the client's initialization parameters for possible reuse in response to subsequent requests from the client"
+    ]
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.4 DHCP client behavior -> 4.4.6 DHCPRELEASE": {},
+  "1. Introduction": {
+    "Mandatory": [
+      "should not act",
+      "cannot be guaranteed",
+      "cannot be guessed or assumed",
+      "would preclude reliable operation"
+    ],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.3 DHCP server behavior -> 4.3.5 DHCPINFORM message": {
+    "MUST NOT": [
+      "MUST NOT send a lease expiration time to the client"
+    ],
+    "SHOULD NOT": [
+      "SHOULD NOT fill in 'yiaddr'"
+    ]
+  },
+  "3. The Client-Server Protocol -> 3.5 Client parameters in DHCP": {
+    "Mandatory": [
+      "MUST",
+      "MUST include that list in any subsequent DHCPREQUEST messages"
+    ],
+    "Recommended": [
+      "SHOULD include the 'maximum DHCP message size' option",
+      "SHOULD respond to the client with a DHCPNAK message"
+    ],
+    "Prohibited": [
+      "MUST NOT"
+    ],
+    "Conditional constraints": [
+      "The client fills in the 'ciaddr' field only when correctly configured with an IP address in BOUND, RENEWING or REBINDING state",
+      "The 'requested IP address' option is to be filled in only in a DHCPREQUEST message when the client is verifying network parameters obtained previously"
+    ]
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.3 DHCP server behavior -> 4.3.6 Client messages": {
+    "warning": "JSON parsed but format unexpected",
+    "data": "{\n    \"MUST include requested-ip\": \"INIT-REBOOT uses broadcast and MUST include requested-ip\",\n    \"MUST NOT include server-ip\": \"INIT-REBOOT uses broadcast and MUST include requested-ip but MUST NOT include server-ip\",\n    \"MUST include both server-ip and requested-ip\": \"SELECTING uses broadcast and MUST include both server-ip and requested-ip\",\n    \"MUST NOT include server-ip or requested-ip\": \"RENEWING uses unicast and MUST NOT include server-ip or requested-ip\",\n    \"MUST NOT include server-ip or requested-ip\": \"REBINDING uses broadcast and MUST NOT include server-ip or requested-ip\"\n}"
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.4 DHCP client behavior -> 4.4.2 Initialization with known network address": {
+    "Mandatory": [
+      "MUST insert its known network address as a 'requested IP address' option",
+      "MUST NOT include a 'server identifier'"
+    ],
+    "Prohibited": [
+      "MUST NOT include a 'server identifier'"
+    ]
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.2 DHCP server administrative controls": {
+    "Mandatory": [
+      "MUST use the same 'client identifier' in all subsequent messages",
+      "MUST use that identifier to identify the client",
+      "MUST use the contents of the 'chaddr' field to identify the client",
+      "is required to respond to every DHCPDISCOVER and DHCPREQUEST message they receive"
+    ],
+    "Recommended": [
+      "SHOULD provide a mechanism for the user to select directly the 'vendor class identifier' values"
+    ]
+  },
+  "5. Acknowledgments": {},
+  "4. Specification of the DHCP client-server protocol -> 4.4 DHCP client behavior -> 4.4.4 Use of broadcast and unicast": {
+    "Mandatory": [
+      "The DHCP client broadcasts DHCPDISCOVER, DHCPREQUEST and DHCPINFORM messages, unless the client knows the address of a DHCP server",
+      "The client unicasts DHCPRELEASE messages to the server",
+      "Because the client is declining the use of the IP address supplied by the server, the client broadcasts DHCPDECLINE messages",
+      "If the client receives no response to DHCP messages sent to the IP address of a known DHCP server, the DHCP client reverts to using the IP broadcast address"
+    ]
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.4 DHCP client behavior": {},
+  "1. Introduction -> 1.6 Design goals": {
+    "Mandatory": [
+      "DHCP must allow local system administrators control over configuration parameters where desired",
+      "Clients should require no manual configuration",
+      "Each client should be able to discover appropriate local configuration parameters without user intervention",
+      "Networks should require no manual configuration for individual clients",
+      "DHCP should not require a server on each subnet",
+      "DHCP must work across routers or through the intervention of BOOTP relay agents",
+      "A DHCP client must be prepared to receive multiple responses to a request for configuration parameters",
+      "DHCP must coexist with statically configured, non-participating hosts and with existing network protocol implementations",
+      "DHCP must interoperate with the BOOTP relay agent behavior as described by RFC 951 and by RFC 1542 [21]",
+      "DHCP must provide service to existing BOOTP clients",
+      "DHCP must guarantee that any specific network address will not be in use by more than one DHCP client at a time",
+      "DHCP must retain DHCP client configuration across DHCP client reboot",
+      "DHCP must retain DHCP client configuration across server reboots",
+      "DHCP must allow automated assignment of configuration parameters to new clients to avoid hand configuration for new clients",
+      "DHCP must support fixed or permanent allocation of configuration parameters to specific clients"
+    ],
+    "Recommended": [
+      "A DHCP client should, whenever possible, be assigned the same configuration parameters (e.g., network address) in response to each request",
+      "whenever possible, a DHCP client should be assigned the same configuration parameters despite restarts of the DHCP mechanism"
+    ]
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.4 DHCP client behavior -> 4.4.3 Initialization with an externally assigned network address": {
+    "Mandatory": [
+      "MUST be directed to the 'DHCP server' UDP port",
+      "MUST be directed to the 'DHCP server' UDP port"
+    ],
+    "Prohibited": [
+      "SHOULD NOT request lease time parameters",
+      "SHOULD NOT request lease time parameters"
+    ],
+    "Recommended": [
+      "SHOULD display a message informing the user of the problem",
+      "SHOULD begin network processing using suitable defaults as per Appendix A"
+    ],
+    "Not Recommended": []
+  },
+  "2. Protocol Summary": {
+    "MUST": [
+      "MUST be unique to that client within the subnet to which the client is attached",
+      "MUST use that same identifier in all subsequent messages",
+      "MUST be set to zero by clients and ignored by servers and relay agents",
+      "must be prepared to receive DHCP messages with an 'options' field of at least length 312 octets",
+      "must be prepared to receive a message of up to 576 octets",
+      "the minimum IP datagram size an IP host must be prepared to accept"
+    ],
+    "SHOULD": [
+      "SHOULD accept and forward to the IP layer any IP packets delivered to the client's hardware address before the IP address is configured"
+    ]
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.4 DHCP client behavior -> 4.4.1 Initialization and allocation of network address": {
+    "Mandatory": [
+      "The client MUST include its hardware address in the 'chaddr' field, if necessary for delivery of DHCP reply messages",
+      "If the client included a list of requested parameters in a DHCPDISCOVER message, the client MUST include that list in all subsequent messages",
+      "If the 'xid' of an arriving DHCPOFFER message does not match the 'xid' of the most recent DHCPDISCOVER message, the DHCPOFFER message must be silently discarded",
+      "Any arriving DHCPACK messages must be silently discarded",
+      "If the network address appears to be in use, the client MUST send a DHCPDECLINE message to the server"
+    ],
+    "Recommended": [
+      "The client SHOULD wait a random time between one and ten seconds to desynchronize the use of DHCP at startup",
+      "The client SHOULD perform a check on the suggested address to ensure that the address is not already in use",
+      "The client SHOULD broadcast an ARP reply to announce the client's new IP address and clear any outdated ARP cache entries in hosts on the client's subnet"
+    ]
+  },
+  "3. The Client-Server Protocol ->": {
+    "Mandatory": [
+      "the client MUST NOT fill in the 'ciaddr' field",
+      "If the client used a 'client identifier' to obtain its address, the client MUST use the same 'client identifier' in the DHCPREQUEST message",
+      "the server MUST broadcast the DHCPNAK message to the 0xffffffff broadcast address",
+      "the server MUST send the DHCPNAK message to the IP address of the BOOTP relay agent",
+      "the client MUST send a DHCPDECLINE message to the server"
+    ],
+    "Prohibited": [
+      "the client MUST NOT fill in the 'ciaddr' field"
+    ],
+    "Recommended": [
+      "Servers SHOULD NOT check that the client's network address is already in use",
+      "Servers SHOULD respond with a DHCPNAK message to the client",
+      "Servers SHOULD NOT respond if their information is not guaranteed to be accurate",
+      "Servers SHOULD NOT respond with a DHCPNAK unless the servers are using an explicit mechanism to maintain coherency among the servers"
+    ],
+    "Not Recommended": [
+      "Servers SHOULD NOT check that the client's network address is already in use",
+      "Servers SHOULD NOT respond if their information is not guaranteed to be accurate",
+      "Servers SHOULD NOT respond with a DHCPNAK unless the servers are using an explicit mechanism to maintain coherency among the servers"
+    ]
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.4 DHCP client behavior -> 4.4.5 Reacquisition and expiration": {
+    "Mandatory": [
+      "T1 MUST be earlier than T2",
+      "T2 MUST be earlier than the time at which the client's lease will expire",
+      "The client MUST NOT include a 'server identifier' in the DHCPREQUEST message",
+      "Any DHCPACK messages that arrive with an 'xid' that does not match the 'xid' of the client's DHCPREQUEST message are silently discarded",
+      "If the lease expires before the client receives a DHCPACK, the client MUST immediately stop any other network processing",
+      "If the client is given a new network address, it MUST NOT continue using the previous network address"
+    ],
+    "Recommended": [
+      "Times T1 and T2 SHOULD be chosen with some random \"fuzz\" around a fixed value",
+      "The server SHOULD return T1 and T2",
+      "their values SHOULD be adjusted from their original values to take account of the time remaining on the lease",
+      "the client SHOULD wait one-half of the remaining time until T2 (in RENEWING state) and one-half of the remaining lease time (in REBINDING state), down to a minimum of 60 seconds, before retransmitting the DHCPREQUEST message",
+      "If the client then receives a DHCPACK allocating that client its previous network address, the client SHOULD continue network processing",
+      "If the client is given a new network address, it SHOULD notify the local users of the problem"
+    ]
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.3 DHCP server behavior -> 4.3.2 DHCPREQUEST message": {
+    "Mandatory": [
+      "the client MUST use that same 'client identifier' in all subsequent messages",
+      "the client MUST include that list in all subsequent messages",
+      "the 'requested IP address' option MUST be filled in with the yiaddr value from the chosen DHCPOFFER",
+      "'ciaddr' MUST be zero",
+      "'server identifier' MUST NOT be filled in",
+      "the 'requested IP address' option MUST be filled in with the client's notion of its previously assigned address",
+      "the server MUST remain silent",
+      "the server MUST broadcast the DHCPNAK message to the 0xffffffff broadcast address",
+      "the server MUST set the broadcast bit in the DHCPNAK",
+      "the 'requested IP address' option MUST NOT be filled in",
+      "'ciaddr' MUST be filled in with the client's IP address",
+      "This message MUST be broadcast to the 0xffffffff IP broadcast address"
+    ],
+    "Prohibited": [
+      "'server identifier' MUST NOT be filled in"
+    ],
+    "Recommended": [
+      "Any configuration parameters in the DHCPACK message SHOULD NOT conflict with those in the earlier DHCPOFFER message",
+      "The client SHOULD use the parameters in the DHCPACK message for configuration",
+      "servers SHOULD NOT reuse offered addresses",
+      "The server SHOULD send a DHCPNAK message to the client if the 'requested IP address' is incorrect or is on the wrong network",
+      "the server SHOULD send a DHCPNAK message to the client",
+      "The DHCP server SHOULD check 'ciaddr' for correctness before replying to the DHCPREQUEST"
+    ],
+    "Not Recommended": [
+      "Any configuration parameters in the DHCPACK message SHOULD NOT conflict with those in the earlier DHCPOFFER message",
+      "servers SHOULD NOT reuse offered addresses"
+    ]
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.3 DHCP server behavior -> 4.3.1 DHCPDISCOVER message": {
+    "Mandatory": [
+      "the server MUST include that value in an appropriate option in the 'option' field",
+      "the server MUST include the default value for that parameter as given in the Host Requirements Document in an appropriate option in the 'option' field",
+      "the server MUST NOT return a value for that parameter",
+      "The server MUST supply as many of the requested parameters as possible",
+      "The server MUST omit any parameters it cannot provide",
+      "The server MUST include each requested parameter only once unless explicitly allowed in the DHCP Options and BOOTP Vendor Extensions document",
+      "The server MUST also include: any parameters from the existing binding that differ from the Host Requirements Document defaults, any parameters specific to this client (as identified by the contents of 'chaddr' or 'client identifier' in the DHCPDISCOVER or DHCPREQUEST message), for example as configured by the network administrator, any parameters specific to this client's class (as identified by the contents of the 'vendor class identifier' option in the DHCPDISCOVER or DHCPREQUEST message), for example as configured by the network administrator; the parameters MUST be identified by an exact match between the client's vendor class identifiers and the client's classes identified in the server, and parameters with non-default values on the client's subnet"
+    ],
+    "Recommended": [
+      "the new address SHOULD be chosen as follows: the client's current address as recorded in the client's current binding, else the client's previous address as recorded in the client's (now expired or released) binding if that address is in the server's pool of available addresses and not already allocated, else the address requested in the 'Requested IP Address' option if that address is valid and not already allocated, else a new address allocated from the server's pool of available addresses",
+      "the server SHOULD NOT reuse the selected network address before the client responds to the server's DHCPOFFER message"
+    ]
+  },
+  "3. The Client-Server Protocol -> 3.1 Client-server interaction - allocating a network address": {
+    "Mandatory": [
+      "MUST include",
+      "MUST be set to",
+      "MUST use",
+      "MUST send",
+      "MUST use the same",
+      "MUST be filled in",
+      "MUST use the same value"
+    ],
+    "Prohibited": [
+      "MUST NOT conflict",
+      "SHOULD NOT check",
+      "SHOULD NOT mark",
+      "SHOULD NOT be implemented",
+      "SHOULD NOT be disabled",
+      "SHOULD NOT be allocated",
+      "SHOULD NOT be used",
+      "SHOULD NOT be reserved",
+      "SHOULD NOT be probed",
+      "SHOULD NOT be forwarded",
+      "SHOULD NOT be retransmitted",
+      "SHOULD NOT be notified",
+      "SHOULD NOT be waited",
+      "SHOULD NOT be chosen",
+      "SHOULD NOT be implemented so that",
+      "SHOULD NOT be marked",
+      "SHOULD NOT be satisfied",
+      "SHOULD NOT be responded",
+      "SHOULD NOT be checked",
+      "SHOULD NOT be reserved",
+      "SHOULD NOT be allocated",
+      "SHOULD NOT be probed",
+      "SHOULD NOT be disabled",
+      "SHOULD NOT be implemented",
+      "SHOULD NOT be forwarded",
+      "SHOULD NOT be retransmitted",
+      "SHOULD NOT be notified",
+      "SHOULD NOT be waited",
+      "SHOULD NOT be chosen",
+      "SHOULD NOT be implemented so that",
+      "SHOULD NOT be marked",
+      "SHOULD NOT be satisfied",
+      "SHOULD NOT be responded",
+      "SHOULD NOT be checked"
+    ],
+    "Recommended": [
+      "SHOULD check",
+      "SHOULD be implemented",
+      "SHOULD choose",
+      "SHOULD perform",
+      "SHOULD wait",
+      "SHOULD notify",
+      "SHOULD be chosen",
+      "SHOULD be implemented so that",
+      "SHOULD be marked",
+      "SHOULD be satisfied",
+      "SHOULD be responded",
+      "SHOULD be checked",
+      "SHOULD be reserved",
+      "SHOULD be allocated",
+      "SHOULD be probed",
+      "SHOULD be disabled",
+      "SHOULD be implemented",
+      "SHOULD be forwarded",
+      "SHOULD be retransmitted",
+      "SHOULD be notified",
+      "SHOULD be waited",
+      "SHOULD be chosen",
+      "SHOULD be implemented so that",
+      "SHOULD be marked",
+      "SHOULD be satisfied",
+      "SHOULD be responded",
+      "SHOULD be checked"
+    ],
+    "Not Recommended": [
+      "SHOULD NOT check",
+      "SHOULD NOT mark",
+      "SHOULD NOT be implemented",
+      "SHOULD NOT be disabled",
+      "SHOULD NOT be allocated",
+      "SHOULD NOT be used",
+      "SHOULD NOT be reserved",
+      "SHOULD NOT be probed",
+      "SHOULD NOT be forwarded",
+      "SHOULD NOT be retransmitted",
+      "SHOULD NOT be notified",
+      "SHOULD NOT be waited",
+      "SHOULD NOT be chosen",
+      "SHOULD NOT be implemented so that",
+      "SHOULD NOT be marked",
+      "SHOULD NOT be satisfied",
+      "SHOULD NOT be responded",
+      "SHOULD NOT be checked"
+    ]
+  },
+  "4. Specification of the DHCP client-server protocol -> 4.1 Constructing and sending DHCP messages": {
+    "Mandatory": [
+      "The last option must always be the 'end' option",
+      "A server with multiple network addresses MUST be prepared to accept any of its network addresses as identifying that server in a DHCP message",
+      "To accommodate potentially incomplete network connectivity, a server MUST choose an address as a 'server identifier' that, to the best of the server's knowledge, is reachable from the client",
+      "DHCP clients MUST use the IP address provided in the 'server identifier' option for any unicast requests to the DHCP server",
+      "DHCP messages broadcast by a client prior to that client obtaining its IP address must have the source address field in the IP header set to 0",
+      "If the options in a DHCP message extend into the 'sname' and 'file' fields, the 'option overload' option MUST appear in the 'options' field",
+      "If the 'option overload' option is present in the 'options' field, the options in the 'options' field MUST be terminated by an 'end' option",
+      "The options in the 'sname' and 'file' fields (if in use as indicated by the 'option overload' option) MUST begin with the first octet of the field, MUST be terminated by an 'end' option, and MUST be followed by 'pad' options to fill the remainder of the field",
+      "Any individual option in the 'options', 'sname' and 'file' fields MUST be entirely contained in that field",
+      "The options in the 'options' field MUST be interpreted first",
+      "The 'file' field MUST be interpreted next",
+      "The client MUST adopt a retransmission strategy that incorporates a randomized exponential backoff algorithm to determine the delay between retransmissions",
+      "The 'xid' field is used by the client to match incoming DHCP messages with pending requests",
+      "A DHCP client MUST choose 'xid's in such a way as to minimize the chance of using an 'xid' identical to one used by another client",
+      "A client that cannot receive unicast IP datagrams until its protocol software has been configured with an IP address SHOULD set the BROADCAST bit in the 'flags' field to 1 in any DHCPDISCOVER or DHCPREQUEST messages that client sends"
+    ],
+    "Recommended": [
+      "the server SHOULD select the IP address the server is using for communication on that subnet as the 'server identifier'",
+      "the server SHOULD choose an address from the interface on which the message was received as the 'server identifier'",
+      "the delay before the first retransmission SHOULD be 4 seconds randomized by the value of a uniform random number chosen from the range -1 to +1",
+      "The delay before the next retransmission SHOULD be 8 seconds randomized by the value of a uniform number chosen from the range -1 to +1",
+      "The retransmission delay SHOULD be doubled with subsequent retransmissions up to a maximum of 64 seconds",
+      "A client that can receive unicast IP datagrams before its protocol software has been configured SHOULD clear the BROADCAST bit to 0",
+      "A server or relay agent sending or relaying a DHCP message directly to a DHCP client SHOULD examine the BROADCAST bit in the 'flags' field",
+      "If the BROADCAST bit is set to 1, the DHCP message SHOULD be sent as an IP broadcast",
+      "If the BROADCAST bit is cleared to 0, the message SHOULD be sent as an IP unicast"
+    ]
+  }
+}

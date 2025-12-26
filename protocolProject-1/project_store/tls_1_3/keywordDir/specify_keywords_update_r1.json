@@ -1,0 +1,658 @@
+{
+  "4. Handshake Protocol": {},
+  "3. Presentation Language -> 3.6. Constructed Types": {},
+  "3. Presentation Language -> 3.3. Numbers": {},
+  "4. Handshake Protocol -> 4.1. Key Exchange Messages": {},
+  "3. Presentation Language -> 3.8. Variants": {},
+  "3. Presentation Language -> 3.2. Miscellaneous": {},
+  "3. Presentation Language -> 3.1. Basic Block Size": {},
+  "3. Presentation Language -> 3.7. Constants": {},
+  "3. Presentation Language": {},
+  "1. Introduction -> 1.1. Conventions and Terminology": {},
+  "1. Introduction -> 1.3. Updates Affecting TLS 1.2": {
+    "client_hello": [
+      "ClientHello"
+    ],
+    "legacy_version": [
+      "legacy_version"
+    ],
+    "extensions": [
+      "extension"
+    ]
+  },
+  "3. Presentation Language -> 3.4. Vectors": {},
+  "2. Protocol Overview -> 2.1. Incorrect DHE Share": {
+    "key_share": [
+      "key_share extension",
+      "key_share"
+    ],
+    "extensions": [
+      "extension"
+    ],
+    "certificate": [
+      "Certificate"
+    ],
+    "certificate_verify": [
+      "CertificateVerify"
+    ],
+    "finished": [
+      "Finished"
+    ],
+    "encrypted_extensions": [
+      "EncryptedExtensions"
+    ],
+    "certificate_request": [
+      "CertificateRequest"
+    ]
+  },
+  "2. Protocol Overview -> 2.2. Resumption and Pre-Shared Key (PSK)": {},
+  "1. Introduction": {},
+  "1. Introduction -> 1.2. Major Differences from TLS 1.2": {},
+  "3. Presentation Language -> 3.5. Enumerateds": {},
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.6. Post-Handshake Client Authentication": {},
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.4. Certificate Authorities": {
+    "client_hello": [
+      "ClientHello"
+    ],
+    "extensions": [
+      "extension"
+    ],
+    "certificate_request": [
+      "CertificateRequest"
+    ]
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.5. OID Filters": {},
+  "2. Protocol Overview -> 2.3. 0-RTT Data": {
+    "client_hello": [
+      "ClientHello"
+    ],
+    "server_hello": [
+      "ServerHello"
+    ],
+    "end_of_early_data": [
+      "EndOfEarlyData"
+    ],
+    "encrypted_extensions": [
+      "EncryptedExtensions"
+    ],
+    "finished": [
+      "Finished"
+    ]
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.2. Cookie": {
+    "client_hello": [
+      "ClientHello",
+      "new ClientHello",
+      "second ClientHello"
+    ],
+    "extensions": [
+      "extension"
+    ],
+    "extension_type": [
+      "cookie extension"
+    ]
+  },
+  "4. Handshake Protocol -> 4.1. Key Exchange Messages -> 4.1.1. Cryptographic Negotiation": {
+    "client_hello": [
+      "ClientHello"
+    ],
+    "cipher_suites": [
+      "cipher suites"
+    ],
+    "extensions": [
+      "extension"
+    ],
+    "server_hello": [
+      "ServerHello"
+    ],
+    "cipher_suite": [
+      "cipher suite"
+    ],
+    "certificate": [
+      "certificate"
+    ],
+    "certificate_verify": [
+      "CertificateVerify"
+    ]
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.8. Key Share -> 4.2.8.2. ECDHE Parameters": {},
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.1. Supported Versions": {},
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.8. Key Share -> 4.2.8.1. Diffie-Hellman Parameters": {},
+  "4. Handshake Protocol -> 4.3. Server Parameters": {},
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.7. Supported Groups": {
+    "client_hello": [
+      "ClientHello"
+    ],
+    "extensions": [
+      "extension"
+    ],
+    "extension_type": [
+      "extension_data"
+    ],
+    "extension_data": [
+      "NamedGroupList"
+    ]
+  },
+  "2. Protocol Overview": {
+    "client_hello": [
+      "ClientHello"
+    ],
+    "server_hello": [
+      "ServerHello"
+    ],
+    "encrypted_extensions": [
+      "EncryptedExtensions"
+    ],
+    "certificate": [
+      "Certificate"
+    ],
+    "certificate_request": [
+      "CertificateRequest"
+    ],
+    "certificate_verify": [
+      "CertificateVerify"
+    ],
+    "finished": [
+      "Finished"
+    ]
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.11. Pre-Shared Key Extension -> 4.2.11.1. Ticket Age": {
+    "new_session_ticket": [
+      "NewSessionTicket"
+    ],
+    "ticket_lifetime": [
+      "ticket_lifetime"
+    ],
+    "ticket_age_add": [
+      "ticket_age_add"
+    ]
+  },
+  "4. Handshake Protocol -> 4.3. Server Parameters -> 4.3.1. Encrypted Extensions": {},
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.11. Pre-Shared Key Extension -> 4.2.11.3. Processing Order": {
+    "client_hello": [
+      "ClientHello"
+    ],
+    "end_of_early_data": [
+      "EndOfEarlyData"
+    ],
+    "server_hello": [
+      "ServerHello"
+    ]
+  },
+  "4. Handshake Protocol -> 4.1. Key Exchange Messages -> 4.1.3. Server Hello": {
+    "legacy_session_id": [
+      "legacy_session_id_echo"
+    ],
+    "cipher_suites": [
+      "cipher_suite"
+    ],
+    "legacy_compression_methods": [
+      "legacy_compression_method"
+    ]
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.9. Pre-Shared Key Exchange Modes": {
+    "client_hello": [
+      "ClientHello"
+    ],
+    "server_hello": [
+      "ServerHello"
+    ],
+    "extensions": [
+      "extension"
+    ],
+    "extension_type": [
+      "psk_key_exchange_modes",
+      "pre_shared_key",
+      "key_share"
+    ],
+    "new_session_ticket": [
+      "NewSessionTicket"
+    ]
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.11. Pre-Shared Key Extension -> 4.2.11.2. PSK Binder": {
+    "client_hello": [
+      "ClientHello",
+      "ClientHello1",
+      "ClientHello2",
+      "partial ClientHello"
+    ],
+    "extensions": [
+      "extensions block",
+      "PreSharedKeyExtension"
+    ]
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.8. Key Share": {
+    "client_hello": [
+      "ClientHello"
+    ],
+    "server_hello": [
+      "ServerHello"
+    ],
+    "extensions": [
+      "extension"
+    ],
+    "extension_type": [
+      "extension_data"
+    ],
+    "extension_data": [
+      "extension_data"
+    ]
+  },
+  "4. Handshake Protocol -> 4.1. Key Exchange Messages -> 4.1.4. Hello Retry Request": {
+    "client_hello": [
+      "ClientHello",
+      "ClientHello message",
+      "second ClientHello",
+      "updated ClientHello",
+      "second updated ClientHello",
+      "ClientHello pair"
+    ],
+    "legacy_version": [
+      "legacy_version"
+    ],
+    "legacy_session_id": [
+      "legacy_session_id_echo"
+    ],
+    "cipher_suites": [
+      "cipher_suite"
+    ],
+    "legacy_compression_methods": [
+      "legacy_compression_method"
+    ],
+    "server_hello": [
+      "ServerHello",
+      "ServerHello message"
+    ]
+  },
+  "4. Handshake Protocol -> 4.3. Server Parameters -> 4.3.2. Certificate Request": {
+    "certificate_request_context": [
+      "certificate_request_context"
+    ],
+    "extensions": [
+      "extensions"
+    ],
+    "extension_type": [
+      "extension_type"
+    ],
+    "extension_data": [
+      "extension_data"
+    ]
+  },
+  "4. Handshake Protocol -> 4.6. Post-Handshake Messages": {},
+  "4. Handshake Protocol -> 4.4. Authentication Messages -> 4.4.2. Certificate -> 4.4.2.3. Client Certificate Selection": {
+    "certificate_request": [
+      "CertificateRequest"
+    ],
+    "extensions": [
+      "extension"
+    ],
+    "extension_type": [
+      "extension"
+    ],
+    "certificate_authorities": [
+      "certificate_authorities"
+    ],
+    "oid_filters": [
+      "oid_filters"
+    ]
+  },
+  "4. Handshake Protocol -> 4.1. Key Exchange Messages -> 4.1.2. Client Hello": {
+    "client_hello": [
+      "ClientHello"
+    ],
+    "legacy_version": [
+      "ProtocolVersion"
+    ],
+    "random": [
+      "Random"
+    ],
+    "legacy_session_id": [
+      "legacy_session_id<0..32>"
+    ],
+    "cipher_suites": [
+      "CipherSuite",
+      "cipher_suites<2..2^16-2>"
+    ],
+    "legacy_compression_methods": [
+      "legacy_compression_methods<1..2^8-1>"
+    ],
+    "extensions": [
+      "Extension",
+      "extensions<8..2^16-1>"
+    ]
+  },
+  "4. Handshake Protocol -> 4.4. Authentication Messages -> 4.4.2. Certificate -> 4.4.2.4. Receiving a Certificate Message": {},
+  "4. Handshake Protocol -> 4.2. Extensions": {
+    "client_hello": [
+      "CH"
+    ],
+    "server_hello": [
+      "SH"
+    ],
+    "encrypted_extensions": [
+      "EE"
+    ],
+    "certificate": [
+      "CT"
+    ],
+    "certificate_request": [
+      "CR"
+    ],
+    "new_session_ticket": [
+      "NST"
+    ],
+    "hello_retry_request": [
+      "HRR"
+    ]
+  },
+  "4. Handshake Protocol -> 4.4. Authentication Messages -> 4.4.1. The Transcript Hash": {
+    "client_hello": [
+      "ClientHello",
+      "ClientHello1"
+    ],
+    "server_hello": [
+      "ServerHello"
+    ],
+    "end_of_early_data": [
+      "EndOfEarlyData"
+    ],
+    "encrypted_extensions": [
+      "EncryptedExtensions"
+    ],
+    "certificate": [
+      "server Certificate",
+      "client Certificate"
+    ],
+    "certificate_request": [
+      "server CertificateRequest"
+    ],
+    "certificate_verify": [
+      "server CertificateVerify",
+      "client CertificateVerify"
+    ],
+    "finished": [
+      "server Finished",
+      "client Finished"
+    ]
+  },
+  "4. Handshake Protocol -> 4.4. Authentication Messages -> 4.4.2. Certificate -> 4.4.2.1. OCSP Status and SCT Extensions": {
+    "client_hello": [
+      "ClientHello"
+    ],
+    "extensions": [
+      "extension"
+    ],
+    "extension_type": [
+      "extension"
+    ],
+    "server_hello": [
+      "ServerHello"
+    ],
+    "certificate": [
+      "CertificateEntry",
+      "certificate"
+    ],
+    "certificate_request": [
+      "CertificateRequest"
+    ],
+    "encrypted_extensions": [
+      "EncryptedExtensions"
+    ]
+  },
+  "4. Handshake Protocol -> 4.4. Authentication Messages": {
+    "client_hello": [
+      "ClientHello"
+    ],
+    "server_hello": [
+      "ServerHello"
+    ],
+    "certificate": [
+      "Certificate"
+    ],
+    "certificate_verify": [
+      "CertificateVerify"
+    ],
+    "finished": [
+      "Finished"
+    ],
+    "end_of_early_data": [
+      "EndOfEarlyData"
+    ],
+    "encrypted_extensions": [
+      "EncryptedExtensions"
+    ],
+    "certificate_request": [
+      "CertificateRequest"
+    ]
+  },
+  "4. Handshake Protocol -> 4.4. Authentication Messages -> 4.4.2. Certificate -> 4.4.2.2. Server Certificate Selection": {},
+  "4. Handshake Protocol -> 4.5. End of Early Data": {
+    "end_of_early_data": [
+      "EndOfEarlyData"
+    ],
+    "encrypted_extensions": [
+      "EncryptedExtensions"
+    ],
+    "extensions": [
+      "extension"
+    ],
+    "extension_type": [
+      "extension"
+    ]
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.11. Pre-Shared Key Extension": {
+    "client_hello": [
+      "ClientHello"
+    ],
+    "extensions": [
+      "extension"
+    ],
+    "extension_type": [
+      "extension"
+    ],
+    "extension_data": [
+      "extension_data"
+    ],
+    "server_hello": [
+      "ServerHello"
+    ],
+    "cipher_suite": [
+      "cipher suite"
+    ],
+    "new_session_ticket": [
+      "NewSessionTicket"
+    ]
+  },
+  "5. Record Protocol -> 5.5. Limits on Key Usage": {},
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.10. Early Data Indication": {
+    "client_hello": [
+      "ClientHello"
+    ],
+    "server_hello": [
+      "server's Finished message"
+    ],
+    "new_session_ticket": [
+      "NewSessionTicket"
+    ],
+    "end_of_early_data": [
+      "EndOfEarlyData"
+    ],
+    "encrypted_extensions": [
+      "EncryptedExtensions"
+    ]
+  },
+  "4. Handshake Protocol -> 4.4. Authentication Messages -> 4.4.4. Finished": {},
+  "7. Cryptographic Computations": {},
+  "5. Record Protocol -> 5.3. Per-Record Nonce": {},
+  "5. Record Protocol": {},
+  "4. Handshake Protocol -> 4.6. Post-Handshake Messages -> 4.6.2. Post-Handshake Authentication": {
+    "certificate_request": [
+      "CertificateRequest"
+    ],
+    "certificate": [
+      "Certificate"
+    ],
+    "certificate_verify": [
+      "CertificateVerify"
+    ],
+    "finished": [
+      "Finished"
+    ],
+    "extensions": [
+      "extension"
+    ]
+  },
+  "4. Handshake Protocol -> 4.4. Authentication Messages -> 4.4.2. Certificate": {
+    "client_hello": [
+      "ClientHello"
+    ],
+    "extensions": [
+      "Extension"
+    ],
+    "certificate": [
+      "Certificate"
+    ],
+    "certificate_request_context": [
+      "certificate_request_context"
+    ],
+    "certificate_list": [
+      "certificate_list"
+    ]
+  },
+  "4. Handshake Protocol -> 4.6. Post-Handshake Messages -> 4.6.3. Key and Initialization Vector Update": {
+    "key_update": [
+      "KeyUpdate"
+    ],
+    "request_update": [
+      "request_update"
+    ]
+  },
+  "7. Cryptographic Computations -> 7.4. (EC)DHE Shared Secret Calculation -> 7.4.1. Finite Field Diffie-Hellman": {},
+  "5. Record Protocol -> 5.4. Record Padding": {},
+  "4. Handshake Protocol -> 4.4. Authentication Messages -> 4.4.3. Certificate Verify": {
+    "certificate_verify": [
+      "CertificateVerify"
+    ],
+    "algorithm": [
+      "algorithm"
+    ],
+    "signature": [
+      "signature"
+    ]
+  },
+  "7. Cryptographic Computations -> 7.2. Updating Traffic Secrets": {},
+  "5. Record Protocol -> 5.1. Record Layer": {},
+  "6. Alert Protocol": {},
+  "8. 0-RTT and Anti-Replay -> 8.1. Single-Use Tickets": {},
+  "7. Cryptographic Computations -> 7.4. (EC)DHE Shared Secret Calculation -> 7.4.2. Elliptic Curve Diffie-Hellman": {},
+  "9. Compliance Requirements -> 9.1. Mandatory-to-Implement Cipher Suites": {},
+  "6. Alert Protocol -> 6.1. Closure Alerts": {},
+  "7. Cryptographic Computations -> 7.3. Traffic Key Calculation": {},
+  "10. Security Considerations": {},
+  "7. Cryptographic Computations -> 7.5. Exporters": {},
+  "5. Record Protocol -> 5.2. Record Payload Protection": {},
+  "8. 0-RTT and Anti-Replay": {},
+  "6. Alert Protocol -> 6.2. Error Alerts": {},
+  "4. Handshake Protocol -> 4.6. Post-Handshake Messages -> 4.6.1. New Session Ticket Message": {
+    "client_hello": [
+      "ClientHello"
+    ],
+    "extensions": [
+      "extension"
+    ],
+    "new_session_ticket": [
+      "NewSessionTicket"
+    ]
+  },
+  "8. 0-RTT and Anti-Replay -> 8.2. Client Hello Recording": {
+    "client_hello": [
+      "ClientHello"
+    ],
+    "random": [
+      "ClientHello.random"
+    ]
+  },
+  "7. Cryptographic Computations -> 7.1. Key Schedule": {
+    "client_hello": [
+      "ClientHello"
+    ],
+    "server_hello": [
+      "ServerHello"
+    ]
+  },
+  "8. 0-RTT and Anti-Replay -> 8.3. Freshness Checks": {
+    "client_hello": [
+      "ClientHello"
+    ],
+    "new_session_ticket": [
+      "NewSessionTicket"
+    ],
+    "ticket_age_add": [
+      "ticket_age_add"
+    ]
+  },
+  "11. IANA Considerations": {
+    "new_session_ticket": [
+      "NewSessionTicket"
+    ]
+  },
+  "9. Compliance Requirements -> 9.2. Mandatory-to-Implement Extensions": {
+    "client_hello": [
+      "ClientHello"
+    ],
+    "server_hello": [
+      "ServerHello"
+    ],
+    "extensions": [
+      "extension"
+    ],
+    "signature_algorithms": [
+      "signature_algorithms"
+    ],
+    "supported_groups": [
+      "supported_groups"
+    ],
+    "key_share": [
+      "key_share"
+    ],
+    "pre_shared_key": [
+      "pre_shared_key"
+    ],
+    "psk_key_exchange_modes": [
+      "psk_key_exchange_modes"
+    ],
+    "server_name": [
+      "server_name"
+    ]
+  },
+  "9. Compliance Requirements -> 9.3. Protocol Invariants": {
+    "client_hello": [
+      "ClientHello"
+    ],
+    "server_hello": [
+      "ServerHello"
+    ],
+    "new_session_ticket": [
+      "NewSessionTicket"
+    ],
+    "certificate_request": [
+      "CertificateRequest"
+    ],
+    "cipher_suites": [
+      "cipher suites"
+    ],
+    "cipher_suite": [
+      "cipher suite"
+    ],
+    "extensions": [
+      "extensions",
+      "extensible fields"
+    ],
+    "random": [
+      "random value"
+    ]
+  },
+  "4. Handshake Protocol -> 4.2. Extensions -> 4.2.3. Signature Algorithms": {
+    "error": "Invalid JSON response"
+  }
+}

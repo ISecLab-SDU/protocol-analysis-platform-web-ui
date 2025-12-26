@@ -1,0 +1,54 @@
+{
+  "6. Operational Models": {},
+  "4. Terminology": {},
+  "14. Transmission of Messages by a Client": {},
+  "20. Authentication of DHCP Messages": {},
+  "12. Identity Association": {},
+  "10. Representation and Use of Domain Names": {},
+  "5. Client/Server Exchanges": {},
+  "19. Relay Agent Behavior": {},
+  "17. Client Source Address and Interface Selection": {},
+  "7. DHCP Constants": {},
+  "9. Relay Agent/Server Message Formats": {
+    "options": [
+      "options field"
+    ]
+  },
+  "15. Reliability of Client-Initiated Message Exchanges": {},
+  "11. DHCP Unique Identifier (DUID)": {},
+  "21. DHCP Options": {},
+  "8. Client/Server Message Formats": {},
+  "18. DHCP Configuration Exchanges": {},
+  "16. Message Validation": {
+    "Solicit": [
+      "Solicit"
+    ],
+    "Information-request": [
+      "Information-request"
+    ],
+    "Confirm": [
+      "Confirm"
+    ],
+    "Rebind": [
+      "Rebind"
+    ],
+    "Advertise": [
+      "Advertise"
+    ],
+    "Reply": [
+      "Reply"
+    ],
+    "Server Identifier": [
+      "Server Identifier"
+    ],
+    "Client Identifier": [
+      "Client Identifier"
+    ],
+    "Status Code": [
+      "Status Code"
+    ],
+    "UnspecFail": [
+      "UnspecFail"
+    ]
+  }
+}

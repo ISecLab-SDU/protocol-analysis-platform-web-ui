@@ -1,0 +1,17 @@
+{
+  "processing": {
+    "keyword_sources": [
+      "txt"
+    ]
+  },
+  "paths": {
+    "specify_keywords": "project_store\\dhcp_4\\specify_keywords.txt",
+    "input_json": "project_store\\dhcp_4\\filtered_headings.json",
+    "keyword_list": "project_store\\dhcp_4\\keyword_list.json",
+    "paragraph_output": "project_store\\dhcp_4\\paragraphs_output.json",
+    "specify_output": "project_store\\dhcp_4\\specify_keywords_update_r1.json",
+    "modal_output": "project_store\\dhcp_4\\modal_keywords_update_r1.json",
+    "comparative_output": "project_store\\dhcp_4\\comparative_keywords_update_r1.json",
+    "final_output": "project_store\\dhcp_4\\keywords_final.json"
+  }
+}

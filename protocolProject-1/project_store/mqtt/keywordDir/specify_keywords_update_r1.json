@@ -1,0 +1,3348 @@
+{
+  "1 Introduction -> _1.7_ _Editing convention_": {},
+  "1 Introduction -> 1.0 Intellectual property rights policy": {},
+  "1 Introduction -> 1.5 Data representation -> 1.5.2 Two Byte Integer": {},
+  "1 Introduction -> 1.5 Data representation -> 1.5.6 Binary Data": {},
+  "1 Introduction -> 1.1 Organization of the MQTT specification": {},
+  "1 Introduction -> 1.5 Data representation -> 1.5.7 UTF-8 String Pair": {},
+  "1 Introduction -> 1.5 Data representation -> 1.5.1 Bits": {},
+  "1 Introduction -> 1.8 Change history -> 1.8.2 MQTT v5.0": {},
+  "1 Introduction -> 1.8 Change history -> 1.8.1 MQTT v3.1.1": {},
+  "1 Introduction -> 1.6 Security": {},
+  "2 MQTT Control Packet format -> 2.1 Structure of an MQTT Control Packet -> 2.1.1 Fixed Header": {},
+  "1 Introduction -> 1.5 Data representation -> 1.5.3 Four Byte Integer": {},
+  "2 MQTT Control Packet format -> 2.1 Structure of an MQTT Control Packet": {},
+  "2 MQTT Control Packet format -> 2.1 Structure of an MQTT Control Packet -> 2.1.2 MQTT Control Packet type": {},
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.1 CONNECT Fixed Header": {},
+  "1 Introduction -> 1.3 Normative references": {},
+  "2 MQTT Control Packet format -> 2.2 Variable Header -> 2.2.2 Properties -> 2.2.2.1 Property Length": {},
+  "2 MQTT Control Packet format -> 2.2 Variable Header": {},
+  "2 MQTT Control Packet format -> 2.3 Payload": {},
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.2 CONNECT Variable Header": {},
+  "1 Introduction -> 1.5 Data representation -> 1.5.5 Variable Byte Integer": {},
+  "2 MQTT Control Packet format -> 2.1 Structure of an MQTT Control Packet -> 2.1.4 Remaining Length": {
+    "RemainingLength": [
+      "Variable Byte Integer"
+    ]
+  },
+  "2 MQTT Control Packet format -> 2.2 Variable Header -> 2.2.2 Properties": {
+    "Properties": [
+      "Property Length"
+    ]
+  },
+  "2 MQTT Control Packet format -> 2.2 Variable Header -> 2.2.2 Properties -> 2.2.2.2 Property": {
+    "Property": [
+      "Properties"
+    ],
+    "Identifier": [
+      "Identifier"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.2 CONNECT Variable Header -> 3.1.2.1 Protocol Name": {
+    "ProtocolName": [
+      "protocol name"
+    ],
+    "UnsupportedProtocolVersion": [
+      "Unsupported Protocol Version"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.2 CONNECT Variable Header -> 3.1.2.8 User Name Flag": {
+    "ConnectFlags": [
+      "Connect Flags"
+    ],
+    "UserNameFlag": [
+      "User Name Flag",
+      "User Name Flag",
+      "User Name Flag"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.2 CONNECT Variable Header -> 3.1.2.3 Connect Flags": {
+    "CONNECT": [
+      "Connect"
+    ],
+    "ConnectFlags": [
+      "Connect Flags"
+    ],
+    "Flags": [
+      "flag"
+    ],
+    "Payload": [
+      "Payload"
+    ],
+    "MalformedPacket": [
+      "Malformed Packet"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.2 CONNECT Variable Header -> 3.1.2.11 CONNECT Properties -> 3.1.2.11.1 Property Length": {},
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.2 CONNECT Variable Header -> 3.1.2.2 Protocol Version": {
+    "ProtocolLevel": [
+      "Protocol Version"
+    ],
+    "UnsupportedProtocolVersion": [
+      "Unsupported Protocol Version"
+    ]
+  },
+  "1 Introduction -> 1.5 Data representation -> 1.5.4 UTF-8 Encoded String": {},
+  "2 MQTT Control Packet format -> 2.1 Structure of an MQTT Control Packet -> 2.1.3 Flags": {
+    "FixedHeader": [
+      "Fixed Header"
+    ],
+    "Flags": [
+      "flags",
+      "flag bits"
+    ],
+    "QoS": [
+      "Quality of Service"
+    ],
+    "QOS0": [
+      "QoS"
+    ],
+    "QOS1": [
+      "QoS"
+    ],
+    "QOS2": [
+      "QoS"
+    ],
+    "DUP": [
+      "DUP"
+    ],
+    "RETAIN": [
+      "RETAIN"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.2 CONNECT Variable Header -> 3.1.2.4 Clean Start": {
+    "CONNECT": [
+      "CONNECT packet"
+    ],
+    "CleanStart": [
+      "Clean Start"
+    ],
+    "CONNACK": [
+      "CONNACK"
+    ],
+    "SessionPresent": [
+      "Session Present flag"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request": {
+    "CONNECT": [
+      "CONNECT packet"
+    ],
+    "ProtocolError": [
+      "Protocol Error"
+    ],
+    "Payload": [
+      "Payload"
+    ],
+    "VariableHeader": [
+      "Variable Header"
+    ],
+    "Flags": [
+      "flags"
+    ],
+    "ClientIdentifier": [
+      "Client identifier",
+      "unique Client identifier"
+    ],
+    "WillTopic": [
+      "Will Topic"
+    ],
+    "WillMessage": [
+      "Will Payload"
+    ],
+    "UserName": [
+      "User Name"
+    ],
+    "Password": [
+      "Password"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.2 CONNECT Variable Header -> 3.1.2.6 Will QoS": {
+    "ConnectFlags": [
+      "Connect Flags"
+    ],
+    "WillFlag": [
+      "Will Flag"
+    ],
+    "WillQoS": [
+      "Will QoS"
+    ],
+    "QOS0": [
+      "0 (0x00)"
+    ],
+    "QOS1": [
+      "1 (0x01)"
+    ],
+    "QOS2": [
+      "2 (0x02)"
+    ],
+    "MalformedPacket": [
+      "Malformed Packet"
+    ]
+  },
+  "2 MQTT Control Packet format -> 2.2 Variable Header -> 2.2.1 Packet Identifier": {
+    "PacketIdentifier": [
+      "Two Byte Integer Packet Identifier field",
+      "Packet Identifier",
+      "Packet Identifier field"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.2 CONNECT Variable Header -> 3.1.2.9 Password Flag": {
+    "PasswordFlag": [
+      "Password Flag"
+    ],
+    "ConnectFlags": [
+      "Connect Flags"
+    ],
+    "Payload": [
+      "Payload"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.2 CONNECT Variable Header -> 3.1.2.7 Will Retain": {
+    "ConnectFlags": [
+      "Connect Flags"
+    ],
+    "WillFlag": [
+      "Will Flag"
+    ],
+    "WillRetain": [
+      "Will Retain"
+    ]
+  },
+  "1 Introduction -> 1.2 Terminology": {},
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.2 CONNECT Variable Header -> 3.1.2.11 CONNECT Properties -> 3.1.2.11.3 Receive Maximum": {
+    "ReceiveMaximum": [
+      "Receive Maximum"
+    ]
+  },
+  "2 MQTT Control Packet format -> 2.4 Reason Code": {
+    "ReasonCode": [
+      "one byte unsigned value",
+      "Reason Code",
+      "Reason Codes"
+    ],
+    "Success": [
+      "success",
+      "successful completion of an operation"
+    ],
+    "PacketIdentifierInUse": [
+      "Packet identifier in use"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.3 CONNECT Payload -> 3.1.3.2 Will Properties -> 3.1.3.2.1 Property Length": {
+    "Properties": [
+      "Will Properties"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.2 CONNECT Variable Header -> 3.1.2.11 CONNECT Properties -> 3.1.2.11.7 Request Problem Information": {
+    "RequestProblemInformation": [
+      "Request Problem Information"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.2 CONNECT Variable Header -> 3.1.2.10 Keep Alive": {
+    "KeepAlive": [
+      "Keep Alive"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.2 CONNECT Variable Header -> 3.1.2.11 CONNECT Properties -> 3.1.2.11.9 Authentication Method": {
+    "AuthenticationMethod": [
+      "Authentication Method"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.2 CONNECT Variable Header -> 3.1.2.11 CONNECT Properties -> 3.1.2.11.10 Authentication Data": {
+    "AuthenticationData": [
+      "authentication data"
+    ],
+    "AuthenticationMethod": [
+      "authentication method"
+    ],
+    "ProtocolError": [
+      "Protocol Error"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.3 CONNECT Payload -> 3.1.3.2 Will Properties": {
+    "WillFlag": [
+      "Will Flag"
+    ],
+    "Properties": [
+      "Will Properties",
+      "Property"
+    ],
+    "Payload": [
+      "Payload"
+    ],
+    "Property": [
+      "Properties"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.2 CONNECT Variable Header -> 3.1.2.11 CONNECT Properties -> 3.1.2.11.6 Request Response Information": {
+    "RequestResponseInformation": [
+      "Request Response Information"
+    ],
+    "CONNACK": [
+      "CONNACK"
+    ],
+    "Value": [
+      "value"
+    ],
+    "ProtocolError": [
+      "Protocol Error"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.2 CONNECT Variable Header -> 3.1.2.11 CONNECT Properties -> 3.1.2.11.8 User Property": {
+    "CONNECT": [
+      "CONNECT packet"
+    ],
+    "UserProperty": [
+      "User Property"
+    ],
+    "Identifier": [
+      "identifier"
+    ],
+    "Value": [
+      "value"
+    ],
+    "Key": [
+      "name"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.2 CONNECT Variable Header -> 3.1.2.11 CONNECT Properties -> 3.1.2.11.5 Topic Alias Maximum": {
+    "TopicAliasMaximum": [
+      "Topic Alias Maximum"
+    ],
+    "Identifier": [
+      "identifier"
+    ],
+    "Value": [
+      "value"
+    ],
+    "ProtocolError": [
+      "Protocol Error"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.3 CONNECT Payload": {
+    "CONNECT": [
+      "CONNECT packet"
+    ],
+    "Payload": [
+      "Payload of the CONNECT packet"
+    ],
+    "ClientIdentifier": [
+      "Client Identifier"
+    ],
+    "WillTopic": [
+      "Will Topic"
+    ],
+    "WillMessage": [
+      "Will Payload"
+    ],
+    "UserName": [
+      "User Name"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.2 CONNECT Variable Header -> 3.1.2.11 CONNECT Properties -> 3.1.2.11.4 Maximum Packet Size": {
+    "MaximumPacketSize": [
+      "Maximum Packet Size",
+      "packet size",
+      "Maximum Packet Size value",
+      "limit",
+      "Maximum Packet Size the Client is willing to accept"
+    ],
+    "ProtocolError": [
+      "Protocol Error"
+    ],
+    "PacketTooLarge": [
+      "Packet too large",
+      "packet whose size exceeds this limit",
+      "packet is too large to send"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.3 CONNECT Payload -> 3.1.3.2 Will Properties -> 3.1.3.2.5 Content Type": {
+    "ContentType": [
+      "Content Type"
+    ],
+    "Identifier": [
+      "identifier"
+    ],
+    "WillMessage": [
+      "Will Message"
+    ],
+    "ProtocolError": [
+      "Protocol Error"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.2 CONNECT Variable Header -> 3.1.2.5 Will Flag": {
+    "WillFlag": [
+      "Will Flag"
+    ],
+    "WillMessage": [
+      "Will Message"
+    ],
+    "CONNECT": [
+      "CONNECT"
+    ],
+    "Payload": [
+      "Payload"
+    ],
+    "WillTopic": [
+      "Will Topic"
+    ],
+    "WillPayload": [
+      "Will Payload"
+    ],
+    "DISCONNECT": [
+      "DISCONNECT"
+    ],
+    "ReasonCode": [
+      "Reason Code"
+    ],
+    "NormalDisconnection": [
+      "Normal disconnection"
+    ],
+    "SessionExpiryInterval": [
+      "Session Expiry",
+      "Session Expiry Interval"
+    ],
+    "WillDelayInterval": [
+      "Will Delay Interval"
+    ]
+  },
+  "1 Introduction -> 1.4 Non-normative references": {},
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.3 CONNECT Payload -> 3.1.3.6 Password": {
+    "PasswordFlag": [
+      "Password Flag"
+    ],
+    "Password": [
+      "Password",
+      "credential information"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.3 CONNECT Payload -> 3.1.3.3 Will Topic": {
+    "WillFlag": [
+      "Will Flag"
+    ],
+    "Payload": [
+      "Payload"
+    ],
+    "WillTopic": [
+      "Will Topic"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.3 CONNECT Payload -> 3.1.3.5 User Name": {
+    "UserNameFlag": [
+      "User Name Flag"
+    ],
+    "UserName": [
+      "User Name"
+    ],
+    "Payload": [
+      "Payload"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.3 CONNECT Payload -> 3.1.3.2 Will Properties -> 3.1.3.2.8 User Property": {
+    "UserProperty": [
+      "User Property"
+    ],
+    "Value": [
+      "value"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.3 CONNECT Payload -> 3.1.3.2 Will Properties -> 3.1.3.2.6 Response Topic": {
+    "ResponseTopic": [
+      "Topic Name for a response message",
+      "Response Topic",
+      "Topic Name"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.2 CONNECT Variable Header -> 3.1.2.12 Variable Header non-normative example": {
+    "ConnectFlags": [
+      "connection flags"
+    ],
+    "KeepAlive": [
+      "keep alive interval"
+    ],
+    "Properties": [
+      "Properties"
+    ],
+    "SessionExpiryInterval": [
+      "session expiry interval properties"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.2 CONNACK Connect acknowledgement -> 3.2.2 CONNACK Variable Header -> 3.2.2.3 CONNACK Properties -> 3.2.2.3.1 Property Length": {},
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.3 CONNECT Payload -> 3.1.3.4 Will Payload": {
+    "WillFlag": [
+      "Will Flag"
+    ],
+    "Payload": [
+      "Will Payload",
+      "Application Message Payload"
+    ],
+    "WillTopic": [
+      "Will Topic"
+    ],
+    "WillMessage": [
+      "Will Payload"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.3 CONNECT Payload -> 3.1.3.2 Will Properties -> 3.1.3.2.4 Message Expiry Interval": {
+    "MessageExpiryInterval": [
+      "Message Expiry Interval"
+    ],
+    "Property": [
+      "identifier"
+    ],
+    "Identifier": [
+      "identifier"
+    ],
+    "WillMessage": [
+      "Will Message"
+    ],
+    "ProtocolError": [
+      "Protocol Error"
+    ],
+    "Server": [
+      "Server"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.2 CONNACK Connect acknowledgement": {},
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.3 CONNECT Payload -> 3.1.3.2 Will Properties -> 3.1.3.2.7 Correlation Data": {
+    "CorrelationData": [
+      "Correlation Data"
+    ],
+    "Identifier": [
+      "identifier"
+    ],
+    "ProtocolError": [
+      "Protocol Error"
+    ],
+    "RequestMessage": [
+      "Request Message"
+    ],
+    "ResponseMessage": [
+      "Response Message"
+    ],
+    "Requester": [
+      "Requester"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.2 CONNACK Connect acknowledgement -> 3.2.2 CONNACK Variable Header -> 3.2.2.1 Connect Acknowledge Flags": {
+    "ConnectAcknowledgeFlags": [
+      "Connect Acknowledge Flags"
+    ],
+    "SessionPresent": [
+      "Session Present Flag"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.2 CONNACK Connect acknowledgement -> 3.2.2 CONNACK Variable Header": {
+    "ConnectAcknowledgeFlags": [
+      "Connect Acknowledge Flags"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.3 CONNECT Payload -> 3.1.3.2 Will Properties -> 3.1.3.2.2 Will Delay Interval": {
+    "ProtocolError": [
+      "Protocol Error"
+    ],
+    "CleanStart": [
+      "Clean Start"
+    ],
+    "ClientIdentifier": [
+      "Client Identifier"
+    ],
+    "WillMessage": [
+      "Will Message"
+    ],
+    "WillDelayInterval": [
+      "Will Delay Interval"
+    ],
+    "Session": [
+      "Session"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.2 CONNECT Variable Header -> 3.1.2.11 CONNECT Properties -> 3.1.2.11.2 Session Expiry Interval": {
+    "SessionExpiryInterval": [
+      "Session Expiry Interval"
+    ],
+    "CleanStart": [
+      "Clean Start"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.2 CONNACK Connect acknowledgement -> 3.2.2 CONNACK Variable Header -> 3.2.2.3 CONNACK Properties -> 3.2.2.3.2 Session Expiry Interval": {
+    "CONNECT": [
+      "CONNECT Packet"
+    ],
+    "SessionExpiryInterval": [
+      "Session Expiry Interval"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.2 CONNACK Connect acknowledgement -> 3.2.1 CONNACK Fixed Header": {
+    "CONNACK": [
+      "CONNACK packet"
+    ],
+    "FixedHeader": [
+      "Fixed Header"
+    ],
+    "RemainingLength": [
+      "Remaining Length field",
+      "Remaining Length"
+    ],
+    "VariableHeader": [
+      "Variable Header"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.2 CONNACK Connect acknowledgement -> 3.2.2 CONNACK Variable Header -> 3.2.2.3 CONNACK Properties -> 3.2.2.3.3 Receive Maximum": {
+    "ReceiveMaximum": [
+      "Receive Maximum"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.2 CONNACK Connect acknowledgement -> 3.2.2 CONNACK Variable Header -> 3.2.2.3 CONNACK Properties -> 3.2.2.3.8 Topic Alias Maximum": {
+    "TopicAliasMaximum": [
+      "Topic Alias Maximum"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.3 CONNECT Payload -> 3.1.3.2 Will Properties -> 3.1.3.2.3 Payload Format Indicator": {
+    "PayloadFormatIndicator": [
+      "Payload Format Indicator"
+    ],
+    "WillMessage": [
+      "Will Message"
+    ],
+    "Payload": [
+      "Payload"
+    ],
+    "ProtocolError": [
+      "Protocol Error"
+    ],
+    "CONNACK": [
+      "CONNACK"
+    ],
+    "ReasonCode": [
+      "Reason Code"
+    ],
+    "PayloadFormatInvalid": [
+      "Payload format invalid"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.2 CONNACK Connect acknowledgement -> 3.2.2 CONNACK Variable Header -> 3.2.2.3 CONNACK Properties -> 3.2.2.3.6 Maximum Packet Size": {
+    "MaximumPacketSize": [
+      "Maximum Packet Size"
+    ],
+    "PacketTooLarge": [
+      "Packet too large"
+    ],
+    "ProtocolError": [
+      "Protocol Error"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.2 CONNACK Connect acknowledgement -> 3.2.2 CONNACK Variable Header -> 3.2.2.3 CONNACK Properties -> 3.2.2.3.7 Assigned Client Identifier": {
+    "CONNECT": [
+      "CONNECT packet"
+    ],
+    "ClientIdentifier": [
+      "zero length Client Identifier",
+      "Client Identifier",
+      "Assigned Client Identifier"
+    ],
+    "CONNACK": [
+      "CONNACK"
+    ],
+    "ProtocolError": [
+      "Protocol Error"
+    ],
+    "AssignedClientIdentifier": [
+      "Assigned Client Identifier"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.2 CONNACK Connect acknowledgement -> 3.2.2 CONNACK Variable Header -> 3.2.2.3 CONNACK Properties -> 3.2.2.3.9 Reason String": {
+    "CONNACK": [
+      "CONNACK packet"
+    ],
+    "MaximumPacketSize": [
+      "Maximum Packet Size"
+    ],
+    "Property": [
+      "property"
+    ],
+    "Identifier": [
+      "identifier"
+    ],
+    "ReasonString": [
+      "Reason String",
+      "reason string"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.2 CONNACK Connect acknowledgement -> 3.2.2 CONNACK Variable Header -> 3.2.2.3 CONNACK Properties -> 3.2.2.3.10 User Property": {
+    "UserProperty": [
+      "UTF-8 String Pair",
+      "name, value pairs"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.3 PUBLISH Publish message": {},
+  "3 MQTT Control Packets -> 3.2 CONNACK Connect acknowledgement -> 3.2.3 CONNACK Payload": {},
+  "3 MQTT Control Packets -> 3.2 CONNACK Connect acknowledgement -> 3.2.2 CONNACK Variable Header -> 3.2.2.1 Connect Acknowledge Flags -> 3.2.2.1.1 Session Present": {
+    "ConnectAcknowledgeFlags": [
+      "Connect Acknowledge Flags"
+    ],
+    "SessionPresent": [
+      "Session Present",
+      "Session Present flag"
+    ],
+    "CleanStart": [
+      "Clean Start"
+    ],
+    "ReasonCode": [
+      "Reason Code"
+    ],
+    "Success": [
+      "0x00 (Success)"
+    ],
+    "CONNACK": [
+      "CONNACK packet"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.2 CONNACK Connect acknowledgement -> 3.2.2 CONNACK Variable Header -> 3.2.2.3 CONNACK Properties -> 3.2.2.3.18 Authentication Data": {
+    "AuthenticationData": [
+      "authentication data"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.2 CONNACK Connect acknowledgement -> 3.2.2 CONNACK Variable Header -> 3.2.2.3 CONNACK Properties -> 3.2.2.3.17 Authentication Method": {
+    "AuthenticationMethod": [
+      "authentication method"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.2 CONNACK Connect acknowledgement -> 3.2.2 CONNACK Variable Header -> 3.2.2.3 CONNACK Properties -> 3.2.2.3.11 Wildcard Subscription Available": {
+    "WildcardSubscriptionAvailable": [
+      "Wildcard Subscription Available"
+    ],
+    "WildcardSubscriptionsNotSupported": [
+      "Wildcard Subscriptions not supported"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.2 CONNACK Connect acknowledgement -> 3.2.2 CONNACK Variable Header -> 3.2.2.3 CONNACK Properties -> 3.2.2.3.5 Retain Available": {
+    "RetainAvailable": [
+      "Retain Available"
+    ],
+    "WillRetain": [
+      "Will Retain"
+    ],
+    "CONNACK": [
+      "CONNACK"
+    ],
+    "ReasonCode": [
+      "Reason Code"
+    ],
+    "RetainNotSupported": [
+      "Retain not supported"
+    ],
+    "ProtocolError": [
+      "Protocol Error"
+    ],
+    "DISCONNECT": [
+      "DISCONNECT"
+    ],
+    "PUBLISH": [
+      "PUBLISH"
+    ],
+    "RETAIN": [
+      "RETAIN"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.3 PUBLISH Publish message -> 3.3.1 PUBLISH Fixed Header -> 3.3.1.4 Remaining Length": {},
+  "3 MQTT Control Packets -> 3.2 CONNACK Connect acknowledgement -> 3.2.2 CONNACK Variable Header -> 3.2.2.3 CONNACK Properties -> 3.2.2.3.4 Maximum QoS": {
+    "MaximumQoS": [
+      "Maximum QoS"
+    ],
+    "QOS1": [
+      "QoS 1"
+    ],
+    "QOS2": [
+      "QoS 2"
+    ],
+    "QosNotSupported": [
+      "QoS not supported"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.2 CONNACK Connect acknowledgement -> 3.2.2 CONNACK Variable Header -> 3.2.2.3 CONNACK Properties -> 3.2.2.3.16 Server Reference": {
+    "CONNACK": [
+      "CONNACK"
+    ],
+    "DISCONNECT": [
+      "DISCONNECT"
+    ],
+    "ReasonCode": [
+      "Reason code"
+    ],
+    "UseAnotherServer": [
+      "Use another server"
+    ],
+    "ServerMoved": [
+      "Server moved"
+    ],
+    "ServerReference": [
+      "Server Reference"
+    ],
+    "ProtocolError": [
+      "Protocol Error"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.3 PUBLISH Publish message -> 3.3.2 PUBLISH Variable Header -> 3.3.2.2 Packet Identifier": {
+    "PacketIdentifier": [
+      "Packet Identifier"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.3 PUBLISH Publish message -> 3.3.2 PUBLISH Variable Header -> 3.3.2.3 PUBLISH Properties -> 3.3.2.3.1 Property Length": {
+    "Properties": [
+      "Properties"
+    ],
+    "VariableHeader": [
+      "Variable Header"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.2 CONNACK Connect acknowledgement -> 3.2.2 CONNACK Variable Header -> 3.2.2.3 CONNACK Properties -> 3.2.2.3.12 Subscription Identifiers Available": {
+    "SubscriptionIdentifiersAvailable": [
+      "Subscription Identifier Available"
+    ],
+    "SubscriptionIdentifiersNotSupported": [
+      "Subscription Identifiers not supported"
+    ],
+    "ProtocolError": [
+      "Protocol Error"
+    ],
+    "SUBSCRIBE": [
+      "SUBSCRIBE packet"
+    ],
+    "SubscriptionIdentifier": [
+      "Subscription Identifier"
+    ],
+    "DISCONNECT": [
+      "DISCONNECT"
+    ],
+    "ReasonCode": [
+      "Reason Code"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.2 CONNACK Connect acknowledgement -> 3.2.2 CONNACK Variable Header -> 3.2.2.3 CONNACK Properties -> 3.2.2.3.14 Server Keep Alive": {
+    "ServerKeepAlive": [
+      "Server Keep Alive"
+    ],
+    "KeepAlive": [
+      "Keep Alive",
+      "Keep Alive time",
+      "Keep Alive value"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.3 PUBLISH Publish message -> 3.3.2 PUBLISH Variable Header": {
+    "VariableHeader": [
+      "Variable Header"
+    ],
+    "Properties": [
+      "Properties"
+    ],
+    "TopicName": [
+      "Topic Name"
+    ],
+    "PacketIdentifier": [
+      "Packet Identifier"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.3 PUBLISH Publish message -> 3.3.1 PUBLISH Fixed Header": {
+    "FixedHeader": [
+      "fixed header"
+    ],
+    "Flags": [
+      "DUP flag",
+      "RETAIN flag"
+    ],
+    "RemainingLength": [
+      "Remaining Length"
+    ],
+    "QoS": [
+      "QoS level"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.2 CONNACK Connect acknowledgement -> 3.2.2 CONNACK Variable Header -> 3.2.2.3 CONNACK Properties -> 3.2.2.3.13 Shared Subscription Available": {
+    "SharedSubscriptionAvailable": [
+      "Shared Subscriptions Available",
+      "Shared Subscriptions",
+      "Shared Subscription Available"
+    ],
+    "ProtocolError": [
+      "Protocol Error"
+    ],
+    "SUBSCRIBE": [
+      "SUBSCRIBE packet"
+    ],
+    "DISCONNECT": [
+      "DISCONNECT"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.2 CONNACK Connect acknowledgement -> 3.2.2 CONNACK Variable Header -> 3.2.2.3 CONNACK Properties -> 3.2.2.3.15 Response Information": {
+    "ResponseInformation": [
+      "Response Information"
+    ],
+    "RequestResponseInformation": [
+      "Request Response Information"
+    ],
+    "CONNACK": [
+      "CONNACK packet"
+    ],
+    "ProtocolError": [
+      "Protocol Error"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.3 PUBLISH Publish message -> 3.3.2 PUBLISH Variable Header -> 3.3.2.1 Topic Name": {
+    "TopicName": [
+      "Topic Name"
+    ],
+    "Payload": [
+      "Payload data"
+    ],
+    "VariableHeader": [
+      "Variable Header"
+    ],
+    "PUBLISH": [
+      "PUBLISH packet"
+    ],
+    "TopicAlias": [
+      "Topic Alias"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.3 PUBLISH Publish message -> 3.3.3 PUBLISH Payload": {},
+  "3 MQTT Control Packets -> 3.4 PUBACK Publish acknowledgement": {},
+  "3 MQTT Control Packets -> 3.3 PUBLISH Publish message -> 3.3.2 PUBLISH Variable Header -> 3.3.2.3 PUBLISH Properties -> 3.3.2.3.3 Message Expiry Interval`": {
+    "MessageExpiryInterval": [
+      "Message Expiry Interval"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.3 PUBLISH Publish message -> 3.3.2 PUBLISH Variable Header -> 3.3.2.3 PUBLISH Properties -> 3.3.2.3.7 User Property": {
+    "UserProperty": [
+      "UTF-8 String Pair",
+      "name, value pairs",
+      "name",
+      "value"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.3 PUBLISH Publish message -> 3.3.2 PUBLISH Variable Header -> 3.3.2.3 PUBLISH Properties -> 3.3.2.3.5 Response Topic": {
+    "ResponseTopic": [
+      "Topic Name"
+    ],
+    "CorrelationData": [
+      "Correlation Data"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.3 PUBLISH Publish message -> 3.3.2 PUBLISH Variable Header -> 3.3.2.3 PUBLISH Properties -> 3.3.2.3.2 Payload Format Indicator": {
+    "PayloadFormatIndicator": [
+      "Payload Format Indicator"
+    ],
+    "PayloadFormatInvalid": [
+      "Payload format invalid"
+    ],
+    "Payload": [
+      "Payload"
+    ],
+    "Identifier": [
+      "identifier"
+    ],
+    "Value": [
+      "value"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.3 PUBLISH Publish message -> 3.3.2 PUBLISH Variable Header -> 3.3.2.3 PUBLISH Properties -> 3.3.2.3.6 Correlation Data": {
+    "CorrelationData": [
+      "Correlation Data"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.3 PUBLISH Publish message -> 3.3.1 PUBLISH Fixed Header -> 3.3.1.1 DUP": {
+    "DUP": [
+      "DUP flag"
+    ],
+    "QOS0": [
+      "QoS 0"
+    ],
+    "QOS1": [
+      "QoS 1"
+    ],
+    "QoS": [
+      "QoS"
+    ],
+    "PacketIdentifier": [
+      "Packet Identifier"
+    ],
+    "Payload": [
+      "Application Message"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.3 PUBLISH Publish message -> 3.3.2 PUBLISH Variable Header -> 3.3.2.3 PUBLISH Properties -> 3.3.2.3.8 Subscription Identifier": {
+    "Property": [
+      "Subscription Identifier property"
+    ],
+    "Identifier": [
+      "identifier",
+      "Subscription Identifier",
+      "Subscription Identifiers"
+    ],
+    "SubscriptionIdentifier": [
+      "Subscription Identifier",
+      "Subscription Identifiers"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.3 PUBLISH Publish message -> 3.3.1 PUBLISH Fixed Header -> 3.3.1.2 QoS": {
+    "QoS": [
+      "QoS field",
+      "QoS value",
+      "QoS bits",
+      "QoS levels",
+      "QoS greater",
+      "QoS not supported"
+    ],
+    "QOS0": [
+      "QoS value 0",
+      "bits 0,0"
+    ],
+    "QOS1": [
+      "QoS value 1",
+      "bits 0,1"
+    ],
+    "QOS2": [
+      "QoS value 2",
+      "bits 1,0"
+    ],
+    "QosNotSupported": [
+      "QoS not supported"
+    ],
+    "MalformedPacket": [
+      "Malformed Packet"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.4 PUBACK Publish acknowledgement -> 3.4.2 PUBACK Variable Header -> 3.4.2.2 PUBACK Properties -> 3.4.2.2.1 Property Length": {},
+  "3 MQTT Control Packets -> 3.4 PUBACK Publish acknowledgement -> 3.4.3 PUBACK Payload": {},
+  "3 MQTT Control Packets -> 3.4 PUBACK Publish acknowledgement -> 3.4.4 PUBACK Actions": {},
+  "3 MQTT Control Packets -> 3.5 PUBREC Publish received (QoS 2 delivery part 1)": {},
+  "3 MQTT Control Packets -> 3.4 PUBACK Publish acknowledgement -> 3.4.1 PUBACK Fixed Header": {
+    "FixedHeader": [
+      "Fixed Header"
+    ],
+    "RemainingLength": [
+      "Remaining Length"
+    ],
+    "VariableHeader": [
+      "Variable Header"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.4 CONNECT Actions": {
+    "CONNECT": [
+      "CONNECT packet"
+    ],
+    "CONNACK": [
+      "CONNACK packet",
+      "CONNACK response",
+      "CONNACK"
+    ],
+    "ClientIdentifier": [
+      "ClientID"
+    ],
+    "CleanStart": [
+      "Clean Start"
+    ],
+    "SessionExpiryInterval": [
+      "Session Expiry Interval"
+    ],
+    "WillMessage": [
+      "Will Message"
+    ],
+    "WillDelayInterval": [
+      "Will Delay Interval"
+    ],
+    "DISCONNECT": [
+      "DISCONNECT packet"
+    ],
+    "SessionTakenOver": [
+      "Session taken over"
+    ],
+    "AUTH": [
+      "AUTH packets"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.4 PUBACK Publish acknowledgement -> 3.4.2 PUBACK Variable Header -> 3.4.2.2 PUBACK Properties -> 3.4.2.2.2 Reason String": {
+    "ReasonString": [
+      "reason",
+      "reason associated with this response",
+      "human readable string",
+      "additional information"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.4 PUBACK Publish acknowledgement -> 3.4.2 PUBACK Variable Header": {
+    "VariableHeader": [
+      "Variable Header"
+    ],
+    "PacketIdentifier": [
+      "Packet Identifier"
+    ],
+    "ReasonCode": [
+      "PUBACK Reason Code"
+    ],
+    "Properties": [
+      "Properties"
+    ],
+    "Property": [
+      "Properties"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.4 PUBACK Publish acknowledgement -> 3.4.2 PUBACK Variable Header -> 3.4.2.2 PUBACK Properties -> 3.4.2.2.3 User Property": {
+    "UserProperty": [
+      "User Property"
+    ],
+    "Identifier": [
+      "identifier"
+    ],
+    "MaximumPacketSize": [
+      "Maximum Packet Size"
+    ],
+    "Value": [
+      "string pair",
+      "name, value pairs"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.6 PUBREL Publish release (QoS 2 delivery part 2)": {},
+  "3 MQTT Control Packets -> 3.5 PUBREC Publish received (QoS 2 delivery part 1) -> 3.5.4 PUBREC Actions": {},
+  "3 MQTT Control Packets -> 3.3 PUBLISH Publish message -> 3.3.2 PUBLISH Variable Header -> 3.3.2.3 PUBLISH Properties -> 3.3.2.3.4 Topic Alias": {
+    "TopicAliasMaximum": [
+      "Topic Alias Maximum"
+    ],
+    "TopicAlias": [
+      "Topic Alias"
+    ],
+    "ProtocolError": [
+      "Protocol Error"
+    ],
+    "TopicName": [
+      "Topic Name"
+    ],
+    "NetworkConnection": [
+      "Network Connection"
+    ],
+    "Packet": [
+      "PUBLISH packet"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.3 PUBLISH Publish message -> 3.3.2 PUBLISH Variable Header -> 3.3.2.3 PUBLISH Properties -> 3.3.2.3.9 Content Type": {},
+  "3 MQTT Control Packets -> 3.5 PUBREC Publish received (QoS 2 delivery part 1) -> 3.5.3 PUBREC Payload": {},
+  "3 MQTT Control Packets -> 3.5 PUBREC Publish received (QoS 2 delivery part 1) -> 3.5.2 PUBREC Variable Header -> 3.5.2.2 PUBREC Properties -> 3.5.2.2.1 Property Length": {
+    "RemainingLength": [
+      "Remaining Length"
+    ],
+    "Properties": [
+      "Property Length"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.5 PUBREC Publish received (QoS 2 delivery part 1) -> 3.5.1 PUBREC Fixed Header": {
+    "FixedHeader": [
+      "Fixed Header"
+    ],
+    "RemainingLength": [
+      "Remaining Length"
+    ],
+    "VariableHeader": [
+      "Variable Header"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.5 PUBREC Publish received (QoS 2 delivery part 1) -> 3.5.2 PUBREC Variable Header -> 3.5.2.2 PUBREC Properties -> 3.5.2.2.2 Reason String": {
+    "ReasonString": [
+      "reason",
+      "reason associated with this response",
+      "human readable",
+      "diagnostics",
+      "additional information"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.5 PUBREC Publish received (QoS 2 delivery part 1) -> 3.5.2 PUBREC Variable Header": {
+    "VariableHeader": [
+      "Variable Header"
+    ],
+    "PacketIdentifier": [
+      "Packet Identifier"
+    ],
+    "ReasonCode": [
+      "PUBREC Reason Code"
+    ],
+    "Properties": [
+      "Properties"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.5 PUBREC Publish received (QoS 2 delivery part 1) -> 3.5.2 PUBREC Variable Header -> 3.5.2.2 PUBREC Properties -> 3.5.2.2.3 User Property": {
+    "UserProperty": [
+      "UTF-8 String Pair"
+    ],
+    "Identifier": [
+      "Byte"
+    ],
+    "MaximumPacketSize": [
+      "Maximum Packet Size"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.6 PUBREL Publish release (QoS 2 delivery part 2) -> 3.6.3 PUBREL Payload": {},
+  "3 MQTT Control Packets -> 3.7 PUBCOMP Publish complete (QoS 2 delivery part 3)": {},
+  "3 MQTT Control Packets -> 3.6 PUBREL Publish release (QoS 2 delivery part 2) -> 3.6.4 PUBREL Actions": {},
+  "3 MQTT Control Packets -> 3.6 PUBREL Publish release (QoS 2 delivery part 2) -> 3.6.2 PUBREL Variable Header -> 3.6.2.2 PUBREL Properties -> 3.6.2.2.1 Property Length": {
+    "RemainingLength": [
+      "Remaining Length"
+    ],
+    "Properties": [
+      "Property Length"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.7 PUBCOMP Publish complete (QoS 2 delivery part 3) -> 3.7.3 PUBCOMP Payload": {},
+  "3 MQTT Control Packets -> 3.7 PUBCOMP Publish complete (QoS 2 delivery part 3) -> 3.7.1 PUBCOMP Fixed Header": {
+    "FixedHeader": [
+      "Fixed Header"
+    ],
+    "RemainingLength": [
+      "Remaining Length"
+    ],
+    "VariableHeader": [
+      "Variable Header"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.6 PUBREL Publish release (QoS 2 delivery part 2) -> 3.6.2 PUBREL Variable Header -> 3.6.2.2 PUBREL Properties -> 3.6.2.2.3 User Property": {
+    "UserProperty": [
+      "UTF-8 String Pair",
+      "name, value pairs"
+    ],
+    "MaximumPacketSize": [
+      "Maximum Packet Size"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.6 PUBREL Publish release (QoS 2 delivery part 2) -> 3.6.2 PUBREL Variable Header": {
+    "VariableHeader": [
+      "Variable Header"
+    ],
+    "PacketIdentifier": [
+      "Packet Identifier"
+    ],
+    "ReasonCode": [
+      "PUBREL Reason Code"
+    ],
+    "Properties": [
+      "Properties"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.6 PUBREL Publish release (QoS 2 delivery part 2) -> 3.6.1 PUBREL Fixed Header": {
+    "FixedHeader": [
+      "Fixed Header"
+    ],
+    "Flags": [
+      "bits 3-0",
+      "bits 3, 2, 1 and 0"
+    ],
+    "RemainingLength": [
+      "Remaining Length field"
+    ],
+    "VariableHeader": [
+      "Variable Header"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.7 PUBCOMP Publish complete (QoS 2 delivery part 3) -> 3.7.2 PUBCOMP Variable Header -> 3.7.2.2 PUBCOMP Properties -> 3.7.2.2.1 Property Length": {
+    "RemainingLength": [
+      "Remaining Length"
+    ],
+    "Properties": [
+      "Property Length"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.7 PUBCOMP Publish complete (QoS 2 delivery part 3) -> 3.7.4 PUBCOMP Actions": {},
+  "3 MQTT Control Packets -> 3.8 SUBSCRIBE - Subscribe request -> 3.8.2 SUBSCRIBE Variable Header -> 3.8.2.1 SUBSCRIBE Properties -> 3.8.2.1.1 Property Length": {
+    "Properties": [
+      "Properties"
+    ],
+    "VariableHeader": [
+      "Variable Header"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.8 SUBSCRIBE - Subscribe request": {},
+  "3 MQTT Control Packets -> 3.6 PUBREL Publish release (QoS 2 delivery part 2) -> 3.6.2 PUBREL Variable Header -> 3.6.2.2 PUBREL Properties -> 3.6.2.2.2 Reason String": {
+    "ReasonString": [
+      "reason",
+      "reason associated with this response",
+      "human readable",
+      "diagnostics",
+      "additional information"
+    ],
+    "Properties": [
+      "property"
+    ],
+    "Property": [
+      "property"
+    ],
+    "Identifier": [
+      "identifier"
+    ],
+    "ProtocolError": [
+      "Protocol Error"
+    ],
+    "MaximumPacketSize": [
+      "Maximum Packet Size"
+    ],
+    "PUBREL": [
+      "PUBREL packet"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.7 PUBCOMP Publish complete (QoS 2 delivery part 3) -> 3.7.2 PUBCOMP Variable Header": {
+    "VariableHeader": [
+      "Variable Header"
+    ],
+    "PacketIdentifier": [
+      "Packet Identifier"
+    ],
+    "ReasonCode": [
+      "PUBCOMP Reason Code"
+    ],
+    "Properties": [
+      "Properties"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.8 SUBSCRIBE - Subscribe request -> 3.8.3 SUBSCRIBE Payload": {},
+  "3 MQTT Control Packets -> 3.6 PUBREL Publish release (QoS 2 delivery part 2) -> 3.6.2 PUBREL Variable Header -> 3.6.2.1 PUBREL Reason Code": {
+    "RemainingLength": [
+      "Remaining Length"
+    ],
+    "VariableHeader": [
+      "Variable Header"
+    ],
+    "ReasonCode": [
+      "PUBREL Reason Code",
+      "Reason Code"
+    ],
+    "Success": [
+      "0x00",
+      "0x00 (Success)"
+    ],
+    "PacketIdentifier": [
+      "Packet Identifier"
+    ],
+    "PacketIdentifierNotFound": [
+      "Packet Identifier not found",
+      "0x92"
+    ],
+    "Properties": [
+      "Property Length"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.9 SUBACK Subscribe acknowledgement": {},
+  "3 MQTT Control Packets -> 3.7 PUBCOMP Publish complete (QoS 2 delivery part 3) -> 3.7.2 PUBCOMP Variable Header -> 3.7.2.2 PUBCOMP Properties -> 3.7.2.2.3 User Property": {
+    "UserProperty": [
+      "User Property"
+    ],
+    "Identifier": [
+      "identifier"
+    ],
+    "Value": [
+      "value"
+    ],
+    "MaximumPacketSize": [
+      "Maximum Packet Size"
+    ],
+    "PUBCOMP": [
+      "PUBCOMP packet"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.8 SUBSCRIBE - Subscribe request -> 3.8.2 SUBSCRIBE Variable Header -> 3.8.2.1 SUBSCRIBE Properties -> 3.8.2.1.3 User Property": {
+    "UserProperty": [
+      "User Property"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.2 CONNACK Connect acknowledgement -> 3.2.2 CONNACK Variable Header -> 3.2.2.2 Connect Reason Code": {
+    "CONNECT": [
+      "CONNECT packet"
+    ],
+    "VariableHeader": [
+      "Variable Header"
+    ],
+    "ReasonCode": [
+      "Connect Reason Code",
+      "Reason code"
+    ],
+    "Success": [
+      "Success"
+    ],
+    "UnspecifiedError": [
+      "Unspecified error"
+    ],
+    "MalformedPacket": [
+      "Malformed Packet"
+    ],
+    "ProtocolError": [
+      "Protocol Error"
+    ],
+    "ImplementationSpecificError": [
+      "Implementation specific error"
+    ],
+    "UnsupportedProtocolVersion": [
+      "Unsupported Protocol Version"
+    ],
+    "ClientIdentifierNotValid": [
+      "Client Identifier not valid"
+    ],
+    "BadUserNameOrPassword": [
+      "Bad User Name or Password"
+    ],
+    "NotAuthorized": [
+      "Not authorized"
+    ],
+    "ServerUnavailable": [
+      "Server unavailable"
+    ],
+    "ServerBusy": [
+      "Server busy"
+    ],
+    "Banned": [
+      "Banned"
+    ],
+    "BadAuthenticationMethod": [
+      "Bad authentication method"
+    ],
+    "TopicNameInvalid": [
+      "Topic Name invalid"
+    ],
+    "PacketTooLarge": [
+      "Packet too large"
+    ],
+    "QuotaExceeded": [
+      "Quota exceeded"
+    ],
+    "PayloadFormatInvalid": [
+      "Payload format invalid"
+    ],
+    "RetainNotSupported": [
+      "Retain not supported"
+    ],
+    "QosNotSupported": [
+      "QoS not supported"
+    ],
+    "UseAnotherServer": [
+      "Use another server"
+    ],
+    "ServerMoved": [
+      "Server moved"
+    ],
+    "ConnectionRateExceeded": [
+      "Connection rate exceeded"
+    ],
+    "CONNACK": [
+      "CONNACK packet"
+    ],
+    "WillRetain": [
+      "Will Retain"
+    ],
+    "WillQoS": [
+      "Will QoS"
+    ],
+    "ClientIdentifier": [
+      "Client Identifier"
+    ],
+    "UserName": [
+      "User Name"
+    ],
+    "Password": [
+      "Password"
+    ],
+    "WillTopic": [
+      "Will Topic Name"
+    ],
+    "WillMessage": [
+      "Will Payload"
+    ],
+    "Properties": [
+      "Property"
+    ],
+    "Identifier": [
+      "Identifier"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.3 PUBLISH Publish message -> 3.3.1 PUBLISH Fixed Header -> 3.3.1.3 RETAIN": {
+    "RETAIN": [
+      "RETAIN flag",
+      "retained message",
+      "retained",
+      "Retain Available",
+      "Retain not supported",
+      "Retain Handling",
+      "Retain As Published"
+    ],
+    "QOS0": [
+      "QoS 0"
+    ],
+    "Payload": [
+      "Application Message",
+      "Payload",
+      "message"
+    ],
+    "TopicName": [
+      "topic",
+      "topic name",
+      "Topic Filter"
+    ],
+    "RetainNotSupported": [
+      "Retain not supported"
+    ],
+    "RetainHandling": [
+      "Retain Handling"
+    ],
+    "RetainAsPublished": [
+      "Retain As Published"
+    ],
+    "SendRetainedMessagesAtSubscribe": [
+      "send the retained messages"
+    ],
+    "SendRetainedMessagesAtSubscribeIfNewSubscription": [
+      "if the subscription did not already exist, the Server MUST send all retained messages",
+      "if the subscription did exist the Server MUST NOT send the retained messages"
+    ],
+    "DoNotSendRetainedMessagesAtSubscribe": [
+      "MUST NOT send the retained messages"
+    ],
+    "Non-shared Subscription": [
+      "Non-shared Subscription"
+    ],
+    "Subscription": [
+      "Subscription",
+      "subscription",
+      "subscriptions"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.7 PUBCOMP Publish complete (QoS 2 delivery part 3) -> 3.7.2 PUBCOMP Variable Header -> 3.7.2.2 PUBCOMP Properties -> 3.7.2.2.2 Reason String": {
+    "ReasonString": [
+      "reason",
+      "reason string",
+      "reason associated with this response",
+      "human readable string",
+      "additional information"
+    ],
+    "ProtocolError": [
+      "Protocol Error"
+    ],
+    "MaximumPacketSize": [
+      "Maximum Packet Size"
+    ],
+    "PUBCOMP": [
+      "PUBCOMP packet"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.8 SUBSCRIBE - Subscribe request -> 3.8.1 SUBSCRIBE Fixed Header": {
+    "FixedHeader": [
+      "Fixed Header"
+    ],
+    "RemainingLength": [
+      "Remaining Length"
+    ],
+    "VariableHeader": [
+      "Variable Header"
+    ],
+    "Payload": [
+      "Payload"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.9 SUBACK Subscribe acknowledgement -> 3.9.2 SUBACK Variable Header -> 3.9.2.1 SUBACK Properties -> 3.9.2.1.1 Property Length": {},
+  "3 MQTT Control Packets -> 3.10 UNSUBSCRIBE Unsubscribe request": {},
+  "3 MQTT Control Packets -> 3.10 UNSUBSCRIBE Unsubscribe request -> 3.10.2 UNSUBSCRIBE Variable Header -> 3.10.2.1 UNSUBSCRIBE Properties -> 3.10.2.1.1 Property Length": {},
+  "3 MQTT Control Packets -> 3.9 SUBACK Subscribe acknowledgement -> 3.9.2 SUBACK Variable Header": {
+    "VariableHeader": [
+      "Variable Header"
+    ],
+    "Properties": [
+      "Properties"
+    ],
+    "Identifier": [
+      "Packet Identifier"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.8 SUBSCRIBE - Subscribe request -> 3.8.2 SUBSCRIBE Variable Header": {
+    "VariableHeader": [
+      "Variable Header"
+    ],
+    "PacketIdentifier": [
+      "Packet Identifier"
+    ],
+    "Properties": [
+      "Properties"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.10 UNSUBSCRIBE Unsubscribe request -> 3.10.2 UNSUBSCRIBE Variable Header": {
+    "VariableHeader": [
+      "Variable Header"
+    ],
+    "Properties": [
+      "Properties"
+    ],
+    "Identifier": [
+      "Packet Identifier"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.9 SUBACK Subscribe acknowledgement -> 3.9.1 SUBACK Fixed Header": {
+    "FixedHeader": [
+      "fixed header"
+    ],
+    "RemainingLength": [
+      "Remaining Length"
+    ],
+    "VariableHeader": [
+      "Variable Header"
+    ],
+    "Payload": [
+      "Payload"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.11 UNSUBACK Unsubscribe acknowledgement": {},
+  "3 MQTT Control Packets -> 3.8 SUBSCRIBE - Subscribe request -> 3.8.2 SUBSCRIBE Variable Header -> 3.8.2.1 SUBSCRIBE Properties -> 3.8.2.1.2 Subscription Identifier": {
+    "SubscriptionIdentifier": [
+      "Subscription Identifier",
+      "subscription identifier",
+      "identifier of the subscription"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.11 UNSUBACK Unsubscribe acknowledgement -> 3.11.2 UNSUBACK Variable Header -> 3.11.2.1 UNSUBACK Properties -> 3.11.2.1.1 Property Length": {},
+  "3 MQTT Control Packets -> 3.7 PUBCOMP Publish complete (QoS 2 delivery part 3) -> 3.7.2 PUBCOMP Variable Header -> 3.7.2.1 PUBCOMP Reason Code": {
+    "PUBCOMP": [
+      "PUBCOMP packet"
+    ],
+    "FixedHeader": [],
+    "Flags": [],
+    "RemainingLength": [
+      "Remaining Length"
+    ],
+    "VariableHeader": [
+      "Variable Header"
+    ],
+    "Properties": [
+      "Property"
+    ],
+    "Property": [
+      "Properties"
+    ],
+    "Identifier": [
+      "Packet Identifier"
+    ],
+    "ReasonCode": [
+      "PUBCOMP Reason Code",
+      "Reason Code"
+    ],
+    "Success": [
+      "0x00",
+      "0x00 (Success)",
+      "Success"
+    ],
+    "PacketIdentifierNotFound": [
+      "0x92",
+      "0x92 is the Packet Identifier not found reason code",
+      "Packet Identifier not found"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.10 UNSUBSCRIBE Unsubscribe request -> 3.10.2 UNSUBSCRIBE Variable Header -> 3.10.2.1 UNSUBSCRIBE Properties -> 3.10.2.1.2 User Property": {
+    "UserProperty": [
+      "UTF-8 String Pair",
+      "name, value pairs"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.12 PINGREQ PING request -> 3.12.2 PINGREQ Variable Header": {},
+  "3 MQTT Control Packets -> 3.12 PINGREQ PING request -> 3.12.3 PINGREQ Payload": {},
+  "3 MQTT Control Packets -> 3.5 PUBREC Publish received (QoS 2 delivery part 1) -> 3.5.2 PUBREC Variable Header -> 3.5.2.1 PUBREC Reason Code": {
+    "RemainingLength": [
+      "Remaining Length"
+    ],
+    "VariableHeader": [
+      "Variable Header"
+    ],
+    "ReasonCode": [
+      "Reason Code",
+      "Publish Reason Code",
+      "PUBREC Reason Code"
+    ],
+    "Success": [
+      "Success"
+    ],
+    "NoMatchingSubscribers": [
+      "No matching subscribers"
+    ],
+    "UnspecifiedError": [
+      "Unspecified error"
+    ],
+    "ImplementationSpecificError": [
+      "Implementation specific error"
+    ],
+    "NotAuthorized": [
+      "Not authorized"
+    ],
+    "TopicNameInvalid": [
+      "Topic Name invalid"
+    ],
+    "PacketIdentifierInUse": [
+      "Packet Identifier in use"
+    ],
+    "QuotaExceeded": [
+      "Quota exceeded"
+    ],
+    "PayloadFormatInvalid": [
+      "Payload format invalid"
+    ],
+    "Properties": [
+      "Properties"
+    ],
+    "Property": [
+      "Property"
+    ],
+    "Identifier": [
+      "Identifier"
+    ],
+    "ReasonString": [
+      "Reason String"
+    ],
+    "UserProperty": [
+      "User Property"
+    ],
+    "Value": [
+      "Value"
+    ],
+    "Key": [
+      "Key"
+    ],
+    "QOS2": [
+      "QoS 2"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.9 SUBACK Subscribe acknowledgement -> 3.9.2 SUBACK Variable Header -> 3.9.2.1 SUBACK Properties -> 3.9.2.1.2 Reason String": {
+    "Property": [
+      "Property"
+    ],
+    "Identifier": [
+      "identifier"
+    ],
+    "ReasonString": [
+      "Reason String"
+    ],
+    "MaximumPacketSize": [
+      "Maximum Packet Size"
+    ],
+    "ProtocolError": [
+      "Protocol Error"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.12 PINGREQ PING request": {},
+  "3 MQTT Control Packets -> 3.10 UNSUBSCRIBE Unsubscribe request -> 3.10.1 UNSUBSCRIBE Fixed Header": {
+    "FixedHeader": [
+      "Fixed Header"
+    ],
+    "RemainingLength": [
+      "Remaining Length"
+    ],
+    "VariableHeader": [
+      "Variable Header"
+    ],
+    "Payload": [
+      "Payload"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.11 UNSUBACK Unsubscribe acknowledgement -> 3.11.2 UNSUBACK Variable Header": {
+    "VariableHeader": [
+      "Variable Header"
+    ],
+    "Properties": [
+      "Properties"
+    ],
+    "Identifier": [
+      "Packet Identifier",
+      "Identifier"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.9 SUBACK Subscribe acknowledgement -> 3.9.2 SUBACK Variable Header -> 3.9.2.1 SUBACK Properties -> 3.9.2.1.3 User Property": {
+    "UserProperty": [
+      "User Property"
+    ],
+    "Identifier": [
+      "identifier"
+    ],
+    "Value": [
+      "value"
+    ],
+    "Key": [
+      "name"
+    ],
+    "MaximumPacketSize": [
+      "Maximum Packet Size"
+    ],
+    "SUBACK": [
+      "SUBACK"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.11 UNSUBACK Unsubscribe acknowledgement -> 3.11.1 UNSUBACK Fixed Header": {
+    "FixedHeader": [
+      "Fixed Header"
+    ],
+    "RemainingLength": [
+      "Remaining Length"
+    ],
+    "VariableHeader": [
+      "Variable Header"
+    ],
+    "Payload": [
+      "Payload"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.12 PINGREQ PING request -> 3.12.1 PINGREQ Fixed Header": {
+    "FixedHeader": [
+      "Fixed Header"
+    ],
+    "RemainingLength": [
+      "Remaining Length"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.13 PINGRESP PING response -> 3.13.2 PINGRESP Variable Header": {},
+  "3 MQTT Control Packets -> 3.13 PINGRESP PING response": {},
+  "3 MQTT Control Packets -> 3.13 PINGRESP PING response -> 3.13.4 PINGRESP Actions": {},
+  "3 MQTT Control Packets -> 3.13 PINGRESP PING response -> 3.13.3 PINGRESP Payload": {},
+  "3 MQTT Control Packets -> 3.12 PINGREQ PING request -> 3.12.4 PINGREQ Actions": {},
+  "3 MQTT Control Packets -> 3.10 UNSUBSCRIBE Unsubscribe request -> 3.10.3 UNSUBSCRIBE Payload": {},
+  "3 MQTT Control Packets -> 3.13 PINGRESP PING response -> 3.13.1 PINGRESP Fixed Header": {
+    "FixedHeader": [
+      "Fixed Header"
+    ],
+    "RemainingLength": [
+      "Remaining Length"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.11 UNSUBACK Unsubscribe acknowledgement -> 3.11.2 UNSUBACK Variable Header -> 3.11.2.1 UNSUBACK Properties -> 3.11.2.1.3 User Property": {
+    "UserProperty": [
+      "User Property"
+    ],
+    "Identifier": [
+      "identifier"
+    ],
+    "Value": [
+      "value"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.14 DISCONNECT Disconnect notification -> 3.14.3 DISCONNECT Payload": {},
+  "3 MQTT Control Packets -> 3.14 DISCONNECT Disconnect notification -> 3.14.2 DISCONNECT Variable Header": {},
+  "3 MQTT Control Packets -> 3.14 DISCONNECT Disconnect notification -> 3.14.2 DISCONNECT Variable Header -> 3.14.2.2 DISCONNECT Properties -> 3.14.2.2.1 Property Length": {},
+  "3 MQTT Control Packets -> 3.14 DISCONNECT Disconnect notification": {},
+  "3 MQTT Control Packets -> 3.11 UNSUBACK Unsubscribe acknowledgement -> 3.11.2 UNSUBACK Variable Header -> 3.11.2.1 UNSUBACK Properties -> 3.11.2.1.2 Reason String": {
+    "ReasonString": [
+      "reason",
+      "human readable string",
+      "additional information",
+      "diagnostics"
+    ],
+    "MaximumPacketSize": [
+      "Maximum Packet Size"
+    ],
+    "ProtocolError": [
+      "Protocol Error"
+    ],
+    "Property": [
+      "Property"
+    ],
+    "Identifier": [
+      "identifier"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.10 UNSUBSCRIBE Unsubscribe request -> 3.10.4 UNSUBSCRIBE Actions": {
+    "TopicFilter": [
+      "filter"
+    ],
+    "UNSUBSCRIBE": [
+      "UNSUBSCRIBE packet"
+    ],
+    "UNSUBACK": [
+      "UNSUBACK packet"
+    ],
+    "PacketIdentifier": [
+      "Packet Identifier"
+    ],
+    "SharedSubscription": [
+      "Shared Subscription"
+    ],
+    "Session": [
+      "Session"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.15 AUTH Authentication exchange -> 3.15.2 AUTH Variable Header": {},
+  "3 MQTT Control Packets -> 3.15 AUTH Authentication exchange": {
+    "CONNECT": [
+      "CONNECT packet"
+    ],
+    "AuthenticationMethod": [
+      "Authentication Method"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.14 DISCONNECT Disconnect notification -> 3.14.2 DISCONNECT Variable Header -> 3.14.2.2 DISCONNECT Properties -> 3.14.2.2.3 Reason String": {
+    "ProtocolError": [
+      "Protocol Error"
+    ],
+    "MaximumPacketSize": [
+      "Maximum Packet Size"
+    ],
+    "ReasonString": [
+      "Reason String"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.14 DISCONNECT Disconnect notification -> 3.14.2 DISCONNECT Variable Header -> 3.14.2.2 DISCONNECT Properties -> 3.14.2.2.2 Session Expiry Interval": {
+    "CONNECT": [
+      "CONNECT packet"
+    ],
+    "DISCONNECT": [
+      "DISCONNECT packet",
+      "DISCONNECT"
+    ],
+    "ProtocolError": [
+      "Protocol Error"
+    ],
+    "SessionExpiryInterval": [
+      "Session Expiry Interval"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.14 DISCONNECT Disconnect notification -> 3.14.2 DISCONNECT Variable Header -> 3.14.2.2 DISCONNECT Properties -> 3.14.2.2.4 User Property": {
+    "UserProperty": [
+      "User Property"
+    ],
+    "Identifier": [
+      "identifier"
+    ],
+    "Value": [
+      "string pair",
+      "name, value pairs",
+      "name",
+      "value"
+    ],
+    "Key": [
+      "name"
+    ],
+    "DISCONNECT": [
+      "DISCONNECT packet"
+    ],
+    "MaximumPacketSize": [
+      "Maximum Packet Size"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.14 DISCONNECT Disconnect notification -> 3.14.1 DISCONNECT Fixed Header": {
+    "DISCONNECT": [
+      "DISCONNECT packet"
+    ],
+    "FixedHeader": [
+      "Fixed Header"
+    ],
+    "Flags": [
+      "reserved bits"
+    ],
+    "RemainingLength": [
+      "Remaining Length"
+    ],
+    "VariableHeader": [
+      "Variable Header"
+    ],
+    "MalformedPacket": [
+      "Malformed Packet"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.3 PUBLISH Publish message -> 3.3.4 PUBLISH Actions": {
+    "QoS": [
+      "QoS"
+    ],
+    "QOS0": [
+      "QoS 0"
+    ],
+    "QOS1": [
+      "QoS 1"
+    ],
+    "QOS2": [
+      "QoS 2"
+    ],
+    "MaximumQoS": [
+      "maximum QoS"
+    ],
+    "SubscriptionIdentifier": [
+      "Subscription Identifier",
+      "Subscription Identifiers"
+    ],
+    "ReceiveMaximum": [
+      "Receive Maximum"
+    ],
+    "TopicAlias": [
+      "Topic Alias"
+    ],
+    "TopicAliasMaximum": [
+      "Maximum Topic Alias"
+    ],
+    "QosNotSupported": [
+      "QoS not supported"
+    ],
+    "ProtocolError": [
+      "Protocol Error"
+    ],
+    "ReceiveMaximumExceeded": [
+      "Receive Maximum exceeded"
+    ],
+    "TopicAliasInvalid": [
+      "Topic Alias invalid"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.15 AUTH Authentication exchange -> 3.15.3 AUTH Payload": {},
+  "3 MQTT Control Packets -> 3.15 AUTH Authentication exchange -> 3.15.2 AUTH Variable Header -> 3.15.2.2 AUTH Properties -> 3.15.2.2.2 Authentication Method": {
+    "AuthenticationMethod": [
+      "Authentication Method"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.15 AUTH Authentication exchange -> 3.15.2 AUTH Variable Header -> 3.15.2.2 AUTH Properties -> 3.15.2.2.1 Property Length": {
+    "Properties": [
+      "Properties"
+    ],
+    "VariableHeader": [
+      "Variable Header"
+    ],
+    "AUTH": [
+      "AUTH"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.15 AUTH Authentication exchange -> 3.15.2 AUTH Variable Header -> 3.15.2.2 AUTH Properties -> 3.15.2.2.3 Authentication Data": {
+    "AuthenticationData": [
+      "authentication data"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.15 AUTH Authentication exchange -> 3.15.1 AUTH Fixed Header": {
+    "FixedHeader": [
+      "Fixed Header"
+    ],
+    "Flags": [
+      "reserved bits"
+    ],
+    "RemainingLength": [
+      "Remaining Length"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.11 UNSUBACK Unsubscribe acknowledgement -> 3.11.3 UNSUBACK Payload": {
+    "ReasonCode": [
+      "Unsubscribe Reason Code",
+      "Unsubscribe Reason Codes"
+    ],
+    "Success": [
+      "Success"
+    ],
+    "UnspecifiedError": [
+      "Unspecified error"
+    ],
+    "ImplementationSpecificError": [
+      "Implementation specific error"
+    ],
+    "NotAuthorized": [
+      "Not authorized"
+    ],
+    "TopicFilterInvalid": [
+      "Topic Filter invalid"
+    ],
+    "PacketIdentifierInUse": [
+      "Packet Identifier in use"
+    ],
+    "NoSubscriptionExisted": [
+      "No subscription existed"
+    ],
+    "Payload": [
+      "Payload"
+    ],
+    "TopicFilter": [
+      "Topic Filter"
+    ],
+    "PacketIdentifier": [
+      "Packet Identifier"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.14 DISCONNECT Disconnect notification -> 3.14.4 DISCONNECT Actions": {
+    "DISCONNECT": [
+      "DISCONNECT packet"
+    ],
+    "ReasonCode": [
+      "Reason Code"
+    ],
+    "Success": [
+      "0x00 (Success)"
+    ],
+    "WillMessage": [
+      "Will Message"
+    ],
+    "Network Connection": [
+      "Network Connection"
+    ]
+  },
+  "4 Operational behavior -> 4.3 Quality of Service levels and protocol flows": {},
+  "3 MQTT Control Packets -> 3.15 AUTH Authentication exchange -> 3.15.4 AUTH Actions": {},
+  "4 Operational behavior -> 4.1 Session State -> 4.1.1 Storing Session State": {},
+  "4 Operational behavior -> 4.1 Session State -> 4.1.2 Session State non-normative examples": {
+    "QOS1": [
+      "QoS 1"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.9 SUBACK Subscribe acknowledgement -> 3.9.3 SUBACK Payload": {
+    "ReasonCode": [
+      "Subscribe Reason Codes"
+    ],
+    "GrantedQoS0": [
+      "Granted QoS 0"
+    ],
+    "GrantedQoS1": [
+      "Granted QoS 1"
+    ],
+    "GrantedQoS2": [
+      "Granted QoS 2"
+    ],
+    "QOS0": [
+      "QoS 0"
+    ],
+    "QOS1": [
+      "QoS 1"
+    ],
+    "QOS2": [
+      "QoS 2"
+    ],
+    "UnspecifiedError": [
+      "Unspecified error"
+    ],
+    "ImplementationSpecificError": [
+      "Implementation specific error"
+    ],
+    "NotAuthorized": [
+      "Not authorized"
+    ],
+    "TopicFilterInvalid": [
+      "Topic Filter invalid"
+    ],
+    "PacketIdentifierInUse": [
+      "Packet Identifier in use"
+    ],
+    "QuotaExceeded": [
+      "Quota exceeded"
+    ],
+    "SharedSubscriptionsNotSupported": [
+      "Shared Subscriptions not supported"
+    ],
+    "SubscriptionIdentifiersNotSupported": [
+      "Subscription Identifiers not supported"
+    ],
+    "WildcardSubscriptionsNotSupported": [
+      "Wildcard Subscriptions not supported"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.15 AUTH Authentication exchange -> 3.15.2 AUTH Variable Header -> 3.15.2.2 AUTH Properties -> 3.15.2.2.4 Reason String": {
+    "ProtocolError": [
+      "Protocol Error"
+    ],
+    "MaximumPacketSize": [
+      "Maximum Packet Size"
+    ],
+    "ReasonString": [
+      "Reason String"
+    ],
+    "AUTH": [
+      "AUTH packet"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.15 AUTH Authentication exchange -> 3.15.2 AUTH Variable Header -> 3.15.2.2 AUTH Properties -> 3.15.2.2.5 User Property": {
+    "UserProperty": [
+      "UTF-8 string pair",
+      "name, value pairs"
+    ],
+    "Identifier": [
+      "identifier"
+    ],
+    "MaximumPacketSize": [
+      "Maximum Packet Size"
+    ],
+    "Value": [
+      "value"
+    ],
+    "Key": [
+      "name"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.14 DISCONNECT Disconnect notification -> 3.14.2 DISCONNECT Variable Header -> 3.14.2.2 DISCONNECT Properties -> 3.14.2.2.5 Server Reference": {
+    "ServerReference": [
+      "Server Reference"
+    ],
+    "ProtocolError": [
+      "Protocol Error"
+    ],
+    "DISCONNECT": [
+      "DISCONNECT"
+    ],
+    "VariableHeader": [
+      "Variable Header"
+    ],
+    "UseAnotherServer": [
+      "Use another server"
+    ],
+    "ServerMoved": [
+      "Server moved"
+    ]
+  },
+  "4 Operational behavior -> 4.8 Subscriptions": {},
+  "4 Operational behavior -> 4.2 Network Connections": {},
+  "4 Operational behavior -> 4.7 Topic Names and Topic Filters -> 4.7.1 Topic wildcards": {},
+  "4 Operational behavior -> 4.3 Quality of Service levels and protocol flows -> 4.3.1 QoS 0: At most once delivery": {
+    "QOS0": [
+      "QoS 0"
+    ]
+  },
+  "4 Operational behavior -> 4.7 Topic Names and Topic Filters -> 4.7.1 Topic wildcards -> 4.7.1.1 Topic level separator": {},
+  "4 Operational behavior -> 4.5 Message receipt": {},
+  "4 Operational behavior -> 4.8 Subscriptions -> 4.8.1 Non-shared Subscriptions": {},
+  "3 MQTT Control Packets -> 3.15 AUTH Authentication exchange -> 3.15.2 AUTH Variable Header -> 3.15.2.1 Authenticate Reason Code": {
+    "AUTH": [
+      "AUTH Packet"
+    ],
+    "FixedHeader": [],
+    "Flags": [],
+    "RemainingLength": [
+      "Remaining Length"
+    ],
+    "VariableHeader": [
+      "Variable Header"
+    ],
+    "ReasonCode": [
+      "Authenticate Reason Code",
+      "Reason Code"
+    ],
+    "Success": [
+      "Success"
+    ],
+    "Properties": [
+      "Property Length",
+      "Properties"
+    ],
+    "Property": [
+      "Property Length",
+      "Properties"
+    ],
+    "Identifier": [],
+    "AuthenticationMethod": [],
+    "AuthenticationData": [],
+    "ReasonString": [],
+    "UserProperty": [],
+    "Value": [],
+    "Key": [],
+    "Payload": [],
+    "ContinueAuthentication": [
+      "Continue authentication"
+    ],
+    "ReAuthenticate": [
+      "Re-authenticate"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.8 SUBSCRIBE - Subscribe request -> 3.8.3 SUBSCRIBE Payload -> 3.8.3.1 Subscription Options": {
+    "MaximumQoS": [
+      "Maximum QoS"
+    ],
+    "QOS0": [
+      "0"
+    ],
+    "QOS1": [
+      "1"
+    ],
+    "QOS2": [
+      "2"
+    ],
+    "NoLocal": [
+      "No Local",
+      "NL"
+    ],
+    "RetainAsPublished": [
+      "Retain As Published",
+      "RAP"
+    ],
+    "RetainHandling": [
+      "Retain Handling"
+    ],
+    "SendRetainedMessagesAtSubscribe": [
+      "Send retained messages at the time of the subscribe"
+    ],
+    "SendRetainedMessagesAtSubscribeIfNewSubscription": [
+      "Send retained messages at subscribe only if the subscription does not currently exist"
+    ],
+    "DoNotSendRetainedMessagesAtSubscribe": [
+      "Do not send retained messages at the time of the subscribe"
+    ],
+    "TopicFilter": [
+      "Topic Filter"
+    ],
+    "SubscriptionOptions": [
+      "Subscription Options"
+    ],
+    "Payload": [
+      "Payload"
+    ],
+    "ProtocolError": [
+      "Protocol Error"
+    ]
+  },
+  "4 Operational behavior -> 4.7 Topic Names and Topic Filters -> 4.7.1 Topic wildcards -> 4.7.1.3 Single-level wildcard": {},
+  "4 Operational behavior -> 4.7 Topic Names and Topic Filters -> 4.7.3 Topic semantic and usage": {},
+  "4 Operational behavior -> 4.1 Session State": {
+    "ClientIdentifier": [
+      "Client Identifier"
+    ],
+    "SessionExpiryInterval": [
+      "Session Expiry Interval"
+    ],
+    "WillMessage": [
+      "Will Message"
+    ],
+    "WillDelayInterval": [
+      "Will Delay Interval"
+    ],
+    "QOS1": [
+      "QoS 1"
+    ],
+    "QOS2": [
+      "QoS 2"
+    ],
+    "QOS0": [
+      "QoS 0"
+    ]
+  },
+  "4 Operational behavior -> 4.10 Request / Response": {},
+  "4 Operational behavior -> 4.10 Request / Response -> 4.10.2 Determining a Response Topic value (non-normative)": {
+    "RequestResponseInformation": [
+      "Request Response Information"
+    ],
+    "ResponseInformation": [
+      "Response Information"
+    ]
+  },
+  "4 Operational behavior -> 4.7 Topic Names and Topic Filters -> 4.7.2 Topics beginning with": {},
+  "4 Operational behavior -> 4.7 Topic Names and Topic Filters -> 4.7.1 Topic wildcards -> 4.7.1.2 Multi-level wildcard": {},
+  "4 Operational behavior -> 4.3 Quality of Service levels and protocol flows -> 4.3.2 QoS 1: At least once delivery": {
+    "QOS1": [
+      "QoS 1"
+    ],
+    "PacketIdentifier": [
+      "Packet Identifier"
+    ],
+    "DUP": [
+      "DUP flag"
+    ]
+  },
+  "4 Operational behavior -> 4.4 Message delivery retry": {
+    "CleanStart": [
+      "Clean Start"
+    ],
+    "QOS2": [
+      "QoS 2"
+    ],
+    "PacketIdentifier": [
+      "Packet Identifiers"
+    ],
+    "PUBLISH": [
+      "PUBLISH packets"
+    ],
+    "PUBREL": [
+      "PUBREL packets"
+    ],
+    "PUBACK": [
+      "PUBACK"
+    ],
+    "PUBREC": [
+      "PUBREC"
+    ],
+    "PUBCOMP": [
+      "PUBCOMP"
+    ],
+    "ReasonCode": [
+      "Reason Code"
+    ],
+    "QuotaExceeded": [
+      "quota exceeded"
+    ]
+  },
+  "5 Security (non-normative) -> 5.4 Implementation notes": {},
+  "5 Security (non-normative) -> 5.3 Lightweight crytography and constrained devices": {},
+  "4 Operational behavior -> 4.6 Message ordering": {
+    "QOS1": [
+      "QoS 1"
+    ],
+    "QOS2": [
+      "QoS 2"
+    ]
+  },
+  "4 Operational behavior -> 4.9 Flow Control": {
+    "ReceiveMaximum": [
+      "Receive Maximum"
+    ],
+    "QOS1": [
+      "QoS 1"
+    ],
+    "QOS2": [
+      "QoS 2"
+    ]
+  },
+  "5 Security (non-normative) -> 5.2 MQTT solutions: security and certification": {},
+  "4 Operational behavior -> 4.13 Handling errors -> 4.13.2 Other errors": {
+    "MalformedPacket": [
+      "Malformed Packet"
+    ],
+    "ProtocolError": [
+      "Protocol Errors"
+    ]
+  },
+  "4 Operational behavior -> 4.3 Quality of Service levels and protocol flows -> 4.3.3 QoS 2: Exactly once delivery": {
+    "QOS2": [
+      "QoS 2"
+    ],
+    "PacketIdentifier": [
+      "Packet Identifier"
+    ],
+    "DUP": [
+      "DUP flag"
+    ],
+    "PUBLISH": [
+      "PUBLISH packet"
+    ],
+    "PUBREC": [
+      "PUBREC packet"
+    ],
+    "PUBREL": [
+      "PUBREL packet"
+    ],
+    "PUBCOMP": [
+      "PUBCOMP packet"
+    ]
+  },
+  "5 Security (non-normative) -> 5.4 Implementation notes -> 5.4.6 Non-repudiation of message transmission": {},
+  "4 Operational behavior -> 4.11 Server redirection": {
+    "UseAnotherServer": [
+      "Use another server"
+    ],
+    "ServerMoved": [
+      "Server moved"
+    ],
+    "ServerReference": [
+      "Server Reference"
+    ]
+  },
+  "4 Operational behavior -> 4.10 Request / Response -> 4.10.1 Basic Request Response (non-normative)": {
+    "SessionExpiryInterval": [
+      "Session Expiry Interval"
+    ],
+    "ResponseTopic": [
+      "Response Topic"
+    ],
+    "CorrelationData": [
+      "Correlation Data"
+    ]
+  },
+  "4 Operational behavior -> 4.12 Enhanced authentication -> 4.12.1 Re-authentication": {
+    "CONNECT": [
+      "CONNECT packet"
+    ],
+    "CONNACK": [
+      "CONNACK"
+    ],
+    "AUTH": [
+      "AUTH packet"
+    ],
+    "AuthenticationMethod": [
+      "Authentication Method"
+    ],
+    "AuthenticationData": [
+      "authentication data"
+    ],
+    "DISCONNECT": [
+      "DISCONNECT"
+    ],
+    "ReasonCode": [
+      "Reason Code"
+    ],
+    "ReAuthenticate": [
+      "Re-authentication",
+      "re-authentication"
+    ],
+    "ContinueAuthentication": [
+      "Continue authentication"
+    ],
+    "Success": [
+      "Success"
+    ],
+    "NetworkConnection": [
+      "Network Connection"
+    ]
+  },
+  "5 Security (non-normative) -> 5.4 Implementation notes -> 5.4.9 Handling of Disallowed Unicode code points -> 5.4.9.1 Considerations for the use of Disallowed Unicode code points": {},
+  "5 Security (non-normative) -> 5.4 Implementation notes -> 5.4.8 Detecting abnormal behaviors": {},
+  "5 Security (non-normative) -> 5.4 Implementation notes -> 5.4.4 Integrity of Application Messages and MQTT Control Packets": {},
+  "5 Security (non-normative) -> 5.4 Implementation notes -> 5.4.5 Privacy of Application Messages and MQTT Control Packets": {},
+  "5 Security (non-normative) -> 5.4 Implementation notes -> 5.4.3 Authentication of the Server by the Client": {},
+  "5 Security (non-normative) -> 5.1 Introduction": {},
+  "5 Security (non-normative) -> 5.4 Implementation notes -> 5.4.1 Authentication of Clients by the Server": {},
+  "3 MQTT Control Packets -> 3.4 PUBACK Publish acknowledgement -> 3.4.2 PUBACK Variable Header -> 3.4.2.1 PUBACK Reason Code": {
+    "PUBACK": [
+      "PUBACK packet"
+    ],
+    "FixedHeader": [],
+    "Flags": [],
+    "RemainingLength": [
+      "Remaining Length"
+    ],
+    "VariableHeader": [
+      "Variable Header"
+    ],
+    "ProtocolName": [],
+    "ProtocolLevel": [],
+    "ConnectFlags": [],
+    "CleanStart": [],
+    "WillFlag": [],
+    "WillQoS": [],
+    "QOS0": [],
+    "QOS1": [
+      "QoS 1"
+    ],
+    "QOS2": [],
+    "WillRetain": [],
+    "PasswordFlag": [],
+    "UserNameFlag": [],
+    "KeepAlive": [],
+    "Properties": [
+      "Property Length",
+      "Properties"
+    ],
+    "Property": [],
+    "Identifier": [
+      "Packet Identifier"
+    ],
+    "SessionExpiryInterval": [],
+    "ReceiveMaximum": [],
+    "MaximumPacketSize": [],
+    "TopicAliasMaximum": [],
+    "RequestResponseInformation": [],
+    "RequestProblemInformation": [],
+    "UserProperty": [],
+    "Value": [],
+    "Key": [],
+    "AuthenticationMethod": [],
+    "AuthenticationData": [],
+    "Payload": [],
+    "ClientIdentifier": [],
+    "WillTopic": [],
+    "WillMessage": [],
+    "UserName": [],
+    "Password": [],
+    "CONNACK": [],
+    "ConnectAcknowledgeFlags": [],
+    "SessionPresent": [],
+    "ReasonCode": [
+      "PUBACK Reason Code",
+      "Reason Code"
+    ],
+    "Success": [
+      "0x00 (Success)",
+      "Success"
+    ],
+    "UnspecifiedError": [
+      "Unspecified error",
+      "0x80"
+    ],
+    "MalformedPacket": [],
+    "ProtocolError": [],
+    "ImplementationSpecificError": [
+      "Implementation specific error",
+      "0x83"
+    ],
+    "UnsupportedProtocolVersion": [],
+    "ClientIdentifierNotValid": [],
+    "BadUserNameOrPassword": [],
+    "NotAuthorized": [
+      "Not authorized",
+      "0x87"
+    ],
+    "ServerUnavailable": [],
+    "ServerBusy": [],
+    "Banned": [],
+    "BadAuthenticationMethod": [],
+    "TopicNameInvalid": [
+      "Topic Name invalid",
+      "0x90"
+    ],
+    "PacketTooLarge": [],
+    "QuotaExceeded": [
+      "Quota exceeded",
+      "0x97"
+    ],
+    "PayloadFormatInvalid": [
+      "Payload format invalid",
+      "0x99"
+    ],
+    "RetainNotSupported": [],
+    "QosNotSupported": [],
+    "UseAnotherServer": [],
+    "ServerMoved": [],
+    "ConnectionRateExceeded": [],
+    "MaximumQoS": [],
+    "RetainAvailable": [],
+    "AssignedClientIdentifier": [],
+    "ReasonString": [],
+    "WildcardSubscriptionAvailable": [],
+    "SubscriptionIdentifiersAvailable": [],
+    "SharedSubscriptionAvailable": [],
+    "ServerKeepAlive": [],
+    "ResponseInformation": [],
+    "ServerReference": [],
+    "PUBLISH": [
+      "PUBLISH"
+    ],
+    "DUP": [],
+    "QoS": [
+      "QoS"
+    ],
+    "RETAIN": [],
+    "TopicName": [
+      "Topic Name"
+    ],
+    "PacketIdentifier": [
+      "Packet Identifier"
+    ],
+    "PayloadFormatIndicator": [
+      "Payload Format Indicator"
+    ],
+    "MessageExpiryInterval": [],
+    "TopicAlias": [],
+    "ResponseTopic": [],
+    "CorrelationData": [],
+    "SubscriptionIdentifier": [],
+    "ContentType": [],
+    "NoMatchingSubscribers": [
+      "No matching subscribers",
+      "0x10"
+    ],
+    "PacketIdentifierInUse": [
+      "Packet identifier in use",
+      "0x91"
+    ],
+    "PUBREC": [],
+    "PUBREL": [],
+    "PUBCOMP": [],
+    "SUBSCRIBE": [],
+    "SubscriptionOptions": [],
+    "NoLocal": [],
+    "RetainAsPublished": [],
+    "RetainHandling": [],
+    "SendRetainedMessagesAtSubscribe": [],
+    "SendRetainedMessagesAtSubscribeIfNewSubscription": [],
+    "DoNotSendRetainedMessagesAtSubscribe": [],
+    "SUBACK": [],
+    "GrantedQoS0": [],
+    "GrantedQoS1": [],
+    "GrantedQoS2": [],
+    "TopicFilterInvalid": [],
+    "SharedSubscriptionsNotSupported": [],
+    "SubscriptionIdentifiersNotSupported": [],
+    "WildcardSubscriptionsNotSupported": [],
+    "UNSUBSCRIBE": [],
+    "UNSUBACK": [],
+    "NoSubscriptionExisted": [],
+    "PINGREQ": [],
+    "PINGRESP": [],
+    "DISCONNECT": [],
+    "NormalDisconnection": [],
+    "DisconnectWithWillMessage": [],
+    "ServerShuttingDown": [],
+    "KeepAliveTimeout": [],
+    "SessionTakenOver": [],
+    "ReceiveMaximumExceeded": [],
+    "TopicAliasInvalid": [],
+    "MessageRateTooHigh": [],
+    "AdministrativeAction": [],
+    "MaximumConnectTime": [],
+    "AUTH": [],
+    "ContinueAuthentication": [],
+    "ReAuthenticate": []
+  },
+  "5 Security (non-normative) -> 5.4 Implementation notes -> 5.4.11 Use of SOCKS": {},
+  "7 Conformance": {},
+  "5 Security (non-normative) -> 5.4 Implementation notes -> 5.4.2 Authorization of Clients by the Server": {
+    "CONNECT": [
+      "connection"
+    ],
+    "ClientIdentifier": [
+      "Client Identifier"
+    ],
+    "UserName": [
+      "User Name"
+    ],
+    "Topic": [
+      "Topics"
+    ],
+    "TopicFilter": [
+      "Topic Filters"
+    ]
+  },
+  "5 Security (non-normative) -> 5.4 Implementation notes -> 5.4.12 Security profiles -> 5.4.12.1 Clear communication profile": {},
+  "5 Security (non-normative) -> 5.4 Implementation notes -> 5.4.7 Detecting compromise of Clients and Servers": {},
+  "5 Security (non-normative) -> 5.4 Implementation notes -> 5.4.12 Security profiles": {},
+  "5 Security (non-normative) -> 5.4 Implementation notes -> 5.4.9 Handling of Disallowed Unicode code points": {},
+  "5 Security (non-normative) -> 5.4 Implementation notes -> 5.4.12 Security profiles -> 5.4.12.2 Secured network communication profile": {},
+  "5 Security (non-normative) -> 5.4 Implementation notes -> 5.4.9 Handling of Disallowed Unicode code points -> 5.4.9.3 Remedies": {},
+  "5 Security (non-normative) -> 5.4 Implementation notes -> 5.4.12 Security profiles -> 5.4.12.3 Secured transport profile": {},
+  "6 Using WebSocket as a network transport -> 6.1 IANA considerations": {},
+  "5 Security (non-normative) -> 5.4 Implementation notes -> 5.4.12 Security profiles -> 5.4.12.4 Industry specific security profiles": {},
+  "5 Security (non-normative) -> 5.4 Implementation notes -> 5.4.9 Handling of Disallowed Unicode code points -> 5.4.9.2 Interactions between Publishers and Subscribers": {},
+  "7 Conformance -> 7.1 Conformance clauses -> 7.1.1 MQTT Server conformance clause": {},
+  "6 Using WebSocket as a network transport": {},
+  "5 Security (non-normative) -> 5.4 Implementation notes -> 5.4.10 Other security considerations": {},
+  "7 Conformance -> 7.1 Conformance clauses -> 7.1.2 MQTT Client conformance clause": {},
+  "4 Operational behavior -> 4.12 Enhanced authentication": {
+    "AuthenticationMethod": [
+      "Authentication Method"
+    ],
+    "AuthenticationData": [
+      "Authentication Data"
+    ]
+  },
+  "4 Operational behavior -> 4.13 Handling errors -> 4.13.1 Malformed Packet and Protocol Errors": {
+    "MalformedPacket": [
+      "Malformed Packet"
+    ],
+    "ProtocolError": [
+      "Protocol Error"
+    ],
+    "ReceiveMaximum": [
+      "Receive Maximum"
+    ],
+    "PacketTooLarge": [
+      "Packet too large"
+    ],
+    "RetainNotSupported": [
+      "Retain not supported"
+    ],
+    "QosNotSupported": [
+      "QoS not supported"
+    ],
+    "SharedSubscriptionsNotSupported": [
+      "Shared Subscriptions not supported"
+    ],
+    "SubscriptionIdentifiersNotSupported": [
+      "Subscription Identifiers not supported"
+    ],
+    "WildcardSubscriptionsNotSupported": [
+      "Wildcard Subscriptions not supported"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.14 DISCONNECT Disconnect notification -> 3.14.2 DISCONNECT Variable Header -> 3.14.2.1 Disconnect Reason Code": {
+    "DISCONNECT": [
+      "DISCONNECT packet"
+    ],
+    "FixedHeader": [],
+    "Flags": [],
+    "RemainingLength": [
+      "Remaining Length"
+    ],
+    "VariableHeader": [
+      "Variable Header"
+    ],
+    "ReasonCode": [
+      "Disconnect Reason Code",
+      "Reason Code"
+    ],
+    "NormalDisconnection": [
+      "Normal disconnection",
+      "0x00"
+    ],
+    "DisconnectWithWillMessage": [
+      "Disconnect with Will Message",
+      "0x04"
+    ],
+    "UnspecifiedError": [
+      "Unspecified error",
+      "0x80"
+    ],
+    "MalformedPacket": [
+      "Malformed Packet",
+      "0x81"
+    ],
+    "ProtocolError": [
+      "Protocol Error",
+      "0x82"
+    ],
+    "ImplementationSpecificError": [
+      "Implementation specific error",
+      "0x83"
+    ],
+    "NotAuthorized": [
+      "Not authorized",
+      "0x87"
+    ],
+    "ServerBusy": [
+      "Server busy",
+      "0x89"
+    ],
+    "ServerShuttingDown": [
+      "Server shutting down",
+      "0x8B"
+    ],
+    "KeepAliveTimeout": [
+      "Keep Alive timeout",
+      "0x8D"
+    ],
+    "SessionTakenOver": [
+      "Session taken over",
+      "0x8E"
+    ],
+    "TopicFilterInvalid": [
+      "Topic Filter invalid",
+      "0x8F"
+    ],
+    "TopicNameInvalid": [
+      "Topic Name invalid",
+      "0x90"
+    ],
+    "ReceiveMaximumExceeded": [
+      "Receive Maximum exceeded",
+      "0x93"
+    ],
+    "TopicAliasInvalid": [
+      "Topic Alias invalid",
+      "0x94"
+    ],
+    "PacketTooLarge": [
+      "Packet too large",
+      "0x95"
+    ],
+    "MessageRateTooHigh": [
+      "Message rate too high",
+      "0x96"
+    ],
+    "QuotaExceeded": [
+      "Quota exceeded",
+      "0x97"
+    ],
+    "AdministrativeAction": [
+      "Administrative action",
+      "0x98"
+    ],
+    "PayloadFormatInvalid": [
+      "Payload format invalid",
+      "0x99"
+    ],
+    "RetainNotSupported": [
+      "Retain not supported",
+      "0x9A"
+    ],
+    "QosNotSupported": [
+      "QoS not supported",
+      "0x9B"
+    ],
+    "UseAnotherServer": [
+      "Use another server",
+      "0x9C"
+    ],
+    "ServerMoved": [
+      "Server moved",
+      "0x9D"
+    ],
+    "SharedSubscriptionsNotSupported": [
+      "Shared Subscriptions not supported",
+      "0x9E"
+    ],
+    "ConnectionRateExceeded": [
+      "Connection rate exceeded",
+      "0x9F"
+    ],
+    "MaximumConnectTime": [
+      "Maximum connect time",
+      "0xA0"
+    ],
+    "SubscriptionIdentifiersNotSupported": [
+      "Subscription Identifiers not supported",
+      "0xA1"
+    ],
+    "WildcardSubscriptionsNotSupported": [
+      "Wildcard Subscriptions not supported",
+      "0xA2"
+    ],
+    "Properties": [],
+    "Property": [],
+    "Identifier": [],
+    "SessionExpiryInterval": [],
+    "ReasonString": [],
+    "UserProperty": [],
+    "Value": [
+      "value"
+    ],
+    "Key": [],
+    "ServerReference": [],
+    "WillMessage": [
+      "Will Message"
+    ],
+    "CONNECT": [],
+    "ProtocolName": [],
+    "ProtocolLevel": [],
+    "ConnectFlags": [],
+    "CleanStart": [],
+    "WillFlag": [],
+    "WillQoS": [],
+    "QOS0": [],
+    "QOS1": [],
+    "QOS2": [],
+    "WillRetain": [],
+    "PasswordFlag": [],
+    "UserNameFlag": [],
+    "KeepAlive": [],
+    "AuthenticationMethod": [],
+    "AuthenticationData": [],
+    "Payload": [],
+    "ClientIdentifier": [],
+    "WillTopic": [],
+    "UserName": [],
+    "Password": [],
+    "CONNACK": [],
+    "ConnectAcknowledgeFlags": [],
+    "SessionPresent": [],
+    "Success": [],
+    "UnsupportedProtocolVersion": [],
+    "ClientIdentifierNotValid": [],
+    "BadUserNameOrPassword": [],
+    "ServerUnavailable": [],
+    "Banned": [],
+    "BadAuthenticationMethod": [],
+    "MaximumQoS": [],
+    "RetainAvailable": [],
+    "MaximumPacketSize": [],
+    "AssignedClientIdentifier": [],
+    "TopicAliasMaximum": [],
+    "WildcardSubscriptionAvailable": [],
+    "SubscriptionIdentifiersAvailable": [],
+    "SharedSubscriptionAvailable": [],
+    "ServerKeepAlive": [],
+    "ResponseInformation": [],
+    "PUBLISH": [],
+    "DUP": [],
+    "QoS": [],
+    "RETAIN": [],
+    "TopicName": [],
+    "PacketIdentifier": [],
+    "PayloadFormatIndicator": [],
+    "MessageExpiryInterval": [],
+    "TopicAlias": [],
+    "ResponseTopic": [],
+    "CorrelationData": [],
+    "SubscriptionIdentifier": [],
+    "ContentType": [],
+    "PUBACK": [],
+    "NoMatchingSubscribers": [],
+    "PacketIdentifierInUse": [],
+    "PUBREC": [],
+    "PUBREL": [],
+    "PacketIdentifierNotFound": [],
+    "PUBCOMP": [],
+    "SUBSCRIBE": [],
+    "SubscriptionOptions": [],
+    "NoLocal": [],
+    "RetainAsPublished": [],
+    "RetainHandling": [],
+    "SendRetainedMessagesAtSubscribe": [],
+    "SendRetainedMessagesAtSubscribeIfNewSubscription": [],
+    "DoNotSendRetainedMessagesAtSubscribe": [],
+    "SUBACK": [],
+    "GrantedQoS0": [],
+    "GrantedQoS1": [],
+    "GrantedQoS2": [],
+    "UNSUBSCRIBE": [],
+    "UNSUBACK": [],
+    "NoSubscriptionExisted": [],
+    "PINGREQ": [],
+    "PINGRESP": [],
+    "AUTH": [],
+    "ContinueAuthentication": [],
+    "ReAuthenticate": []
+  },
+  "4 Operational behavior -> 4.8 Subscriptions -> 4.8.2 Shared Subscriptions": {
+    "SharedSubscriptionAvailable": [
+      "Shared Subscription Available"
+    ],
+    "TopicFilter": [
+      "Topic Filter",
+      "filter"
+    ],
+    "QOS0": [
+      "QoS 0"
+    ],
+    "QOS1": [
+      "QoS 1"
+    ],
+    "QOS2": [
+      "QoS 2"
+    ],
+    "QoS": [
+      "QoS"
+    ],
+    "SUBSCRIBE": [
+      "SUBSCRIBE",
+      "subscribe"
+    ],
+    "UNSUBSCRIBE": [
+      "UNSUBSCRIBE",
+      "unsubscribes"
+    ],
+    "PacketIdentifier": [
+      "Packet Identifier"
+    ],
+    "ReasonCode": [
+      "Reason Code"
+    ],
+    "Session": [
+      "Session",
+      "Sessions"
+    ],
+    "Client": [
+      "Client",
+      "Clients"
+    ],
+    "Server": [
+      "Server"
+    ],
+    "Payload": [
+      "Application Message",
+      "message",
+      "messages"
+    ],
+    "Properties": [
+      "Properties"
+    ],
+    "Property": [
+      "Property"
+    ],
+    "UserProperty": [
+      "User Property"
+    ],
+    "Value": [
+      "Value"
+    ],
+    "Key": [
+      "Key"
+    ],
+    "Identifier": [
+      "Identifier"
+    ],
+    "AuthenticationMethod": [
+      "Authentication Method"
+    ],
+    "AuthenticationData": [
+      "Authentication Data"
+    ],
+    "TopicName": [
+      "Topic Name"
+    ],
+    "SubscriptionIdentifier": [
+      "Subscription Identifier"
+    ],
+    "MaximumQoS": [
+      "Maximum QoS"
+    ],
+    "RetainAvailable": [
+      "Retain Available"
+    ],
+    "TopicAliasMaximum": [
+      "Topic Alias Maximum"
+    ],
+    "ReceiveMaximum": [
+      "Receive Maximum"
+    ],
+    "MaximumPacketSize": [
+      "Maximum Packet Size"
+    ],
+    "SessionExpiryInterval": [
+      "Session Expiry Interval"
+    ],
+    "RequestResponseInformation": [
+      "Request Response Information"
+    ],
+    "RequestProblemInformation": [
+      "Request Problem Information"
+    ],
+    "ServerKeepAlive": [
+      "Server Keep Alive"
+    ],
+    "ResponseInformation": [
+      "Response Information"
+    ],
+    "ServerReference": [
+      "Server Reference"
+    ],
+    "WildcardSubscriptionAvailable": [
+      "Wildcard Subscription Available"
+    ],
+    "SubscriptionIdentifiersAvailable": [
+      "Subscription Identifiers Available"
+    ],
+    "ConnectFlags": [
+      "Connect Flags"
+    ],
+    "CleanStart": [
+      "Clean Start"
+    ],
+    "WillFlag": [
+      "Will Flag"
+    ],
+    "WillQoS": [
+      "Will QoS"
+    ],
+    "WillRetain": [
+      "Will Retain"
+    ],
+    "PasswordFlag": [
+      "Password Flag"
+    ],
+    "UserNameFlag": [
+      "User Name Flag"
+    ],
+    "KeepAlive": [
+      "Keep Alive"
+    ],
+    "ClientIdentifier": [
+      "Client Identifier"
+    ],
+    "WillTopic": [
+      "Will Topic"
+    ],
+    "WillMessage": [
+      "Will Message"
+    ],
+    "UserName": [
+      "User Name"
+    ],
+    "Password": [
+      "Password"
+    ],
+    "CONNACK": [
+      "CONNACK"
+    ],
+    "ConnectAcknowledgeFlags": [
+      "Connect Acknowledge Flags"
+    ],
+    "SessionPresent": [
+      "Session Present"
+    ],
+    "Success": [
+      "Success"
+    ],
+    "UnspecifiedError": [
+      "Unspecified Error"
+    ],
+    "MalformedPacket": [
+      "Malformed Packet"
+    ],
+    "ProtocolError": [
+      "Protocol Error"
+    ],
+    "ImplementationSpecificError": [
+      "Implementation Specific Error"
+    ],
+    "UnsupportedProtocolVersion": [
+      "Unsupported Protocol Version"
+    ],
+    "ClientIdentifierNotValid": [
+      "Client Identifier Not Valid"
+    ],
+    "BadUserNameOrPassword": [
+      "Bad User Name Or Password"
+    ],
+    "NotAuthorized": [
+      "Not Authorized"
+    ],
+    "ServerUnavailable": [
+      "Server Unavailable"
+    ],
+    "ServerBusy": [
+      "Server Busy"
+    ],
+    "Banned": [
+      "Banned"
+    ],
+    "BadAuthenticationMethod": [
+      "Bad Authentication Method"
+    ],
+    "TopicNameInvalid": [
+      "Topic Name Invalid"
+    ],
+    "PacketTooLarge": [
+      "Packet Too Large"
+    ],
+    "QuotaExceeded": [
+      "Quota Exceeded"
+    ],
+    "PayloadFormatInvalid": [
+      "Payload Format Invalid"
+    ],
+    "RetainNotSupported": [
+      "Retain Not Supported"
+    ],
+    "QosNotSupported": [
+      "QoS Not Supported"
+    ],
+    "UseAnotherServer": [
+      "Use Another Server"
+    ],
+    "ServerMoved": [
+      "Server Moved"
+    ],
+    "ConnectionRateExceeded": [
+      "Connection Rate Exceeded"
+    ],
+    "AssignedClientIdentifier": [
+      "Assigned Client Identifier"
+    ],
+    "ReasonString": [
+      "Reason String"
+    ],
+    "PUBLISH": [
+      "PUBLISH"
+    ],
+    "DUP": [
+      "DUP"
+    ],
+    "RETAIN": [
+      "RETAIN"
+    ],
+    "PayloadFormatIndicator": [
+      "Payload Format Indicator"
+    ],
+    "MessageExpiryInterval": [
+      "Message Expiry Interval"
+    ],
+    "TopicAlias": [
+      "Topic Alias"
+    ],
+    "ResponseTopic": [
+      "Response Topic"
+    ],
+    "CorrelationData": [
+      "Correlation Data"
+    ],
+    "ContentType": [
+      "Content Type"
+    ],
+    "PUBACK": [
+      "PUBACK"
+    ],
+    "NoMatchingSubscribers": [
+      "No Matching Subscribers"
+    ],
+    "PacketIdentifierInUse": [
+      "Packet Identifier In Use"
+    ],
+    "PUBREC": [
+      "PUBREC"
+    ],
+    "PUBREL": [
+      "PUBREL"
+    ],
+    "PacketIdentifierNotFound": [
+      "Packet Identifier Not Found"
+    ],
+    "PUBCOMP": [
+      "PUBCOMP"
+    ],
+    "SubscriptionOptions": [
+      "Subscription Options"
+    ],
+    "NoLocal": [
+      "No Local"
+    ],
+    "RetainAsPublished": [
+      "Retain As Published"
+    ],
+    "RetainHandling": [
+      "Retain Handling"
+    ],
+    "SendRetainedMessagesAtSubscribe": [
+      "Send Retained Messages At Subscribe"
+    ],
+    "SendRetainedMessagesAtSubscribeIfNewSubscription": [
+      "Send Retained Messages At Subscribe If New Subscription"
+    ],
+    "DoNotSendRetainedMessagesAtSubscribe": [
+      "Do Not Send Retained Messages At Subscribe"
+    ],
+    "SUBACK": [
+      "SUBACK"
+    ],
+    "GrantedQoS0": [
+      "Granted QoS 0"
+    ],
+    "GrantedQoS1": [
+      "Granted QoS 1"
+    ],
+    "GrantedQoS2": [
+      "Granted QoS 2"
+    ],
+    "TopicFilterInvalid": [
+      "Topic Filter Invalid"
+    ],
+    "SharedSubscriptionsNotSupported": [
+      "Shared Subscriptions Not Supported"
+    ],
+    "SubscriptionIdentifiersNotSupported": [
+      "Subscription Identifiers Not Supported"
+    ],
+    "WildcardSubscriptionsNotSupported": [
+      "Wildcard Subscriptions Not Supported"
+    ],
+    "UNSUBACK": [
+      "UNSUBACK"
+    ],
+    "NoSubscriptionExisted": [
+      "No Subscription Existed"
+    ],
+    "PINGREQ": [
+      "PINGREQ"
+    ],
+    "PINGRESP": [
+      "PINGRESP"
+    ],
+    "DISCONNECT": [
+      "DISCONNECT"
+    ],
+    "NormalDisconnection": [
+      "Normal Disconnection"
+    ],
+    "DisconnectWithWillMessage": [
+      "Disconnect With Will Message"
+    ],
+    "ServerShuttingDown": [
+      "Server Shutting Down"
+    ],
+    "KeepAliveTimeout": [
+      "Keep Alive Timeout"
+    ],
+    "SessionTakenOver": [
+      "Session Taken Over"
+    ],
+    "TopicAliasInvalid": [
+      "Topic Alias Invalid"
+    ],
+    "MessageRateTooHigh": [
+      "Message Rate Too High"
+    ],
+    "AdministrativeAction": [
+      "Administrative Action"
+    ],
+    "MaximumConnectTime": [
+      "Maximum Connect Time"
+    ],
+    "AUTH": [
+      "AUTH"
+    ],
+    "ContinueAuthentication": [
+      "Continue Authentication"
+    ],
+    "ReAuthenticate": [
+      "Re Authenticate"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT Connection Request -> 3.1.3 CONNECT Payload -> 3.1.3.1 Client Identifier (ClientID)": {
+    "error": "Invalid JSON response"
+  },
+  "3 MQTT Control Packets -> 3.8 SUBSCRIBE - Subscribe request -> 3.8.4 SUBSCRIBE Actions": {
+    "error": "Invalid JSON response"
+  }
+}

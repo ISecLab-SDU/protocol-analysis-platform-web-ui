@@ -1,0 +1,17 @@
+{
+  "processing": {
+    "keyword_sources": [
+      "txt"
+    ]
+  },
+  "paths": {
+    "specify_keywords": "project_store\\tls_1_3\\documentDir\\specify_keywords.txt",
+    "input_json": "project_store\\tls_1_3\\documentDir\\filtered_headings.json",
+    "keyword_list": "project_store\\tls_1_3\\keywordDir\\keyword_list.json",
+    "paragraph_output": "project_store\\tls_1_3\\keywordDir\\paragraphs_output.json",
+    "specify_output": "project_store\\tls_1_3\\keywordDir\\specify_keywords_update_r1.json",
+    "modal_output": "project_store\\tls_1_3\\keywordDir\\modal_keywords_update_r1.json",
+    "comparative_output": "project_store\\tls_1_3\\keywordDir\\comparative_keywords_update_r1.json",
+    "final_output": "project_store\\tls_1_3\\keywordDir\\keywords_final.json"
+  }
+}

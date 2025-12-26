@@ -1,0 +1,68 @@
+{
+  "client_hello": {
+    "legacy_version": {},
+    "random": {},
+    "legacy_session_id": {},
+    "cipher_suites": {},
+    "legacy_compression_methods": {},
+    "extensions": {
+      "extension_type": {},
+      "extension_data": {}
+    }
+  },
+  "server_hello": {
+    "legacy_version": {},
+    "random": {},
+    "legacy_session_id": {},
+    "cipher_suite": {},
+    "legacy_compression_method": {},
+    "extensions": {
+      "extension_type": {},
+      "extension_data": {}
+    }
+  },
+  "new_session_ticket": {
+    "ticket_lifetime": {},
+    "ticket_age_add": {},
+    "ticket_nonce": {},
+    "ticket": {},
+    "extensions": {
+      "extension_type": {},
+      "extension_data": {}
+    }
+  },
+  "end_of_early_data": {},
+  "encrypted_extensions": {
+    "extensions": {
+      "extension_type": {},
+      "extension_data": {}
+    }
+  },
+  "certificate": {
+    "certificate_request_context": {},
+    "certificate_list": {
+      "cert_data": {},
+      "extensions": {
+        "extension_type": {},
+        "extension_data": {}
+      }
+    }
+  },
+  "certificate_request": {
+    "certificate_request_context": {},
+    "extensions": {
+      "extension_type": {},
+      "extension_data": {}
+    }
+  },
+  "certificate_verify": {
+    "algorithm": {},
+    "signature": {}
+  },
+  "finished": {
+    "verify_data": {}
+  },
+  "key_update": {
+    "request_update": {}
+  }
+}

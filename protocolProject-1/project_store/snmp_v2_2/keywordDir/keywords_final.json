@@ -1,0 +1,49 @@
+{
+  "specify": [
+    "variable bindings",
+    "variable-bindings field",
+    "SetRequest-PDU",
+    "request-id field",
+    "error-index field",
+    "variable-binding list",
+    "noSuchName",
+    "error-status field",
+    "variable binding list",
+    "variable binding's name",
+    "GetBulkRequest-PDU",
+    "SNMPv2-Trap-PDU",
+    "variable-bindings",
+    "max-repetitions",
+    "GetRequest-PDU",
+    "Report-PDU",
+    "request-id value",
+    "requested variable names",
+    "error-index",
+    "Response-PDU",
+    "error-status",
+    "GetNextRequest-PDU",
+    "variable binding's value field",
+    "variable binding",
+    "request-id",
+    "InformRequest-PDU"
+  ],
+  "modal": [
+    "is required",
+    "It is mandatory that",
+    "must have",
+    "must define",
+    "must be able to receive",
+    "are strongly encouraged",
+    "is recommended"
+  ],
+  "comparative": [
+    "a different",
+    "greater than either a local constraint or the maximum message size of the originator",
+    "exceeds",
+    "less than",
+    "greater than",
+    "less than or equal to both a local constraint and the maximum message size of the originator",
+    "equal to",
+    "greater than zero and less than or equal to"
+  ]
+}

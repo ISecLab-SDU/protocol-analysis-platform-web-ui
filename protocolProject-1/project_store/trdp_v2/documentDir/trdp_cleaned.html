@@ -1,0 +1,1219 @@
+<html>
+<head>
+<title>IEC 61375-2-3</title>
+
+</head>
+<body>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 130 -  9/3102/CD </p>
+<h1>1. Annex A</h1>3510 <p>(normative)<b> </b>3511 <b> </b>3512 </p>
+<p></p>
+<h1>Train Real-Time Data Protocol (TRDP)</h1>3513 <b> </b>3514 <p></p>
+<h2>A.1 General</h2>3515 <p>This annex defines the train real-time data protocol (TRDP) which shall be used for the 3516 </p>
+<p>All TRDP data on the wire is defined as big endian and byte alignment. Possible marshalling of 3521 </p>
+<p>NOTE 1 Also the optional safety layer uses the data in wire format (big endian and byte alignment). 3525 </p>
+<p>NOTE 2 TRDP transmits data 1-byte aligned. If the data contain VDPs as defined in Annex B, the VDPs itself are 3526 </p>
+<p> 3528 </p>
+<p></p>
+<h4>Figure A.1 – Overview of the protocol stack</h4>3529 <p><i>IEC </i></p>
+<p>Ethernet</p>
+<p>TCP/UDP</p>
+<p>TRDPother</p>
+<p>Application</p>
+<p>Ethernet</p>
+<p>TCP/UDP</p>
+<p>TRDP other</p>
+<p>Application</p>
+<p>END DEVICE END DEVICE</p>
+<p>TRDP protocol</p>
+<p>TRDP safe data </p>
+<p>TCN</p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 131 -  9/3102/CD </p>
+<h2>A.2 Lower Layers</h2>3530 <p></p>
+<h3>A.2.1 Data link layer</h3>3531 <p>TRDP uses the ETB as defined in IEC 61375-2-5 for data communication within trains. 3532 </p>
+<p></p>
+<h3>A.2.2 Network Layer</h3>3533 <p>TRDP is based on IP (RFC 791) for data exchange between functions located in different 3534 </p>
+<p>IP Addressing of functions and devices is defined in IEC 61375-2-5 and in this part of 3536 </p>
+<p>Data transfer between ETB and CN is provided by a gateway functionality of the ETBN as 3538 </p>
+<p>NOTE 1 The filtering of inconsistent data within the ETBN reduces the probability that inconsistent data are 3545 </p>
+<p>NOTE 2 A possible implementation will be to define corresponding firewall rules for the IP router within the ETBN 3548 </p>
+<p>NOTE 3 Depending on the safety and security concept ordinary process data and message data might use 3550 </p>
+<p> 3552 </p>
+<p></p>
+<h3>A.2.3 Transport Layer</h3>3553 <p>TRDP uses the services of the UDP (RFC 768) and TCP (RFC 793) transport layer protocols 3554 </p>
+<p>Any TRDP process data shall be sent with UDP. TRDP process data packet size shall be 3556 </p>
+<p>TRDP message data may be sent with UDP or with TCP. The choice shall be done by the user 3558 </p>
+<p>NOTE Message data packets exceeding the Ethernet MTU in size (about 1 500 bytes) can be transmitted by TCP 3560 </p>
+<p>For interoperable data communication, the destination port assignments (well-known ports) 3562 </p>
+<p></p>
+<h4>Table A.1 – UDP/TCP port assignments (well known ports)</h4>3564 <p><b>Protocol Destination Port </b></p>
+<p>Process Data (UDP) 17224 </p>
+<p>Message Data (UDP/TCP) 17225 </p>
+<p> 3565 </p>
+<p>For receiving UDP message data reply telegrams the port the related request was sent from 3568 </p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 132 -  9/3102/CD </p>
+<p>For sending UDP message data reply telegrams any source port different from the one the 3573 </p>
+<p>TCP connections shall be established between a source port different from the well-known port 3575 </p>
+<p>Using different port numbers from those defined in Table A.1 may be allowed for project specific 3577 </p>
+<p>The used well-known port numbers should be given as a configuration parameter to the 3579 </p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 133 -  9/3102/CD </p>
+<h2>A.3 TRDP FCS computation</h2>3581 <p>For TRDP FCS CRC computation the CRC32 according to IEEE802.3 is used. The CRC 3582 </p>
+<p>Based on the table below the following algorithm in C programming language notation with start 3585 </p>
+<p>/******************************************************************************* 3587 </p>
+<p></p>
+<h4>Figure A.2 – FCS Computation</h4>3611 <p> 3612 </p>
+<p>  3613 </p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 134 -  9/3102/CD <b> The FCS-32 generator polynomial:  </b>3614 <b> * x**0 </b>+<b> x**1 </b>+<b> x**2 </b>+<b> x**4 </b>+<b> x**5 </b>+<b> x**7 </b>+<b> x**8 </b>+<b> x**10 </b>+<b> x**11 </b>+<b> </b>3615 <b> * x**12 </b>+<b> x**16 </b>+<b> x**22 </b>+<b> x**23 </b>+<b> x**26 </b>+<b> x**32</b>. 3616 </p>
+<p></p>
+<h4>Figure A.3 – FCS Table</h4>3685 
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 135 -  9/3102/CD </p>
+<h2>A.4 Interaction between TRDP user and TRDP Layer</h2>3686 <p>The TRDP layer shall provide services for process data and message data communication to 3687 </p>
+<p> 3691 </p>
+<p></p>
+<h4>Figure A.4 – TRDP service model</h4>3692 <p></p>
+<h2>A.5 Communication Identifier (ComId)</h2>3693 <p>All TRDP communication is using a so called ComId transmitted in the header of each PDU. 3694 </p>
+<p>The ComId forms, together with source IP address and destination IP address, a unique 3696 </p>
+<p>The ComId is application dependent but should be standardized in the application profiles. It 3698 </p>
+<p>• structure (data set) (one-to-one relation) 3700 </p>
+<p>The ComId shall be set to zero (ComId = 0) in the following cases: 3709 </p>
+<p>• for PDUs with unspecified user dataset.  3710 </p>
+<p>The ComIds 1..999  shall not be used by the application since they are reserved for specific 3713 </p>
+<p><i>IEC </i></p>
+<p>TRDP User (Application)</p>
+<p>TRDP Layer</p>
+<p>TRDP service </p>
+<p>TCP/UDP</p>
+<p>service user</p>
+<p>service provider</p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 136 -  9/3102/CD </p>
+<h4>Table A.2 – Reserved ComIds</h4>3715 <p><b>comId Description </b>0 unspecified PDU </p>
+<p>service </p>
+<p>service </p>
+<p>service </p>
+<p> 3716 </p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 137 -  9/3102/CD <b>comId Description </b>104 TTDB – consist information request </p>
+<p>service </p>
+<p>service </p>
+<p> 3717 </p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 138 -  9/3102/CD </p>
+<h2>A.6 Process Data</h2>3718 <p></p>
+<h3>A.6.1 Communication model</h3>3719 <p>The TRDP process data protocol defines the exchange of PD-PDUs for the transfer of any 3720 </p>
+<p>PD-PDUs shall be cyclically transmitted or on request between a publisher and one or many 3722 </p>
+<p></p>
+<h3>A.6.2 Roles</h3>3725 <p>The communication partners in a process data transfer can have different roles: 3726 </p>
+<p>publisher: the source of process data </p>
+<p>subscriber: the sink of process data </p>
+<p>requester: requesting the publisher(s) to publish its process data </p>
+<p>Publisher and requester coincide in push communication pattern. 3727 </p>
+<p>A subscriber may also be a requester in pull communication patterns. 3728 </p>
+<p></p>
+<h3>A.6.3 Communication pattern</h3>3729 <p></p>
+<h4>A.6.3.1 Push communication pattern</h4>3730 <p>Process data exchange shall support the following push communication pattern as defined in 3731 </p>
+<p>a) point to point, cyclic without acknowledge, source knows the sink (Figure A.5); 3733 </p>
+<p>groups (Figure A.6); 3735 </p>
+<p>(Figure A.6). 3737 </p>
+<p>NOTE 1 From communication point of view there will be no difference in a point to multipoint communication 3738 </p>
+<p>NOTE 2 Cyclic transmission can be triggered by TRDP layer or by application. 3740 </p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 139 -  9/3102/CD </p>
+<p> 3741 </p>
+<p></p>
+<h4>Figure A.5 – PD push pattern (point to point)</h4>3742 <p> 3743 </p>
+<p></p>
+<h4>Figure A.6 – PD push pattern (point to multipoint)</h4>3744 <p></p>
+<h4>A.6.3.2 Pull communication pattern</h4>3745 <p>Process data exchange shall support the following pull communication pattern as defined in 3746 </p>
+<p>• Point to point, without acknowledge, sink knows the source (Figure A.7). 3748 </p>
+<p>dedicated subscriber is requesting the known publisher to send its PD-PDU. 3751 </p>
+<p>(Figure A.10). Here, one dedicated subscriber is requesting one or multiple unknown 3753 </p>
+<p><i>IEC </i></p>
+<p>publisher subscriber</p>
+<p>PD-PDU (data)</p>
+<p>PD publish</p>
+<p>PD-PDU (data)</p>
+<p>PD-PDU (data)</p>
+<p>PD publish</p>
+<p>PD publish</p>
+<p>PD consumption</p>
+<p><i>IEC </i></p>
+<p>subscribersubscriberpublisher subscriber</p>
+<p>PD-PDU (data)</p>
+<p>PD consumption</p>
+<p>PD publish</p>
+<p>PD-PDU (data)</p>
+<p>PD-PDU (data)</p>
+<p>PD publish</p>
+<p>PD publish</p>
+<p>PD consumption</p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 140 -  9/3102/CD </p>
+<p> 3755 </p>
+<p></p>
+<h4>Figure A.7 – PD pull pattern (point to point, sink knows source)</h4>3756 <p><i>IEC </i></p>
+<p>publisher requester /</p>
+<p>PD-PDU(reply)</p>
+<p>PD-PDU(request)</p>
+<p>PD-PDU(reply)</p>
+<p>PD-PDU(request)</p>
+<p>PD-PDU(reply)</p>
+<p>PD-PDU(request)</p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 141 -  9/3102/CD </p>
+<p> 3757 </p>
+<p></p>
+<h4>Figure A.8 – PD pull pattern (multipoint to point, sink does not know source)</h4>3758 <p><i>IEC </i></p>
+<p>publisher requester /</p>
+<p>PD-PDU(reply)</p>
+<p>PD-PDU(request)</p>
+<p>publisher</p>
+<p>PD-PDU(reply)PD-PDU(reply)</p>
+<p>PD-PDU(reply)</p>
+<p>PD-PDU(request)</p>
+<p>PD-PDU(reply)PD-PDU(reply)</p>
+<p>PD-PDU(reply)</p>
+<p>PD-PDU(request)</p>
+<p>PD-PDU(reply)PD-PDU(reply)</p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 142 -  9/3102/CD </p>
+<p> 3759 </p>
+<p></p>
+<h4>Figure A.9 – PD pull pattern (point to multipoint, sink knows source)</h4>3760 <p><i>IEC </i></p>
+<p>subscriber</p>
+<p>publisher requester /</p>
+<p>PD-PDU(reply)</p>
+<p>PD-PDU(request)</p>
+<p>PD-PDU(reply)</p>
+<p>PD-PDU(request)</p>
+<p>PD-PDU(reply)</p>
+<p>PD-PDU(request)</p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 143 -  9/3102/CD </p>
+<p> 3761 </p>
+<p></p>
+<h4>Figure A.10 – PD pull pattern (multipoint to multipoint, sink does not know source)</h4>3762 <p></p>
+<h3>A.6.4 Addressing</h3>3763 <p>A publisher/subscriber shall use an IP unicast address for addressing a known 3764 </p>
+<p>A publisher/subscriber shall use an IP multicast address for addressing groups of known 3766 </p>
+<p>A publisher/subscriber shall use an IP multicast address for addressing unknown 3768 </p>
+<p>Address ranges which can be used for process data communication are defined in IEC 61375-3770 </p>
+<p></p>
+<h3>A.6.5 PD-PDU</h3>3772 <p>The structure of a PD-PDU is defined in Figure A.11 and in ASN.1 notation, with additional 3773 </p>
+<p><i>IEC </i></p>
+<p>subscribersubscriberpublisher requester /</p>
+<p>PD-PDU(reply)</p>
+<p>PD-PDU(request)</p>
+<p>publisher</p>
+<p>PD-PDU(reply)PD-PDU(reply)</p>
+<p>PD-PDU(reply)</p>
+<p>PD-PDU(request)</p>
+<p>PD-PDU(reply)PD-PDU(reply)</p>
+<p>PD-PDU(reply)</p>
+<p>PD-PDU(request)</p>
+<p>PD-PDU(reply)PD-PDU(reply)</p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 144 -  9/3102/CD </p>
+<p> 3775 </p>
+<p></p>
+<h4>Figure A.11 – PD-PDU</h4>3776 <p>PD_PDU::= RECORD 3777 </p>
+<p><i>IEC </i></p>
+<p><b>dataset</b></p>
+<p>0 15 16 317 8 23 24<b>sequenceCounter</b></p>
+<p><b>protocolVersion</b></p>
+<p><b>etbTopoCnt</b></p>
+<p><b>datasetLength</b></p>
+<p><b>replyComId</b></p>
+<p><b>msgType</b></p>
+<p>40 octets</p>
+<p><b>reserved</b></p>
+<p><b>replyIpAddress</b></p>
+<p>24 octets</p>
+<p><b>headerFCS</b></p>
+<p><b>opTrnTopoCnt</b></p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 145 -  9/3102/CD </p>
+<h4>Table A.3 – PD-PDU parameters</h4>3797 <p><b>Parameter Description Value </b>sequenceCounter The sequence counter: </p>
+<p>• Shall be managed for sending process telegrams per </p>
+<p>• Shall be managed (stored) for received process </p>
+<p>• Shall be incremented with each sending of the process </p>
+<p>• Can be used for communication layer surveillance (PD </p>
+<p>A surveillance that the application is still updating its process </p>
+<p>Computed, </p>
+<p>protocolVersion The protocol version shall consist of:  </p>
+<p>incompatible changes </p>
+<p>compatible changes </p>
+<p>Fixed </p>
+<p>msgType Type of the telegram.  </p>
+<p>‘5072’H (‘Pr’) </p>
+<p>comId Identifier of the user dataset. See also A.5. set by user </p>
+<p>• shall be used (train addressing) as defined in IEC 61375-</p>
+<p>• shall be set by the user </p>
+<p>not used. </p>
+<p>0..232-1 </p>
+<p>set by user </p>
+<p>opTrnTopoCnt The operational train topography counter: </p>
+<p>use information from the operational train directory (e.g. </p>
+<p>• shall be set when the source device used the operational </p>
+<p>• optional in all other cases. Shall be set to 0 (= invalid) if </p>
+<p> </p>
+<p>datasetLength The dataset length: </p>
+<p>octets without padding octets. </p>
+<p>0..1432 </p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 146 -  9/3102/CD <b>Parameter Description Value </b></p>
+<p>• shall be the primary information about the user data </p>
+<p>NOTE In case of fixed size data sets this is redundant </p>
+<p>reserved • Reserved for future use. set to 0 </p>
+<p>• shall be used only in a PD request </p>
+<p>the reply </p>
+<p>0, the reply shall be sent as an unspecified PDU. </p>
+<p>Set by user in </p>
+<p>replyIpAddress The reply IP address for  PD: </p>
+<p>be used for the reply. </p>
+<p>set by user for </p>
+<p>headerFCS The header frame check sequence: </p>
+<p>Computed </p>
+<p>dataset The user data </p>
+<p> </p>
+<p> 3798 </p>
+<p></p>
+<h3>A.6.6 Interaction between application and TRDP protocol layer</h3>3799 <p></p>
+<h4>A.6.6.1 Service primitives</h4>3800 <p>The TRDP layer shall provide a service for process data communication to the TRDP user at 3801 </p>
+<p>NOTE The service primitives are defined in an abstract way in order not to restrict implementations. The 3803 </p>
+<p></p>
+<h4>Table A.4 – TRDP service primitives</h4>3805 <p><b>Role Service primitive Parameter Description </b>Publisher </p>
+<p>PD.publish  TRDP user → TRDP layer </p>
+<p>handle Handle for this publishing, returned </p>
+<p>userRef Optional user reference for call </p>
+<p>callBackFunction Optional call back function. Set to 0 </p>
+<p>reserved as defined in Table A.3 </p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 147 -  9/3102/CD <b>Role Service primitive Parameter Description </b></p>
+<p>sourceIpAddress Source IP Address of the PD. </p>
+<p>PD to. </p>
+<p>Set to 0 for application triggered PD </p>
+<p>datasetLength Actual user data length to be sent </p>
+<p>dataset Buffer with user data to be sent as </p>
+<p>redId Redundancy group ID. Set to 0 if </p>
+<p>PD.rePublish  TRDP user → TRDP layer </p>
+<p>handle Handle which has been given by the </p>
+<p>etbTopoCnt as defined in Table A.3 </p>
+<p>opTrnTopoCnt as defined in Table A.3 </p>
+<p>sourceIpAddress Source IP Address of the PD. </p>
+<p>destinationIpAddress Destination IP address to send the </p>
+<p>PD.unPublish  TRDP user → TRDP layer </p>
+<p>handle Handle which has been given by the </p>
+<p>PD.putData  TRDP user → TRDP layer </p>
+<p>handle Handle which has been given by the </p>
+<p>datasetLength Actual user data length to be sent </p>
+<p>dataset Buffer with user data to be sent as </p>
+<p>PD.setRed  TRDP user → TRDP layer </p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 148 -  9/3102/CD <b>Role Service primitive Parameter Description </b></p>
+<p>redId Selects the redundancy group to be </p>
+<p>leader If TRUE, the service activates </p>
+<p>PD.getRed  TRDP user → TRDP layer </p>
+<p>redId Selects the redundancy group to be </p>
+<p>leader If TRUE, publishing is activated for </p>
+<p>PD.putDataImmediate  TRDP user → TRDP layer </p>
+<p>handle Handle which has been given by the </p>
+<p>txTime Absolute time to transmit or 0 for </p>
+<p>datasetLength Actual user data length to be sent </p>
+<p>dataset Buffer with user data to be sent as </p>
+<p>Requester PD.request  TRDP user → TRDP layer </p>
+<p>handle handle for this subscription of the </p>
+<p>reserved as defined in Table A.3 </p>
+<p>comId ComId to be sent, as defined in </p>
+<p>etbTopoCnt as defined in Table A.3 </p>
+<p>sourceIpAddress Source IP address </p>
+<p>destinationIpAddress Destination IP address to send the </p>
+<p>redId Redundancy ID. Set to 0 if </p>
+<p>dataSet User data set to be sent, as defined </p>
+<p>datasetLength data set length to be sent, as </p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 149 -  9/3102/CD <b>Role Service primitive Parameter Description </b></p>
+<p>replyComId as defined in Table A.3 </p>
+<p>Subscriber PD.subscribe  TRDP user → TRDP layer </p>
+<p>handle handle for this subscription; </p>
+<p>userRef Optional user reference for call </p>
+<p>callBackFunction Optional call back function. Set to 0 </p>
+<p>reserved as defined in Table A.3 </p>
+<p>comId as defined in Table A.3 </p>
+<p>etbTopoCnt as defined in Table A.3 </p>
+<p>opTrnTopoCnt as defined in Table A.3 </p>
+<p>respective URI’s using DNS. </p>
+<p>sourceIpAddress2 Defines the upper IP address in </p>
+<p>destinationIpAddress IP destination address, generated </p>
+<p>timeout Timeout (rxTime) for PD to be </p>
+<p>timeoutBehaviour Optional behaviour in case of a </p>
+<p>PD_resubscribe  TRDP user → TRDP layer </p>
+<p>handle handle for this subscription; </p>
+<p>etbTopoCnt as defined in Table A.3 </p>
+<p>opTrnTopoCnt as defined in Table A.3 </p>
+<p>sourceIpAddress1 IP source address, generated out of </p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 150 -  9/3102/CD <b>Role Service primitive Parameter Description </b></p>
+<p>Defines the lower IP address in </p>
+<p>sourceIpAddress2 Defines the upper IP address in </p>
+<p>destinationIpAddress IP destination address, generated </p>
+<p>PD.unsubscribe  TRDP user → TRDP layer </p>
+<p>handle handle returned by the TRDP layer </p>
+<p>PD.indicate  TRDP layer → TRDP user </p>
+<p>handle handle returned by the TRDP layer </p>
+<p>sourceIpAddress Received source IP address </p>
+<p>destinationIpAddress Received destination IP address, as </p>
+<p>sequenceCounter Received sequence counter, as </p>
+<p>protocolVersion Received protocol version, as </p>
+<p>imsgType • process data (‘Pd’)  </p>
+<p>comId Received ComId, as defined in </p>
+<p>etbTopoCnt Received topo count, as defined in </p>
+<p>opTrnTopoCnt Received topo count, as defined in </p>
+<p>replyIComId Received reply ComId, as defined in </p>
+<p>replyIpAddress Received reply IP address </p>
+<p>userRef User reference given in </p>
+<p>status </p>
+<p>0 OK, != 0 NOK  </p>
+<p>• 1 – timeout </p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 151 -  9/3102/CD <b>Role Service primitive Parameter Description </b></p>
+<p>• 6 – no subscription </p>
+<p>timeoutBehaviour Optional behaviour in case of a </p>
+<p>reserved as defined in Table A.3 </p>
+<p>dataset Received user data, as defined in </p>
+<p>datasetLength Received user data size, as defined </p>
+<p>PD.get  TRDP user → TRDP layer </p>
+<p>handle handle returned by the TRDP layer </p>
+<p>sourceIpAddress Received source IP address </p>
+<p>destinationIpAddress Received destination IP </p>
+<p>sequenceCounter Received sequence counter, as </p>
+<p>protocolVersion Received protocol version, as </p>
+<p>msgType • process data (‘Pd’) </p>
+<p>comId Received ComId, as defined in </p>
+<p>etbTopoCnt Received topo count, as defined in </p>
+<p>opTrnTopoCnt Received topo count, as defined in </p>
+<p>replyIComId Received reply ComId, as defined in </p>
+<p>replyIpAddress Received reply IP address </p>
+<p>userRef User reference given in </p>
+<p>status </p>
+<p>0 OK, != 0 NOK </p>
+<p>• 1 – timeout </p>
+<p>timeoutBehaviour Optional behaviour in case of a </p>
+<p>reserved as defined in Table A.3 </p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 152 -  9/3102/CD <b>Role Service primitive Parameter Description </b></p>
+<p>dataset Received user data, as defined in </p>
+<p>datasetLength Received user data size, as defined </p>
+<p> 3806 </p>
+<h4>A.6.6.2 PD User access</h4>3807 <p>The TRDP user shall have two possibilities to retrieve PD: either via a poll mechanism, typically 3808 </p>
+<p></p>
+<h4>A.6.6.3 Interaction sequence – PD Pull Pattern</h4>3811 <p>The sequence chart in Figure A.12 defines the allowed sequence of the service primitives for 3812 </p>
+<p>NOTE 1 Dotted lines in the sequence charts are used to indicate options. 3815 </p>
+<p>Process data are prepared cyclically by the publisher and shall be given to the TRDP layer 3816 </p>
+<p>To receive a request, the publisher shall subscribe for it.  3818 </p>
+<p>Until receiving the first request telegram matching to the filter criteria of the subscription, related 3819 </p>
+<p>Also a request for already cyclically published PDU shall be possible.  3821 </p>
+<p>Topography counters of an incoming request telegram shall be checked in accordance to A.6.7. 3822 </p>
+<p>Each incoming request telegram shall be responded by the TRDP layer using the available 3823 </p>
+<p>If the reply IP address of the request telegram is 0, the source IP address of the request 3825 </p>
+<p>To receive the related reply for a request, the requester needs to subscribe for it. Destination 3827 </p>
+<p>Until receiving the first reply telegram matching to the filter criteria of the subscription, related 3829 </p>
+<p>NOTE 2 This is to prevent that the user fetches outdated reply data after it has requested new reply data. 3833 </p>
+<p>Timeout supervision at subscriber TRDP layer shall be restarted after sending the request 3834 </p>
+<p>The request can contain user data.  3836 </p>
+<p>Before sending out a request, the TRDP layer shall check the topology counters submitted with 3837 </p>
+<p> 3840 </p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 153 -  9/3102/CD </p>
+<p> 3841 </p>
+<p></p>
+<h4>Figure A.12 – Interaction sequence chart for PD pull pattern</h4>3842 <p></p>
+<h4>A.6.6.4 Interaction sequence – PD Push Pattern</h4>3843 <p>The PD push pattern can be used for any PD. 3844 </p>
+<p>The sequence charts in Figure A.13 and Figure A.14 define the allowed sequence of the service 3845 </p>
+<p>1. In Figure A.13 process data are prepared cyclically by the publisher and shall be given to 3848 </p>
+<p>2. In Figure A.14 process data are prepared cyclically by the by the publisher and shall be 3851 </p>
+<p>The publisher TRDP layer shall send out the data only after checking the locally stored 3854 </p>
+<p>Any subscriber can subscribe for the process telegram using ComID, destination IP address 3857 </p>
+<p>Timeout supervision at subscriber TRDP layer shall be started after subscription. 3859 </p>
+<p>Timeout supervision at subscriber TRDP layer shall be restarted after receiving the related PD 3860 </p>
+<p>The subscriber TRDP layer shall check the topography counters of the received telegram 3862 </p>
+<p>Until receiving the first valid telegram matching to the filter criteria the data shall be marked as 3866 </p>
+<p><i>IEC </i></p>
+<p>TRDP</p>
+<p>TRDP</p>
+<p><b>publisher/subscriber</b></p>
+<p>TRDP</p>
+<p>TRDP</p>
+<p><b>requester/subscriber</b></p>
+<p>request telegram</p>
+<p>process data telegram</p>
+<p>PD.putData</p>
+<p>PD.indicate(data)</p>
+<p>PD.request</p>
+<p>PD.subscribe</p>
+<p>PD.putData</p>
+<p>PD.subscribe</p>
+<p>PD.poll</p>
+<p>PD.indicate(timeout)</p>
+<p>PD.publish</p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 154 -  9/3102/CD </p>
+<p> 3868 </p>
+<p></p>
+<h4>Figure A.13 – Interaction sequence chart for PD push pattern used for TRDP layer</h4>3869 <b>triggered PD cycle </b>3870 <p> 3871 </p>
+<p></p>
+<h4>Figure A.14 – Interaction sequence chart for PD push pattern, used for application</h4>3872 <b>triggered PD cycle </b>3873 <p> 3874 </p>
+<p></p>
+<h4>A.6.6.5 PD Redundancy Handling</h4>3875 <p>The sequence chart in Figure A.15 shows the sequence of the service primitives for redundancy 3876 </p>
+<p>The service primitives for redundancy handling shall be used in the same way by the publisher 3878 </p>
+<p>If a redundant function enters the redundancy leader state it shall call PD.setRed(LEADER) for 3880 </p>
+<p>If a redundant function enters the redundancy follower state it shall call PD.setRed(!LEADER) 3883 </p>
+<p>Starting TRDP, publishers of redundant process data (identified by a ComId marked as 3886 </p>
+<p><i>IEC </i></p>
+<p>TRDP</p>
+<p>TRDP</p>
+<p><b>publisher</b></p>
+<p>TRDP</p>
+<p>TRDP</p>
+<p><b>subscriber</b></p>
+<p>process data telegram PD.indicate(data)</p>
+<p>PD.publish</p>
+<p>PD.indicate(timeout)</p>
+<p>PD.subscribe</p>
+<p>PD.putData PD.poll</p>
+<p>PD.putData</p>
+<p><i>IEC </i></p>
+<p>TRDP</p>
+<p>TRDP</p>
+<p><b>publisher</b></p>
+<p>TRDP</p>
+<p>TRDP</p>
+<p><b>subscriber</b></p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 155 -  9/3102/CD </p>
+<p> 3889 </p>
+<p></p>
+<h4>Figure A.15 – Interaction sequence chart for redundant PD handling</h4>3890 <p></p>
+<h3>A.6.7 Topography counter check</h3>3891 <p>Before sending a telegram, the topography counters of the telegram shall be checked against 3892 </p>
+<p>After reception of a telegram, the topography counter values shall be checked in two steps to 3895 </p>
+<p>The topography counter check is passed if at least one of the cases listed in Table A.5 came 3900 </p>
+<p></p>
+<h4>Table A.5 – Topography counter check</h4>3902 <p><b>Publisher Actual topography counter values Locally stored topography counter values </b></p>
+<p><b>Subscriber  Actual topography counter values  Topography counter values of the received </b></p>
+<p><b>Topography counter values of the </b></p>
+<p><b>Locally stored topography counter values </b></p>
+<p><b>Case </b>etbTopoCnt opTrnTopoCnt etbTopoCnt opTrnTopoCnt </p>
+<p>3 equal any equal 0 </p>
+<p>5 (3) 0 0 any any </p>
+<p>(3) Only relevant for the comparison of the topography counter values of the received telegram with the locally </p>
+<p>(4) Case applies only for subscriber comparing topography counter values of the received telegram with the locally </p>
+<p>Key: </p>
+<p>0   = topography counter value set to 0 (don’t care ) </p>
+<p><i>IEC </i></p>
+<p>TRDP</p>
+<p>TRDP</p>
+<p><b>publisher</b></p>
+<p>TRDP</p>
+<p>TRDP</p>
+<p><b>subscriber</b></p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 156 -  9/3102/CD </p>
+<h3>A.6.8 State Machine</h3>3903 <p></p>
+<h4>A.6.8.1 Publishing PD-PDU(data)</h4>3904 <p>A publisher shall publish PD-PDU(data) when: 3905 </p>
+<p>• the defined time cycle terminates (push pattern, TRDP triggered cycle)  3906 </p>
+<p>• it receives an application request to send the data immediately (push pattern, application 3907 </p>
+<p>• it receives a request from a dedicated subscriber or an independent communication 3909 </p>
+<p>To not overload subscribers, the publisher of TRDP triggered pushed PD-PDU shall apply a 3911 </p>
+<p>The publishing of PD-PDU(data) is defined with the state diagram depicted in Figure A.16. 3913 </p>
+<p>NOTE 1 Sending application triggered cyclic PD-PDUs shall be restricted since there is no possibility to include 3914 </p>
+<p>NOTE 2 If there is a pull request for a PD-PDU that is already published using the push pattern, the related reply is 3916 </p>
+<p> 3918 </p>
+<p></p>
+<h4>Figure A.16 – PD State diagram publisher</h4>3919 <p>Guards, triggers, actions and states are described in Table A.6 to Table A.9. 3920 </p>
+<p></p>
+<h4>Table A.6 – PD publisher state diagram – guards</h4>3921 <p><b>Guards Description </b>pattern configured communication pattern for the PD-PDU exchange </p>
+<p>Values: PUSH </p>
+<p>checkTopoCounts Check the locally stored topology counters submitted with the publish against </p>
+<p> 3922 </p>
+<p><i>IEC </i></p>
+<p>[pattern == PUSH]</p>
+<p>PD.publish</p>
+<p>timeout</p>
+<p>CyclicOperation PolledOperation</p>
+<p>[pattern == PULL]</p>
+<p>PD.putData</p>
+<p>/ restartTimer(txTime)</p>
+<p>PD.putData</p>
+<p>PD.unpublish</p>
+<p>requestReceived</p>
+<p>[OK]</p>
+<p>[ELSE]</p>
+<p>/ stopPublishing</p>
+<p>[appTriggeredCycle == FALSE][appTriggeredCycle == TRUE]</p>
+<p>ApplicationTriggeredOperation</p>
+<p>/ preparePd</p>
+<p>PD.putDataImmediate</p>
+<p>/ preparePd</p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 157 -  9/3102/CD </p>
+<h4>Table A.7 – PD publisher state diagram – triggers</h4>3923 <p><b>Triggers Description </b>PD.publish User called PD.publish service primitive </p>
+<p>continue publishing train-wide PD. </p>
+<p>topo count change </p>
+<p>(service primitive PD.putData) </p>
+<p>immediately (service primitive PD.putDataImmediate) </p>
+<p> 3924 </p>
+<p></p>
+<h4>Table A.8 – PD publisher state diagram – actions</h4>3925 <p><b>Actions Description </b>updatePdTelegram Take process data packet from application and generate process data </p>
+<p>telegram for publishing </p>
+<p>• HeaderFCS </p>
+<p>sendNonTsnPdTelegram publish (send) the process data telegram </p>
+<p>txTime = cycle time for sending PD as defined in PD.publish service </p>
+<p>stopPublishing Stop publishing on request, stop the timer  </p>
+<p> 3926 </p>
+<p></p>
+<h4>Table A.9 – PD publisher state diagram – states</h4>3927 <p><b>States Description </b>CyclicOperation The publisher sends PD-PDUs cyclically triggered by a timer </p>
+<p> 3928 </p>
+<p></p>
+<h4>A.6.8.2 Request publishing of PD-PDU (PD request)</h4>3929 <p>One dedicated subscriber or an independent communication device may request one or many 3930 </p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 158 -  9/3102/CD </p>
+<p> 3933 </p>
+<p></p>
+<h4>Figure A.17 – PD State diagram requester</h4>3934 <p>Triggers, actions and states are described in Table A.10 to Table A.13. 3935 </p>
+<p></p>
+<h4>Table A.10 – PD publisher state diagram – guards</h4>3936 <p><b>Guards Description </b>checkTopoCounts Check the topography counters submitted with the request against the </p>
+<p>actual topography counters. At least one of the cases listed in Table A.5 </p>
+<p> 3937 </p>
+<p></p>
+<h4>Table A.11 – PD requester state diagram – triggers</h4>3938 <p><b>Triggers Description </b>PD.request PD.request service primitive called by application </p>
+<p> 3939 </p>
+<p></p>
+<h4>Table A.12 – PD requester state diagram – actions</h4>3940 <p><b>Actions Description </b>prepareRequestTelegram prepare a request telegram to one or many publishers </p>
+<p>time = rxTime (timeout value given in PD.subscribe service primitive) </p>
+<p> 3941 </p>
+<p></p>
+<h4>Table A.13 – PD requester state diagram – states</h4>3942 <p><b>States Description </b>Request The requester sends request telegram. Sending of the request telegram is </p>
+<p>triggered by the application using PD.request. </p>
+<p> 3943 </p>
+<p><i>IEC </i></p>
+<p>PD.request</p>
+<p>Request</p>
+<p>Start</p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 159 -  9/3102/CD </p>
+<h4>A.6.8.3 Receiving PD-PDU (PD reply/data)</h4>3944 <p>For an eventually related PD request see Figure A.17. 3945 </p>
+<p> 3946 </p>
+<p></p>
+<h4>Figure A.18 – PD State diagram subscriber</h4>3947 <p>Triggers, actions and states are described in Table A.14 to Table A.17. 3948 </p>
+<p></p>
+<h4>Table A.14 – PD subscriber state diagram – triggers</h4>3949 <p><b>Triggers Description </b>PD.subscribe PD.subscribe service primitive called by application </p>
+<p>continue receiving train-wide published PD. </p>
+<p>PD after topo count change. </p>
+<p> 3950 </p>
+<p></p>
+<h4>Table A.15 – PD subscriber state diagram – guards</h4>3951 <p><b>Guards Description </b></p>
+<p>pattern configured communication pattern for the PD-PDU exchange </p>
+<p>checkTopoCounts Check the topography counters of the received telegram against the </p>
+<p> 3952 </p>
+<p><i>IEC </i></p>
+<p>PD.subscribe</p>
+<p>WaitForPD</p>
+<p>PD.unsubscribe</p>
+<p>pdReceived</p>
+<p>[OK]</p>
+<p>[else]</p>
+<p>[pattern == PUSH]</p>
+<p>[pattern == PULL]</p>
+<p>[pattern == PUSH]</p>
+<p>[pattern == PULL]</p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 160 -  9/3102/CD </p>
+<h4>Table A.16 – PD subscriber state diagram – actions</h4>3953 <p><b>Actions Description </b>indicate(data) Notify application about a new received process or request telegram (service </p>
+<p>primitive PD.indicate) </p>
+<p>Check filter criteria </p>
+<p>setDataInvalid Sets the PD to initialized/invalid </p>
+<p>time = rxTime (timeout value given in PD.subscribe service primitive) </p>
+<p>Discard Discard the telegram </p>
+<p></p>
+<h4>Table A.17 – PD subscriber state diagram – states</h4>3955 <p><b>States Description </b>WaitForPD Wait until a new process telegram is received </p>
+<p> 3956 </p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 161 -  9/3102/CD </p>
+<h2>A.7 Message Data</h2>3957 <p></p>
+<h3>A.7.1 Communication model</h3>3958 <p>The TRDP message data protocol defines the message data exchange between a caller and 3959 </p>
+<p>NOTE This gives a “guaranteed” transfer of data as the caller/replier is notified about the correct reception and 3965 </p>
+<p>A caller shall be able to define by the request type whether a reply is expected or not. 3967 </p>
+<p>A replier shall be able to define by the reply type whether a confirmation of its reply is expected 3968 </p>
+<p>As a consequence, three message data transfer options shall be provided by TRDP 3970 </p>
+<p>a) request without reply (‘notification’); 3972 </p>
+<p>TRDP shall provide two mechanisms to transfer message data (via UDP and via TCP); the 3975 </p>
+<p> 3977 </p>
+<p></p>
+<h4>Figure A.19 – Message data transfer options</h4>3978 <p></p>
+<h3>A.7.2 Roles</h3>3979 <p>The communication partners in a message data transfer can have different roles: 3980 </p>
+<p>caller: the source of message data in push communication pattern </p>
+<p>the sink of message data in pull communication pattern </p>
+<p>replier: the source of message data in pull communication pattern </p>
+<p>the sink of message data in push communication pattern </p>
+<p><i>IEC </i></p>
+<p>caller replier</p>
+<p>request</p>
+<p>request</p>
+<p>caller replier</p>
+<p>request</p>
+<p>reply</p>
+<p>processing the</p>
+<p>caller replier</p>
+<p>request</p>
+<p>reply</p>
+<p>confirm</p>
+<p>processing the</p>
+<p>processing the</p>
+<p>a) b) c)</p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 162 -  9/3102/CD </p>
+<h3>A.7.3 Communication pattern</h3>3981 <p></p>
+<h4>A.7.3.1 Push communication pattern</h4>3982 <p>Message data exchange shall support the following push communication pattern as defined in 3983 </p>
+<p>a) point to point , sporadic with acknowledge, source knows the sink;  3985 </p>
+<p>NOTE e) is not required in IEC 61375-1. 3991 </p>
+<p></p>
+<h4>A.7.3.2 Pull communication pattern</h4>3992 <p>Message data exchange shall support the following pull communication pattern as defined in 3993 </p>
+<p>a) point to point , sporadic with acknowledge, sink knows the source;  3995 </p>
+<p>NOTE e) is not required in IEC 61375-1. 4001 </p>
+<p></p>
+<h3>A.7.4 Addressing</h3>4002 <p>A caller shall use an IP unicast address or an IP multicast address for addressing known 4003 </p>
+<p>A caller shall use an IP multicast address for addressing unknown repliers. 4005 </p>
+<p>A caller may use an IP multicast address for addressing a known replier redundancy group. 4006 </p>
+<p>A replier shall respond to the caller’s unicast address. 4007 </p>
+<p>Address ranges which can be used for message data communication are defined in  IEC 61375-4008 </p>
+<p></p>
+<h3>A.7.5 MD-PDU</h3>4010 <p>The structure of a MD-PDU is defined in Figure A.20 and subsequently in ASN.1 notation, with 4011 </p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 163 -  9/3102/CD </p>
+<p> 4013 </p>
+<p></p>
+<h4>Figure A.20 – MD-PDU</h4>4014 <p><b>MD_PDU::= RECORD </b>4015 </p>
+<p>   request 4027 </p>
+<p></p>
+<h4>Table A.18 – MD-PDU parameters</h4>4034 <p><b>Parameter Description Value </b>sequenceCounter The sequence counter </p>
+<p>• shall be incremented with each repetition of the </p>
+<p>Computed </p>
+<p><i>IEC </i></p>
+<p>0 15 16 317 8 23 24<b>sequenceCounter</b></p>
+<p><b>protocolVersion</b></p>
+<p><b>etbTopoCnt</b></p>
+<p><b>datasetLength</b></p>
+<p><b>msgType</b></p>
+<p><b>sessionId</b></p>
+<p><b>sourceUri</b></p>
+<p><b>destinationUri</b></p>
+<p><b>replyTimeout</b></p>
+<p><b>dataset</b></p>
+<p>0..65388 octets</p>
+<p><b>headerFcs</b></p>
+<p><b>opTrnTopoCnt</b></p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 164 -  9/3102/CD <b>Parameter Description Value </b></p>
+<p>• shall be returned with the reply message </p>
+<p>protocolVersion The protocol version shall consist of:  </p>
+<p>for incompatible changes, </p>
+<p>compatible changes </p>
+<p>Fixed </p>
+<p>msgType Type of the telegram.  </p>
+<p>‘4D6E‘H (‘Mn’) </p>
+<p>comId Identifier of the user dataset. See also A.5. </p>
+<p>set by user </p>
+<p>etbTopoCnt The topography counter: </p>
+<p>standard part IEC 61375-2-5 (parameter </p>
+<p>• shall be set by the user </p>
+<p>if not used. </p>
+<p>0..232-1 </p>
+<p>opTrnTopoCnt The topography counter: </p>
+<p>which use information from the operational train </p>
+<p>• shall be set when the source device used the </p>
+<p>• optional in all other cases. Shall be set to 0 (= invalid) </p>
+<p> </p>
+<p>datasetLength Length of the user data set in number of octets without </p>
+<p>0 ..65388 Computed </p>
+<p>replyStatus The status value shall be set by the replier to report the </p>
+<p>• –1 – reserved </p>
+<p>&lt; 0:  NOK </p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 165 -  9/3102/CD <b>Parameter Description Value </b></p>
+<p>• –6 – no reply </p>
+<p>sessionId The session identification: </p>
+<p>confirm” session which is composed of a caller </p>
+<p>• shall identify a “request-error” session when the </p>
+<p>• shall be computed at caller side and reused at replier </p>
+<p>• shall be used at caller side to relate a reply or error </p>
+<p>• shall be used at replier side to identify a </p>
+<p>• shall be a UUID according to RFC 4122, time-based </p>
+<p>Computed </p>
+<p>replyTimeout The reply timeout value shall be set to define the expected </p>
+<p>1 .. (232-1) </p>
+<p>sourceUri The source URI: </p>
+<p>and “@” </p>
+<p> </p>
+<p>destinationUri The destination URI: </p>
+<p>and “@” </p>
+<p> </p>
+<p>headerFcs The header frame check sequence: </p>
+<p>Computed according </p>
+<p>dataset The user data. </p>
+<p> </p>
+<p></p>
+<h3>A.7.6 Interaction between application and TRDP layer</h3>4035 <p></p>
+<h4>A.7.6.1 Service primitives</h4>4036 <p>The TRDP layer shall provide services for message data communication to the TRDP user. The 4037 </p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 166 -  9/3102/CD </p>
+<p></p>
+<h4>Table A.19 – TRDP service primitives – Caller</h4>4041 <p><b>Service primitive Parameters Direction/Description </b>MD.request  </p>
+<p> </p>
+<p>msgType • send notification message (‘Mn’)  </p>
+<p>userReference Reference returned with the MD.indication. Used by user to </p>
+<p>callbackFunction Callback function for the incoming reply. </p>
+<p>sessionId session identifier used and returned by the TRDP layer. </p>
+<p>comId as defined in Table A.18 </p>
+<p>etbTopoCnt as defined in Table A.18 </p>
+<p>opTrnTopoCnt as defined in Table A.18 </p>
+<p>sourceIpAddr IP source address. </p>
+<p>destinationIpAddr IP destination address, generated out of respective URI’s using </p>
+<p>transProtocol UDP or TCP transport layer protocol </p>
+<p>number of repliers if the request message is sent to known </p>
+<p>replyTimeOut as defined in Table A.18 </p>
+<p>range 0..2. </p>
+<p>MD.indicate  TRDP layer → TRDP user </p>
+<p>userReference Reference which was submitted with MD.request </p>
+<p>• reception of a query message (‘Mq’) </p>
+<p>comId as defined in Table A.18 </p>
+<p>Set to 0 if unknown (error return) </p>
+<p>Set to 0 if unknown (error return) </p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 167 -  9/3102/CD <b>Service primitive Parameters Direction/Description </b></p>
+<p>userStatus User status or error code. </p>
+<p>MD.confirm   TRDP user  → TRDP layer </p>
+<p>sessionId </p>
+<p>session identifier as returned by MD.indication. Used by the TRDP </p>
+<p>replyStatus as defined in Table A.18 </p>
+<p>TRDP user  asks to abort an open session e.g because of a TCN </p>
+<p>sessionId session identifier used by the TRDP layer. </p>
+<p> 4042 </p>
+<p></p>
+<h4>Table A.20 – TRDP service primitives – Replier</h4>4043 <p><b>Service primitive Parameters Direction/Description </b>MD.addListener  </p>
+<p> </p>
+<p>Handle Handle for this listener, returned by the TRDP layer </p>
+<p>associate the listener with the MD.indication </p>
+<p>DNS. </p>
+<p>sourceIpAddress2 Defines the upper IP address in case of an IP address range </p>
+<p>destinationIpAddress IP destination address, generated out of respective URI’s </p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 168 -  9/3102/CD <b>Service primitive Parameters Direction/Description </b></p>
+<p>sourceURI[] as defined in Table A.18, only notification/request from that </p>
+<p>destinationURI  as defined in Table A.18, only notification/request with that </p>
+<p>MD.readdListener  TRDP user → TRDP layer </p>
+<p>Handle Handle for this listener </p>
+<p>etbTopoCnt actual etbTopoCnt value  </p>
+<p>opTrnTopoCnt actual opTrnTopoCnt value </p>
+<p>sourceIpAddress IP source address, generated out of respective URI’s using </p>
+<p>sourceIpAddress2 Defines the upper IP address in case of an IP address range </p>
+<p>destinationIpAddress IP destination address, generated out of respective URI’s </p>
+<p>MD.delListener  </p>
+<p>TRDP user  → TRDP layer </p>
+<p>Handle Handle returned by the TRDP layer in MD.addListener </p>
+<p>TRDP layer informs about an event  </p>
+<p>userReference Reference which was submitted with MD.addListener </p>
+<p>• reception of a request message (‘Mr’) </p>
+<p>comId as defined in Table A.18 </p>
+<p>Set to 0 if unknown (error return) </p>
+<p>Set to 0 if unknown (error return) </p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 169 -  9/3102/CD <b>Service primitive Parameters Direction/Description </b></p>
+<p>sourceUri as defined in Table A.18 </p>
+<p>MD.reply  TRDP user → TRDP layer </p>
+<p>msgType </p>
+<p>• send reply message (‘Mp’) </p>
+<p>sessionId </p>
+<p>Session identifier as indicated with MD.indication. Used by </p>
+<p>comId as defined in Table A.18 </p>
+<p>MD.release  TRDP layer → TRDP user </p>
+<p>userReference Reference which was submitted with MD.addListener </p>
+<p>• TRDP layer error (‘Me’) </p>
+<p>Set to 0 if unknown (error return) </p>
+<p>Set to 0 if unknown (error return) </p>
+<p> 4044 </p>
+<p></p>
+<h4>A.7.6.2 Interaction sequence</h4>4045 <p>The sequence chart in Figure A.21 defines the sequence of the service primitives. 4046 </p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 170 -  9/3102/CD </p>
+<p> 4047 </p>
+<p></p>
+<h4>Figure A.21 – Interaction sequence chart</h4>4048 <p></p>
+<h4>A.7.6.3 Filtering rules</h4>4049 <p>The service primitive MD.addListener allows to optionally define sourceUri and destinationURI 4050 </p>
+<p>a) An empty destinationUri in a MD telegrams shall be received by a listener regardless of 4052 </p>
+<p>b) An empty sourceUri in a MD telegrams has no special meaning. 4054 </p>
+<p>listener shall receive MD telegrams regardless of any defined destinationUri in the MD 4056 </p>
+<p>d) An empty sourceUri filter entry in MD.addListener service primitive means that the 4058 </p>
+<p>e) Any two listeners shall have a disjunctive set of filter parameters comId, sourceUri, 4061 </p>
+<p>f) MD telegrams with empty destinationUri may be received by several listeners with 4064 </p>
+<p>NOTE A MD telegram sent to a unicast IP destination address with empty destinationUri is a potential multicast – 4067 </p>
+<p></p>
+<h3>A.7.7 Topography counter check</h3>4069 <p>Before sending a telegram, the topography counters of the telegram shall be checked against 4070 </p>
+<p>After reception of a telegram, the topography counter values shall be checked to ensure that 4073 </p>
+<p><i>IEC </i></p>
+<p>TRDP</p>
+<p>TRDP</p>
+<p><b>caller</b></p>
+<p>TRDP</p>
+<p>TRDP</p>
+<p><b>replier (listener)</b></p>
+<p>MD.request MD.addListener</p>
+<p>request message</p>
+<p>MD.reply</p>
+<p>reply message</p>
+<p>MD.indicate</p>
+<p>MD.confirm</p>
+<p>confirm message</p>
+<p>MD.release</p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 171 -  9/3102/CD </p>
+<p></p>
+<h4>Table A.21 – Topography counter check</h4>4078 <p><b>Caller Actual topography counter values Topography counter values of the telegram to </b></p>
+<p><b>Replier Actual topography counter values  Topography counter values of the received </b></p>
+<p><b>Topography counter values of the </b></p>
+<p><b>Locally stored topography counter values </b></p>
+<p><b>Case </b>etbTopoCnt opTrnTopoCnt etbTopoCnt opTrnTopoCnt </p>
+<p>5(3) 0 0 any any </p>
+<p>(2) Only relevant for the comparison of the topography counter values of the received telegram with the locally </p>
+<p>(3) Case applies only for replier comparing topography counter values of the received telegram with the locally </p>
+<p>Key: </p>
+<p>0   = topography counter value set to 0 (don’t care)  </p>
+<p> 4079 </p>
+<p></p>
+<h3>A.7.8 MD protocol state machine</h3>4080 <p></p>
+<h4>A.7.8.1 TRDP Layer – Caller</h4>4081 <p>If a TRDP user (caller) requests sending a message, its topography counters shall be checked 4082 </p>
+<p>If a TRDP user (caller) requests sending a notification, a notification message (MsgType ‘Mn’) 4085 </p>
+<p>If a TRDP user (caller) requests sending a request message, a caller session shall be opened 4087 </p>
+<p>To ensure that the session identifier is unique, each request-reply/request-reply-confirm  4089 </p>
+<p>A timeout value for the reply message(s) shall be defined by the TRDP user (caller).  4093 </p>
+<p>NOTE If retries are selected, the timeout at application layer can be up to (maxNumRetries + 1) × replyTimeout.  4094 </p>
+<p>During the caller session, the TRDP layer shall wait for incoming reply messages (MsgType 4095 </p>
+<p>If the number of expected incoming replies is reached and there are no more outstanding 4098 </p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 172 -  9/3102/CD </p>
+<p>The confirmation shall use as destination URI the source URI received in the reply message. 4103 </p>
+<p>After getting the confirmation from TRDP user (caller), the TRDP layer shall send a confirmation 4104 </p>
+<p>A confirmation message shall not contain user data and shall be sent only as unicast.  4106 </p>
+<p>The TRDP user (caller) shall take care to provide the confirmation in time as indicated by the 4107 </p>
+<p>If the number of incoming replies is reached and the confirm timeout timer expires while waiting 4109 </p>
+<p>If the reply timeout timer of the caller session expires because of a missing reply and the number 4112 </p>
+<p>If the reply timeout timer expires and the number of expected repliers is greater than 1 and less 4116 </p>
+<p>If the number of repliers is not known (parameter NoOfRepliers = 0 and the reply timeout timer 4120 </p>
+<p>There shall be no retransmission of request messages if TCP is used. If for TCP retransmission 4123 </p>
+<p>If the TRDP layer receives a reply message (MsgType ‘Mp’, ‘Mq’ or ‘Me’) without having opened 4127 </p>
+<p>The topography counter values obtained during caller session opening shall be used throughout 4129 </p>
+<p>If a TRDP user receives a reply message with topography counter values different to the 4131 </p>
+<p>If a TRDP user aborts an (open) session (e.g. after a train topology change), running timers 4133 </p>
+<p>The behavior of the caller’s TRDP layer is depicted in Figure A.22 with explanations given in 4135 </p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 173 -  9/3102/CD </p>
+<p> 4137 </p>
+<p></p>
+<h4>Figure A.22 – TRDP layer MD caller state chart</h4>4138 <p></p>
+<h4>Table A.22 – MD caller state diagram – triggers</h4>4139 <p><b>Triggers Description </b>MD.request User called MD.request service primitive </p>
+<p>change of topography counters). </p>
+<p> 4140 </p>
+<p></p>
+<h4>Table A.23 – MD caller state diagram – guards</h4>4141 <p><b>Guards Description </b>sendType Type of the MD request telegram as requested by the user in the MD.request </p>
+<p>service primitive </p>
+<p>(parameter ‘NoOfRepliers’) </p>
+<p>length and topography counter (at least one of the cases listed in Table A.21 </p>
+<p><i>IEC </i></p>
+<p>CompositeStateCaller</p>
+<p>MD.request / mdCallSession</p>
+<p>[sendType == ‚Mr’]</p>
+<p>StateWaitForReply</p>
+<p>[sendType == ‚Mn’]</p>
+<p>[missingReplies == 0 AND missingConfirms == 0]  / leave</p>
+<p>Start  </p>
+<p>Start  (caller)</p>
+<p>MD.confirm</p>
+<p>mpReceived</p>
+<p>Start (mdHandleCallerTimeout)</p>
+<p>[(maxTimeoutCnt != 0) AND </p>
+<p>[else]</p>
+<p>meReceived</p>
+<p>/ closeCallSession</p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 174 -  9/3102/CD <b>Guards Description </b></p>
+<p>checkTopoCounts Check the topology counters of the received message against the actual </p>
+<p> 4142 </p>
+<p></p>
+<h4>Table A.24 – MD caller state diagram – actions</h4>4143 <p><b>Actions Description </b>mdCallSession Handles the states of a caller session. </p>
+<p>If sending the request message is repeated after timeout telegram </p>
+<p>sendConfirmMessage Sends the confirm message </p>
+<p>MD.indicate service primitive </p>
+<p>service primitive) </p>
+<p> 4144 </p>
+<p></p>
+<h4>Table A.25 – MD caller state diagram – states</h4>4145 <p><b>States Description </b>CompositeStateCaller Composite state of the caller </p>
+<p>the reply/replies and optional requested confirmations from the application </p>
+<p></p>
+<h4>A.7.8.2 TRDP Layer – Replier (Listener)</h4>4146 <p>Each TRDP user (replier) that wants to receive MD shall register as listener for MD sent to a 4147 </p>
+<p>All incoming messages shall be checked against the actual topography counters. Messages not 4149 </p>
+<p>All incoming messages shall be checked against registered listeners. Any message to a not 4151 </p>
+<p>In case of a unicast request message to a not registered listener or to a listener expecting 4154 </p>
+<p>If a notification message (MsgType ‘Mn’) is received, the message shall be passed to the related 4157 </p>
+<p>If a request message (MsgType ‘Mr’) is received, a reply session shall be opened using the 4159 </p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 175 -  9/3102/CD </p>
+<p>If a request message (MsgType ‘Mr’) is received for an open reply session with the received 4166 </p>
+<p>After receiving the MD.reply from the TRDP user (listener), the TRDP layer shall send, 4168 </p>
+<p>A reply message shall be sent only as unicast using source IP address and source URI of the 4171 </p>
+<p>The MD.reply of a listener shall use as source IP address the IP address of the listener and as 4175 </p>
+<p>If a reply message without confirmation (MsgType = ‘Mp’) was sent, the reply session shall be 4177 </p>
+<p>If a reply message with confirmation (MsgType = ‘Mq’) was sent, the timeout timer of the reply 4179 </p>
+<p>If a request message (MsgType ‘Mr’) is received with a different sequence counter for an 4181 </p>
+<p>If a request message (MsgType ‘Mr’) is received for an already open reply session and the 4186 </p>
+<p>If a confirmation message (MsgType ‘Mc’) is received for an open reply session with the 4188 </p>
+<p>If a confirmation message (MsgType ‘Mc’) is received without having an open reply session with 4190 </p>
+<p>If the timeout timer of a reply session expires, the reply session shall be closed. In case of a 4192 </p>
+<p>The topography counter values obtained in an MD.addListener service primitive shall be used 4195 </p>
+<p>If a TRDP user receives a request message with topography counter values different to the 4198 </p>
+<p>If a TRDP user removes or updates a listener (e.g. after a train topology change) during an 4200 </p>
+<p>The behavior of the replier’s TRDP layer is depicted in Figure A.23 with explanations given in 4203 </p>
+<p> 4205 </p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 176 -  9/3102/CD </p>
+<p>   4206 </p>
+<p></p>
+<h4>Figure A.23 – TRDP layer MD replier state chart</h4>4207 <p></p>
+<h4>Table A.26 – MD replier state diagram – triggers</h4>4208 <p><b>Triggers Description </b>MD.addListener User called MD.addListener service primitive </p>
+<p>replyTimeout) </p>
+<p><i>IEC </i></p>
+<p>[msgType == ‚Mr’]</p>
+<p>[exists == TRUE]</p>
+<p>/filterForListener</p>
+<p>[exists == FALSE ]</p>
+<p>Start (mdHandleRequest)</p>
+<p>[msgType == ‚Mr’ AND </p>
+<p>/ mdIndicate(data)</p>
+<p>[exists == FALSE]</p>
+<p>[exists == TRUE ]</p>
+<p>StateWaitForApplReply</p>
+<p>[replyType == ‚Mp’]</p>
+<p>[replyType == ‚Mq’]</p>
+<p>entry / indicate(data)</p>
+<p>MD.reply / leave</p>
+<p>StateWaitForConfirm</p>
+<p>/ openReplySession</p>
+<p>mcReceived / indicate(data); leave</p>
+<p>timeout / leave</p>
+<p>exit / release (data OR timeout OR abort)</p>
+<p>Start (mdReplySession)</p>
+<p>CompositeStateReplier</p>
+<p>MD.addListener / addListener</p>
+<p>Start  (replier)</p>
+<p>[state == StateWaitForConfirm]</p>
+<p>[else]</p>
+<p>[repeated == TRUE]</p>
+<p>/ discardMsg</p>
+<p>[mdAbort == TRUE]</p>
+<p>[else]</p>
+<p>[else]</p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 177 -  9/3102/CD </p>
+<h4>Table A.27 – MD replier state diagram – guards</h4>4210 <p><b>Guards Description </b>existsReplySession </p>
+<p>The reply session for a given session id exists </p>
+<p>existsListener A listener for the given request with fitting topography counters </p>
+<p>replyType Type of MD reply telegram as requested by the user in the </p>
+<p>stateReplySession(sessionId) replier session state for a given session id </p>
+<p>protocol type, length and topography counter (at least one of the </p>
+<p>checkTopoCounts Check the topopology counters of the received message against </p>
+<p> 4211 </p>
+<h4>Table A.28 – MD replier state diagram – actions</h4>4212 <p><b>Actions Description </b>mdReplySession Handles the states of a reply session. </p>
+<p>confirmation message by invoking MD.indicate service primitive </p>
+<p>invoking MD.release service primitive </p>
+<p>mdAbort = FALSE </p>
+<p>mdAbort = TRUE </p>
+<p>mdAbort = TRUE </p>
+<p>the case if the sequence counter of the previous received request </p>
+<p>discardMsg Discard the received message  </p>
+<p>service primitive) </p>
+<p>Param = ‘data’: </p>
+<p>sendReplyErr(replyStatus) Send error reply message </p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 178 -  9/3102/CD <b>Actions Description </b></p>
+<p>– Reply type: ‘Me’  </p>
+<p> 4213 </p>
+<h4>Table A.29 – MD replier state diagram – states</h4>4214 <p><b>States Description </b>CompositeStateReplier Composite state of the replier </p>
+<p>requesting a reply to the application and is now waiting for the </p>
+<p>StateWaitForConfirm State of a reply session that has sent out a reply requesting a </p>
+<p></p>
+<h4>A.7.8.3 Handling of received messages (action mdHandleReceived)</h4>4215 <p>The state diagram shown in Figure A.24 with explanations given in Table A.30 until Table A.33 4216 </p>
+<p> 4218 </p>
+<h4>Figure A.24 – TRDP Layer MD telegram reception</h4>4219 <p><i>IEC </i></p>
+<p>CompositeStateReceiver</p>
+<p>mdMessageReceived / mdHandleReceived</p>
+<p>[exists == TRUE]</p>
+<p>Start (mdHandleReceived)</p>
+<p>[msgType == ‚Mp’]</p>
+<p>Start</p>
+<p>/ checkMsgHeader </p>
+<p>[msgType == ‚Mq’]</p>
+<p>[msgType == ‚Mc’]</p>
+<p>[msgType == ‚Mn’]</p>
+<p>[msgType == ‚Mr’]</p>
+<p>[msgType == ‚Mr’]</p>
+<p>[ else] / discardMsg</p>
+<p>[else]</p>
+<p>[else] </p>
+<p> [else] </p>
+<p> [else] </p>
+<p> [else] </p>
+<p> [else] </p>
+<p> [OK]</p>
+<p> [else] / discardMsg</p>
+<p> [else] / discardMsg</p>
+<p> [else] </p>
+<p>[msgType == ‚Me’]</p>
+<p>[exists == TRUE]</p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 179 -  9/3102/CD </p>
+<h4>Table A.30 – MD receiver state diagram – triggers</h4>4220 <p><b>Triggers Description </b>mdMessageReceived A MD telegram has been received </p>
+<p> 4221 </p>
+<p></p>
+<h4>Table A.31 – MD receiver state diagram – guards</h4>4222 <p><b>Guards Description </b>msgType Message telegram type as defined in Table A.18 </p>
+<p> 4223 </p>
+<p></p>
+<h4>Table A.32 – MD receiver state diagram – actions</h4>4224 <p><b>Actions Description </b>checkCallSession Check if a caller session to the given reply exists </p>
+<p>If a caller session exists, check that at least one of the cases listed in </p>
+<p>checkReplySession Check if a reply session to the given request or confirmation exists </p>
+<p>checkMsgHeader Check the MD telegram header for FCS, version and sequence counter </p>
+<p>mpReceived Trigger reception of Mn’ type MD telegram </p>
+<p> 4225 </p>
+<p></p>
+<h4>Table A.33 – MD receiver state diagram – states</h4>4226 <p><b>States Description </b>CompositeStateReceiver Composite state of the receiver </p>
+<p> 4227 </p>
+<h3>A.7.9 TCP Connection Handling</h3>4228 <p>This subclause defines the handling of TCP connections for TRDP message data transmission. 4229 </p>
+<p>Using TCP for data transmission requires an established TCP connection between the caller 4230 </p>
+<p>As long as a TCP connection to another device in the required direction is open, it should be 4233 </p>
+<p>The caller shall close an existing TCP connection (active end) in the following cases: 4235 </p>
+<p>• A signal that the TCP connection will be closed has been received. 4236 </p>
+<p>The replier shall use the connection opened by the caller. 4239 </p>
+
+</div></div>
+<div style="page-break-before:always; page-break-after:always"><div>
+<p>IEC CD 61375-2-3 © IEC 2024 - 180 -  9/3102/CD </p>
+<p>• A signal that the TCP connection will be closed has been received. 4241 </p>
+<p>is not used anymore for a defined time. 4244 </p>
+<p></p>
+<h2>A.8 Message data echo server (option)</h2>4245 <p>End devices with TRDP message data support can provide a message data echo function. A 4246 </p>
+<p>The Message Data Echo should be implemented in the TRDP layer.  4251 </p>
+<p>When message data arrive with the echo ComId (see Table A.2) an echo message is created 4252 </p>
+<p> 4255 </p>
+
+</div></div>
+</body>
+</html>

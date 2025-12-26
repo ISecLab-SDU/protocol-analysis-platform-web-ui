@@ -1,0 +1,342 @@
+{
+  "GetRequest-PDU": {
+    "request-id": {},
+    "error-status": {
+      "noError": {},
+      "tooBig": {},
+      "noSuchName": {},
+      "badValue": {},
+      "readOnly": {},
+      "genErr": {},
+      "noAccess": {},
+      "wrongType": {},
+      "wrongLength": {},
+      "wrongEncoding": {},
+      "wrongValue": {},
+      "noCreation": {},
+      "inconsistentValue": {},
+      "resourceUnavailable": {},
+      "commitFailed": {},
+      "undoFailed": {},
+      "authorizationError": {},
+      "notWritable": {},
+      "inconsistentName": {}
+    },
+    "error-index": {},
+    "variable-bindings": {
+      "VarBind": {
+        "name": {},
+        "value": {
+          "simple": {
+            "integer-value": {},
+            "string-value": {},
+            "objectID-value": {}
+          },
+          "application-wide": {
+            "ipAddress-value": {},
+            "counter-value": {},
+            "timeticks-value": {},
+            "arbitrary-value": {},
+            "big-counter-value": {},
+            "unsigned-integer-value": {}
+          }
+        }
+      }
+    }
+  },
+  "GetNextRequest-PDU": {
+    "request-id": {},
+    "error-status": {
+      "noError": {},
+      "tooBig": {},
+      "noSuchName": {},
+      "badValue": {},
+      "readOnly": {},
+      "genErr": {},
+      "noAccess": {},
+      "wrongType": {},
+      "wrongLength": {},
+      "wrongEncoding": {},
+      "wrongValue": {},
+      "noCreation": {},
+      "inconsistentValue": {},
+      "resourceUnavailable": {},
+      "commitFailed": {},
+      "undoFailed": {},
+      "authorizationError": {},
+      "notWritable": {},
+      "inconsistentName": {}
+    },
+    "error-index": {},
+    "variable-bindings": {
+      "VarBind": {
+        "name": {},
+        "value": {
+          "simple": {
+            "integer-value": {},
+            "string-value": {},
+            "objectID-value": {}
+          },
+          "application-wide": {
+            "ipAddress-value": {},
+            "counter-value": {},
+            "timeticks-value": {},
+            "arbitrary-value": {},
+            "big-counter-value": {},
+            "unsigned-integer-value": {}
+          }
+        }
+      }
+    }
+  },
+  "GetBulkRequest-PDU": {
+    "request-id": {},
+    "non-repeaters": {},
+    "max-repetitions": {},
+    "variable-bindings": {
+      "VarBind": {
+        "name": {},
+        "value": {
+          "simple": {
+            "integer-value": {},
+            "string-value": {},
+            "objectID-value": {}
+          },
+          "application-wide": {
+            "ipAddress-value": {},
+            "counter-value": {},
+            "timeticks-value": {},
+            "arbitrary-value": {},
+            "big-counter-value": {},
+            "unsigned-integer-value": {}
+          }
+        }
+      }
+    }
+  },
+  "Response-PDU": {
+    "request-id": {},
+    "error-status": {
+      "noError": {},
+      "tooBig": {},
+      "noSuchName": {},
+      "badValue": {},
+      "readOnly": {},
+      "genErr": {},
+      "noAccess": {},
+      "wrongType": {},
+      "wrongLength": {},
+      "wrongEncoding": {},
+      "wrongValue": {},
+      "noCreation": {},
+      "inconsistentValue": {},
+      "resourceUnavailable": {},
+      "commitFailed": {},
+      "undoFailed": {},
+      "authorizationError": {},
+      "notWritable": {},
+      "inconsistentName": {}
+    },
+    "error-index": {},
+    "variable-bindings": {
+      "VarBind": {
+        "name": {},
+        "value": {
+          "simple": {
+            "integer-value": {},
+            "string-value": {},
+            "objectID-value": {}
+          },
+          "application-wide": {
+            "ipAddress-value": {},
+            "counter-value": {},
+            "timeticks-value": {},
+            "arbitrary-value": {},
+            "big-counter-value": {},
+            "unsigned-integer-value": {}
+          }
+        }
+      }
+    }
+  },
+  "SetRequest-PDU": {
+    "request-id": {},
+    "error-status": {
+      "noError": {},
+      "tooBig": {},
+      "noSuchName": {},
+      "badValue": {},
+      "readOnly": {},
+      "genErr": {},
+      "noAccess": {},
+      "wrongType": {},
+      "wrongLength": {},
+      "wrongEncoding": {},
+      "wrongValue": {},
+      "noCreation": {},
+      "inconsistentValue": {},
+      "resourceUnavailable": {},
+      "commitFailed": {},
+      "undoFailed": {},
+      "authorizationError": {},
+      "notWritable": {},
+      "inconsistentName": {}
+    },
+    "error-index": {},
+    "variable-bindings": {
+      "VarBind": {
+        "name": {},
+        "value": {
+          "simple": {
+            "integer-value": {},
+            "string-value": {},
+            "objectID-value": {}
+          },
+          "application-wide": {
+            "ipAddress-value": {},
+            "counter-value": {},
+            "timeticks-value": {},
+            "arbitrary-value": {},
+            "big-counter-value": {},
+            "unsigned-integer-value": {}
+          }
+        }
+      }
+    }
+  },
+  "InformRequest-PDU": {
+    "request-id": {},
+    "error-status": {
+      "noError": {},
+      "tooBig": {},
+      "noSuchName": {},
+      "badValue": {},
+      "readOnly": {},
+      "genErr": {},
+      "noAccess": {},
+      "wrongType": {},
+      "wrongLength": {},
+      "wrongEncoding": {},
+      "wrongValue": {},
+      "noCreation": {},
+      "inconsistentValue": {},
+      "resourceUnavailable": {},
+      "commitFailed": {},
+      "undoFailed": {},
+      "authorizationError": {},
+      "notWritable": {},
+      "inconsistentName": {}
+    },
+    "error-index": {},
+    "variable-bindings": {
+      "VarBind": {
+        "name": {},
+        "value": {
+          "simple": {
+            "integer-value": {},
+            "string-value": {},
+            "objectID-value": {}
+          },
+          "application-wide": {
+            "ipAddress-value": {},
+            "counter-value": {},
+            "timeticks-value": {},
+            "arbitrary-value": {},
+            "big-counter-value": {},
+            "unsigned-integer-value": {}
+          }
+        }
+      }
+    }
+  },
+  "SNMPv2-Trap-PDU": {
+    "request-id": {},
+    "error-status": {
+      "noError": {},
+      "tooBig": {},
+      "noSuchName": {},
+      "badValue": {},
+      "readOnly": {},
+      "genErr": {},
+      "noAccess": {},
+      "wrongType": {},
+      "wrongLength": {},
+      "wrongEncoding": {},
+      "wrongValue": {},
+      "noCreation": {},
+      "inconsistentValue": {},
+      "resourceUnavailable": {},
+      "commitFailed": {},
+      "undoFailed": {},
+      "authorizationError": {},
+      "notWritable": {},
+      "inconsistentName": {}
+    },
+    "error-index": {},
+    "variable-bindings": {
+      "VarBind": {
+        "name": {},
+        "value": {
+          "simple": {
+            "integer-value": {},
+            "string-value": {},
+            "objectID-value": {}
+          },
+          "application-wide": {
+            "ipAddress-value": {},
+            "counter-value": {},
+            "timeticks-value": {},
+            "arbitrary-value": {},
+            "big-counter-value": {},
+            "unsigned-integer-value": {}
+          }
+        }
+      }
+    }
+  },
+  "Report-PDU": {
+    "request-id": {},
+    "error-status": {
+      "noError": {},
+      "tooBig": {},
+      "noSuchName": {},
+      "badValue": {},
+      "readOnly": {},
+      "genErr": {},
+      "noAccess": {},
+      "wrongType": {},
+      "wrongLength": {},
+      "wrongEncoding": {},
+      "wrongValue": {},
+      "noCreation": {},
+      "inconsistentValue": {},
+      "resourceUnavailable": {},
+      "commitFailed": {},
+      "undoFailed": {},
+      "authorizationError": {},
+      "notWritable": {},
+      "inconsistentName": {}
+    },
+    "error-index": {},
+    "variable-bindings": {
+      "VarBind": {
+        "name": {},
+        "value": {
+          "simple": {
+            "integer-value": {},
+            "string-value": {},
+            "objectID-value": {}
+          },
+          "application-wide": {
+            "ipAddress-value": {},
+            "counter-value": {},
+            "timeticks-value": {},
+            "arbitrary-value": {},
+            "big-counter-value": {},
+            "unsigned-integer-value": {}
+          }
+        }
+      }
+    }
+  }
+}

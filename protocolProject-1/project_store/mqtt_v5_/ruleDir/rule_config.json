@@ -1,0 +1,11 @@
+{
+  "paths": {
+    "paragraph_output": "project_store/mqtt_v5/keywordDir/paragraphs_output.json",
+    "final_output": "project_store/mqtt_v5/keywordDir/keywords_final.json",
+    "json_sentences": "project_store/mqtt_v5/ruleDir/filtered_sentences.json",
+    "txt_sentences": "project_store/mqtt_v5/ruleDir/matched_sentences.txt",
+    "excel_sentences": "project_store/mqtt_v5/ruleDir/filtered_sentences.xlsx",
+    "table": "project_store/mqtt_v5/documentDir/tables.md",
+    "processed": "project_store/mqtt_v5/ruleDir/processed_results.json"
+  }
+}
