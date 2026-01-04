@@ -33,7 +33,7 @@ class PipelineResultNotFoundError(RuntimeError):
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-PIPELINE_ROOT = (REPO_ROOT / "protocolProject-1").resolve()
+PIPELINE_ROOT = (Path(__file__).resolve().parents[1] / "protocol_extract").resolve()
 STORAGE_ROOT = PIPELINE_ROOT / "project_store"
 UPLOAD_ROOT = PIPELINE_ROOT / "uploads"
 
