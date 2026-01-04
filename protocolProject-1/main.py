@@ -1,5 +1,6 @@
 # protocolProject/main.py
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -28,12 +29,17 @@ def main():
     config = toml.load("config.toml")
     storage_root = Path(config["storage"]["root"])
 
+    # 从环境变量读取API密钥
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        print("❌ 错误: 未设置环境变量 OPENAI_API_KEY")
+        sys.exit(1)
+
     # 参数解析
     parser = argparse.ArgumentParser(
         description="协议分析全流程管理系统",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.add_argument("--apikey", required=True, help="DeepSeek API密钥")
     parser.add_argument("--protocol", required=True, help="协议名称（如 MQTT、HTTP）")
     parser.add_argument("--filter_headings", action="store_true", help="是否对目录进行筛选")
     parser.add_argument("--version", required=True, help="协议版本（如 5.0、1.1）")
@@ -55,7 +61,7 @@ def main():
 
     doc_cmd = [
     sys.executable, "-m", "documentProcess",
-    "--apikey", args.apikey,
+    "--apikey", api_key,
     "--protocol", args.protocol,
     "--version", args.version,
     "--html-file", str(html_path.absolute()),
@@ -74,7 +80,7 @@ def main():
             "name": "关键词处理阶段",
             "cmd": [
                 sys.executable, "-m", "keywordProcess",
-                "--apikey", args.apikey,
+                "--apikey", api_key,
                 "--protocol", args.protocol,
                 "--version", args.version,
                 "--store-dir", str(store_dir)
@@ -85,7 +91,7 @@ def main():
             "name": "规则处理阶段",
             "cmd": [
                 sys.executable, "-m", "ruleProcess",
-                "--apikey", args.apikey,
+                "--apikey", api_key,
                 "--protocol", args.protocol,
                 "--version", args.version,
                 "--store-dir", str(store_dir)

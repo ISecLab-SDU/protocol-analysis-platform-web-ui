@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -184,8 +185,6 @@ def _build_command(
     command = [
         sys.executable,
         "main.py",
-        "--apikey",
-        api_key,
         "--protocol",
         protocol,
         "--version",
@@ -218,7 +217,9 @@ def run_protocol_pipeline(
         raise ValueError("version 不能为空")
     api_key = api_key.strip()
     if not api_key:
-        raise ValueError("API 密钥不能为空")
+        api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+        if not api_key:
+            raise ValueError("API 密钥不能为空")
 
     saved_path = _save_upload(html_upload)
 

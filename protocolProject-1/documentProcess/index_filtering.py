@@ -3,6 +3,14 @@ import json
 from openai import OpenAI
 from collections import defaultdict
 import os
+import toml
+from pathlib import Path
+
+script_dir = Path(__file__).parent.parent
+config_path = script_dir / "config.toml"
+toml_config = toml.load(config_path)
+this_url = toml_config["llm"]["base_url"]
+this_model = toml_config["llm"]["model2"]
 
 
 def filter_headings(config):
@@ -46,11 +54,11 @@ def filter_headings(config):
 """
 
     # 调用AI筛选
-    client = OpenAI(api_key=config["api_key"], base_url="https://api.deepseek.com/v1")
+    client = OpenAI(api_key=config["api_key"], base_url=this_url)
     #print(prompt)
     try:
         response = client.chat.completions.create(
-            model="deepseek-reasoner",
+            model=this_model,
             messages=[
                 {"role": "system", "content": "你是一位协议文档分析专家"},
                 {"role": "user", "content": prompt}
