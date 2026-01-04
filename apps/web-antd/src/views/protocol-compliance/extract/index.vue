@@ -1037,8 +1037,6 @@ onMounted(async () => {
                     <TypographyText strong>功能二：上传已有结果文件，直接导入</TypographyText>
                     <TypographyParagraph type="secondary" style="margin: 8px 0">
                       已提前生成分析结果JSON文件？直接上传导入，无需重复分析（无需API密钥）
-                      <br />支持3种JSON格式：1. 直接数组 [{...}] 2. { "rules": [...] } 3. 按消息类型分组 {
-                      "CONNECT": [...], ... }
                     </TypographyParagraph>
                     <FormItem label="上传分析结果文件">
                       <Upload
@@ -1097,7 +1095,6 @@ onMounted(async () => {
 
                   <TypographyParagraph class="form-tip" type="secondary">
                     提示：所有生成/导入的结果都会自动存入历史记录，可在「历史记录」标签页查看。
-                    <br />如果操作失败，请打开浏览器控制台（F12）查看具体错误信息。
                   </TypographyParagraph>
                 </Form>
               </Spin>

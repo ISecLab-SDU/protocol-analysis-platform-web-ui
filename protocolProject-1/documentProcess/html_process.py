@@ -50,7 +50,7 @@ def clean_rfc_html(file_path, output_path, tables_json_path):
     extract_and_save_tables(file_path, tables_json_path)
 
     # 2. 读取 HTML 并删除表格
-    with open(file_path, 'r', encoding='utf-8') as file:
+    with open(file_path, 'r', encoding='utf-8', errors='ignore') as file:
         content = file.read()
 
     # 删除所有表格标签及内容
@@ -100,7 +100,7 @@ def clean_rfc_html(file_path, output_path, tables_json_path):
 
 
 def html_to_markdown(file_path, output_path):
-    with open(file_path, 'r', encoding='utf-8') as file:
+    with open(file_path, 'r', encoding='utf-8', errors='ignore') as file:
         tree = html.parse(file)
 
     # 转换标题标签
