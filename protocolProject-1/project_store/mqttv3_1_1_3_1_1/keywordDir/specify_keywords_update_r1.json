@@ -1,0 +1,916 @@
+{
+  "2 MQTT Control Packet format -> 2.1 Structure of an MQTT Control Packet": {},
+  "2 MQTT Control Packet format -> 2.1 Structure of an MQTT Control Packet -> Figure 2.1 â Structure of an MQTT Control Packet": {},
+  "2 MQTT Control Packet format -> 2.2 Fixed header -> 2.2.2 Flags": {},
+  "2 MQTT Control Packet format -> 2.2 Fixed header -> Figure 2.2 - Fixed header format": {},
+  "3 MQTT Control Packets -> 3.1 CONNECT â Client requests a connection to a Server -> 3.1.2 Variable header -> 3.1.2.3 Connect Flags": {},
+  "2 MQTT Control Packet format -> 2.4 Payload -> Table 2.6 - Control Packets that contain a Payload": {},
+  "2 MQTT Control Packet format -> 2.2 Fixed header": {},
+  "2 MQTT Control Packet format -> 2.4 Payload": {
+    "payload": [
+      "Application Message"
+    ]
+  },
+  "2 MQTT Control Packet format -> 2.2 Fixed header -> 2.2.1 MQTT Control Packet type": {
+    "control_packet_type": [
+      "Control packet types"
+    ]
+  },
+  "2 MQTT Control Packet format -> 2.3 Variable header": {
+    "variable_header": [
+      "variable header component"
+    ],
+    "payload": [
+      "payload"
+    ]
+  },
+  "2 MQTT Control Packet format -> 2.2 Fixed header -> 2.2.3 Remaining Length": {},
+  "2 MQTT Control Packet format -> 2.3 Variable header -> 2.3.1 Packet Identifier -> Table 2.5 - Control Packets that contain a Packet Identifier": {},
+  "3 MQTT Control Packets -> 3.1 CONNECT â Client requests a connection to a Server -> 3.1.2 Variable header": {
+    "CONNECT": [
+      "CONNECT Packet"
+    ],
+    "variable_header": [
+      "variable header"
+    ],
+    "protocol_name": [
+      "Protocol Name"
+    ],
+    "protocol_level": [
+      "Protocol Level"
+    ],
+    "connect_flags": [
+      "Connect Flags"
+    ],
+    "keep_alive": [
+      "Keep Alive"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT â Client requests a connection to a Server -> 3.1.2 Variable header -> 3.1.2.3 Connect Flags -> Figure 3.4 - Connect Flag bits": {
+    "CONNECT": [
+      "CONNECT Control Packet"
+    ],
+    "flags": [
+      "reserved flag"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT â Client requests a connection to a Server -> 3.1.1 Fixed header -> Figure 3.1 â CONNECT Packet fixed header": {
+    "CONNECT": [
+      "CONNECT Packet"
+    ],
+    "fixed_header": [
+      "CONNECT Packet fixed header"
+    ],
+    "control_packet_type": [
+      "MQTT Control Packet type"
+    ],
+    "remaining_length": [
+      "Remaining Length field",
+      "Remaining Length"
+    ],
+    "variable_header": [
+      "variable header"
+    ],
+    "payload": [
+      "Payload"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT â Client requests a connection to a Server -> 3.1.2 Variable header -> 3.1.2.6 Will QoS": {
+    "will_qos": [
+      "Will QoS"
+    ],
+    "connect_flags": [
+      "Connect Flags"
+    ],
+    "will_flag": [
+      "Will Flag"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT â Client requests a connection to a Server -> 3.1.2 Variable header -> 3.1.2.2 Protocol Level -> Figure 3.3 - Protocol Level byte": {
+    "protocol_level": [
+      "Protocol Level byte",
+      "Protocol Level field"
+    ],
+    "CONNECT": [
+      "CONNECT Packet"
+    ],
+    "CONNACK": [
+      "CONNACK"
+    ],
+    "return_code": [
+      "CONNACK return code"
+    ],
+    "unacceptable_protocol_version": [
+      "unacceptable protocol level"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT â Client requests a connection to a Server": {
+    "CONNECT": [
+      "CONNECT Packet"
+    ],
+    "payload": [
+      "payload"
+    ],
+    "client_identifier": [
+      "Client identifier"
+    ],
+    "will_topic": [
+      "Will topic"
+    ],
+    "will_message": [
+      "Will Message"
+    ],
+    "user_name": [
+      "User Name"
+    ],
+    "password": [
+      "Password"
+    ],
+    "flags": [
+      "flags"
+    ],
+    "variable_header": [
+      "variable header"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT â Client requests a connection to a Server -> 3.1.2 Variable header -> 3.1.2.9 Password Flag": {},
+  "2 MQTT Control Packet format -> 2.2 Fixed header -> 2.2.3 Remaining Length -> Table 2.4 Size of Remaining Length field": {},
+  "3 MQTT Control Packets -> 3.1 CONNECT â Client requests a connection to a Server -> 3.1.3 Payload": {},
+  "2 MQTT Control Packet format -> 2.2 Fixed header -> 2.2.1 MQTT Control Packet type -> Table 2.1 - Control packet types": {
+    "CONNECT": [
+      "client request to connect to a server"
+    ],
+    "CONNACK": [
+      "connect acknowledgment"
+    ],
+    "PUBLISH": [
+      "publish message"
+    ],
+    "PUBACK": [
+      "publish acknowledgment"
+    ],
+    "PUBREC": [
+      "publish received (assured delivery part 1)"
+    ],
+    "PUBREL": [
+      "publish release (assured delivery part 2)"
+    ],
+    "PUBCOMP": [
+      "publish complete (assured delivery part 3)"
+    ],
+    "SUBSCRIBE": [
+      "client subscribe request"
+    ],
+    "SUBACK": [
+      "subscribe acknowledgment"
+    ],
+    "UNSUBSCRIBE": [
+      "unsubscribe request"
+    ],
+    "UNSUBACK": [
+      "unsubscribe acknowledgment"
+    ],
+    "PINGREQ": [
+      "PING request"
+    ],
+    "PINGRESP": [
+      "PING response"
+    ],
+    "DISCONNECT": [
+      "client is disconnecting"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT â Client requests a connection to a Server -> 3.1.3 Payload -> 3.1.3.4 User Name": {
+    "user_name_flag": [
+      "User Name Flag"
+    ],
+    "user_name": [
+      "User Name"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT â Client requests a connection to a Server -> 3.1.3 Payload -> 3.1.3.5 Password": {
+    "password_flag": [
+      "Password Flag"
+    ],
+    "password": [
+      "Password field",
+      "binary data"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT â Client requests a connection to a Server -> 3.1.2 Variable header -> 3.1.2.8 User Name Flag": {
+    "user_name_flag": [
+      "User Name Flag"
+    ],
+    "connect_flags": [
+      "Connect Flags"
+    ],
+    "payload": [
+      "payload"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT â Client requests a connection to a Server -> 3.1.3 Payload -> 3.1.3.2 Will Topic": {
+    "will_flag": [
+      "Will Flag"
+    ],
+    "payload": [
+      "payload"
+    ],
+    "will_topic": [
+      "Will Topic"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT â Client requests a connection to a Server -> 3.1.2 Variable header -> 3.1.2.1 Protocol Name -> Figure 3.2 - Protocol Name bytes": {
+    "protocol_name": [
+      "Protocol Name"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT â Client requests a connection to a Server -> 3.1.2 Variable header -> 3.1.2.7 Will Retain": {
+    "will_retain": [
+      "Will Retain Flag"
+    ],
+    "will_flag": [
+      "Will Flag"
+    ],
+    "will_message": [
+      "Will Message"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.2 CONNACK â Acknowledge connection request -> 3.2.1 Fixed header": {},
+  "2 MQTT Control Packet format -> 2.3 Variable header -> 2.3.1 Packet Identifier -> Figure 2.3 - Packet Identifier bytes": {
+    "packet_identifier": [
+      "Packet Identifier",
+      "packet identifier",
+      "non-zero 16-bit Packet Identifier",
+      "Packet Identifier field",
+      "2-byte Packet Identifier field"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT â Client requests a connection to a Server -> 3.1.3 Payload -> 3.1.3.3 Will Message": {
+    "will_message": [
+      "Will Message"
+    ],
+    "payload": [
+      "data portion",
+      "data"
+    ],
+    "application_message": [
+      "Application Message"
+    ],
+    "will_topic": [
+      "Will Topic"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.2 CONNACK â Acknowledge connection request -> 3.2.3 Payload": {},
+  "3 MQTT Control Packets -> 3.2 CONNACK â Acknowledge connection request -> 3.2.2 Variable header": {},
+  "3 MQTT Control Packets -> 3.3 PUBLISH â Publish message": {},
+  "3 MQTT Control Packets -> 3.2 CONNACK â Acknowledge connection request": {},
+  "3 MQTT Control Packets -> 3.1 CONNECT â Client requests a connection to a Server -> 3.1.3 Payload -> 3.1.3.5 Password -> Figure 3.7 - Password bytes": {},
+  "3 MQTT Control Packets -> 3.1 CONNECT â Client requests a connection to a Server -> 3.1.2 Variable header -> 3.1.2.10 Keep Alive -> Figure 3.5 Keep Alive bytes": {},
+  "3 MQTT Control Packets -> 3.2 CONNACK â Acknowledge connection request -> 3.2.2 Variable header -> 3.2.2.1 Connect Acknowledge Flags": {
+    "connect_acknowledge_flags": [
+      "Connect Acknowledge Flags"
+    ],
+    "session_present": [
+      "Session Present Flag"
+    ]
+  },
+  "2 MQTT Control Packet format -> 2.2 Fixed header -> 2.2.2 Flags -> Table 2.2 - Flag Bits": {
+    "PUBLISH": [
+      "PUBLISH packet"
+    ],
+    "flags": [
+      "fixed header flags",
+      "DUP flag",
+      "QoS flag",
+      "RETAIN flag"
+    ],
+    "dup": [
+      "DUP1",
+      "DUP flag"
+    ],
+    "qos": [
+      "QoS2",
+      "QoS flag"
+    ],
+    "retain": [
+      "RETAIN3",
+      "RETAIN flag"
+    ],
+    "control_packet_type": [
+      "control packets",
+      "CONNECT packet",
+      "CONNACK packet",
+      "PUBLISH packet",
+      "PUBACK packet",
+      "PUBREC packet",
+      "PUBREL packet",
+      "PUBCOMP packet",
+      "SUBSCRIBE packet",
+      "SUBACK packet",
+      "UNSUBSCRIBE packet",
+      "UNSUBACK packet",
+      "PINGREQ packet",
+      "PINGRESP packet",
+      "DISCONNECT packet"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.3 PUBLISH â Publish message -> 3.3.1 Fixed header": {},
+  "3 MQTT Control Packets -> 3.2 CONNACK â Acknowledge connection request -> 3.2.2 Variable header -> Figure 3.9 â CONNACK Packet variable header": {
+    "CONNACK": [
+      "CONNACK packet"
+    ],
+    "variable_header": [
+      "CONNACK packet variable header"
+    ],
+    "connect_acknowledge_flags": [
+      "Connect Acknowledge Flags"
+    ],
+    "return_code": [
+      "Connect Return code"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.2 CONNACK â Acknowledge connection request -> 3.2.1 Fixed header -> Figure 3.8 â CONNACK Packet fixed header": {
+    "CONNACK": [
+      "CONNACK packet"
+    ],
+    "fixed_header": [
+      "CONNACK packet fixed header"
+    ],
+    "control_packet_type": [
+      "MQTT Control Packet Type"
+    ],
+    "remaining_length": [
+      "Remaining Length field"
+    ],
+    "variable_header": [
+      "variable header"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.2 CONNACK â Acknowledge connection request -> 3.2.2 Variable header -> 3.2.2.3 Connect Return code": {
+    "CONNECT": [
+      "CONNECT Packet"
+    ],
+    "CONNACK": [
+      "CONNACK packet"
+    ],
+    "return_code": [
+      "Connect Return code",
+      "Connect return code"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT â Client requests a connection to a Server -> 3.1.2 Variable header -> 3.1.2.5 Will Flag": {
+    "will_flag": [
+      "Will Flag"
+    ],
+    "will_qos": [
+      "Will QoS"
+    ],
+    "will_retain": [
+      "Will Retain"
+    ],
+    "payload": [
+      "payload"
+    ],
+    "will_topic": [
+      "Will Topic"
+    ],
+    "will_message": [
+      "Will Message"
+    ],
+    "DISCONNECT": [
+      "DISCONNECT Packet",
+      "DISCONNECT packet"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT â Client requests a connection to a Server -> 3.1.2 Variable header -> 3.1.2.11 Variable header non normative example -> Figure 3.6 - Variable header non normative example": {
+    "CONNECT": [
+      "Client requests a connection to a Server"
+    ],
+    "variable_header": [
+      "Variable header non normative example"
+    ],
+    "protocol_name": [
+      "Protocol Name"
+    ],
+    "protocol_level": [
+      "Level"
+    ],
+    "connect_flags": [
+      "Connect Flags"
+    ],
+    "clean_session": [
+      "Clean Session"
+    ],
+    "will_flag": [
+      "Will Flag"
+    ],
+    "will_qos": [
+      "Will QoS"
+    ],
+    "will_retain": [
+      "Will Retain"
+    ],
+    "password_flag": [
+      "Password Flag"
+    ],
+    "user_name_flag": [
+      "User Name Flag"
+    ],
+    "keep_alive": [
+      "Keep Alive"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.3 PUBLISH â Publish message -> 3.3.2 Variable header": {},
+  "3 MQTT Control Packets -> 3.1 CONNECT â Client requests a connection to a Server -> 3.1.4 Response": {},
+  "3 MQTT Control Packets -> 3.3 PUBLISH â Publish message -> 3.3.2 Variable header -> 3.3.2.3 Variable header non normative example": {},
+  "3 MQTT Control Packets -> 3.3 PUBLISH â Publish message -> 3.3.1 Fixed header -> 3.3.1.2 QoS": {},
+  "3 MQTT Control Packets -> 3.3 PUBLISH â Publish message -> 3.3.1 Fixed header -> Figure 3.10 â PUBLISH Packet fixed header": {},
+  "3 MQTT Control Packets -> 3.3 PUBLISH â Publish message -> 3.3.2 Variable header -> 3.3.2.2 Packet Identifier": {
+    "packet_identifier": [
+      "Packet Identifier"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT â Client requests a connection to a Server -> 3.1.2 Variable header -> 3.1.2.4 Clean Session": {
+    "clean_session": [
+      "CleanSession",
+      "Clean Session"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.3 PUBLISH â Publish message -> 3.3.1 Fixed header -> 3.3.1.2 QoS -> Table 3.2 - QoS definitions": {
+    "qos": [
+      "QoS",
+      "QoS value",
+      "QoS bits"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.3 PUBLISH â Publish message -> 3.3.2 Variable header -> 3.3.2.3 Variable header non normative example -> Table 3.3 - Publish Packet non normative example": {
+    "topic_name": [
+      "Topic Name"
+    ],
+    "packet_identifier": [
+      "Packet Identifier"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.4 PUBACK â Publish acknowledgement": {},
+  "3 MQTT Control Packets -> 3.3 PUBLISH â Publish message -> 3.3.4 Response": {},
+  "3 MQTT Control Packets -> 3.2 CONNACK â Acknowledge connection request -> 3.2.2 Variable header -> 3.2.2.2 Session Present": {
+    "CONNACK": [
+      "CONNACK packet"
+    ],
+    "connect_acknowledge_flags": [
+      "Connect Acknowledge Flags"
+    ],
+    "session_present": [
+      "Session Present"
+    ],
+    "return_code": [
+      "return code"
+    ],
+    "clean_session": [
+      "CleanSession"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.3 PUBLISH â Publish message -> 3.3.2 Variable header -> 3.3.2.1 Topic Name": {
+    "topic_name": [
+      "Topic Name"
+    ],
+    "payload": [
+      "payload data"
+    ],
+    "variable_header": [
+      "Variable header"
+    ],
+    "topic_filter": [
+      "Subscription’s Topic Filter",
+      "Topic Filter"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.1 CONNECT â Client requests a connection to a Server -> 3.1.3 Payload -> 3.1.3.1 Client Identifier": {
+    "CONNECT": [
+      "CONNECT packet"
+    ],
+    "payload": [
+      "CONNECT packet payload"
+    ],
+    "client_identifier": [
+      "Client Identifier",
+      "ClientId",
+      "ClientId's",
+      "ClientId’s"
+    ],
+    "clean_session": [
+      "CleanSession"
+    ],
+    "CONNACK": [
+      "CONNACK"
+    ],
+    "return_code": [
+      "CONNACK return code"
+    ],
+    "identifier_rejected": [
+      "Identifier rejected"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.2 CONNACK â Acknowledge connection request -> 3.2.2 Variable header -> 3.2.2.3 Connect Return code -> Table 3.1 â Connect Return code values": {
+    "return_code": [
+      "Connect Return code",
+      "return codes"
+    ],
+    "connection_accepted": [
+      "Connection Accepted"
+    ],
+    "unacceptable_protocol_version": [
+      "Connection Refused, unacceptable protocol version"
+    ],
+    "identifier_rejected": [
+      "Connection Refused, identifier rejected"
+    ],
+    "server_unavailable": [
+      "Connection Refused, Server unavailable"
+    ],
+    "bad_user_name_or_password": [
+      "Connection Refused, bad user name or password"
+    ],
+    "not_authorized": [
+      "Connection Refused, not authorized"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.4 PUBACK â Publish acknowledgement -> 3.4.2 Variable header -> Figure 3.13 â PUBACK Packet variable header": {},
+  "3 MQTT Control Packets -> 3.5 PUBREC â Publish received (QoS 2 publish received, part 1) -> 3.5.2 Variable header -> Figure 3.15 â PUBREC Packet variable header": {},
+  "3 MQTT Control Packets -> 3.4 PUBACK â Publish acknowledgement -> 3.4.2 Variable header": {},
+  "3 MQTT Control Packets -> 3.5 PUBREC â Publish received (QoS 2 publish received, part 1)": {},
+  "3 MQTT Control Packets -> 3.4 PUBACK â Publish acknowledgement -> 3.4.3 Payload": {},
+  "3 MQTT Control Packets -> 3.5 PUBREC â Publish received (QoS 2 publish received, part 1) -> 3.5.4 Actions": {},
+  "3 MQTT Control Packets -> 3.5 PUBREC â Publish received (QoS 2 publish received, part 1) -> 3.5.3 Payload": {},
+  "3 MQTT Control Packets -> 3.4 PUBACK â Publish acknowledgement -> 3.4.4 Actions": {},
+  "3 MQTT Control Packets -> 3.3 PUBLISH â Publish message -> 3.3.4 Response -> Table 3.4 - Expected Publish Packet response": {},
+  "3 MQTT Control Packets -> 3.5 PUBREC â Publish received (QoS 2 publish received, part 1) -> 3.5.2 Variable header": {
+    "packet_identifier": [
+      "Packet Identifier"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.3 PUBLISH â Publish message -> 3.3.3 Payload": {
+    "payload": [
+      "Application Message",
+      "data"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.7 PUBCOMP â Publish complete (QoS 2 publish received, part 3)": {},
+  "3 MQTT Control Packets -> 3.3 PUBLISH â Publish message -> 3.3.5 Actions": {},
+  "3 MQTT Control Packets -> 3.6 PUBREL â Publish release (QoS 2 publish received, part 2) -> 3.6.2 Variable header -> Figure 3.17 â PUBREL Packet variable header": {},
+  "3 MQTT Control Packets -> 3.6 PUBREL â Publish release (QoS 2 publish received, part 2) -> 3.6.4 Actions": {},
+  "3 MQTT Control Packets -> 3.6 PUBREL â Publish release (QoS 2 publish received, part 2) -> 3.6.2 Variable header": {},
+  "3 MQTT Control Packets -> 3.6 PUBREL â Publish release (QoS 2 publish received, part 2)": {},
+  "3 MQTT Control Packets -> 3.6 PUBREL â Publish release (QoS 2 publish received, part 2) -> 3.6.3 Payload": {},
+  "3 MQTT Control Packets -> 3.4 PUBACK â Publish acknowledgement -> 3.4.1 Fixed header -> Figure 3.12 - PUBACK Packet fixed header": {
+    "fixed_header": [
+      "fixed header structure"
+    ],
+    "control_packet_type": [
+      "MQTT Control Packet type"
+    ],
+    "remaining_length": [
+      "Remaining Length field"
+    ],
+    "variable_header": [
+      "variable header"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.7 PUBCOMP â Publish complete (QoS 2 publish received, part 3) -> 3.7.2 Variable header": {
+    "variable_header": [
+      "variable header"
+    ],
+    "packet_identifier": [
+      "Packet Identifier"
+    ],
+    "PUBREL": [
+      "PUBREL Packet"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.3 PUBLISH â Publish message -> 3.3.1 Fixed header -> 3.3.1.1 DUP": {
+    "dup": [
+      "DUP flag",
+      "DUP"
+    ],
+    "qos": [
+      "QoS"
+    ],
+    "payload": [
+      "Application Message"
+    ],
+    "application_message": [
+      "Application Message"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.7 PUBCOMP â Publish complete (QoS 2 publish received, part 3) -> 3.7.2 Variable header -> Figure 3.19 â PUBCOMP Packet variable header": {},
+  "3 MQTT Control Packets -> 3.3 PUBLISH â Publish message -> 3.3.2 Variable header -> 3.3.2.3 Variable header non normative example -> Figure 3.11 - Publish Packet variable header non normative example": {},
+  "3 MQTT Control Packets -> 3.8 SUBSCRIBE - Subscribe to topics -> 3.8.3 Payload -> 3.8.3.1 Payload non normative example": {},
+  "3 MQTT Control Packets -> 3.8 SUBSCRIBE - Subscribe to topics": {},
+  "3 MQTT Control Packets -> 3.7 PUBCOMP â Publish complete (QoS 2 publish received, part 3) -> 3.7.1 Fixed header -> Figure 3.18 â PUBCOMP Packet fixed header": {},
+  "3 MQTT Control Packets -> 3.7 PUBCOMP â Publish complete (QoS 2 publish received, part 3) -> 3.7.4 Actions": {},
+  "3 MQTT Control Packets -> 3.7 PUBCOMP â Publish complete (QoS 2 publish received, part 3) -> 3.7.3 Payload": {},
+  "3 MQTT Control Packets -> 3.8 SUBSCRIBE - Subscribe to topics -> 3.8.2 Variable header -> 3.8.2.1 Variable header non normative example": {},
+  "3 MQTT Control Packets -> 3.8 SUBSCRIBE - Subscribe to topics -> 3.8.2 Variable header": {
+    "packet_identifier": [
+      "Packet Identifier"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.8 SUBSCRIBE - Subscribe to topics -> 3.8.3 Payload -> 3.8.3.1 Payload non normative example -> Table 3.5 - Payload non normative example": {},
+  "3 MQTT Control Packets -> 3.9 SUBACK â Subscribe acknowledgement -> 3.9.2 Variable header -> Figure 3.25 â SUBACK Packet variable header": {},
+  "3 MQTT Control Packets -> 3.8 SUBSCRIBE - Subscribe to topics -> 3.8.2 Variable header -> 3.8.2.1 Variable header non normative example -> Figure 3.21 - Variable header with a Packet Identifier of 10, Non normative example": {},
+  "3 MQTT Control Packets -> 3.8 SUBSCRIBE - Subscribe to topics -> 3.8.1 Fixed header -> Figure 3.20 â SUBSCRIBE Packet fixed header": {},
+  "3 MQTT Control Packets -> 3.3 PUBLISH â Publish message -> 3.3.1 Fixed header -> 3.3.1.3 RETAIN": {
+    "retain": [
+      "RETAIN flag",
+      "RETAIN"
+    ],
+    "payload": [
+      "Application Message"
+    ],
+    "remaining_length": [
+      "Remaining Length field"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.5 PUBREC â Publish received (QoS 2 publish received, part 1) -> 3.5.1 Fixed header -> Figure 3.14 â PUBREC Packet fixed header": {
+    "fixed_header": [
+      "fixed header"
+    ],
+    "control_packet_type": [
+      "MQTT Control Packet type"
+    ],
+    "remaining_length": [
+      "Remaining Length field",
+      "Remaining Length"
+    ],
+    "variable_header": [
+      "variable header"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.6 PUBREL â Publish release (QoS 2 publish received, part 2) -> 3.6.1 Fixed header -> Figure 3.16 â PUBREL Packet fixed header": {
+    "fixed_header": [
+      "fixed header"
+    ],
+    "control_packet_type": [
+      "MQTT Control Packet type"
+    ],
+    "flags": [
+      "reserved bits"
+    ],
+    "remaining_length": [
+      "Remaining Length field"
+    ],
+    "variable_header": [
+      "variable header"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.9 SUBACK â Subscribe acknowledgement -> 3.9.2 Variable header": {
+    "packet_identifier": [
+      "Packet Identifier"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.9 SUBACK â Subscribe acknowledgement": {
+    "SUBACK": [
+      "SUBACK Packet"
+    ],
+    "payload": [
+      "list of return codes"
+    ],
+    "return_codes": [
+      "list of return codes",
+      "return codes"
+    ],
+    "SUBSCRIBE": [
+      "SUBSCRIBE Packet"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.9 SUBACK â Subscribe acknowledgement -> 3.9.3 Payload -> Figure 3.26 â SUBACK Packet payload format": {},
+  "3 MQTT Control Packets -> 3.9 SUBACK â Subscribe acknowledgement -> 3.9.3 Payload -> 3.9.3.1 Payload non normative example -> Table 3.6 - Payload non normative example": {},
+  "3 MQTT Control Packets -> 3.10 UNSUBSCRIBE â Unsubscribe from topics -> 3.10.3 Payload -> 3.10.3.1 Payload non normative example": {},
+  "3 MQTT Control Packets -> 3.11 UNSUBACK â Unsubscribe acknowledgement": {},
+  "3 MQTT Control Packets -> 3.9 SUBACK â Subscribe acknowledgement -> 3.9.3 Payload -> 3.9.3.1 Payload non normative example -> Figure 3.27 - Payload byte format non normative example": {},
+  "3 MQTT Control Packets -> 3.10 UNSUBSCRIBE â Unsubscribe from topics": {},
+  "3 MQTT Control Packets -> 3.9 SUBACK â Subscribe acknowledgement -> 3.9.1 Fixed header -> Figure 3.24 â SUBACK Packet fixed header": {},
+  "3 MQTT Control Packets -> 3.11 UNSUBACK â Unsubscribe acknowledgement -> 3.11.2 Variable header": {},
+  "3 MQTT Control Packets -> 3.9 SUBACK â Subscribe acknowledgement -> 3.9.3 Payload -> 3.9.3.1 Payload non normative example": {},
+  "3 MQTT Control Packets -> 3.9 SUBACK â Subscribe acknowledgement -> 3.9.3 Payload": {},
+  "3 MQTT Control Packets -> 3.10 UNSUBSCRIBE â Unsubscribe from topics -> 3.10.2 Variable header -> Figure 3.29 â UNSUBSCRIBE Packet variable header": {},
+  "3 MQTT Control Packets -> 3.8 SUBSCRIBE - Subscribe to topics -> 3.8.3 Payload": {},
+  "3 MQTT Control Packets -> 3.10 UNSUBSCRIBE â Unsubscribe from topics -> 3.10.3 Payload -> 3.10.3.1 Payload non normative example -> Table3.7 - Payload non normative example": {},
+  "3 MQTT Control Packets -> 3.10 UNSUBSCRIBE â Unsubscribe from topics -> 3.10.2 Variable header": {
+    "packet_identifier": [
+      "Packet Identifier"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.8 SUBSCRIBE - Subscribe to topics -> 3.8.3 Payload -> Figure 3.22 â SUBSCRIBE Packet payload format": {
+    "SUBSCRIBE": [
+      "SUBSCRIBE packet"
+    ],
+    "payload": [
+      "SUBSCRIBE packet payload"
+    ],
+    "topic_filter": [
+      "Topic Filter"
+    ],
+    "requested_qos": [
+      "Requested QoS",
+      "QoS value"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.11 UNSUBACK â Unsubscribe acknowledgement -> 3.11.3 Payload": {},
+  "3 MQTT Control Packets -> 3.12 PINGREQ â PING request -> 3.12.3 Payload": {},
+  "3 MQTT Control Packets -> 3.12 PINGREQ â PING request -> 3.12.2 Variable header": {},
+  "3 MQTT Control Packets -> 3.11 UNSUBACK â Unsubscribe acknowledgement -> 3.11.1 Fixed header -> Figure 3.31 â UNSUBACK Packet fixed header": {},
+  "3 MQTT Control Packets -> 3.13 PINGRESP â PING response -> 3.13.3 Payload": {},
+  "3 MQTT Control Packets -> 3.13 PINGRESP â PING response -> 3.13.2 Variable header": {},
+  "3 MQTT Control Packets -> 3.12 PINGREQ â PING request -> 3.12.4 Response": {},
+  "3 MQTT Control Packets -> 3.11 UNSUBACK â Unsubscribe acknowledgement -> 3.11.2 Variable header -> Figure 3.32 â UNSUBACK Packet variable header": {
+    "packet_identifier": [
+      "Packet Identifier Most Significant Byte",
+      "Packet Identifier Least Significant Byte"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.10 UNSUBSCRIBE â Unsubscribe from topics -> 3.10.3 Payload": {
+    "payload": [
+      "Payload"
+    ],
+    "topic_filters": [
+      "Topic Filters",
+      "Topic Filter"
+    ],
+    "topic_filter": [
+      "Topic Filters",
+      "Topic Filter"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.8 SUBSCRIBE - Subscribe to topics -> 3.8.3 Payload -> 3.8.3.1 Payload non normative example -> Figure 3.23 - Payload byte format non normative example": {},
+  "3 MQTT Control Packets -> 3.12 PINGREQ â PING request -> 3.12.1 Fixed header -> Figure 3.33 â PINGREQ Packet fixed header": {
+    "fixed_header": [
+      "fixed header"
+    ],
+    "control_packet_type": [
+      "MQTT Control Packet type"
+    ],
+    "remaining_length": [
+      "Remaining Length field"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.10 UNSUBSCRIBE â Unsubscribe from topics -> 3.10.1 Fixed header -> Figure 3.28 â UNSUBSCRIBE Packet Fixed header": {
+    "UNSUBSCRIBE": [
+      "UNSUBSCRIBE packet",
+      "UNSUBSCRIBE Control Packet"
+    ],
+    "fixed_header": [
+      "fixed header",
+      "fixed header bits"
+    ],
+    "control_packet_type": [
+      "MQTT Control Packet type"
+    ],
+    "flags": [
+      "reserved bits"
+    ],
+    "remaining_length": [
+      "Remaining Length field",
+      "Remaining Length"
+    ],
+    "variable_header": [
+      "variable header"
+    ],
+    "payload": [
+      "payload"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.13 PINGRESP â PING response": {},
+  "3 MQTT Control Packets -> 3.10 UNSUBSCRIBE â Unsubscribe from topics -> 3.10.4 Response": {},
+  "3 MQTT Control Packets -> 3.14 DISCONNECT â Disconnect notification -> 3.14.2 Variable header": {},
+  "3 MQTT Control Packets -> 3.14 DISCONNECT â Disconnect notification -> 3.14.1 Fixed header -> Figure 3.35 â DISCONNECT Packet fixed header": {},
+  "3 MQTT Control Packets -> 3.13 PINGRESP â PING response -> 3.13.1 Fixed header -> Figure 3.34 â PINGRESP Packet fixed header": {},
+  "3 MQTT Control Packets -> 3.14 DISCONNECT â Disconnect notification": {},
+  "3 MQTT Control Packets -> 3.14 DISCONNECT â Disconnect notification -> 3.14.3 Payload": {},
+  "3 MQTT Control Packets -> 3.8 SUBSCRIBE - Subscribe to topics -> 3.8.4 Response": {},
+  "3 MQTT Control Packets -> 3.10 UNSUBSCRIBE â Unsubscribe from topics -> 3.10.3 Payload -> 3.10.3.1 Payload non normative example -> Figure 3.30 - Payload byte format non normative example": {},
+  "4 Operational behavior -> 4.3 Quality of Service levels and protocol flows -> 4.3.1 QoS 0: At most once delivery -> Figure 4.1 â QoS 0 protocol flow diagram, non normative example": {
+    "qos": [
+      "QoS"
+    ],
+    "application_message": [
+      "message"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.14 DISCONNECT â Disconnect notification -> 3.14.4 Response": {
+    "DISCONNECT": [
+      "DISCONNECT Packet"
+    ],
+    "control_packet_type": [
+      "Control Packets"
+    ],
+    "will_message": [
+      "Will Message"
+    ]
+  },
+  "3 MQTT Control Packets -> 3.12 PINGREQ â PING request": {
+    "PINGREQ": [
+      "PINGREQ Packet"
+    ],
+    "control_packet_type": [
+      "Control Packets"
+    ],
+    "keep_alive": [
+      "Keep Alive"
+    ]
+  },
+  "4 Operational behavior -> 4.2 Network Connections": {},
+  "4 Operational behavior -> 4.1 Storing state -> 4.1.1 Non normative example": {},
+  "4 Operational behavior -> 4.3 Quality of Service levels and protocol flows": {},
+  "4 Operational behavior -> 4.3 Quality of Service levels and protocol flows -> 4.3.3 QoS 2: Exactly once delivery -> Figure 4.3 â QoS 2 protocol flow diagram, non normative example": {},
+  "4 Operational behavior -> 4.7 Topic Names and Topic Filters -> 4.7.1 Topic wildcards": {},
+  "4 Operational behavior -> 4.7 Topic Names and Topic Filters -> 4.7.1 Topic wildcards -> 4.7.1.1 Topic level separator": {},
+  "5 Security -> 5.4 Implementation notes": {},
+  "4 Operational behavior -> 4.5 Message receipt": {},
+  "4 Operational behavior -> 4.1 Storing state": {},
+  "4 Operational behavior -> 4.4 Message delivery retry": {
+    "clean_session": [
+      "CleanSession"
+    ],
+    "packet_identifier": [
+      "Packet Identifiers"
+    ]
+  },
+  "4 Operational behavior -> 4.3 Quality of Service levels and protocol flows -> 4.3.1 QoS 0: At most once delivery": {
+    "PUBLISH": [
+      "PUBLISH packet"
+    ],
+    "qos": [
+      "QoS"
+    ],
+    "dup": [
+      "DUP"
+    ]
+  },
+  "4 Operational behavior -> 4.3 Quality of Service levels and protocol flows -> _4.3.2_ _QoS 1: At least once delivery_": {},
+  "4 Operational behavior -> 4.7 Topic Names and Topic Filters -> 4.7.2 Topics beginning with": {},
+  "5 Security -> 5.4 Implementation notes -> 5.4.2 Authorization of Clients by the Server": {},
+  "5 Security -> 5.4 Implementation notes -> 5.4.6 Non-repudiation of message transmission": {},
+  "4 Operational behavior -> 4.8 Handling errors": {},
+  "5 Security -> 5.4 Implementation notes -> 5.4.4 Integrity of Application Messages and Control Packets": {},
+  "4 Operational behavior -> 4.7 Topic Names and Topic Filters -> 4.7.1 Topic wildcards -> 4.7.1.2 Multi-level wildcard": {},
+  "4 Operational behavior -> 4.3 Quality of Service levels and protocol flows -> _4.3.2_ _QoS 1: At least once delivery_ -> Figure 4.2 â QoS 1 protocol flow diagram, non normative example": {
+    "PUBLISH": [
+      "PUBLISH packet"
+    ],
+    "qos": [
+      "QoS"
+    ],
+    "dup": [
+      "DUP"
+    ],
+    "packet_identifier": [
+      "packet identifier"
+    ],
+    "application_message": [
+      "application message"
+    ]
+  },
+  "5 Security -> 5.4 Implementation notes -> 5.4.1 Authentication of Clients by the Server": {
+    "CONNECT": [
+      "CONNECT Packet"
+    ],
+    "user_name": [
+      "Username"
+    ],
+    "password": [
+      "Password"
+    ],
+    "application_message": [
+      "Application Message"
+    ]
+  },
+  "4 Operational behavior -> 4.7 Topic Names and Topic Filters -> 4.7.1 Topic wildcards -> 4.7.1.3 Single level wildcard": {},
+  "5 Security -> 5.4 Implementation notes -> 5.4.11 Security profiles -> 5.4.11.3 Secured transport profile": {},
+  "5 Security -> 5.4 Implementation notes -> 5.4.3 Authentication of the Server by the Client": {},
+  "5 Security -> 5.4 Implementation notes -> 5.4.5 Privacy of Application Messages and Control Packets": {},
+  "5 Security -> 5.4 Implementation notes -> 5.4.11 Security profiles": {},
+  "5 Security -> 5.4 Implementation notes -> 5.4.11 Security profiles -> 5.4.11.1 Clear communication profile": {},
+  "5 Security -> 5.4 Implementation notes -> 5.4.10 Use of SOCKS": {},
+  "5 Security -> 5.4 Implementation notes -> 5.4.8 Detecting abnormal behaviors": {},
+  "5 Security -> 5.4 Implementation notes -> 5.4.11 Security profiles -> 5.4.11.2 Secured network communication profile": {},
+  "4 Operational behavior -> 4.6 Message ordering": {},
+  "5 Security -> 5.4 Implementation notes -> 5.4.7 Detecting compromise of Clients and Servers": {},
+  "4 Operational behavior -> 4.3 Quality of Service levels and protocol flows -> 4.3.3 QoS 2: Exactly once delivery": {
+    "packet_identifier": [
+      "Packet Identifier"
+    ],
+    "application_message": [
+      "Application Message"
+    ],
+    "qos": [
+      "QoS"
+    ],
+    "dup": [
+      "DUP"
+    ]
+  },
+  "5 Security -> 5.4 Implementation notes -> 5.4.11 Security profiles -> 5.4.11.4 Industry specific security profiles": {},
+  "4 Operational behavior -> 4.7 Topic Names and Topic Filters -> 4.7.3 Topic semantic and usage": {},
+  "5 Security -> 5.4 Implementation notes -> 5.4.9 Other security considerations": {}
+}

@@ -1,480 +1,148 @@
 {
-  "Solicit": {
+  "SOLICIT": {
     "msg-type": {},
     "transaction-id": {},
     "options": {
-      "Client Identifier": {
-        "duid-llt": {
-          "hardware-type": {},
-          "time": {},
-          "link-layer-address": {}
-        },
-        "duid-en": {
-          "enterprise-number": {},
-          "identifier": {}
-        },
-        "duid-ll": {
-          "hardware-type": {},
-          "link-layer-address": {}
-        }
+      "option": {
+        "option-code": {},
+        "option-len": {},
+        "option-data": {}
       }
     }
   },
-  "Advertise": {
+  "ADVERTISE": {
     "msg-type": {},
     "transaction-id": {},
     "options": {
-      "Server Identifier": {
-        "duid-llt": {
-          "hardware-type": {},
-          "time": {},
-          "link-layer-address": {}
-        },
-        "duid-en": {
-          "enterprise-number": {},
-          "identifier": {}
-        },
-        "duid-ll": {
-          "hardware-type": {},
-          "link-layer-address": {}
-        }
+      "option": {
+        "option-code": {},
+        "option-len": {},
+        "option-data": {}
       }
     }
   },
-  "Request": {
+  "REQUEST": {
     "msg-type": {},
     "transaction-id": {},
     "options": {
-      "Client Identifier": {
-        "duid-llt": {
-          "hardware-type": {},
-          "time": {},
-          "link-layer-address": {}
-        },
-        "duid-en": {
-          "enterprise-number": {},
-          "identifier": {}
-        },
-        "duid-ll": {
-          "hardware-type": {},
-          "link-layer-address": {}
-        }
-      },
-      "Server Identifier": {
-        "duid-llt": {
-          "hardware-type": {},
-          "time": {},
-          "link-layer-address": {}
-        },
-        "duid-en": {
-          "enterprise-number": {},
-          "identifier": {}
-        },
-        "duid-ll": {
-          "hardware-type": {},
-          "link-layer-address": {}
-        }
-      },
-      "IA_NA": {
-        "iaid": {},
-        "t1": {},
-        "t2": {},
-        "options": {
-          "IAADDR": {
-            "ipv6-address": {},
-            "preferred-lifetime": {},
-            "valid-lifetime": {},
-            "options": {
-              "Status Code": {
-                "status-code": {
-                  "Success": {},
-                  "UnspecFail": {},
-                  "NoAddrsAvail": {},
-                  "NoBinding": {},
-                  "NotOnLink": {},
-                  "UseMulticast": {},
-                  "NoPrefixAvail": {}
-                },
-                "status-message": {}
-              }
-            }
-          }
-        }
+      "option": {
+        "option-code": {},
+        "option-len": {},
+        "option-data": {}
       }
     }
   },
-  "Confirm": {
+  "CONFIRM": {
     "msg-type": {},
     "transaction-id": {},
     "options": {
-      "Client Identifier": {
-        "duid-llt": {
-          "hardware-type": {},
-          "time": {},
-          "link-layer-address": {}
-        },
-        "duid-en": {
-          "enterprise-number": {},
-          "identifier": {}
-        },
-        "duid-ll": {
-          "hardware-type": {},
-          "link-layer-address": {}
-        }
-      },
-      "IA_NA": {
-        "iaid": {},
-        "t1": {},
-        "t2": {},
-        "options": {
-          "IAADDR": {
-            "ipv6-address": {},
-            "preferred-lifetime": {},
-            "valid-lifetime": {},
-            "options": {
-              "Status Code": {
-                "status-code": {
-                  "Success": {},
-                  "UnspecFail": {},
-                  "NoAddrsAvail": {},
-                  "NoBinding": {},
-                  "NotOnLink": {},
-                  "UseMulticast": {},
-                  "NoPrefixAvail": {}
-                },
-                "status-message": {}
-              }
-            }
-          }
-        }
+      "option": {
+        "option-code": {},
+        "option-len": {},
+        "option-data": {}
       }
     }
   },
-  "Renew": {
+  "RENEW": {
     "msg-type": {},
     "transaction-id": {},
     "options": {
-      "Client Identifier": {
-        "duid-llt": {
-          "hardware-type": {},
-          "time": {},
-          "link-layer-address": {}
-        },
-        "duid-en": {
-          "enterprise-number": {},
-          "identifier": {}
-        },
-        "duid-ll": {
-          "hardware-type": {},
-          "link-layer-address": {}
-        }
-      },
-      "Server Identifier": {
-        "duid-llt": {
-          "hardware-type": {},
-          "time": {},
-          "link-layer-address": {}
-        },
-        "duid-en": {
-          "enterprise-number": {},
-          "identifier": {}
-        },
-        "duid-ll": {
-          "hardware-type": {},
-          "link-layer-address": {}
-        }
-      },
-      "IA_NA": {
-        "iaid": {},
-        "t1": {},
-        "t2": {},
-        "options": {
-          "IAADDR": {
-            "ipv6-address": {},
-            "preferred-lifetime": {},
-            "valid-lifetime": {},
-            "options": {
-              "Status Code": {
-                "status-code": {
-                  "Success": {},
-                  "UnspecFail": {},
-                  "NoAddrsAvail": {},
-                  "NoBinding": {},
-                  "NotOnLink": {},
-                  "UseMulticast": {},
-                  "NoPrefixAvail": {}
-                },
-                "status-message": {}
-              }
-            }
-          }
-        }
+      "option": {
+        "option-code": {},
+        "option-len": {},
+        "option-data": {}
       }
     }
   },
-  "Rebind": {
+  "REBIND": {
     "msg-type": {},
     "transaction-id": {},
     "options": {
-      "Client Identifier": {
-        "duid-llt": {
-          "hardware-type": {},
-          "time": {},
-          "link-layer-address": {}
-        },
-        "duid-en": {
-          "enterprise-number": {},
-          "identifier": {}
-        },
-        "duid-ll": {
-          "hardware-type": {},
-          "link-layer-address": {}
-        }
-      },
-      "IA_NA": {
-        "iaid": {},
-        "t1": {},
-        "t2": {},
-        "options": {
-          "IAADDR": {
-            "ipv6-address": {},
-            "preferred-lifetime": {},
-            "valid-lifetime": {},
-            "options": {
-              "Status Code": {
-                "status-code": {
-                  "Success": {},
-                  "UnspecFail": {},
-                  "NoAddrsAvail": {},
-                  "NoBinding": {},
-                  "NotOnLink": {},
-                  "UseMulticast": {},
-                  "NoPrefixAvail": {}
-                },
-                "status-message": {}
-              }
-            }
-          }
-        }
+      "option": {
+        "option-code": {},
+        "option-len": {},
+        "option-data": {}
       }
     }
   },
-  "Reply": {
+  "REPLY": {
     "msg-type": {},
     "transaction-id": {},
     "options": {
-      "Server Identifier": {
-        "duid-llt": {
-          "hardware-type": {},
-          "time": {},
-          "link-layer-address": {}
-        },
-        "duid-en": {
-          "enterprise-number": {},
-          "identifier": {}
-        },
-        "duid-ll": {
-          "hardware-type": {},
-          "link-layer-address": {}
-        }
+      "option": {
+        "option-code": {},
+        "option-len": {},
+        "option-data": {}
       }
     }
   },
-  "Release": {
+  "RELEASE": {
     "msg-type": {},
     "transaction-id": {},
     "options": {
-      "Client Identifier": {
-        "duid-llt": {
-          "hardware-type": {},
-          "time": {},
-          "link-layer-address": {}
-        },
-        "duid-en": {
-          "enterprise-number": {},
-          "identifier": {}
-        },
-        "duid-ll": {
-          "hardware-type": {},
-          "link-layer-address": {}
-        }
-      },
-      "Server Identifier": {
-        "duid-llt": {
-          "hardware-type": {},
-          "time": {},
-          "link-layer-address": {}
-        },
-        "duid-en": {
-          "enterprise-number": {},
-          "identifier": {}
-        },
-        "duid-ll": {
-          "hardware-type": {},
-          "link-layer-address": {}
-        }
-      },
-      "IA_NA": {
-        "iaid": {},
-        "t1": {},
-        "t2": {},
-        "options": {
-          "IAADDR": {
-            "ipv6-address": {},
-            "preferred-lifetime": {},
-            "valid-lifetime": {},
-            "options": {
-              "Status Code": {
-                "status-code": {
-                  "Success": {},
-                  "UnspecFail": {},
-                  "NoAddrsAvail": {},
-                  "NoBinding": {},
-                  "NotOnLink": {},
-                  "UseMulticast": {},
-                  "NoPrefixAvail": {}
-                },
-                "status-message": {}
-              }
-            }
-          }
-        }
+      "option": {
+        "option-code": {},
+        "option-len": {},
+        "option-data": {}
       }
     }
   },
-  "Decline": {
+  "DECLINE": {
     "msg-type": {},
     "transaction-id": {},
     "options": {
-      "Client Identifier": {
-        "duid-llt": {
-          "hardware-type": {},
-          "time": {},
-          "link-layer-address": {}
-        },
-        "duid-en": {
-          "enterprise-number": {},
-          "identifier": {}
-        },
-        "duid-ll": {
-          "hardware-type": {},
-          "link-layer-address": {}
-        }
-      },
-      "Server Identifier": {
-        "duid-llt": {
-          "hardware-type": {},
-          "time": {},
-          "link-layer-address": {}
-        },
-        "duid-en": {
-          "enterprise-number": {},
-          "identifier": {}
-        },
-        "duid-ll": {
-          "hardware-type": {},
-          "link-layer-address": {}
-        }
-      },
-      "IA_NA": {
-        "iaid": {},
-        "t1": {},
-        "t2": {},
-        "options": {
-          "IAADDR": {
-            "ipv6-address": {},
-            "preferred-lifetime": {},
-            "valid-lifetime": {},
-            "options": {
-              "Status Code": {
-                "status-code": {
-                  "Success": {},
-                  "UnspecFail": {},
-                  "NoAddrsAvail": {},
-                  "NoBinding": {},
-                  "NotOnLink": {},
-                  "UseMulticast": {},
-                  "NoPrefixAvail": {}
-                },
-                "status-message": {}
-              }
-            }
-          }
-        }
+      "option": {
+        "option-code": {},
+        "option-len": {},
+        "option-data": {}
       }
     }
   },
-  "Reconfigure": {
+  "RECONFIGURE": {
     "msg-type": {},
     "transaction-id": {},
     "options": {
-      "Server Identifier": {
-        "duid-llt": {
-          "hardware-type": {},
-          "time": {},
-          "link-layer-address": {}
-        },
-        "duid-en": {
-          "enterprise-number": {},
-          "identifier": {}
-        },
-        "duid-ll": {
-          "hardware-type": {},
-          "link-layer-address": {}
-        }
-      },
-      "Reconfigure Message": {
-        "msg-type": {
-          "Renew": {},
-          "Information-Request": {}
-        }
+      "option": {
+        "option-code": {},
+        "option-len": {},
+        "option-data": {}
       }
     }
   },
-  "Information-Request": {
+  "INFORMATION-REQUEST": {
     "msg-type": {},
     "transaction-id": {},
     "options": {
-      "Client Identifier": {
-        "duid-llt": {
-          "hardware-type": {},
-          "time": {},
-          "link-layer-address": {}
-        },
-        "duid-en": {
-          "enterprise-number": {},
-          "identifier": {}
-        },
-        "duid-ll": {
-          "hardware-type": {},
-          "link-layer-address": {}
-        }
+      "option": {
+        "option-code": {},
+        "option-len": {},
+        "option-data": {}
       }
     }
   },
-  "Relay-Forward": {
+  "RELAY-FORW": {
     "msg-type": {},
     "hop-count": {},
     "link-address": {},
     "peer-address": {},
     "options": {
-      "Relay Message": {
-        "msg-type": {},
-        "transaction-id": {},
-        "options": {}
+      "option": {
+        "option-code": {},
+        "option-len": {},
+        "option-data": {}
       }
     }
   },
-  "Relay-Reply": {
+  "RELAY-REPL": {
     "msg-type": {},
     "hop-count": {},
     "link-address": {},
     "peer-address": {},
     "options": {
-      "Relay Message": {
-        "msg-type": {},
-        "transaction-id": {},
-        "options": {}
+      "option": {
+        "option-code": {},
+        "option-len": {},
+        "option-data": {}
       }
     }
   }

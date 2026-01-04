@@ -7,7 +7,7 @@ user = '''
 2.Pronoun handling:
 (1)If the referent is clear → no change.
 (2)If unclear → replace with explicit referent from the current chapter context and adjust sentence structure.
-3.Remove unrelated characters (e.g., TABLE, FIGURE, garbled text).
+3.Remove unrelated garbled text.
 4.If the sentence contains non-natural language characters, rewrite it into natural language.
 5.Output format: strict JSON only, no extra text or comments.
 Format:
@@ -58,8 +58,34 @@ Content:
 {content}
 '''
 
+[filter_index]
+user = '''
+You are a protocol analysis expert. 
+Your task is to determine whether the following text block 
+contains information relevant to *protocol messages or message fields*.
+
+✔ Relevant content includes ANY of:
+- message sending or receiving actions
+- message formats, structures, or syntax (ABNF, TLV, CBOR, binary layout)
+- definitions of message fields (ID, NONCE, MAC, KEY, PAYLOAD, etc.)
+- rules or constraints about fields (MUST include, MUST match length, etc.)
+- computation steps used to construct message fields
+
+✘ Irrelevant content includes:
+- protocol introduction or descriptive text
+- compatibility notes or versioning explanations
+- implementation guidance or performance optimization
+- conceptual explanations without message structure
+
+Your output MUST be ONLY one word:
+"RELEVANT" or "IRRELEVANT".
+
+Text Block:
+{block}
+'''
+
 [prompt_specify_keywords]
-user = """
+user = '''
 Please list all message types defined in {protocol} {version}, and enumerate every field defined in each message type according to the corresponding RFC specification.
 
 #Output Requirements:
@@ -88,7 +114,7 @@ Please list all message types defined in {protocol} {version}, and enumerate eve
 4. Do not omit fields defined in the RFC, even if they are less commonly used.
 
 5. Output only the pure JSON structure, with no explanations, comments, or prefixes/suffixes.
-"""
+'''
 
 [prompt_specify_keywords_update]
 user = """
@@ -264,7 +290,6 @@ Follow this analysis process step-by-step for each rule:
 (2)The rule explicitly describes or implies, through field value ranges, format definitions, or construction/processing procedures, the logic that the protocol program should apply when generating (sending) or processing (receiving) such a message.
 This logic must be detailed enough to directly guide a developer’s implementation.
 (3)The described message logic pertains to handling a single message instance — including atomic or transactional operations for constructing or validating its variable bindings or fields — or verifying their consistency against previous messages in the same protocol exchange.
-Logic involving concurrency with other messages or external events is excluded.
 
 For each rule:
 
@@ -276,36 +301,39 @@ Please omit all explanatory content.
 
 [prompt_enhance_rule]
 user = """
-You are analyzing a rule from the {protocol} {version} protocol specification.
-        
-Context: This rule appears under the section "{heading}"
-Rule: {sentence}
-        
-Your task is to enhance this rule by providing additional context that would help developers understand:
-1. What specific protocol behavior this rule governs
-2. When this rule applies in the protocol flow
-3. What the expected outcome should be when this rule is followed
-4. Any prerequisites or conditions that must be met
-        
-Please provide an enhanced version of this rule that includes necessary context while maintaining technical accuracy. Keep the enhancement concise but comprehensive.
-        
+You are given a sentence or short text fragment from the {protocol} {version} specification.
+
+Context: it appears under the section "{heading}".
+Text: {sentence}
+
+Your task is to rewrite and enhance this text so that:
+1. All implicit references (such as "it", "they", "this", "that") are resolved into explicit protocol entities where possible.
+2. Any necessary contextual information is folded in, so that the enhanced text can be understood correctly even when read in isolation.
+3. The meaning of the original text is preserved — do not add new requirements or behavior that are not implied by the original.
+4. The enhanced text remains concise, technically accurate, and faithful to the original intent.
+5. If the sentence or short text fragment references or depends on any table, figure, or diagram from the specification, restate the relevant information from that table or figure in natural language and integrate it into the enhanced text. Only include the portions that are necessary for correct standalone understanding. Do not add new interpretation beyond what the figure or table conveys.
+
 Format your response as:
-Enhanced Rule: [your enhanced version here]
+[your enhanced version here]
 """
 
 [prompt_third_rule]
 user = """
-Given a rule description extracted from the {protocol} {version} specification and the subheading in which it is located：
+Given a rule description extracted from the {protocol} {version} specification and the subheading in which it is located:
 {heading}
 {sentence}
 
-Your task is to analyze the message types and their fields involved in this rule description, as well as the corresponding response message types or fields. Follow these steps for the analysis:
-1. Identify the request message type (req_type) mentioned in the rule.
-2. Extract the fields involved in the request message (req_fields).
-3. Determine the response message type (res_type) mentioned in the rule. If no response message is involved, use an empty string.
-4. Extract the fields involved in the response message (res_fields). If no fields are explicitly mentioned or no response message exists, use an empty array.
+Your task is to extract the official message types and fields involved in this rule according to the protocol specification. Follow these rules:
 
-5. Present the analysis results in the following JSON format:
+1. Identify the **request message type (req_type)** exactly as defined in the protocol specification. If the rule does not involve a request, use an empty string.
+2. Extract the **fields involved in the request message (req_fields)** using the official field names as specified by the protocol. Do not invent or infer fields not in the spec.
+3. Identify the **response message type (res_type)** exactly as defined in the protocol specification. If the rule does not involve a response, use an empty string.
+4. Extract the **fields involved in the response message (res_fields)** using the official field names as specified in the protocol. If no fields are mentioned or no response exists, use an empty array.
+5. If the rule refers to multiple request or response types, list them all in the respective array.
+6. Avoid making assumptions beyond what the specification states. Only include what is explicitly defined in the official protocol documents.
+
+Present the results strictly in the following JSON format:
+
 ```json
 {{
     "rule": "{sentence}",
@@ -314,5 +342,4 @@ Your task is to analyze the message types and their fields involved in this rule
     "res_type": "",
     "res_fields": []
 }}
-```
 """

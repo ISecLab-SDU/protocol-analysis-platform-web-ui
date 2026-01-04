@@ -1,5 +1,5 @@
 {
-  "GetRequest": {
+  "GetRequest-PDU": {
     "request-id": {},
     "error-status": {
       "noError": {},
@@ -11,41 +11,27 @@
     },
     "error-index": {},
     "variable-bindings": {
-      "VarBindList": {
-        "VarBind": {
-          "name": {},
-          "value": {
-            "ObjectSyntax": {
-              "simple": {
-                "SimpleSyntax": {
-                  "number": {},
-                  "string": {},
-                  "object": {},
-                  "empty": {}
-                }
-              },
-              "application-wide": {
-                "ApplicationSyntax": {
-                  "address": {
-                    "NetworkAddress": {
-                      "internet": {
-                        "IpAddress": {}
-                      }
-                    }
-                  },
-                  "counter": {},
-                  "gauge": {},
-                  "ticks": {},
-                  "arbitrary": {}
-                }
-              }
-            }
+      "VarBind": {
+        "name": {},
+        "value": {
+          "simple": {
+            "integer": {},
+            "string": {},
+            "object": {},
+            "empty": {}
+          },
+          "application-wide": {
+            "ipAddress": {},
+            "counter": {},
+            "gauge": {},
+            "ticks": {},
+            "arbitrary": {}
           }
         }
       }
     }
   },
-  "GetNextRequest": {
+  "GetNextRequest-PDU": {
     "request-id": {},
     "error-status": {
       "noError": {},
@@ -57,41 +43,27 @@
     },
     "error-index": {},
     "variable-bindings": {
-      "VarBindList": {
-        "VarBind": {
-          "name": {},
-          "value": {
-            "ObjectSyntax": {
-              "simple": {
-                "SimpleSyntax": {
-                  "number": {},
-                  "string": {},
-                  "object": {},
-                  "empty": {}
-                }
-              },
-              "application-wide": {
-                "ApplicationSyntax": {
-                  "address": {
-                    "NetworkAddress": {
-                      "internet": {
-                        "IpAddress": {}
-                      }
-                    }
-                  },
-                  "counter": {},
-                  "gauge": {},
-                  "ticks": {},
-                  "arbitrary": {}
-                }
-              }
-            }
+      "VarBind": {
+        "name": {},
+        "value": {
+          "simple": {
+            "integer": {},
+            "string": {},
+            "object": {},
+            "empty": {}
+          },
+          "application-wide": {
+            "ipAddress": {},
+            "counter": {},
+            "gauge": {},
+            "ticks": {},
+            "arbitrary": {}
           }
         }
       }
     }
   },
-  "GetResponse": {
+  "GetResponse-PDU": {
     "request-id": {},
     "error-status": {
       "noError": {},
@@ -103,41 +75,27 @@
     },
     "error-index": {},
     "variable-bindings": {
-      "VarBindList": {
-        "VarBind": {
-          "name": {},
-          "value": {
-            "ObjectSyntax": {
-              "simple": {
-                "SimpleSyntax": {
-                  "number": {},
-                  "string": {},
-                  "object": {},
-                  "empty": {}
-                }
-              },
-              "application-wide": {
-                "ApplicationSyntax": {
-                  "address": {
-                    "NetworkAddress": {
-                      "internet": {
-                        "IpAddress": {}
-                      }
-                    }
-                  },
-                  "counter": {},
-                  "gauge": {},
-                  "ticks": {},
-                  "arbitrary": {}
-                }
-              }
-            }
+      "VarBind": {
+        "name": {},
+        "value": {
+          "simple": {
+            "integer": {},
+            "string": {},
+            "object": {},
+            "empty": {}
+          },
+          "application-wide": {
+            "ipAddress": {},
+            "counter": {},
+            "gauge": {},
+            "ticks": {},
+            "arbitrary": {}
           }
         }
       }
     }
   },
-  "SetRequest": {
+  "SetRequest-PDU": {
     "request-id": {},
     "error-status": {
       "noError": {},
@@ -149,48 +107,30 @@
     },
     "error-index": {},
     "variable-bindings": {
-      "VarBindList": {
-        "VarBind": {
-          "name": {},
-          "value": {
-            "ObjectSyntax": {
-              "simple": {
-                "SimpleSyntax": {
-                  "number": {},
-                  "string": {},
-                  "object": {},
-                  "empty": {}
-                }
-              },
-              "application-wide": {
-                "ApplicationSyntax": {
-                  "address": {
-                    "NetworkAddress": {
-                      "internet": {
-                        "IpAddress": {}
-                      }
-                    }
-                  },
-                  "counter": {},
-                  "gauge": {},
-                  "ticks": {},
-                  "arbitrary": {}
-                }
-              }
-            }
+      "VarBind": {
+        "name": {},
+        "value": {
+          "simple": {
+            "integer": {},
+            "string": {},
+            "object": {},
+            "empty": {}
+          },
+          "application-wide": {
+            "ipAddress": {},
+            "counter": {},
+            "gauge": {},
+            "ticks": {},
+            "arbitrary": {}
           }
         }
       }
     }
   },
-  "Trap": {
+  "Trap-PDU": {
     "enterprise": {},
     "agent-addr": {
-      "NetworkAddress": {
-        "internet": {
-          "IpAddress": {}
-        }
-      }
+      "internet": {}
     },
     "generic-trap": {
       "coldStart": {},
@@ -204,35 +144,21 @@
     "specific-trap": {},
     "time-stamp": {},
     "variable-bindings": {
-      "VarBindList": {
-        "VarBind": {
-          "name": {},
-          "value": {
-            "ObjectSyntax": {
-              "simple": {
-                "SimpleSyntax": {
-                  "number": {},
-                  "string": {},
-                  "object": {},
-                  "empty": {}
-                }
-              },
-              "application-wide": {
-                "ApplicationSyntax": {
-                  "address": {
-                    "NetworkAddress": {
-                      "internet": {
-                        "IpAddress": {}
-                      }
-                    }
-                  },
-                  "counter": {},
-                  "gauge": {},
-                  "ticks": {},
-                  "arbitrary": {}
-                }
-              }
-            }
+      "VarBind": {
+        "name": {},
+        "value": {
+          "simple": {
+            "integer": {},
+            "string": {},
+            "object": {},
+            "empty": {}
+          },
+          "application-wide": {
+            "ipAddress": {},
+            "counter": {},
+            "gauge": {},
+            "ticks": {},
+            "arbitrary": {}
           }
         }
       }

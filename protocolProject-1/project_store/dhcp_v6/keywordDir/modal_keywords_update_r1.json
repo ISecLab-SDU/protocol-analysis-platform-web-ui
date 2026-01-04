@@ -1,78 +1,235 @@
 {
-  "4. Terminology": {},
-  "6. Operational Models": {},
-  "17. Client Source Address and Interface Selection": {},
+  "7. DHCP Constants -> 7.4. DHCP Option Codes": {},
   "7. DHCP Constants": {},
-  "20. Authentication of DHCP Messages": {
-    "warning": "JSON parsed but format unexpected",
-    "data": "{\n    \"has been obsoleted\": \"PROHIBITED\"\n}"
+  "4. Terminology": {},
+  "6. Operational Models -> 6.4. DHCP for Customer Edge Routers": {},
+  "6. Operational Models -> 6.5. DHCP for Temporary Addresses": {
+    "Mandatory": [],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
   },
-  "10. Representation and Use of Domain Names": {
-    "warning": "JSON parsed but format unexpected",
-    "data": "{\n    \"MUST NOT be stored in compressed form\": \"MUST NOT\"\n}"
+  "6. Operational Models": {
+    "mandatory": [],
+    "prohibited": [],
+    "recommended": [],
+    "not_recommended": []
+  },
+  "7. DHCP Constants -> 7.5. Status Codes": {
+    "Mandatory": [
+      "is assumed to be"
+    ],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "6. Operational Models -> 6.1. Stateless DHCP": {
+    "Mandatory": [
+      "requires",
+      "need to support"
+    ],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "7. DHCP Constants -> 7.2. UDP Ports": {
+    "Mandatory": [
+      "Clients listen for DHCP messages on UDP port 546",
+      "Servers and relay agents listen for DHCP messages on UDP port 547"
+    ]
+  },
+  "5. Client/Server Exchanges -> 5.3. Server/Client Exchanges": {
+    "Mandatory": [
+      "may send",
+      "to initiate the client to update its configuration by sending"
+    ],
+    "Prohibited": [],
+    "Recommended": [
+      "can be used to expedite"
+    ],
+    "Not Recommended": []
   },
   "5. Client/Server Exchanges": {
-    "warning": "JSON parsed but format unexpected",
-    "data": "{\n    \"will omit\": \"will omit\",\n    \"need not\": \"need not\"\n}"
-  },
-  "14. Transmission of Messages by a Client": {
-    "SHOULD NOT": [
-      "SHOULD NOT check to see whether the Layer 2 address used was multicast or not"
-    ]
-  },
-  "19. Relay Agent Behavior": {
     "Mandatory": [
-      "MUST",
-      "MUST",
-      "MUST"
+      "need not be configured",
+      "will relay messages",
+      "will omit the description"
     ],
+    "Prohibited": [],
     "Recommended": [
-      "SHOULD"
+      "may, under some circumstances, send messages directly"
+    ],
+    "Not Recommended": []
+  },
+  "5. Client/Server Exchanges -> 5.2. Client/Server Exchanges Involving Four Messages": {
+    "mandatory": [
+      "first locates a DHCP server",
+      "requests the assignment of addresses and/or delegated prefixes and other configuration information from the server",
+      "sends a Solicit message to the All_DHCP_Relay_Agents_and_Servers multicast address",
+      "responds with an Advertise message",
+      "sends a Request message to the server asking for confirmed assignment of addresses and/or delegated prefixes and other configuration information",
+      "responds with a Reply message that contains the confirmed addresses, delegated prefixes, and configuration"
     ]
+  },
+  "4. Terminology -> 4.1. IPv6 Terminology": {
+    "Mandatory": [],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "9. Relay Agent/Server Message Formats -> 9.2. Relay-reply Message": {
+    "warning": "JSON parsed but format unexpected",
+    "data": "{\n    \"MUST include a Relay Message option\": \"options MUST include a Relay Message option\"\n}"
+  },
+  "10. Representation and Use of Domain Names": {
+    "MUST NOT": [
+      "MUST NOT be stored in compressed form"
+    ]
+  },
+  "6. Operational Models -> 6.2. DHCP for Non-temporary Address Assignment": {
+    "Mandatory": [
+      "is required to"
+    ],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "7. DHCP Constants -> 7.1. Multicast Addresses": {
+    "Mandatory": [
+      "must have",
+      "are members of"
+    ],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "6. Operational Models -> 6.6. Multiple Addresses and Prefixes": {
+    "Mandatory": [],
+    "Prohibited": [],
+    "Recommended": [
+      "is recommended that",
+      "prefers to",
+      "recommended that"
+    ],
+    "Not Recommended": []
+  },
+  "11. DHCP Unique Identifier (DUID) -> 11.1. DUID Contents": {
+    "Mandatory": [
+      "consists of",
+      "is at least 1 octet and at most 128 octets"
+    ],
+    "Prohibited": [],
+    "Recommended": [
+      "can be used"
+    ],
+    "Not Recommended": []
+  },
+  "7. DHCP Constants -> 7.7. Representation of Time Values and \"Infinity\" as a Time Value": {
+    "Mandatory": [],
+    "Prohibited": [],
+    "Recommended": [
+      "should only be used in cases where permanent assignments are desired",
+      "Care should be taken in setting T1 or T2 to 0xffffffff (\"infinity\")"
+    ],
+    "Not Recommended": []
   },
   "9. Relay Agent/Server Message Formats": {
     "Mandatory": [
       "are in network byte order",
       "are stored serially in the \"options\" field",
-      "with no padding between the options"
-    ]
+      "with no padding between the options",
+      "are byte-aligned",
+      "are not aligned in any other way (such as on 2-byte or 4-byte boundaries)"
+    ],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
   },
-  "12. Identity Association": {
+  "9. Relay Agent/Server Message Formats -> 9.1. Relay-forward Message": {
     "MUST": [
-      "MUST be chosen to be unique among the IAIDs for that IA type on the client",
-      "MUST be consistent across restarts of the DHCP client"
+      "MUST include a Relay Message option"
     ],
-    "MUST NOT": []
+    "SHALL": [],
+    "REQUIRED": [],
+    "MUST NOT": [],
+    "SHALL NOT": [],
+    "PROHIBITED": [],
+    "SHOULD": [],
+    "RECOMMENDED": [],
+    "SHOULD NOT": [],
+    "NOT RECOMMENDED": []
   },
-  "21. DHCP Options": {
-    "MUST NOT": [
-      "the data areas of the options MUST NOT be concatenated or otherwise combined"
-    ]
-  },
-  "16. Message Validation": {
-    "warning": "JSON parsed but format unexpected",
-    "data": "{\n    \"MUST NOT discard messages that contain unknown options (or instances of vendor options with unknown enterprise-number values)\": \"MUST NOT\",\n    \"MUST NOT discard any Solicit, Confirm, Rebind, or Information-request messages it receives with a Layer 3 unicast destination address\": \"MUST NOT\",\n    \"MUST discard any received DHCP messages with an unknown message type\": \"MUST\"\n}"
-  },
-  "18. DHCP Configuration Exchanges": {
-    "mandatory": [
-      "MUST",
-      "MUST",
-      "MUST",
-      "is required to"
-    ],
-    "prohibited": [
-      "MUST NOT"
-    ]
-  },
-  "15. Reliability of Client-Initiated Message Exchanges": {
+  "8. Client/Server Message Formats": {
     "Mandatory": [
-      "the client must retransmit its message",
-      "The client MUST update an \"elapsed-time\" value",
-      "a client MUST listen for a Reconfigure"
+      "All DHCP messages sent between clients and servers share an identical fixed-format header and a variable-format area for options",
+      "All values in the message header and in options are in network byte order",
+      "Options are stored serially in the \"options\" field, with no padding between the options",
+      "Options are byte-aligned but are not aligned in any other way (such as on 2-byte or 4-byte boundaries)"
+    ],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "5. Client/Server Exchanges -> 5.1. Client/Server Exchanges Involving Two Messages": {
+    "Mandatory": [
+      "can obtain",
+      "first sends",
+      "responds with",
+      "may request",
+      "may or may not honor",
+      "may request",
+      "is willing to accept",
+      "willing to commit",
+      "immediately responds with",
+      "are then immediately available",
+      "has associated",
+      "specified by",
+      "sends",
+      "sends",
+      "allowing",
+      "unable to extend",
+      "indicates this by",
+      "may assign"
+    ],
+    "Prohibited": [
+      "cannot"
+    ],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "13. Assignment to an IA -> 13.3. Assignment of Prefixes for IA_PD": {},
+  "11. DHCP Unique Identifier (DUID) -> 11.5. DUID Based on Universally Unique Identifier (DUID-UUID)": {},
+  "7. DHCP Constants -> 7.3. DHCP Message Types": {},
+  "12. Identity Association -> 12.2. Identity Associations for Prefix Delegation": {
+    "must": [
+      "must create at least one distinct IA_PD"
+    ]
+  },
+  "6. Operational Models -> 6.3. DHCP for Prefix Delegation": {
+    "Mandatory": [
+      "is required to",
+      "MUST"
+    ],
+    "Prohibited": [
+      "MUST NOT"
+    ],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "12. Identity Association -> 12.1. Identity Associations for Address Assignment": {
+    "mandatory": [
+      "A client must associate at least one distinct IA with each of its network interfaces for which it is to request the assignment of IPv6 addresses from a DHCP server",
+      "Each such IA must be associated with exactly one interface"
+    ]
+  },
+  "11. DHCP Unique Identifier (DUID) -> 11.3. DUID Assigned by Vendor Based on Enterprise Number (DUID-EN)": {
+    "Mandatory": [
+      "must be assigned to the device no later than at the first usage",
+      "must be recorded in non-erasable storage"
     ],
     "Prohibited": [],
     "Recommended": [
-      "The algorithm SHOULD produce a different sequence of random numbers"
+      "SHOULD be recorded in non-erasable storage"
     ],
     "Not Recommended": []
   },
@@ -90,20 +247,1185 @@
     "Recommended": [
       "SHOULD",
       "SHOULD NOT",
-      "SHOULD NOT",
-      "SHOULD"
+      "SHOULD NOT"
     ],
     "Not Recommended": [
-      "SHOULD NOT",
       "SHOULD NOT"
     ]
   },
-  "8. Client/Server Message Formats": {
+  "12. Identity Association": {
     "Mandatory": [
-      "All DHCP messages sent between clients and servers share an identical fixed-format header and a variable-format area for options",
-      "All values in the message header and in options are in network byte order",
-      "Options are stored serially in the \"options\" field, with no padding between the options",
-      "Options are byte-aligned but are not aligned in any other way (such as on 2-byte or 4-byte boundaries)"
+      "MUST be chosen to be unique among the IAIDs for that IA type on the client",
+      "MUST be consistent across restarts of the DHCP client"
+    ],
+    "Prohibited": [],
+    "Recommended": [
+      "may maintain consistency by either storing the IAID in non-volatile storage or using an algorithm that will consistently produce the same IAID as long as the configuration of the client has not changed"
+    ],
+    "Not Recommended": []
+  },
+  "11. DHCP Unique Identifier (DUID) -> 11.4. DUID Based on Link-Layer Address (DUID-LL)": {
+    "Mandatory": [
+      "The hardware type MUST be a valid hardware type assigned by IANA",
+      "The hardware type is stored in network byte order",
+      "The link-layer address is stored in canonical form"
+    ],
+    "Prohibited": [
+      "A DUID-LL SHOULD NOT be used by DHCP clients or servers that cannot tell whether or not a network interface is permanently attached to the device on which the DHCP client is running"
+    ],
+    "Recommended": [
+      "The same DUID-LL SHOULD be used in configuring all network interfaces connected to the device",
+      "A DUID-LL is recommended for devices that have a permanently connected network interface with a link-layer address and do not have nonvolatile, writable stable storage"
+    ],
+    "Not Recommended": []
+  },
+  "14. Transmission of Messages by a Client": {
+    "SHOULD NOT": [
+      "DHCP servers SHOULD NOT check to see whether the Layer 2 address used was multicast or not, as long as the Layer 3 address was correct"
     ]
+  },
+  "16. Message Validation -> 16.7. Rebind Message": {
+    "mandatory_phrases": [
+      "MUST discard",
+      "MUST discard"
+    ],
+    "prohibited_phrases": [
+      "do not include",
+      "include a Server Identifier option"
+    ]
+  },
+  "16. Message Validation -> 16.2. Solicit Message": {
+    "MUST": [
+      "Clients MUST discard any received Solicit messages",
+      "Servers MUST discard any Solicit messages that do not include a Client Identifier option or that do include a Server Identifier option"
+    ]
+  },
+  "16. Message Validation -> 16.4. Request Message": {
+    "Mandatory": [
+      "MUST discard",
+      "MUST discard",
+      "does not include",
+      "do not match",
+      "does not include"
+    ],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "16. Message Validation -> 16.1. Use of Transaction IDs": {
+    "Mandatory": [
+      "A client MUST leave the transaction ID unchanged in retransmissions of a message."
+    ],
+    "Recommended": [
+      "A client SHOULD generate a random number that cannot easily be guessed or predicted to use as the transaction ID for each new message it sends."
+    ]
+  },
+  "13. Assignment to an IA -> 13.2. Assignment of Temporary Addresses": {
+    "Mandatory": [],
+    "Prohibited": [],
+    "Recommended": [
+      "It is RECOMMENDED to set short lifetimes",
+      "temporary addresses are preferred in source address selection"
+    ],
+    "Not Recommended": [
+      "it is NOT RECOMMENDED for a client to renew temporary addresses"
+    ]
+  },
+  "14. Transmission of Messages by a Client -> 14.1. Rate Limiting": {
+    "Mandatory": [
+      "MUST limit the rate of DHCP messages it transmits or retransmits",
+      "must not initiate transmissions too frequently",
+      "MUST be enforced on a per-interface basis"
+    ],
+    "Prohibited": [],
+    "Recommended": [
+      "SHOULD be configurable"
+    ],
+    "Not Recommended": []
+  },
+  "11. DHCP Unique Identifier (DUID) -> 11.2. DUID Based on Link-Layer Address Plus Time (DUID-LLT)": {
+    "Mandatory": [
+      "MUST",
+      "MUST",
+      "MUST",
+      "MUST NOT",
+      "MUST NOT",
+      "MUST"
+    ],
+    "Prohibited": [
+      "MUST NOT"
+    ],
+    "Recommended": [
+      "SHOULD",
+      "SHOULD",
+      "SHOULD"
+    ],
+    "Not Recommended": []
+  },
+  "16. Message Validation -> 16.5. Confirm Message": {
+    "mandatory": [
+      "MUST discard any received Confirm messages",
+      "MUST discard any received Confirm messages that do not include a Client Identifier option (see Section 21.2) or that include a Server Identifier option (see Section 21.3)"
+    ],
+    "prohibited": [],
+    "recommended": [],
+    "not_recommended": []
+  },
+  "16. Message Validation -> 16.3. Advertise Message": {
+    "Mandatory": [
+      "MUST discard",
+      "does not include",
+      "do not match",
+      "does not match",
+      "MUST discard"
+    ],
+    "Prohibited": [
+      "MUST NOT",
+      "SHALL NOT",
+      "PROHIBITED"
+    ],
+    "Recommended": [
+      "SHOULD",
+      "RECOMMENDED"
+    ],
+    "Not Recommended": [
+      "SHOULD NOT",
+      "NOT RECOMMENDED"
+    ]
+  },
+  "14. Transmission of Messages by a Client -> 14.2. Client Behavior when T1 and/or T2 Are 0": {
+    "Mandatory": [
+      "MUST choose a time to avoid packet storms",
+      "MUST NOT transmit immediately",
+      "MUST choose renew and rebind times to not violate rate-limiting restrictions"
+    ],
+    "Recommended": [
+      "SHOULD pick renew and/or rebind transmission times so all IA options are handled in one exchange, if possible"
+    ]
+  },
+  "7. DHCP Constants -> 7.6. Transmission and Retransmission Parameters": {
+    "warning": "JSON parsed but format unexpected",
+    "data": "{\n    \"max delay of first Solicit\": \"SOL_MAX_DELAY (1 sec)\",\n    \"max Solicit timeout value\": \"SOL_MAX_RT (3600 secs)\",\n    \"max Request timeout value\": \"REQ_MAX_RT (30 secs)\",\n    \"max Request retry attempts\": \"REQ_MAX_RC (10)\",\n    \"max delay of first Confirm\": \"CNF_MAX_DELAY (1 sec)\",\n    \"max Confirm timeout\": \"CNF_MAX_RT (4 secs)\",\n    \"max Confirm duration\": \"CNF_MAX_RD (10 secs)\",\n    \"max Renew timeout value\": \"REN_MAX_RT (600 secs)\",\n    \"max Rebind timeout value\": \"REB_MAX_RT (600 secs)\",\n    \"max delay of first Information-request\": \"INF_MAX_DELAY (1 sec)\",\n    \"max Information-request timeout value\": \"INF_MAX_RT (3600 secs)\",\n    \"max Release retry attempts\": \"REL_MAX_RC (4)\",\n    \"max Decline retry attempts\": \"DEC_MAX_RC (4)\",\n    \"max Reconfigure attempts\": \"REC_MAX_RC (8)\",\n    \"max hop count in a Relay-forward message\": \"HOP_COUNT_LIMIT (8)\",\n    \"max required time to wait for a response\": \"MAX_WAIT_TIME (60 secs)\"\n}"
+  },
+  "17. Client Source Address and Interface Selection": {},
+  "16. Message Validation -> 16.14. Relay-reply Message": {
+    "MUST": [
+      "MUST discard any received Relay-reply messages"
+    ]
+  },
+  "16. Message Validation -> 16.12. Information-request Message": {
+    "mandatory": [
+      "MUST discard",
+      "MUST discard"
+    ],
+    "prohibited": []
+  },
+  "16. Message Validation -> 16.13. Relay-forward Message": {
+    "Mandatory": [
+      "MUST discard"
+    ],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "16. Message Validation -> 16.8. Decline Message": {
+    "Mandatory": [
+      "MUST discard",
+      "MUST discard",
+      "does not include",
+      "do not match",
+      "does not include"
+    ],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "16. Message Validation -> 16.6. Renew Message": {
+    "mandatory": [
+      "MUST discard any received Renew messages",
+      "MUST discard any received Renew message that meets any of the following conditions"
+    ],
+    "prohibited": [],
+    "recommended": [],
+    "not_recommended": []
+  },
+  "13. Assignment to an IA -> 13.1. Selecting Addresses for Assignment to an IA_NA": {
+    "MUST": [
+      "MUST ignore any link-address field whose value is zero",
+      "MUST NOT assign an address that is otherwise reserved for some other purpose",
+      "MUST NOT assign addresses that use a reserved IPv6 Interface Identifier"
+    ],
+    "SHOULD": [
+      "SHOULD NOT generate predictable addresses"
+    ]
+  },
+  "16. Message Validation -> 16.11. Reconfigure Message": {
+    "mandatory": [
+      "MUST discard",
+      "MUST discard",
+      "was not unicast to the client",
+      "does not include a Server Identifier option",
+      "does not include a Client Identifier option",
+      "does not include a Reconfigure Message option",
+      "msg-type is not a valid value",
+      "does not include authentication",
+      "fails authentication validation"
+    ],
+    "prohibited": [],
+    "recommended": [],
+    "not_recommended": []
+  },
+  "4. Terminology -> 4.2. DHCP Terminology": {
+    "Mandatory": [
+      "is required to",
+      "is expected to",
+      "are used only in contexts where it is necessary to avoid ambiguity"
+    ],
+    "Prohibited": [
+      "cannot",
+      "is not allowed to",
+      "is an error"
+    ],
+    "Recommended": [
+      "should",
+      "is recommended to",
+      "are recommended to"
+    ],
+    "Not Recommended": [
+      "should not",
+      "is not recommended to",
+      "are not recommended to"
+    ]
+  },
+  "16. Message Validation -> 16.9. Release Message": {
+    "MUST": [
+      "Clients MUST discard any received Release messages",
+      "Servers MUST discard any received Release message that meets any of the following conditions"
+    ],
+    "MUST NOT": [],
+    "SHALL": [],
+    "SHALL NOT": [],
+    "REQUIRED": [],
+    "PROHIBITED": [],
+    "SHOULD": [],
+    "SHOULD NOT": [],
+    "RECOMMENDED": [],
+    "NOT RECOMMENDED": []
+  },
+  "16. Message Validation": {
+    "Mandatory": [
+      "MUST NOT discard messages that contain unknown options",
+      "MUST NOT discard any received DHCP messages with an unknown message type"
+    ],
+    "Prohibited": [
+      "MUST NOT discard messages that contain unknown options",
+      "MUST NOT discard any received DHCP messages with an unknown message type"
+    ],
+    "Recommended": [
+      "should be ignored as if they were not present",
+      "Ignoring unknown options is critical to provide for future extensions of DHCP"
+    ],
+    "Not Recommended": []
+  },
+  "16. Message Validation -> 16.10. Reply Message": {
+    "MUST discard": [
+      "Servers and relay agents MUST discard any received Reply messages"
+    ],
+    "does not include": [
+      "the message does not include a Server Identifier option"
+    ],
+    "MUST match": [
+      "the contents of the Client Identifier option MUST match the DUID of the client"
+    ],
+    "MUST include": [
+      "the Reply message MUST include a Client Identifier option"
+    ],
+    "MUST NOT include": [
+      "the Reply message MUST NOT include a Client Identifier option"
+    ]
+  },
+  "18. DHCP Configuration Exchanges -> 18.1. A Single Exchange for Multiple IA Options": {
+    "Mandatory": [
+      "MUST",
+      "MUST",
+      "MUST"
+    ],
+    "Prohibited": [],
+    "Recommended": [
+      "SHOULD"
+    ],
+    "Not Recommended": []
+  },
+  "17. Client Source Address and Interface Selection -> 17.1. Source Address and Interface Selection for Address Assignment": {
+    "Mandatory": [
+      "MUST",
+      "MUST"
+    ],
+    "Recommended": [
+      "SHOULD"
+    ]
+  },
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.10. Receipt of Reply Messages -> 18.2.10.4. Reply for Information-request": {
+    "mandatory": [
+      "should be handled"
+    ],
+    "prohibited": [],
+    "recommended": [],
+    "not_recommended": []
+  },
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.10. Receipt of Reply Messages -> 18.2.10.3. Reply for Confirm": {
+    "Mandatory": [
+      "can use",
+      "ignore any messages",
+      "performs"
+    ],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.10. Receipt of Reply Messages -> 18.2.10.2. Reply for Release and Decline": {
+    "Mandatory": [
+      "considers the Release event completed",
+      "considers the Decline event completed"
+    ],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.6. Creation and Transmission of Information-request Messages": {
+    "Mandatory": [
+      "The client MUST include an Elapsed Time option",
+      "The client MUST include an Option Request option",
+      "The client transmits the message according to Section 15"
+    ],
+    "Prohibited": [],
+    "Recommended": [
+      "The client SHOULD include a Client Identifier option"
+    ],
+    "Not Recommended": []
+  },
+  "17. Client Source Address and Interface Selection -> 17.2. Source Address and Interface Selection for Prefix Delegation": {
+    "Mandatory": [],
+    "Prohibited": [],
+    "Recommended": [
+      "SHOULD be sent on the interface associated with the upstream router",
+      "SHOULD be an address that is from the upstream interface and that is suitable for use by the server in responding to the client"
+    ],
+    "Not Recommended": []
+  },
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.5. Creation and Transmission of Rebind Messages": {
+    "Mandatory": [
+      "will only be reached if",
+      "initiates",
+      "sets",
+      "does not include",
+      "transmits",
+      "is terminated when",
+      "uses",
+      "sends",
+      "ignores and discards"
+    ],
+    "Prohibited": [],
+    "Recommended": [
+      "may choose to include"
+    ],
+    "Not Recommended": []
+  },
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.2. Creation and Transmission of Request Messages": {
+    "Mandatory": [
+      "The client MUST include the identifier of the destination server in a Server Identifier option",
+      "The client MUST include a Client Identifier option to identify itself to the server",
+      "The client MUST include an Elapsed Time option to indicate how long the client has been trying to complete the current DHCP message exchange",
+      "The client MUST include an Option Request option to request the SOL_MAX_RT option and any other options the client is interested in receiving"
+    ],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior": {
+    "Mandatory": [
+      "MUST NOT abandon any resources it might have already obtained"
+    ],
+    "Prohibited": [
+      "MUST NOT abandon any resources it might have already obtained"
+    ],
+    "Recommended": [
+      "SHOULD use the best configuration available and continue to request the additional IAs in subsequent messages",
+      "SHOULD be suspicious of the Reconfigure message",
+      "SHOULD treat the Reconfigure message as if the T1 timer had expired",
+      "SHOULD unicast any Request, Renew, Release, and Decline messages to the server"
+    ],
+    "Not Recommended": []
+  },
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.11. Receipt of Reconfigure Messages": {
+    "Mandatory": [
+      "The client MUST ignore any additional Reconfigure messages until the exchange is complete"
+    ],
+    "Prohibited": [],
+    "Recommended": [
+      "the client SHOULD log these events"
+    ],
+    "Not Recommended": []
+  },
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.3. Creation and Transmission of Confirm Messages": {
+    "Mandatory": [
+      "MUST include a Client Identifier option",
+      "MUST include an Elapsed Time option",
+      "The first Confirm message from the client on the interface MUST be delayed by a random amount of time between 0 and CNF_MAX_DELAY"
+    ],
+    "Prohibited": [],
+    "Recommended": [
+      "SHOULD set the T1 and T2 fields in any IA_NA options and the preferred-lifetime and valid-lifetime fields in the IA Address options to 0",
+      "SHOULD continue to use any leases, using the last known lifetimes for those leases, and SHOULD continue to use any other previously obtained configuration parameters"
+    ],
+    "Not Recommended": []
+  },
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.12. Refreshing Configuration Information": {
+    "Mandatory": [
+      "MUST",
+      "MUST"
+    ],
+    "Prohibited": [],
+    "Recommended": [
+      "SHOULD",
+      "SHOULD",
+      "SHOULD"
+    ],
+    "Not Recommended": []
+  },
+  "15. Reliability of Client-Initiated Message Exchanges": {
+    "Mandatory": [
+      "the client must retransmit its message",
+      "The client MUST update an \"elapsed-time\" value within an Elapsed Time option",
+      "the client sets RT according to the rules given below",
+      "the client recomputes RT and retransmits the message",
+      "if (RT > MRT) then RT = MRT + RAND*MRT",
+      "the message exchange fails once the client has transmitted the message MRC times",
+      "the message exchange fails once MRD seconds have elapsed since the client first transmitted the message",
+      "the message exchange fails whenever either of the conditions specified in the previous two paragraphs is met",
+      "a client MUST listen for a Reconfigure if it has negotiated for its use with the server"
+    ],
+    "Prohibited": [],
+    "Recommended": [
+      "The algorithm SHOULD produce a different sequence of random numbers from each invocation of the DHCP client"
+    ],
+    "Not Recommended": []
+  },
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.1. Receipt of Solicit Messages": {
+    "mandatory": [
+      "MUST commit the assignment of any addresses and delegated prefixes or other configuration information before sending a Reply message to a client"
+    ],
+    "prohibited": [
+      "Unicast transmission of Solicit messages is not allowed"
+    ],
+    "recommended": [
+      "Typically, servers that are configured to use the Solicit/Reply message exchange will be deployed so that only one server will respond to a Solicit message"
+    ],
+    "not_recommended": []
+  },
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.8. Creation and Transmission of Decline Messages": {
+    "Mandatory": [
+      "MUST NOT include IA_PD options",
+      "MUST include a Client Identifier option",
+      "MUST include an Elapsed Time option",
+      "MUST NOT use any of the addresses it is declining as the source address"
+    ],
+    "Prohibited": [
+      "MUST NOT include IA_PD options",
+      "MUST NOT use any of the addresses it is declining as the source address"
+    ],
+    "Recommended": [
+      "SHOULD NOT send a Release message for other bindings",
+      "SHOULD retain the non-conflicting bindings",
+      "SHOULD treat the failure to acquire a binding"
+    ],
+    "Not Recommended": [
+      "SHOULD NOT send a Release message for other bindings"
+    ]
+  },
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.3. Receipt of Confirm Messages": {
+    "Mandatory": [
+      "MUST NOT send a Reply to the client",
+      "MUST include in the Reply message a Server Identifier option",
+      "MUST include in the Reply message a Server Identifier option containing the server's DUID and the Client Identifier option from the Confirm message"
+    ],
+    "Prohibited": [
+      "Unicast transmission of Confirm messages is not allowed",
+      "MUST NOT send a Reply to the client"
+    ],
+    "Recommended": [],
+    "NotRecommended": []
+  },
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.9. Receipt of Advertise Messages": {
+    "Mandatory": [
+      "The client MUST process any SOL_MAX_RT option (see Section 21.24) and INF_MAX_RT option (see Section 21.25) present in an Advertise message, even if the message contains a Status Code option (see Section 21.13) indicating a failure, and the Advertise message will be discarded by the client.",
+      "The client MUST ignore any Advertise message that contains no addresses (IA Address options (see Section 21.6) encapsulated in IA_NA options (see Section 21.4) or IA_TA options (see Section 21.5)) and no delegated prefixes (IA Prefix options (see Section 21.22) encapsulated in IA_PD options (see Section 21.21)), with the exception that the client MUST process an included SOL_MAX_RT option and MUST process an included INF_MAX_RT option.",
+      "The client ignoring an Advertise message MUST NOT restart the Solicit retransmission timer."
+    ],
+    "Recommended": [
+      "Those Advertise messages with the highest server preference value SHOULD be preferred over all other Advertise messages.",
+      "A client SHOULD only update its SOL_MAX_RT and INF_MAX_RT values if all received Advertise messages that contained the corresponding option specified the same value; otherwise, it should use the default value (see Section 7.6)."
+    ]
+  },
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior": {
+    "Mandatory": [
+      "MUST always contain the Server Identifier option",
+      "MUST use the received message to construct the proper Relay-reply message"
+    ],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.6. Receipt of Information-request Messages": {
+    "MUST": [
+      "MUST include a Server Identifier option",
+      "is required to"
+    ],
+    "SHOULD": [
+      "SHOULD respond with a Reply message"
+    ]
+  },
+  "18. DHCP Configuration Exchanges": {
+    "Mandatory": [
+      "The client MUST NOT be using any of the addresses or delegated prefixes for which it tries to obtain the bindings by sending the Solicit message.",
+      "the client MUST stop using the addresses and delegated prefixes for the bindings that it had obtained from the previous server"
+    ],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.7. Creation and Transmission of Release Messages": {
+    "Mandatory": [
+      "The client MUST include a Client Identifier option (see Section 21.2) to identify itself to the server.",
+      "The client MUST include an Elapsed Time option (see Section 21.9) to indicate how long the client has been trying to complete the current DHCP message exchange.",
+      "The leases to be released MUST be included in the IAs.",
+      "Any leases for the IAs the client wishes to continue to use MUST NOT be added to the IAs.",
+      "The client MUST stop using all of the leases being released before the client begins the Release message exchange process.",
+      "For an address, this means the address MUST have been removed from the interface.",
+      "For a delegated prefix, this means the prefix MUST have been advertised with a Preferred Lifetime and a Valid Lifetime of 0 in a Router Advertisement message as described in part (e) of [Section 5.5.3 of [RFC4862]](https://www.rfc-editor.org/rfc/rfc4862#section-5.5.3); also see requirement L-13 in [Section 4.3 of [RFC7084]](https://www.rfc-editor.org/rfc/rfc7084#section-4.3).",
+      "The client MUST NOT use any of the addresses it is releasing as the source address in the Release message or in any subsequently transmitted message."
+    ],
+    "Recommended": [
+      "Because Release messages may be lost, the client should retransmit the Release if no Reply is received.",
+      "Implementations SHOULD retransmit one or more times but MAY choose to terminate the retransmission procedure early."
+    ],
+    "Implicit expressions": [
+      "If leases are released but the Reply from a DHCP server is lost, the client will retransmit the Release message, and the server may respond with a Reply indicating a status of NoBinding.",
+      "Note that if the client fails to release the lease, each lease assigned to the IA will be reclaimed by the server when the valid lifetime of that lease expires."
+    ]
+  },
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.10. Receipt of Reply Messages": {
+    "Mandatory": [
+      "MUST",
+      "MUST",
+      "MUST",
+      "MUST"
+    ],
+    "Prohibited": [],
+    "Recommended": [
+      "SHOULD",
+      "SHOULD",
+      "SHOULD",
+      "SHOULD",
+      "SHOULD"
+    ],
+    "Not Recommended": []
+  },
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.10. Transmission of Advertise and Reply Messages": {
+    "Mandatory": [
+      "MUST be unicast"
+    ],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "20. Authentication of DHCP Messages -> 20.1. Security of Messages Sent between Servers and Relay Agents": {},
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.4. Creation and Transmission of Renew Messages": {
+    "Mandatory": [
+      "the client MUST select T1 and T2 times from all IA options that will guarantee that the client initiates transmissions of Renew/Rebind messages not later than at the T1/T2 times associated with any of the client's bindings (earliest T1/T2)",
+      "A client MUST also initiate a Renew/Reply message exchange before time T1 if the client's link-local address used in previous interactions with the server is no longer valid and the client is willing to receive Reconfigure messages",
+      "The client MUST follow the rules defined in Section 14.2",
+      "The client MUST include a Server Identifier option (see Section 21.3) in the Renew message, identifying the server with which the client most recently communicated",
+      "The client MUST include a Client Identifier option (see Section 21.2) to identify itself to the server",
+      "The client MUST include an Elapsed Time option (see Section 21.9) to indicate how long the client has been trying to complete the current DHCP message exchange",
+      "The client MUST NOT include addresses and prefixes in any IA option that the client did not obtain from the server or that are no longer valid (that have a valid lifetime of 0)"
+    ],
+    "Prohibited": [
+      "The client MUST NOT include addresses and prefixes in any IA option that the client did not obtain from the server or that are no longer valid (that have a valid lifetime of 0)"
+    ],
+    "Recommended": [
+      "as the client SHOULD renew/rebind all IAs from the server at the same time",
+      "The client SHOULD NOT include an IA Prefix option with the \"IPv6-prefix\" field set to 0 unless the client is supplying a hint for the prefix length"
+    ],
+    "Not Recommended": [
+      "The client SHOULD NOT include an IA Prefix option with the \"IPv6-prefix\" field set to 0 unless the client is supplying a hint for the prefix length"
+    ]
+  },
+  "19. Relay Agent Behavior": {
+    "Mandatory": [
+      "MUST use the All_DHCP_Servers multicast address as the default",
+      "MUST forward the message as described in Section 19.1.1"
+    ],
+    "Recommended": [
+      "SHOULD be configured to use a list of destination addresses that includes unicast addresses"
+    ]
+  },
+  "20. Authentication of DHCP Messages": {
+    "Mandatory": [
+      "has been obsoleted"
+    ],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "19. Relay Agent Behavior -> 19.1. Relaying a Client Message or a Relay-forward Message -> 19.1.3. Relay Agent Behavior with Prefix Delegation": {
+    "mandatory": [
+      "may need"
+    ],
+    "prohibited": [],
+    "recommended": [],
+    "not_recommended": []
+  },
+  "18. DHCP Configuration Exchanges -> 18.4. Reception of Unicast Messages": {
+    "Mandatory": [
+      "is not supposed to accept",
+      "is not allowed",
+      "is allowed only if",
+      "discards that message and responds"
+    ],
+    "Prohibited": [
+      "is not supposed to accept",
+      "is not allowed"
+    ],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.7. Receipt of Release Messages": {
+    "Mandatory": [
+      "copies the transaction ID from the Release message into the \"transaction-id\" field",
+      "examines the IAs and the leases in the IAs for validity",
+      "deletes the leases from the IAs and makes the leases available for assignment to other clients",
+      "generates a Reply message and includes a Status Code option with the value Success, a Server Identifier option with the server's DUID, and a Client Identifier option with the client's DUID",
+      "adds an IA option using the IAID from the Release message and includes a Status Code option with the value NoBinding in the IA option",
+      "No other options are included in the IA option"
+    ],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "19. Relay Agent Behavior -> 19.1. Relaying a Client Message or a Relay-forward Message": {
+    "Mandatory": [
+      "constructs a new Relay-forward message",
+      "copies the source address from the header of the IP datagram in which the message was received into the peer-address field of the Relay-forward message",
+      "copies the received DHCP message (excluding any IP or UDP headers) into a Relay Message option (see Section 21.10) in the new message"
+    ],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.8. Receipt of Decline Messages": {
+    "Mandatory": [
+      "examines the IAs and the addresses in the IAs for validity",
+      "deletes the addresses from the IAs",
+      "generates a Reply message by setting the \"msg-type\" field to REPLY and copying the transaction ID from the Decline message into the \"transaction-id\" field",
+      "includes a Status Code option with the value Success, a Server Identifier option with the server's DUID, and a Client Identifier option with the client's DUID",
+      "adds an IA option using the IAID from the Decline message and includes a Status Code option with the value NoBinding in the IA option",
+      "No other options are included in the IA option"
+    ],
+    "Recommended": [
+      "SHOULD mark the addresses declined by the client so that those addresses are not assigned to other clients"
+    ],
+    "Prohibited": [],
+    "Not Recommended": []
+  },
+  "19. Relay Agent Behavior -> 19.2. Relaying a Relay-reply Message": {
+    "MUST NOT": [
+      "MUST NOT modify the message"
+    ],
+    "MUST": [
+      "MUST process the message as defined above"
+    ]
+  },
+  "20. Authentication of DHCP Messages -> 20.2. Summary of DHCP Authentication": {
+    "Mandatory": [
+      "MUST NOT include more than one Authentication option"
+    ],
+    "Prohibited": [
+      "MUST NOT include more than one Authentication option"
+    ]
+  },
+  "20. Authentication of DHCP Messages -> 20.4. Reconfiguration Key Authentication Protocol (RKAP)": {
+    "Mandatory": [
+      "is used (initiated by the server) only if"
+    ],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.2. Receipt of Request Messages": {
+    "Mandatory": [
+      "MUST include in the Reply message a Server Identifier option",
+      "MUST return the IA to the client with a Status Code option with the value NotOnLink",
+      "MUST return the IA option in the Reply message with no addresses in the IA and a Status Code option containing status code NoAddrsAvail in the IA",
+      "MUST return the IA_PD option in the Reply message with no prefixes in the IA_PD and with a Status Code option containing status code NoPrefixAvail in the IA_PD",
+      "MUST NOT include any addresses or delegated prefixes in the IA that the server does not assign to the client",
+      "MUST be the same values across all IAs",
+      "MUST determine the T1/T2 times across all of the applicable client's bindings in the Reply",
+      "MUST NOT cache its responses"
+    ],
+    "Prohibited": [
+      "MUST NOT include any addresses or delegated prefixes in the IA that the server does not assign to the client",
+      "MUST NOT cache its responses"
+    ],
+    "Recommended": [
+      "SHOULD include a Reconfigure Accept option if the server policy enables the reconfigure mechanism and the client supports it",
+      "SHOULD generate the response again and not simply retransmit previously sent information"
+    ],
+    "Not Recommended": []
+  },
+  "19. Relay Agent Behavior -> 19.1. Relaying a Client Message or a Relay-forward Message -> 19.1.1. Relaying a Message from a Client": {
+    "Mandatory": [
+      "MUST include an Interface-Id option"
+    ],
+    "Prohibited": [
+      "cannot use the address in the link-address field"
+    ],
+    "Recommended": [],
+    "Not Recommended": [
+      "is not recommended"
+    ]
+  },
+  "19. Relay Agent Behavior -> 19.1. Relaying a Client Message or a Relay-forward Message -> 19.1.2. Relaying a Message from a Relay Agent": {
+    "Mandatory": [
+      "discards",
+      "copies",
+      "sets",
+      "sets",
+      "sets",
+      "includes"
+    ],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "20. Authentication of DHCP Messages -> 20.4. Reconfiguration Key Authentication Protocol (RKAP) -> 20.4.3. Client Considerations for RKAP": {
+    "Mandatory": [
+      "will receive",
+      "records",
+      "for use in",
+      "computes",
+      "substituted for",
+      "If the computed HMAC-MD5 matches the value in the Authentication option, the client accepts the Reconfigure message"
+    ],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "18. DHCP Configuration Exchanges -> 18.2. Client Behavior -> 18.2.1. Creation and Transmission of Solicit Messages": {
+    "Mandatory": [
+      "MUST include a Client Identifier option",
+      "MUST include an Elapsed Time option",
+      "MUST include an Option Request option (ORO)",
+      "MUST NOT include any other options in the Solicit message, except as specifically allowed in the definition of individual options",
+      "MUST collect valid Advertise messages for the first RT seconds, unless it receives a valid Advertise message with a preference value of 255",
+      "MUST stop trying to configure the interface if the message exchange fails"
+    ],
+    "Prohibited": [
+      "MUST NOT include any other options in the Solicit message, except as specifically allowed in the definition of individual options"
+    ],
+    "Recommended": [
+      "SHOULD be delayed by a random amount of time between 0 and SOL_MAX_DELAY",
+      "SHOULD continue with a client-initiated message exchange by sending a Request message",
+      "SHOULD choose MRC and MRD values of 0",
+      "SHOULD restart the reconfiguration process after some external event"
+    ],
+    "Not Recommended": []
+  },
+  "20. Authentication of DHCP Messages -> 20.4. Reconfiguration Key Authentication Protocol (RKAP) -> 20.4.2. Server Considerations for RKAP": {
+    "Mandatory": [
+      "MUST be a cryptographically strong random or pseudorandom number that cannot easily be predicted"
+    ],
+    "Prohibited": [
+      "cannot easily be predicted"
+    ],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.4. Receipt of Renew Messages": {
+    "Mandatory": [
+      "the server MUST include in the Reply message a Server Identifier option",
+      "the server MUST determine the T1/T2 values across all of the applicable client's bindings in the Reply"
+    ],
+    "Prohibited": [],
+    "Recommended": [
+      "the server SHOULD create a binding and return the IA with assigned addresses or delegated prefixes with lifetimes",
+      "the server SHOULD set T1 and T2 values to the valid lifetime for the IA option"
+    ],
+    "Not Recommended": []
+  },
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.11. Creation and Transmission of Reconfigure Messages": {
+    "Mandatory": [
+      "the use of a security mechanism is mandated in Reconfigure messages",
+      "The server MUST use DHCP authentication in the Reconfigure message",
+      "The server MUST include a Reconfigure Message option",
+      "The server MUST NOT include any other options in the Reconfigure message, except as specifically allowed in the definition of individual options"
+    ],
+    "Prohibited": [
+      "The server MUST NOT include any other options in the Reconfigure message, except as specifically allowed in the definition of individual options"
+    ],
+    "Recommended": [
+      "the server SHOULD abort the reconfigure process for that client"
+    ],
+    "Not Recommended": []
+  },
+  "21. DHCP Options -> 21.2. Client Identifier Option": {},
+  "21. DHCP Options -> 21.8. Preference Option": {},
+  "21. DHCP Options -> 21.3. Server Identifier Option": {},
+  "19. Relay Agent Behavior -> 19.3. Construction of Relay-reply Messages": {
+    "Mandatory": [
+      "MUST",
+      "must record",
+      "must construct"
+    ],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "20. Authentication of DHCP Messages -> 20.4. Reconfiguration Key Authentication Protocol (RKAP) -> 20.4.1. Use of the Authentication Option in RKAP": {
+    "mandatory": [],
+    "prohibited": [],
+    "recommended": [],
+    "not_recommended": []
+  },
+  "21. DHCP Options -> 21.9. Elapsed Time Option": {
+    "Mandatory": [
+      "A client MUST include an Elapsed Time option in messages to indicate how long the client has been trying to complete a DHCP message exchange."
+    ],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "21. DHCP Options": {
+    "Mandatory": [
+      "MUST NOT be concatenated or otherwise combined",
+      "MUST NOT"
+    ],
+    "Prohibited": [
+      "MUST NOT be concatenated or otherwise combined",
+      "MUST NOT"
+    ],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "20. Authentication of DHCP Messages -> 20.3. Replay Detection": {
+    "mandatory": [
+      "MUST be set to",
+      "MUST be supported by",
+      "MUST compare",
+      "MUST record",
+      "MUST ensure that",
+      "is retained"
+    ],
+    "prohibited": [],
+    "recommended": [],
+    "not_recommended": []
+  },
+  "21. DHCP Options -> 21.1. Format of DHCP Options": {
+    "mandatory": [
+      "is shown in",
+      "is an unsigned integer identifying",
+      "is a 2-octet field",
+      "giving the length",
+      "is specified by",
+      "are scoped by using"
+    ],
+    "prohibited": [],
+    "recommended": [],
+    "not_recommended": []
+  },
+  "19. Relay Agent Behavior -> 19.4. Interaction between Relay Agents and Servers": {
+    "Mandatory": [
+      "MUST NOT change anything in the packet being encapsulated",
+      "is expected to travel through the same relays",
+      "are expected to be stateless"
+    ],
+    "Prohibited": [
+      "MUST NOT change anything in the packet being encapsulated"
+    ],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "21. DHCP Options -> 21.10. Relay Message Option": {
+    "Mandatory": [
+      "specifies",
+      "contains"
+    ],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "21. DHCP Options -> 21.12. Server Unicast Option": {
+    "Mandatory": [
+      "the client is allowed to unicast messages to the server",
+      "the client should send messages using unicast",
+      "the client is to send unicast messages",
+      "the client sends messages directly to the server using the address specified",
+      "the client may send messages to the server using unicast"
+    ],
+    "Prohibited": [
+      "A DHCP server rejects any messages sent inappropriately using unicast"
+    ],
+    "Recommended": [
+      "a server should only send a Server Unicast option to a client when relay agents are not sending relay agent options"
+    ],
+    "Not Recommended": []
+  },
+  "21. DHCP Options -> 21.16. Vendor Class Option": {
+    "MUST NOT": [
+      "Servers and clients MUST NOT include more than one instance of OPTION_VENDOR_CLASS with the same Enterprise Number."
+    ]
+  },
+  "21. DHCP Options -> 21.11. Authentication Option": {
+    "Mandatory": [
+      "has been obsoleted by this document"
+    ],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "21. DHCP Options -> 21.15. User Class Option": {
+    "Mandatory": [
+      "The user class information carried in this option MUST be configurable on the client.",
+      "The data area of the User Class option MUST contain one or more instances of user-class-data information."
+    ]
+  },
+  "21. DHCP Options -> 21.20. Reconfigure Accept Option": {
+    "Mandatory": [
+      "is willing to accept",
+      "is unwilling to accept",
+      "default behavior is that"
+    ],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "21. DHCP Options -> 21.14. Rapid Commit Option": {
+    "Mandatory": [
+      "MUST include the Rapid Commit option in a Reply message sent in response to a Solicit message when completing the Solicit/Reply message exchange"
+    ],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.9. Creation of Advertise Messages": {
+    "Mandatory": [
+      "The server sets the \"msg-type\" field to ADVERTISE and copies the contents of the \"transaction-id\" field from the Solicit message received from the client to the Advertise message",
+      "The server includes its server identifier in a Server Identifier option",
+      "The server copies the Client Identifier option from the Solicit message into the Advertise message",
+      "The server preference value MUST default to 0 unless otherwise configured by the server administrator",
+      "The server includes the options that the server will return to the client in a subsequent Reply message",
+      "The server MUST include options in the Advertise message containing configuration parameters for all of the options identified in the Option Request option in the Solicit message that the server has been configured to return to the client",
+      "If the Option Request option includes a container option, the server MUST include all the options that are eligible to be encapsulated in the container",
+      "In the case where the Option Request option signals support for a feature when that option is encapsulated, special processing is required by the server",
+      "The server MUST include IA options in the Advertise message containing any addresses and/or delegated prefixes that would be assigned to IAs contained in the Solicit message from the client",
+      "If the server is not going to assign an address or delegated prefix received as a hint in the Solicit message, the server MUST NOT include this address or delegated prefix in the Advertise message",
+      "If the server will not assign any addresses to an IA_NA or IA_TA in subsequent Request messages from the client, the server MUST include the IA option in the Advertise message with no addresses in that IA and a Status Code option encapsulated in the IA option containing status code NoAddrsAvail",
+      "If the server will not assign any prefixes to an IA_PD in subsequent Request messages from the client, the server MUST include the IA_PD option in the Advertise message with no prefixes in the IA_PD option and a Status Code option encapsulated in the IA_PD containing status code NoPrefixAvail"
+    ],
+    "Recommended": [
+      "The server implementation SHOULD allow the setting of a server preference value by the administrator"
+    ]
+  },
+  "21. DHCP Options -> 21.19. Reconfigure Message Option": {
+    "warning": "JSON parsed but format unexpected",
+    "data": "{\n    \"can only appear in a Reconfigure message\": \"PROHIBITED\"\n}"
+  },
+  "18. DHCP Configuration Exchanges -> 18.3. Server Behavior -> 18.3.5. Receipt of Rebind Messages": {
+    "Mandatory": [
+      "MUST NOT be used by the client",
+      "MUST NOT return any addresses or delegated prefixes in the IA that the server does not assign to the client",
+      "MUST include in the Reply message a Server Identifier option (see Section 21.3) containing the server's DUID and the Client Identifier option (see Section 21.2) from the Rebind message",
+      "MUST determine the T1 or T2 values across all of the applicable client's bindings in the Reply"
+    ],
+    "Prohibited": [
+      "Unicast transmission of Rebind messages is not allowed",
+      "MUST NOT be used by the client",
+      "MUST NOT return any addresses or delegated prefixes in the IA that the server does not assign to the client"
+    ],
+    "Recommended": [
+      "SHOULD send the IA back to the client with new lifetimes and, if applicable, T1/T2 values",
+      "SHOULD create a binding and return the IA with allocated leases with lifetimes and, if applicable, T1/T2 values and other information requested by the client",
+      "SHOULD only create new bindings during processing of a Rebind message if the server is configured to respond with a Reply message to a Solicit message containing the Rapid Commit option"
+    ],
+    "Not Recommended": []
+  },
+  "21. DHCP Options -> 21.18. Interface-Id Option": {
+    "Mandatory": [
+      "MUST copy the Interface-Id option from the Relay-forward message into the Relay-reply message the server sends to the relay agent in response to the Relay-forward message",
+      "MUST NOT appear in any message except a Relay-forward or Relay-reply message"
+    ],
+    "Recommended": [
+      "SHOULD be considered an opaque value, with policies based on exact match only",
+      "SHOULD NOT be internally parsed by the server",
+      "SHOULD be stable and remain unchanged -- for example, after the relay agent is restarted"
+    ]
+  },
+  "21. DHCP Options -> 21.7. Option Request Option": {
+    "Mandatory": [
+      "A client MUST include an Option Request option in a Solicit, Request, Renew, Rebind, or Information-request message to inform the server about options the client wants the server to send to the client",
+      "For certain message types, some option codes MUST be included in the Option Request option",
+      "The Option Request option MUST NOT include the following options",
+      "Other top-level options MUST appear in the Option Request option or they will not be sent by the server"
+    ],
+    "Prohibited": [
+      "The Option Request option MUST NOT include the following options"
+    ],
+    "Recommended": [
+      "Options encapsulated in a container option SHOULD NOT appear in an Option Request option"
+    ],
+    "Not Recommended": [
+      "Options encapsulated in a container option SHOULD NOT appear in an Option Request option"
+    ]
+  },
+  "21. DHCP Options -> 21.5. Identity Association for Temporary Addresses Option": {
+    "Mandatory": [
+      "The IAID must be unique among the identifiers for all of this client's IA_TAs",
+      "The number space for IA_TA IAIDs is separate from the number space for other IA option types",
+      "An IA_TA option may only appear in the options area of a DHCP message",
+      "A DHCP message may contain multiple IA_TA options (though each must have a unique IAID)",
+      "A server MUST return the same set of temporary addresses for the same IA_TA (as identified by the IAID) as long as those addresses are still valid"
+    ],
+    "Prohibited": [],
+    "Recommended": [
+      "The client should request new temporary addresses before the lifetimes on the previously assigned addresses expire"
+    ],
+    "Not Recommended": []
+  },
+  "21. DHCP Options -> 21.6. IA Address Option": {
+    "Mandatory": [
+      "MUST NOT form an implicit prefix with a length other than 128 for this address",
+      "MUST ignore any received values",
+      "MUST use the values in the preferred-lifetime and valid-lifetime fields for the preferred and valid lifetimes",
+      "MUST discard any addresses for which the preferred lifetime is greater than the valid lifetime"
+    ],
+    "Prohibited": [
+      "MUST NOT form an implicit prefix with a length other than 128 for this address",
+      "SHOULD NOT send the IA Address option with an unspecified address (::)"
+    ],
+    "Recommended": [
+      "SHOULD be set to 0",
+      "SHOULD NOT send the IA Address option with an unspecified address (::)"
+    ],
+    "Not Recommended": [
+      "SHOULD NOT send the IA Address option with an unspecified address (::)"
+    ]
+  },
+  "21. DHCP Options -> 21.13. Status Code Option": {
+    "Mandatory": [
+      "MUST NOT be null-terminated"
+    ],
+    "Prohibited": [
+      "MUST NOT be null-terminated"
+    ],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "21. DHCP Options -> 21.24. SOL_MAX_RT Option": {
+    "Mandatory": [
+      "MUST include the SOL_MAX_RT option code in any Option Request option",
+      "MUST ignore any SOL_MAX_RT option values that are less than 60 or more than 86400",
+      "MUST set its internal SOL_MAX_RT parameter to the value contained in the SOL_MAX_RT option",
+      "it must be in the range 60 to 86400"
+    ]
+  },
+  "21. DHCP Options -> 21.17. Vendor-specific Information Option": {
+    "Mandatory": [
+      "The vendor-option-data field MUST be encoded as a sequence of code/length/value fields of format identical to the DHCP options",
+      "Servers and clients MUST NOT send more than one instance of the Vendor-specific Information option with the same Enterprise Number",
+      "A client that is interested in receiving a Vendor-specific Information option must specify the Vendor-specific Information option in an Option Request option",
+      "Servers only return the Vendor-specific Information options if specified in Option Request options from clients"
+    ]
+  },
+  "21. DHCP Options -> 21.22. IA Prefix Option": {
+    "Mandatory": [
+      "The IA Prefix option must be encapsulated in the IA_PD-options field of an IA_PD option",
+      "The server MUST ignore any received values in these lifetime fields",
+      "The client MUST discard any prefixes for which the preferred lifetime is greater than the valid lifetime",
+      "An IA Prefix option may appear only in an IA_PD option"
+    ],
+    "Prohibited": [
+      "The client SHOULD NOT send an IA Prefix option with 0 in the \"prefix-length\" field"
+    ],
+    "Recommended": [
+      "In a message sent by a client to a server, the preferred-lifetime and valid-lifetime fields SHOULD be set to 0"
+    ],
+    "Not Recommended": []
+  },
+  "21. DHCP Options -> 21.4. Identity Association for Non-temporary Addresses Option": {
+    "Mandatory": [
+      "the IAID must be unique among the identifiers for all of this client's IA_NAs",
+      "The server MUST ignore any values in these fields in messages received from a client",
+      "In a message sent by a server to a client, the client MUST use the values in the T1 and T2 fields for the T1 and T2 times, unless values in those fields are 0",
+      "The client MUST follow the rules defined in Section 14.2",
+      "the client discards the IA_NA option and processes the remainder of the message as though the server had not included the invalid IA_NA option"
+    ],
+    "Prohibited": [],
+    "Recommended": [
+      "In a message sent by a client to a server, the T1 and T2 fields SHOULD be set to 0",
+      "Recommended values for T1 and T2 are 0.5 and 0.8 times the shortest preferred lifetime of the addresses in the IA that the server is willing to extend, respectively",
+      "the recommended T1 and T2 values are also 0xffffffff"
+    ],
+    "Not Recommended": []
+  },
+  "21. DHCP Options -> 21.25. INF_MAX_RT Option": {
+    "Mandatory": [
+      "A DHCP client MUST include the INF_MAX_RT option code in any Option Request option (see Section 21.7) it sends in an Information-request message.",
+      "The DHCP server MAY include the INF_MAX_RT option in any response it sends to a client that has included the INF_MAX_RT option code in an Option Request option.",
+      "The INF_MAX_RT option is a top-level option in the message to the client.",
+      "A DHCP client MUST ignore any INF_MAX_RT option values that are less than 60 or more than 86400.",
+      "If a DHCP client receives a message containing an INF_MAX_RT option that has a valid value for INF_MAX_RT, the client MUST set its internal INF_MAX_RT parameter to the value contained in the INF_MAX_RT option.",
+      "This value of INF_MAX_RT is then used by the retransmission mechanism defined in Sections 15 and 18.2.6.",
+      "An updated INF_MAX_RT value applies only to the network interface on which the client received the INF_MAX_RT option."
+    ],
+    "Prohibited": [],
+    "Recommended": [],
+    "Not Recommended": []
+  },
+  "21. DHCP Options -> 21.21. Identity Association for Prefix Delegation Option": {
+    "Mandatory": [
+      "The IAID must be unique among the identifiers for all of this client's IA_PDs.",
+      "The server MUST ignore any values in these fields in messages received from a client.",
+      "In a message sent by a server to a client, the client MUST use the values in the T1 and T2 fields for the T1 and T2 timers, unless values in those fields are 0.",
+      "The client MUST follow the rules defined in Section 14.2.",
+      "If a client receives an IA_PD with T1 greater than T2 and both T1 and T2 are greater than 0, the client discards the IA_PD option and processes the remainder of the message as though the server had not included the IA_PD option."
+    ],
+    "Prohibited": [],
+    "Recommended": [
+      "In a message sent by a client to a server, the T1 and T2 fields SHOULD be set to 0.",
+      "Recommended values for T1 and T2 are 0.5 and 0.8 times the shortest preferred lifetime of the prefixes in the IA_PD that the server is willing to extend, respectively."
+    ],
+    "Not Recommended": []
+  },
+  "21. DHCP Options -> 21.23. Information Refresh Time Option": {
+    "Mandatory": [
+      "A DHCP client MUST request this option in the Option Request option (seeSection 21.7) when sending Information-request messages.",
+      "A client MUST NOT request this option in the Option Request option in any other messages.",
+      "The option value MUST NOT be smaller than IRT_MINIMUM.",
+      "This option MUST only appear in the top-level options area of Reply messages.",
+      "If the Reply to an Information-request message does not contain this option, the client MUST behave as if the option with the value IRT_DEFAULT was provided.",
+      "A client MUST use the refresh time IRT_MINIMUM if it receives the option with a value less than IRT_MINIMUM.",
+      "except that the client MUST delay sending the first Information-request by a random amount of time between 0 and INF_MAX_DELAY."
+    ],
+    "Prohibited": [
+      "A client MUST NOT request this option in the Option Request option in any other messages.",
+      "The option value MUST NOT be smaller than IRT_MINIMUM.",
+      "This option MUST only appear in the top-level options area of Reply messages."
+    ],
+    "Recommended": [
+      "A server sending a Reply to an Information-request message SHOULD include this option if it is requested in the Option Request option of the Information-request.",
+      "If a client contacts the server to obtain new data or refresh some existing data before the refresh time expires, then it SHOULD also refresh all data covered by this option.",
+      "When the client detects that the refresh time has expired, it SHOULD try to update its configuration data by sending an Information-request as specified in Section 18.2.6,"
+    ],
+    "Not Recommended": []
   }
 }

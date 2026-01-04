@@ -3,6 +3,7 @@ import type { RouteRecordRaw } from 'vue-router';
 const routes: RouteRecordRaw[] = [
   {
     meta: {
+      hideInMenu: true,
       icon: 'mdi:key-outline',
       keepAlive: true,
       order: 2,

@@ -1,90 +1,144 @@
 [
     {
-        "rule": "When an SNMP application entity sends a request PDU, it must assign a unique RequestID value to distinguish it from other outstanding requests. This RequestID enables the entity to match incoming response PDUs with their corresponding original requests, particularly when multiple requests are pending concurrently. The correlation mechanism is essential for reliable request-response pairing in both reliable and unreliable transport scenarios, and also serves to identify potential network-duplicated messages when using datagram services.",
-        "req_type": "request PDU",
-        "req_fields": [
-            "RequestID"
-        ],
-        "res_type": "response PDU",
-        "res_fields": [
-            "RequestID"
-        ]
-    },
-    {
-        "rule": "When a linkDown(2) trap is generated to indicate a communication link failure recognized by the sending SNMP entity, the generated Trap-PDU must include as the first variable-binding pair the name and value of the ifIndex instance identifying the specific affected interface. This requirement applies during trap generation when the protocol entity detects a link failure condition, ensuring that management systems can immediately identify which interface experienced the failure by examining the initial variable-binding element. The rule assumes that the agent maintains proper interface indexing and that the ifIndex instance for the failed interface is available and valid at the time of trap generation.",
+        "rule": "When a network agent generates a linkDown trap (type 2) to indicate a communication link failure, the first variable-binding in the Trap-PDU must be the ifIndex object instance identifying the specific affected interface. This rule applies during trap generation immediately after link failure detection, ensuring the management station can correlate the trap with the correct interface using the standard MIB-II ifIndex identifier. The prerequisite is that the agent must have access to the ifIndex value from its interface configuration data.",
         "req_type": "Trap-PDU",
         "req_fields": [
-            "variable-binding pair",
-            "ifIndex instance"
+            "variable-binding",
+            "ifIndex object instance"
         ],
         "res_type": "",
         "res_fields": []
     },
     {
-        "rule": "When an SNMPv1 agent generates an egpNeighborLoss trap to indicate that an EGP neighbor relationship has been terminated and the peer connection is no longer valid, the Trap-PDU must include the network address of the affected neighbor as the first variable-binding element. Specifically, the initial element in the variable-bindings field shall contain both the object identifier (egpNeighAddr) and its corresponding IP address value for the neighbor that triggered the trap condition. This requirement applies immediately upon detection of the EGP neighbor loss event and ensures that management systems receiving the trap can accurately identify which specific neighbor connection has failed.",
+        "rule": "A linkDown(2) trap is a specific SNMPv1 Trap-PDU that a managed agent must generate when it detects the failure of a communication link that is actively configured and monitored within its system. This rule applies during the agent's normal monitoring operations, immediately upon detecting the link failure event. The expected outcome is the transmission of a Trap-PDU where the first variable-binding pair contains the `ifIndex` object instance identifying the specific failed interface, allowing the network management station to correlate the trap with the correct managed resource. The prerequisite for this trap is that the agent must have an active configuration entry for the link in question and the capability to monitor its operational status.",
         "req_type": "Trap-PDU",
         "req_fields": [
-            "variable-bindings field",
-            "object identifier (egpNeighAddr)",
-            "IP address value"
+            "ifIndex"
         ],
         "res_type": "",
         "res_fields": []
     },
     {
-        "rule": "When processing a GetRequest-PDU in SNMPv1, if any object specified in the variable-bindings field is an aggregate type (such as a table or row as defined in the SMI), the receiving entity must immediately terminate processing and return a GetResponse-PDU with the error-status field set to \"noSuchName\" and the error-index field indicating the position of the problematic object in the original request. This rule applies during the initial validation phase before any value retrieval attempts, ensuring that aggregate objects (which cannot be directly retrieved via GetRequest) are properly rejected with a clear error indication while maintaining the original request-id for correlation.",
-        "req_type": "GetRequest-PDU",
-        "req_fields": [
-            "variable-bindings"
-        ],
-        "res_type": "GetResponse-PDU",
-        "res_fields": [
-            "error-status",
-            "error-index",
-            "request-id"
-        ]
-    },
-    {
-        "rule": "The GetResponse-PDU maintains identical structure and field definitions to the corresponding GetRequest-PDU, differing only in the PDU type identifier (ASN.1 tag [2] for GetResponse). This rule applies when a protocol entity generates a response to received GetRequest, GetNextRequest, or SetRequest PDUs. The identical structure ensures that response data directly corresponds to the original request's variable bindings, error-status, and error-index fields, while the distinct PDU type enables proper protocol operation by allowing receiving entities to differentiate between requests and responses. The receiving protocol entity must then deliver the response contents to its SNMP application entity for further processing.",
-        "req_type": "GetRequest, GetNextRequest, SetRequest",
-        "req_fields": [
-            "variable bindings",
-            "error-status",
-            "error-index"
-        ],
-        "res_type": "GetResponse-PDU",
-        "res_fields": [
-            "variable bindings",
-            "error-status",
-            "error-index"
-        ]
-    },
-    {
-        "rule": "A VarBindList is a SEQUENCE OF VarBind elements, where each VarBind pairs an ObjectName (variable identifier) with its corresponding ObjectSyntax (value). This construct is used in SNMP PDUs to transmit management information between entities. The VarBindList applies when encoding request/response PDUs, where it carries the specific managed objects being operated upon. When this rule is followed, the protocol entity can correctly process variable bindings according to the PDU type - for GetRequest-PDUs, values are ignored but must use valid ASN.1 syntax (preferably NULL), while for SetRequest-PDUs, both names and values are processed. Prerequisites include proper ASN.1 encoding and adherence to the specific PDU's semantic requirements for variable binding usage.",
-        "req_type": "GetRequest-PDU, SetRequest-PDU",
+        "rule": "Within the SNMPv1 protocol, a VarBindList is a SEQUENCE OF VarBind, where each VarBind is a pairing of an ObjectName (variable name) and an ObjectSyntax (value). This construct is used in all SNMP PDUs to carry the managed objects targeted by a request or returned in a response. The rule applies when constructing or parsing any PDU that includes variable bindings. The expected outcome is a correctly encoded list where, for PDUs like GetRequest that only specify names, the value fields must still contain syntactically valid ASN.1 (recommended to be NULL). The list's order is significant, as the ErrorIndex in error responses references a specific position in this list.",
+        "req_type": "GetRequest",
         "req_fields": [
             "VarBindList",
             "VarBind",
             "ObjectName",
             "ObjectSyntax"
         ],
+        "res_type": "error responses",
+        "res_fields": [
+            "ErrorIndex"
+        ]
+    },
+    {
+        "rule": "When a managed agent generates a linkUp trap (type 3) to indicate that a previously down communication link is now operational, the agent must construct the Trap-PDU such that the first variable-binding in the variable-bindings field specifically identifies the affected network interface. This is done by including the object name (OID) for `ifIndex` and its corresponding integer value for that interface. This rule applies during the trap generation phase, immediately after the agent detects the link state transition. The expected outcome is a correctly formatted Trap-PDU where the recipient can unambiguously determine which interface triggered the event. The prerequisite is that the agent has a valid `ifIndex` instance for the interface in its configuration, as defined by the Interfaces group (MIB-II).",
+        "req_type": "Trap-PDU",
+        "req_fields": [
+            "variable-bindings field",
+            "first variable-binding",
+            "object name (OID) for ifIndex",
+            "integer value for that interface"
+        ],
         "res_type": "",
         "res_fields": []
     },
     {
-        "rule": "This rule governs the SNMPv1 GetRequest-PDU error handling behavior when requested objects are not accessible. It applies immediately upon receiving a GetRequest-PDU, during the initial validation phase before any object retrieval is attempted. The receiving entity must first verify that all object names in the variable-bindings field exactly match objects available for get operations within the current MIB view. If any object name fails to match exactly, the entity must construct a GetResponse-PDU that mirrors the request format but sets the error-status field to \"noSuchName\" and the error-index field to the position (starting from 1) of the first non-matching object in the variable-bindings list. This error response terminates further processing of the request and ensures the manager receives immediate notification of the invalid object reference.",
-        "req_type": "GetRequest-PDU",
+        "rule": "A protocol entity must generate a GetResponse-PDU exclusively in direct response to receiving a valid GetRequest-PDU, GetNextRequest-PDU, or SetRequest-PDU, as detailed in the relevant request-handling procedures. This rule applies during the request-response exchange phase of the SNMPv1 protocol flow, ensuring that responses are never sent spontaneously. The expected outcome is a single GetResponse-PDU transmitted back to the originator of the triggering request, containing the appropriate request-id for correlation, and error-status and variable-bindings reflecting the result of the operation. The prerequisite is that the received request PDU must be syntactically valid and properly authenticated according to the community-based security model; invalid or unauthorized requests should be silently discarded without generating a response.",
+        "req_type": [
+            "GetRequest-PDU",
+            "GetNextRequest-PDU",
+            "SetRequest-PDU"
+        ],
         "req_fields": [
+            "request-id",
+            "community-based authentication"
+        ],
+        "res_type": "GetResponse-PDU",
+        "res_fields": [
+            "request-id",
+            "error-status",
+            "variable-bindings"
+        ]
+    },
+    {
+        "rule": "The GetResponse-PDU must have an identical structure to the GetRequest-PDU, including the same sequence of fields (request-id, error-status, error-index, and variable-bindings), with the sole difference being the PDU type identifier, which is set to 2 for GetResponse-PDU. This rule applies when a protocol entity generates a response to a received GetRequest-PDU, GetNextRequest-PDU, or SetRequest-PDU. The expected outcome is that the receiving protocol entity can correctly parse and present the response contents to its SNMP application entity, as the consistent structure ensures interoperability. Prerequisites include the prior receipt of a valid request PDU and the proper encoding of the response according to the ASN.1 definition.",
+        "req_type": "GetRequest-PDU, GetNextRequest-PDU, SetRequest-PDU",
+        "req_fields": [
+            "request-id",
+            "error-status",
+            "error-index",
             "variable-bindings"
         ],
         "res_type": "GetResponse-PDU",
         "res_fields": [
+            "request-id",
             "error-status",
-            "error-index"
+            "error-index",
+            "variable-bindings"
         ]
     },
     {
-        "rule": "The GetResponse-PDU is generated by an SNMP agent in response to received GetRequest-PDU, GetNextRequest-PDU, or SetRequest-PDU messages. This PDU uses ASN.1 encoding with type tag [2] and follows the structure: GetResponse-PDU ::= [2] IMPLICIT SEQUENCE { request-id RequestID, error-status ErrorStatus, error-index ErrorIndex, variable-bindings VarBindList }. The request-id must match the corresponding request to enable response correlation, error-status indicates processing success or failure, error-index identifies the specific variable binding causing an error (if any), and variable-bindings contain the requested management information or error indicators. Upon receipt, the protocol entity delivers the PDU contents to the SNMP application entity for further processing.",
+        "rule": "When an SNMPv1 agent generates an egpNeighborLoss trap to indicate that an EGP peer relationship has been terminated, the agent must construct the Trap-PDU such that the first variable-binding in the variable-bindings field specifically identifies the affected neighbor. This is achieved by including the name (object identifier) and corresponding value of the `egpNeighAddr` MIB object instance that represents the IP address of the now-inactive EGP neighbor. This rule applies during the trap generation procedure immediately after the agent detects and confirms the loss of the EGP peer. The expected outcome is that the management station receiving this trap can unambiguously determine which specific neighbor caused the event, which is a prerequisite for any subsequent diagnostic or reconfiguration actions. The condition for this rule is that the trap type in the PDU is explicitly set to `egpNeighborLoss(5)`.",
+        "req_type": "Trap-PDU",
+        "req_fields": [
+            "trap type",
+            "variable-bindings field",
+            "first variable-binding",
+            "name (object identifier)",
+            "value",
+            "egpNeighAddr MIB object instance"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "When a sending SNMPv1 protocol entity generates a Trap-PDU with the generic-trap field set to the value `enterpriseSpecific(6)`, it indicates that the entity has detected an event defined by the enterprise (typically the device vendor or a private management domain) rather than one of the six standard generic traps. This rule applies during the trap generation phase of the protocol flow, specifically when the entity's internal logic determines that a condition matching an enterprise-specific definition has been met. The expected outcome is the transmission of a Trap-PDU where: (1) the `enterprise` field contains the OBJECT IDENTIFIER of the trap's defining authority (e.g., the vendor's enterprise OID), (2) the `generic-trap` field is set to 6, and (3) the `specific-trap` field carries an integer that uniquely identifies the type of event within that enterprise's namespace. A prerequisite for applying this rule is that the sending entity must be configured or programmed with the knowledge of these enterprise-specific event conditions and their corresponding identifiers.",
+        "req_type": "Trap-PDU",
+        "req_fields": [
+            "enterprise",
+            "generic-trap",
+            "specific-trap"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "All SNMP protocol implementations must support the five core Protocol Data Units (PDUs) defined in RFC1157: GetRequest-PDU, GetNextRequest-PDU, GetResponse-PDU, SetRequest-PDU, and Trap-PDU. This rule applies to the message processing layer, where each PDU is encapsulated within an SNMP message (comprising version, community, and data fields) and transmitted via UDP—typically on port 161 for all PDUs except Trap-PDU, which uses port 162. The expected outcome is that an implementation can correctly generate, receive, and interpret these PDUs to perform basic network management operations: reading (GetRequest, GetNextRequest), writing (SetRequest), responding (GetResponse), and event reporting (Trap-PDU). Prerequisites include adherence to ASN.1 BER encoding, proper handling of UDP datagrams (with a recommended support for messages larger than 484 octets), and compliance with the MIB structure defined in RFC1155-SMI.",
+        "req_type": "GetRequest-PDU, GetNextRequest-PDU, SetRequest-PDU, Trap-PDU",
+        "req_fields": [
+            "version",
+            "community",
+            "data"
+        ],
+        "res_type": "GetResponse-PDU",
+        "res_fields": [
+            "version",
+            "community",
+            "data"
+        ]
+    },
+    {
+        "rule": "Variable bindings are a fundamental data structure used to convey management information within SNMPv1 PDUs. They consist of a VarBind, defined as an ASN.1 SEQUENCE containing a `name` (ObjectName) and a `value` (ObjectSyntax), and a VarBindList, defined as a SEQUENCE OF VarBind. This rule applies whenever a PDU is constructed for sending or parsed upon receipt, governing the encoding and interpretation of the managed data. The expected outcome is a correctly formatted list where each entry pairs a managed object instance's identifier with its associated value (or a placeholder). Prerequisites include the PDU type determining how the value field is treated: for requests like GetRequest, the value is a syntax-valid placeholder (recommended to be NULL) and is ignored; for responses like GetResponse, it contains the actual data or an error indicator. The VarBindList is also essential for error reporting, as the ErrorIndex field points to a specific entry within this list.",
+        "req_type": "GetRequest",
+        "req_fields": [
+            "VarBindList",
+            "VarBind",
+            "name",
+            "value"
+        ],
+        "res_type": "GetResponse",
+        "res_fields": [
+            "VarBindList",
+            "VarBind",
+            "name",
+            "value",
+            "ErrorIndex"
+        ]
+    },
+    {
+        "rule": "The GetResponse-PDU is the protocol data unit used by an SNMP agent to respond to a received GetRequest-PDU, GetNextRequest-PDU, or SetRequest-PDU from an SNMP manager. This rule applies during the response phase of an SNMPv1 exchange, immediately after the agent processes the request. The expected outcome is a properly formatted ASN.1 message containing the original request identifier for correlation, an error status and index (which are zero for successful operations), and the requested variable bindings (values for Get operations, or a confirmation for Set operations). The prerequisite is that the agent must have first received a valid request PDU. Its ASN.1 definition is: GetResponse-PDU ::= [2] IMPLICIT SEQUENCE { request-id RequestID, error-status ErrorStatus, error-index ErrorIndex, variable-bindings VarBindList }. The receiving manager's protocol entity must then present the contents of this PDU to its SNMP application entity.",
         "req_type": "GetRequest-PDU, GetNextRequest-PDU, SetRequest-PDU",
         "req_fields": [],
         "res_type": "GetResponse-PDU",
@@ -96,38 +150,7 @@
         ]
     },
     {
-        "rule": "The GetResponse-PDU is generated by a protocol entity exclusively in response to receiving a valid GetRequest-PDU, GetNextRequest-PDU, or SetRequest-PDU, as detailed in the relevant protocol procedures. This rule governs the response generation mechanism in SNMPv1, ensuring that responses are only triggered by specific request types and not generated spontaneously. The rule applies during the request-response exchange phase of protocol operation, after the protocol entity has successfully parsed and processed an incoming request PDU. The expected outcome is that the receiving entity will generate a corresponding GetResponse-PDU containing the appropriate request-id, error-status, error-index, and variable-bindings as defined in the ASN.1 specification. Prerequisites include successful authentication of the requesting entity and proper parsing of the incoming PDU according to the protocol specifications.",
-        "req_type": [
-            "GetRequest-PDU",
-            "GetNextRequest-PDU",
-            "SetRequest-PDU"
-        ],
-        "req_fields": [],
-        "res_type": "GetResponse-PDU",
-        "res_fields": [
-            "request-id",
-            "error-status",
-            "error-index",
-            "variable-bindings"
-        ]
-    },
-    {
-        "rule": "The request/response information structure must include three mandatory fields: RequestID as INTEGER for correlating requests with responses and detecting network duplicates; ErrorStatus as INTEGER with enumerated values noError(0), tooBig(1), noSuchName(2), badValue(3), readOnly(4), genErr(5) to indicate processing success or specific failure conditions; and ErrorIndex as INTEGER to identify the problematic variable in case of errors. This structure applies to all SNMPv1 request-response PDU exchanges and must be properly populated by both managers and agents. When ErrorStatus is non-zero, ErrorIndex must point to the specific variable binding that caused the exception, while a zero ErrorStatus indicates successful processing and renders ErrorIndex irrelevant. These fields are essential for reliable message correlation and error reporting in SNMP operations.",
-        "req_type": "all SNMPv1 request-response PDU exchanges",
-        "req_fields": [
-            "RequestID",
-            "ErrorStatus",
-            "ErrorIndex"
-        ],
-        "res_type": "all SNMPv1 request-response PDU exchanges",
-        "res_fields": [
-            "RequestID",
-            "ErrorStatus",
-            "ErrorIndex"
-        ]
-    },
-    {
-        "rule": "The Trap-PDU is an unsolicited notification message used in SNMPv1 to report exceptional events or state changes from managed devices. This PDU has the specific ASN.1 structure: Trap-PDU ::= [4] IMPLICIT SEQUENCE { enterprise OBJECT IDENTIFIER, agent-addr NetworkAddress, generic-trap INTEGER { coldStart(0), warmStart(1), linkDown(2), linkUp(3), authenticationFailure(4), egpNeighborLoss(5), enterpriseSpecific(6) }, specific-trap INTEGER, time-stamp TimeTicks, variable-bindings VarBindList }. \n\nThis rule applies when a managed device experiences events requiring notification, such as system restarts, link state changes, or authentication failures. The protocol entity generates the Trap-PDU exclusively upon explicit request from the SNMP application entity, which also determines destination addresses implementation-specifically. Upon receipt, the receiving protocol entity must deliver the Trap-PDU contents to its SNMP application entity for processing. The expected outcome is asynchronous notification delivery without requiring prior request from the management station. Prerequisites include the occurrence of a trap-worthy event and proper initialization of the SNMP application entity to handle trap generation. Note that interpretations of generic-trap values and variable-bindings content are implementation-specific.",
+        "rule": "The variable-bindings component of the Trap-PDU, which follows the required fields (enterprise, agent-addr, generic-trap, specific-trap, and time-stamp), carries additional management information whose semantics and content are not defined by the SNMPv1 protocol itself. This rule applies when a protocol entity generates and sends a Trap-PDU upon request from its local SNMP application entity, and when a receiving protocol entity processes an incoming Trap-PDU before presenting it to its application entity. The expected outcome is that the sender's implementation determines what data, if any, to include in the variable-bindings list to convey context-specific details about the trap event (e.g., specific interface indices for a linkDown trap). Conversely, the receiver's implementation must interpret these bindings according to its own logic or pre-defined mappings, as there is no standard specification for their meaning. The prerequisite is that a Trap-PDU has been validly constructed and transmitted; this rule specifically governs the interpretation of the optional variable-bindings portion, allowing for implementation flexibility while ensuring interoperability for the core trap fields.",
         "req_type": "Trap-PDU",
         "req_fields": [
             "enterprise",
@@ -141,83 +164,101 @@
         "res_fields": []
     },
     {
-        "rule": "The GetRequest-PDU is generated by an SNMP manager to request the values of one or more managed objects from an SNMP agent. The PDU structure must follow the ASN.1 syntax: GetRequest-PDU ::= [0] IMPLICIT SEQUENCE { request-id RequestID, error-status -- always 0 ErrorStatus, error-index -- always 0 ErrorIndex, variable-bindings VarBindList }. \n\nThis rule applies when an SNMP application entity initiates a read operation. The error-status and error-index fields must always be set to zero in the request, as they are reserved for the response. The request-id must be unique to correlate requests with responses. The variable-bindings list contains the object identifiers of the managed objects being queried.\n\nUpon receiving a valid GetRequest-PDU, the agent processes the request according to the protocol specification and returns a GetResponse-PDU containing the requested values or appropriate error indications. The successful outcome is a GetResponse-PDU with error-status set to noError and the variable-bindings populated with the requested object values.\n\nPrerequisites include: the SNMP session must be established, the manager must have valid object identifiers in the relevant MIB view, and the request must conform to the ASN.1 encoding rules.",
+        "rule": "When generating a GetResponse-PDU in response to a received GetRequest-PDU, the SNMPv1 receiving protocol entity must copy the exact value from the request-id field of the incoming GetRequest-PDU into the request-id field of the outgoing GetResponse-PDU. This rule applies unconditionally for all GetResponse-PDUs, regardless of whether the response indicates success (noError) or any error condition (such as noSuchName, tooBig, or genErr). The request-id matching ensures that the originating SNMP application can correlate each response with its corresponding request, maintaining the integrity of the request-response transaction.",
         "req_type": "GetRequest-PDU",
         "req_fields": [
-            "request-id",
+            "request-id"
+        ],
+        "res_type": "GetResponse-PDU",
+        "res_fields": [
+            "request-id"
+        ]
+    },
+    {
+        "rule": "This rule defines the core data structures used in SNMPv1 request and response messages, which are fundamental to the protocol's operation. It applies to all SNMPv1 PDUs that involve a request from a manager and a corresponding response from an agent (specifically, GetRequest, GetNextRequest, SetRequest, and GetResponse). The expected outcome is the proper construction and interpretation of these messages, enabling reliable communication. The prerequisites are that the protocol entities are engaged in a request-response exchange.\n\nThe rule specifies that every such PDU must contain three mandatory header fields:\n1.  **RequestID**: An INTEGER used to match a response to its originating request. This is critical for correlating messages, especially when using an unreliable transport, as it allows the identification of duplicate packets.\n2.  **ErrorStatus**: An INTEGER that indicates the success or failure of a request. It must take one of the defined values: `noError(0)` for success, `tooBig(1)` if the response would be too large to send, `noSuchName(2)` for an invalid object identifier, `badValue(3)` if a set operation specified an invalid value or syntax, `readOnly(4)` for an attempt to write a read-only object, or `genErr(5)` for any other error not covered by the previous codes. A non-zero value signals an exception.\n3.  **ErrorIndex**: An INTEGER that provides additional diagnostic information when `ErrorStatus` is non-zero. It indicates the position (1-indexed) of the failed variable in the accompanying VarBindList. If `ErrorStatus` is zero (`noError`), the `ErrorIndex` value is zero and should be ignored.\n\nThese fields are followed by a `VarBindList`, which is a SEQUENCE OF `VarBind` pairs (each pairing an object name with a value). The `ErrorIndex` directly references an entry in this list.",
+        "req_type": "GetRequest, GetNextRequest, SetRequest",
+        "req_fields": [
+            "RequestID",
+            "ErrorStatus",
+            "ErrorIndex",
+            "VarBindList"
+        ],
+        "res_type": "GetResponse",
+        "res_fields": [
+            "RequestID",
+            "ErrorStatus",
+            "ErrorIndex",
+            "VarBindList"
+        ]
+    },
+    {
+        "rule": "This rule governs the error-handling behavior of an SNMPv1 agent when processing a GetRequest-PDU. It applies immediately after the agent receives and begins to process the request, specifically during the validation of the requested object identifiers (OIDs) listed in the variable-bindings field. The prerequisite is that a valid GetRequest-PDU has been received. If the agent determines that any named OID does not exactly match an object that exists and is accessible for GET operations within the agent's configured MIB view, this rule is triggered. The expected outcome is that the agent must abort processing and send a GetResponse-PDU back to the manager. This response PDU mirrors the request's structure but sets the `error-status` field to `noSuchName` and the `error-index` field to the positional index (starting from 1) of the first non-matching OID in the variable-bindings list, thereby precisely indicating the failure cause and location.",
+        "req_type": "GetRequest-PDU",
+        "req_fields": [
+            "variable-bindings"
+        ],
+        "res_type": "GetResponse-PDU",
+        "res_fields": [
+            "error-status",
+            "error-index"
+        ]
+    },
+    {
+        "rule": "(2) This rule applies during the processing of a received GetRequest-PDU, specifically when validating the requested objects in the variable-bindings field. If any named object is an aggregate type (such as a table or row, as defined by the Structure of Management Information - SMI), the receiving SNMP entity must not attempt to retrieve its value. Instead, it must immediately respond with a GetResponse-PDU. This response PDU must be identical in form to the request, with two critical modifications: the error-status field must be set to `noSuchName`, and the error-index field must be set to the numerical position (index) of the offending aggregate object within the variable-bindings list of the original request. This rule ensures that Get operations are only performed on leaf objects (scalar or columnar instances) and provides clear error reporting for invalid requests targeting non-leaf, aggregate structures.",
+        "req_type": "GetRequest-PDU",
+        "req_fields": [
+            "variable-bindings"
+        ],
+        "res_type": "GetResponse-PDU",
+        "res_fields": [
+            "error-status",
+            "error-index"
+        ]
+    },
+    {
+        "rule": "When a receiving SNMPv1 protocol entity successfully processes a GetNextRequest-PDU and none of the error conditions specified in the preceding rules (noSuchName, tooBig, genErr) apply, it must construct a successful GetResponse-PDU. This successful response is generated by determining, for each requested object name in the variable-bindings field, the lexicographical successor object available in the relevant MIB view and returning its name and value. To indicate this successful, error-free processing, the error-status field in the GetResponse-PDU must be set to `noError`, and the error-index field must be set to zero. This rule applies specifically to the normal, successful execution path of the GetNextRequest operation and serves as the default response when all prerequisite error checks have been passed.",
+        "req_type": "GetNextRequest-PDU",
+        "req_fields": [
+            "variable-bindings"
+        ],
+        "res_type": "GetResponse-PDU",
+        "res_fields": [
             "error-status",
             "error-index",
             "variable-bindings"
-        ],
-        "res_type": "GetResponse-PDU",
-        "res_fields": [
-            "error-status",
-            "variable-bindings"
         ]
     },
     {
-        "rule": "When processing a GetNextRequest-PDU, if none of the error conditions specified in rules (1) through (3) apply, the receiving protocol entity must construct a successful GetResponse-PDU. This response must contain the lexicographical successors for all requested object names from the relevant MIB view, with the error-status field set to noError and the error-index field set to zero, indicating successful retrieval of all next available objects without errors.",
-        "req_type": "GetNextRequest-PDU",
-        "req_fields": [],
-        "res_type": "GetResponse-PDU",
-        "res_fields": [
-            "error-status",
-            "error-index"
-        ]
-    },
-    {
-        "rule": "When processing a GetRequest-PDU in SNMPv1, if the receiving protocol entity determines that the size of the GetResponse-PDU (constructed according to the normal response procedure) would exceed a local implementation or transport limitation, it must immediately cease normal processing and instead send a GetResponse-PDU that maintains the same request-id and variable-bindings structure as the original request, but with the error-status field set to \"tooBig\" and the error-index field set to zero. This rule applies during the response generation phase before any data transmission occurs, and takes precedence over successful response generation when size constraints are violated. The \"tooBig\" error indicates that the requested data set exceeds the protocol's capacity for a single response, requiring the manager to potentially retry with a smaller request scope.",
-        "req_type": "GetRequest-PDU",
-        "req_fields": [
-            "request-id",
-            "variable-bindings"
-        ],
-        "res_type": "GetResponse-PDU",
-        "res_fields": [
-            "request-id",
-            "variable-bindings",
-            "error-status",
-            "error-index"
-        ]
-    },
-    {
-        "rule": "When generating a GetResponse-PDU in response to a received GetRequest-PDU, regardless of whether the response indicates success (noError) or any error condition (noSuchName, tooBig, genErr), the request-id field in the GetResponse-PDU must exactly match the request-id value from the corresponding GetRequest-PDU. This ensures proper request-response correlation between the SNMP manager and agent, allowing the originating application to correctly associate responses with their original requests. This rule applies to all GetResponse-PDU generation scenarios described in the protocol specification, including successful retrievals and all error conditions.",
-        "req_type": "GetRequest-PDU",
-        "req_fields": [
-            "request-id"
-        ],
-        "res_type": "GetResponse-PDU",
-        "res_fields": [
-            "request-id"
-        ]
-    },
-    {
-        "rule": "When a sending SNMPv1 protocol entity generates a Trap-PDU with the generic-trap field set to enterpriseSpecific(6), this indicates that the entity has detected an event defined by a specific enterprise (vendor or organization) rather than a standard generic trap. This rule applies during trap generation when the event falls outside the predefined generic trap types. The sending entity must populate the enterprise field with the vendor's OBJECT IDENTIFIER and the specific-trap field with an enterprise-defined value identifying the particular event type. The receiving management station should interpret this trap as signaling a vendor-specific condition and use the enterprise OID and specific-trap value to determine the appropriate handling procedure.",
+        "rule": "The generic-trap field within a Trap-PDU is a mandatory INTEGER that categorizes the type of event being reported. This rule applies when a protocol entity, at the request of its SNMP application entity, generates and sends a Trap-PDU to notify a receiving entity of a significant occurrence. The field must be interpreted according to the following predefined enumeration: coldStart(0) indicates a device reinitialization where configuration may be altered; warmStart(1) indicates a reinitialization without configuration changes; linkDown(2) signals a failure in a communication link; linkUp(3) signals the restoration of a link; authenticationFailure(4) reports a failed authentication attempt; egpNeighborLoss(5) indicates the loss of an EGP neighbor; and enterpriseSpecific(6) denotes that the specific-trap field contains a vendor-defined trap type. The expected outcome is that the receiving protocol entity correctly decodes this field and presents it, along with the rest of the PDU contents, to its SNMP application entity for appropriate handling. This interpretation is required for all Trap-PDUs as defined by the protocol syntax, and the selection of the value is an implementation-specific decision of the originating SNMP application entity based on the detected event.",
         "req_type": "Trap-PDU",
         "req_fields": [
-            "generic-trap",
+            "generic-trap"
+        ],
+        "res_type": "",
+        "res_fields": []
+    },
+    {
+        "rule": "This rule defines the abstract syntax and semantics of the Trap-PDU, which is an unsolicited notification message sent by an SNMP agent to inform a manager of a significant event. The rule applies when an SNMP application entity within an agent requests the generation of a trap, typically triggered by a local system event (e.g., a link failure or system restart). The protocol entity must construct the PDU according to this exact ASN.1 structure. The expected outcome is a correctly encoded Trap-PDU containing the following mandatory fields: the `enterprise` OID identifying the software/device type; the `agent-addr` (NetworkAddress) of the source; a `generic-trap` code from the enumerated set (0-6) indicating the event category; a `specific-trap` integer for vendor-specific codes when `generic-trap` is 6 (enterpriseSpecific); a `time-stamp` (TimeTicks) indicating time since last reinitialization; and a `variable-bindings` list containing relevant MIB object instances. Prerequisites include a valid request from the local SNMP application entity and the availability of the necessary field data (e.g., system uptime for the timestamp). The destination and interpretation of the variable bindings are implementation-specific, but the PDU structure itself is strictly defined by this rule.",
+        "req_type": "Trap-PDU",
+        "req_fields": [
             "enterprise",
-            "specific-trap"
+            "agent-addr",
+            "generic-trap",
+            "specific-trap",
+            "time-stamp",
+            "variable-bindings"
         ],
         "res_type": "",
         "res_fields": []
     },
     {
-        "rule": "When a linkUp(3) trap is generated to indicate that a communication link has transitioned to an operational state, the sending SNMP entity must include the ifIndex instance identification as the first variable-binding in the Trap-PDU. Specifically, the first element of the variable-bindings field shall contain both the object name (ifIndex OID) and its corresponding value identifying the specific interface that has come up. This requirement applies during trap generation following the detection of a link state transition from down to up, and ensures that management systems can immediately identify which interface triggered the notification without requiring additional queries to the agent.",
-        "req_type": "Trap-PDU",
+        "rule": "The GetRequest-PDU is generated by an SNMPv1 protocol entity only upon request from its SNMP application entity to retrieve the values of one or more managed objects. Its ASN.1 encoding must follow the strict form: `GetRequest-PDU ::= [0] IMPLICIT SEQUENCE { request-id RequestID, error-status -- always 0 ErrorStatus, error-index -- always 0 ErrorIndex, variable-bindings VarBindList }`. Crucially, the `error-status` and `error-index` fields in a GetRequest must always be set to zero by the sender; they are placeholders for the corresponding fields in the GetResponse-PDU. This rule applies when initiating a retrieval operation. The expected outcome is that the receiving protocol entity will process the request against the applicable MIB view and return a GetResponse-PDU, using the same `request-id` for correlation. The response will either contain the requested values (with `error-status` of `noError`) or an error code and index indicating the nature and location of any failure, as governed by subsequent procedural rules. A prerequisite is that the sender has a valid `request-id` for matching responses and a `VarBindList` containing the object instances to be fetched.",
+        "req_type": "GetRequest-PDU",
         "req_fields": [
-            "variable-bindings",
-            "ifIndex OID",
-            "ifIndex value"
-        ],
-        "res_type": "",
-        "res_fields": []
-    },
-    {
-        "rule": "When processing a GetNextRequest-PDU, if the receiving SNMP entity determines that the size of the GetResponse-PDU containing the lexicographical successors for all requested objects would exceed a local implementation limit (such as maximum PDU size), the entity must immediately terminate normal processing and return an error response. The response must be a GetResponse-PDU that maintains the same request-id as the original request but sets the error-status field to \"tooBig\" and the error-index field to zero, indicating that the response data is too large to transmit without specifying which particular variable binding caused the issue. This rule takes precedence over successful data retrieval and applies before attempting to construct the full response payload, ensuring that oversized responses are handled gracefully without consuming unnecessary processing resources.",
-        "req_type": "GetNextRequest-PDU",
-        "req_fields": [
-            "request-id"
+            "request-id",
+            "error-status",
+            "error-index",
+            "variable-bindings"
         ],
         "res_type": "GetResponse-PDU",
         "res_fields": [
@@ -227,22 +268,7 @@
         ]
     },
     {
-        "rule": "The GetNextRequest-PDU structure is identical to the GetRequest-PDU in all aspects except for the PDU type identifier. This rule applies when an SNMP application entity requests retrieval of the lexicographically next available object in the MIB view. The receiving protocol entity must process the request by first validating that each object name in the variable-bindings field lexicographically precedes an available object in the MIB view. If validation fails, appropriate error responses (noSuchName, tooBig, or genErr) must be returned. If all validations pass, the entity must return a GetResponse-PDU containing the name-value pairs of the immediate lexicographical successors for each requested object, with error-status set to noError. The request-id must be preserved from the original GetNextRequest-PDU to maintain request-response correlation.",
-        "req_type": "GetNextRequest-PDU",
-        "req_fields": [
-            "PDU type identifier",
-            "variable-bindings field",
-            "request-id"
-        ],
-        "res_type": "GetResponse-PDU",
-        "res_fields": [
-            "name-value pairs",
-            "error-status",
-            "request-id"
-        ]
-    },
-    {
-        "rule": "This rule governs the handling of general retrieval errors during SNMP GetRequest processing. It applies when a receiving protocol entity encounters an object value retrieval failure that cannot be classified under previous error categories (noSuchName, tooBig, or aggregate type restrictions). The rule triggers after all preceding error checks have been evaluated and none apply, but object value retrieval still fails due to unspecified internal errors such as hardware failures, resource constraints, or implementation-specific issues.\n\nWhen this condition occurs, the receiving entity must construct a GetResponse-PDU that mirrors the original GetRequest-PDU in structure, with the following modifications: set the error-status field to \"genErr\" (general error) and populate the error-index field with the positional index of the problematic object within the variable-bindings list of the received message. This ensures the requestor can identify which specific object caused the failure while maintaining protocol consistency through the preserved request-id and message format.\n\nThe rule serves as a catch-all mechanism for retrieval failures not covered by specific error conditions, ensuring all error scenarios result in proper protocol-compliant responses rather than silent failures or connection drops.",
+        "rule": "(4) This rule governs the handling of a GetRequest-PDU when an object's value cannot be retrieved due to an unspecified internal error. It applies during the processing of a received GetRequest-PDU, after checking that the object exists (rules 1 and 2) and that the response size is acceptable (rule 3), but before attempting to return successful values. The rule is triggered if, for any object in the variable-bindings list, the retrieval fails for reasons not explicitly covered by the previous error conditions (such as noSuchName or tooBig). This includes internal system errors, temporary resource unavailability, or other implementation-specific failures. When this condition is met, the receiving SNMP entity must respond with a GetResponse-PDU that mirrors the request in structure, but with the error-status field set to genErr (general error) and the error-index field set to the positional index (starting from 1) of the problematic object within the variable-bindings list of the original request. This ensures the requestor can identify which specific object caused the failure. The response must be sent back to the originator of the GetRequest, maintaining the same request-id for correlation.",
         "req_type": "GetRequest-PDU",
         "req_fields": [
             "variable-bindings list",
@@ -252,12 +278,132 @@
         "res_fields": [
             "error-status",
             "error-index",
+            "request-id"
+        ]
+    },
+    {
+        "rule": "(3) This rule governs the handling of a GetRequest-PDU when the response would be too large to transmit. It applies after the receiving SNMP entity has validated the request (i.e., all object names are valid and accessible, and no other errors from rules 1, 2, or 4 are triggered) and is in the process of generating the corresponding GetResponse-PDU. If the total size of the fully constructed GetResponse-PDU, including its variable bindings with retrieved values, would exceed a local implementation-defined size limit (e.g., the maximum transmission unit), then the receiving entity must not send the oversized response. Instead, it must send an error response. This response is a GetResponse-PDU that maintains the same request-id as the original GetRequest but has its error-status field set to 'tooBig' and its error-index field set to zero, indicating a global message size error rather than an issue with a specific variable binding. The variable-bindings list in this error response should be identical in form (i.e., containing the same object names) to the one in the received request, though their value fields are typically left unspecified (e.g., set to NULL) as per common practice, as the primary purpose is to signal the size constraint failure.",
+        "req_type": "GetRequest-PDU",
+        "req_fields": [
+            "request-id",
+            "variable-bindings"
+        ],
+        "res_type": "GetResponse-PDU",
+        "res_fields": [
+            "request-id",
+            "error-status",
+            "error-index",
+            "variable-bindings"
+        ]
+    },
+    {
+        "rule": "This rule defines the structure and usage of the SetRequest-PDU in SNMPv1, which is used by an SNMP manager to request modifications to one or more managed objects on an agent. The PDU is generated only upon request from the SNMP application entity and follows the same ASN.1 encoding format as the GetRequest-PDU, distinguished by the PDU type tag [3]. The structure is: `SetRequest-PDU ::= [3] IMPLICIT SEQUENCE { request-id RequestID, error-status -- always 0 ErrorStatus, error-index -- always 0 ErrorIndex, variable-bindings VarBindList }`, where `error-status` and `error-index` must always be set to zero in the request. Upon receipt, the agent processes the request sequentially by first validating the variable-bindings against the MIB view, data types, and local constraints. If any validation fails (e.g., object not writable, bad value, or response too large), the agent must respond with a GetResponse-PDU containing an appropriate error code and index. If all validations pass, the agent assigns the specified values to the variables, ideally as an atomic operation, and responds with a GetResponse-PDU where `error-status` is `noError` and `error-index` is zero. This rule applies during the request phase of SNMP communication, ensuring that set operations are executed consistently and error conditions are properly reported.",
+        "req_type": "SetRequest-PDU",
+        "req_fields": [
+            "request-id",
+            "error-status",
+            "error-index",
+            "variable-bindings"
+        ],
+        "res_type": "GetResponse-PDU",
+        "res_fields": [
+            "error-status",
+            "error-index"
+        ]
+    },
+    {
+        "rule": "(3) During the processing of a received SetRequest-PDU, if the SNMP agent determines that the size of the corresponding GetResponse-PDU (which would be generated to report the success or failure of the set operation) would exceed a local implementation-defined size limitation (e.g., a maximum packet size constraint), then the agent must abort normal processing and immediately send an error response. This rule applies before attempting to perform any of the variable assignments specified in the request. The agent must construct a GetResponse-PDU that is identical in form to the received SetRequest-PDU (reusing the same `request-id`), but with the `error-status` field set to `tooBig` and the `error-index` field set to zero. This indicates to the manager that the request cannot be processed due to a message size constraint, not due to an error with a specific variable binding.",
+        "req_type": "SetRequest-PDU",
+        "req_fields": [
+            "request-id"
+        ],
+        "res_type": "GetResponse-PDU",
+        "res_fields": [
+            "request-id",
+            "error-status",
+            "error-index"
+        ]
+    },
+    {
+        "rule": "This rule governs the validation of value syntax in SNMPv1 SetRequest operations. It applies when a receiving SNMP entity processes a SetRequest-PDU and must verify that each value in the variable-bindings field conforms to the ASN.1 type, length, and value constraints defined for the corresponding MIB object. If any value fails this syntax check, the receiving entity must immediately abort processing and respond with a GetResponse-PDU that mirrors the request form, but with the error-status field set to 'badValue' and the error-index field indicating the position (starting from 1) of the offending variable-binding in the received message. This rule is evaluated after checking object accessibility (rule 1) but before checking response size limitations (rule 3) or other general errors (rule 4). The prerequisite is that the SetRequest-PDU is syntactically valid and the objects are within the relevant MIB view for set operations.",
+        "req_type": "SetRequest-PDU",
+        "req_fields": [
+            "variable-bindings"
+        ],
+        "res_type": "GetResponse-PDU",
+        "res_fields": [
+            "error-status",
+            "error-index"
+        ]
+    },
+    {
+        "rule": "This rule governs the error-handling behavior of an SNMPv1 agent when processing a SetRequest-PDU. It applies immediately upon receipt of a SetRequest, before any attempt is made to modify managed objects. The rule is triggered if any object identifier (OID) specified in the request's variable-bindings list is not accessible for write operations within the agent's configured MIB view—meaning the object either does not exist, is not implemented, or the requester lacks sufficient access rights. When this condition is met, the agent must abort processing and send a GetResponse-PDU back to the manager. This response must mirror the received request in structure but must set the error-status field to `noSuchName` and the error-index field to the positional index (starting from 1) of the first offending OID within the variable-bindings list. This response indicates a failure to locate a settable object and allows the manager to identify which specific variable binding caused the error. The rule is a prerequisite check; subsequent rules for type validation or assignment are not evaluated if this rule applies.",
+        "req_type": "SetRequest-PDU",
+        "req_fields": [
+            "variable-bindings list"
+        ],
+        "res_type": "GetResponse-PDU",
+        "res_fields": [
+            "error-status",
+            "error-index"
+        ]
+    },
+    {
+        "rule": "(4) This rule applies during the processing of a SetRequest-PDU when the receiving SNMP entity attempts to modify the value of an object specified in the variable-bindings field. It serves as a catch-all error condition for write failures that are not attributable to the more specific errors defined in preceding rules (such as noSuchName, badValue, or tooBig). If the value of a named object cannot be altered due to any other reason—for example, internal system errors, hardware constraints, resource unavailability, or implementation-specific restrictions—the receiving entity must generate a GetResponse-PDU. This response must mirror the form of the received SetRequest-PDU, but with the error-status field set to genErr (general error) and the error-index field set to the positional index (starting from 1) of the problematic object name within the variable-bindings list of the original request. This rule ensures that the originator is notified of a failed set operation with a specific error code and the location of the failure, allowing for appropriate error handling without ambiguity.",
+        "req_type": "SetRequest-PDU",
+        "req_fields": [
+            "variable-bindings"
+        ],
+        "res_type": "GetResponse-PDU",
+        "res_fields": [
+            "error-status",
+            "error-index"
+        ]
+    },
+    {
+        "rule": "This rule governs the successful processing of a SetRequest-PDU in SNMPv1. It applies only after all prerequisite error checks have been passed: the receiving entity has verified that all named objects are available for set operations, that all provided values have the correct ASN.1 type and format, that the response will not exceed size limitations, and that no other general errors prevent the assignment. When these conditions are met, the receiving entity must assign each value to its corresponding variable as specified in the variable-bindings field, treating all assignments as if they occur simultaneously. Following the successful assignment, the entity must send a GetResponse-PDU back to the originator. This response must be identical in form to the received SetRequest-PDU (sharing the same request-id and variable-bindings), with the explicit modification that the error-status field is set to `noError` and the error-index field is set to zero, thereby signaling successful completion of the set operation.",
+        "req_type": "SetRequest-PDU",
+        "req_fields": [
+            "variable-bindings"
+        ],
+        "res_type": "GetResponse-PDU",
+        "res_fields": [
+            "request-id",
+            "variable-bindings",
+            "error-status",
+            "error-index"
+        ]
+    },
+    {
+        "rule": "The GetNextRequest-PDU is generated by an SNMP application entity to request the lexicographically next object for each name in its variable-bindings list. Its ASN.1 structure is identical to the GetRequest-PDU, differing only in the PDU type field (indicated by the tag [1] instead of [0]). This rule applies when the protocol entity constructs a GetNextRequest-PDU in response to an application request. The receiving entity processes it by attempting to retrieve the immediate successor for each provided object name within the relevant MIB view. If successful, it returns a GetResponse-PDU with error-status noError, containing the successor names and values. If any name has no lexicographic successor in the view, or if retrieval fails due to other errors (e.g., size limits or general errors), an appropriate error-status (noSuchName, tooBig, or genErr) is returned in the GetResponse-PDU, with error-index indicating the problematic variable-binding. The request-id in the response must match that of the request.",
+        "req_type": "GetNextRequest-PDU",
+        "req_fields": [
+            "PDU type field",
+            "variable-bindings list"
+        ],
+        "res_type": "GetResponse-PDU",
+        "res_fields": [
+            "error-status",
+            "successor names and values",
+            "error-index",
+            "request-id"
+        ]
+    },
+    {
+        "rule": "This rule governs the error-handling behavior for a GetNextRequest-PDU when a requested object name is invalid for a \"get-next\" operation. Specifically, it applies immediately upon receipt of the GetNextRequest-PDU, during the agent's processing of the variable-bindings list. The rule triggers if, for any object name (OID) in the request, that name is not lexicographically positioned *before* an actual, accessible object in the agent's relevant MIB view. In simpler terms, the requested OID is either the last object in the MIB subtree, beyond it, or names a non-existent node, meaning there is no valid \"next\" object to return. The expected outcome is that the agent must respond with a GetResponse-PDU that mirrors the request in form, but with the error-status set to `noSuchName` and the error-index set to the position (1-based) of the offending object name in the variable-bindings list. A prerequisite for this rule is that the agent has successfully parsed the PDU and is evaluating the request against its known MIB view; it does not apply if a more general error (like `tooBig`) is detected first.",
+        "req_type": "GetNextRequest-PDU",
+        "req_fields": [
             "variable-bindings list",
-            "request-id"
+            "object name (OID)"
+        ],
+        "res_type": "GetResponse-PDU",
+        "res_fields": [
+            "error-status",
+            "error-index"
         ]
     },
     {
-        "rule": "When processing a GetNextRequest-PDU, which is used to retrieve the lexicographically next available object in the MIB, the receiving SNMP entity must first validate that each requested object name in the variable-bindings field has a valid successor within the accessible MIB view. This rule specifically applies when an object name does not lexicographically precede any available object in the MIB view, indicating that no successor object exists for retrieval. In such cases, the entity must respond with a GetResponse-PDU that maintains the same structure as the request but sets the error-status field to \"noSuchName\" and the error-index field to the position of the invalid object name in the variable-bindings list. This ensures proper error reporting when the requested navigation path in the MIB hierarchy cannot be fulfilled due to missing successor objects.",
+        "rule": "(3) This rule governs the handling of a GetNextRequest-PDU when a lexicographical successor object exists but cannot be retrieved due to an unspecified internal error. It applies after confirming that the requested object name has a valid successor (rule 1 does not apply) and that the response would not exceed size limits (rule 2 does not apply). If, for any object in the variable-bindings, the retrieval of its immediate lexicographical successor fails for reasons not covered by prior rules (e.g., due to a transient resource issue, access violation, or internal agent error), the receiving SNMP entity must respond with a GetResponse-PDU. This response mirrors the request in form but sets the error-status field to 'genErr' (general error) and the error-index field to the position (index) of the problematic object in the variable-bindings list. This indicates a failure specific to that object's successor retrieval, allowing the manager to identify which query component caused the error.",
         "req_type": "GetNextRequest-PDU",
         "req_fields": [
             "variable-bindings"
@@ -269,41 +415,7 @@
         ]
     },
     {
-        "rule": "This rule applies during the processing of a GetNextRequest-PDU when the receiving SNMP entity attempts to retrieve the lexicographical successor for objects specified in the variable-bindings field. Specifically, if for any object name in the request, the immediate lexicographical successor exists in the MIB view but cannot be retrieved due to reasons not covered by previous error conditions (such as noSuchName or tooBig), then this rule triggers. The expected outcome is that the receiving entity must send a GetResponse-PDU with the error-status field set to genErr (general error) and the error-index field indicating the position of the problematic object in the original request. This rule only applies after verifying that the object name lexicographically precedes an available object and that response size limitations would not be exceeded. The response maintains the same request-id as the original GetNextRequest-PDU to ensure proper request-response correlation.",
-        "req_type": "GetNextRequest-PDU",
-        "req_fields": [
-            "variable-bindings"
-        ],
-        "res_type": "GetResponse-PDU",
-        "res_fields": [
-            "error-status",
-            "error-index",
-            "request-id"
-        ]
-    },
-    {
-        "rule": "When processing a GetNextRequest-PDU, if none of the error conditions specified in rules (1) through (3) apply, the receiving protocol entity must construct a successful GetResponse-PDU. This response must contain the lexicographical successors for all requested object names from the relevant MIB view, with the error-status field set to noError and the error-index field set to zero, indicating successful retrieval of all next available objects without errors.",
-        "req_type": "GetNextRequest-PDU",
-        "req_fields": [],
-        "res_type": "GetResponse-PDU",
-        "res_fields": [
-            "error-status",
-            "error-index"
-        ]
-    },
-    {
-        "rule": "When a protocol entity successfully processes a GetNextRequest-PDU and generates a GetResponse-PDU (either with noError status or any error status as specified in the protocol procedures), the request-id field in the GetResponse-PDU must exactly match the request-id value from the corresponding GetNextRequest-PDU. This correlation mechanism ensures request-response pairing and proper transaction tracking between the SNMP manager and agent, regardless of whether the operation succeeds or encounters errors during processing.",
-        "req_type": "GetNextRequest-PDU",
-        "req_fields": [
-            "request-id"
-        ],
-        "res_type": "GetResponse-PDU",
-        "res_fields": [
-            "request-id"
-        ]
-    },
-    {
-        "rule": "This rule governs the successful processing of a GetNextRequest-PDU when all previous error conditions have been evaluated and do not apply. After verifying that: (1) all requested object names lexicographically precede available objects in the MIB view, (2) the response size does not exceed local limitations, and (3) no general retrieval errors occur for any lexicographical successors, the receiving protocol entity proceeds with normal processing. For each object name in the variable-bindings field of the received GetNextRequest-PDU, the corresponding component in the GetResponse-PDU must contain the name and value of the immediate lexicographical successor object available for get operations within the relevant MIB view. The response must set the error-status to noError, error-index to zero, and preserve the request-id from the original message. This enables the requester to traverse the MIB tree sequentially by obtaining the next available object following each specified name in the lexicographical ordering.",
+        "rule": "This rule defines the default successful processing behavior for a GetNextRequest-PDU in SNMPv1. It applies only when all preceding error conditions have been evaluated and do not apply: specifically, when every requested object name lexicographically precedes an accessible object (rule 1), the response will not exceed size limits (rule 2), and no general retrieval errors occur (rule 3). When these prerequisites are met, the receiving entity must process each variable-binding in the request. For each object name provided, the agent must identify its immediate lexicographical successor within the set of all MIB objects accessible for get operations under the current view. The GetResponse-PDU must then contain, in the corresponding position of its variable-bindings field, this successor object's name and its current value. The response must also indicate success by setting the error-status to `noError`, the error-index to zero, and copying the request-id from the original message. This rule enables the \"get-next\" operation for traversing a MIB tree.",
         "req_type": "GetNextRequest-PDU",
         "req_fields": [
             "variable-bindings"
@@ -317,20 +429,8 @@
         ]
     },
     {
-        "rule": "The SetRequest-PDU shares an identical structural format with the GetRequest-PDU, differing only in the PDU type identifier (SetRequest uses type [3] while GetRequest uses type [0]). This structural consistency applies during PDU generation when an SNMP application entity requests a set operation. The receiving entity processes the SetRequest-PDU by first validating the variable-bindings against several conditions: object availability for set operations, value type/length consistency, response message size limitations, and general assignment feasibility. If all validations pass, the receiver performs the requested variable assignments as an atomic operation and returns a GetResponse-PDU with error-status set to noError. If any validation fails, the receiver returns a GetResponse-PDU indicating the specific error condition while maintaining the original request structure. This design ensures consistent error handling and response formatting across different PDU types while clearly distinguishing between read (GetRequest) and write (SetRequest) operations through the PDU type field.",
-        "req_type": "SetRequest-PDU",
-        "req_fields": [
-            "PDU type identifier",
-            "variable-bindings"
-        ],
-        "res_type": "GetResponse-PDU",
-        "res_fields": [
-            "error-status"
-        ]
-    },
-    {
-        "rule": "The SetRequest-PDU is used by SNMP managers to modify MIB object values on SNMP agents. This PDU is generated only at the request of the SNMP application entity and follows the ASN.1 structure: SetRequest-PDU ::= [3] IMPLICIT SEQUENCE { request-id RequestID, error-status -- always 0 ErrorStatus, error-index -- always 0 ErrorIndex, variable-bindings VarBindList }. The error-status and error-index fields must always be set to zero in outgoing requests. Upon receiving a SetRequest-PDU, the agent validates the request against the following conditions: object availability for set operations, value type/length consistency, response message size limitations, and general assignment feasibility. If all validations pass, the agent performs the requested assignments simultaneously and returns a GetResponse-PDU with error-status set to noError. If any validation fails, the agent returns a GetResponse-PDU with appropriate error codes indicating the specific failure condition.",
-        "req_type": "SetRequest-PDU",
+        "rule": "The GetNextRequest-PDU is generated by an SNMP manager to request the lexicographically next object instance for each object name specified in its variable-bindings list, enabling table traversal and discovery of available MIB objects. This PDU is defined in ASN.1 as: GetNextRequest-PDU ::= [1] IMPLICIT SEQUENCE { request-id RequestID, error-status -- always 0 ErrorStatus, error-index -- always 0 ErrorIndex, variable-bindings VarBindList }. The error-status and error-index fields must always be set to zero in the request. Upon receiving a GetNextRequest-PDU, the SNMP agent must process it according to the following procedure: first, verify that each requested object name lexicographically precedes an accessible object in the MIB view; if not, return a noSuchName error. Next, ensure the response size does not exceed local limits; if it would, return a tooBig error. Then, attempt to retrieve the successor values; if retrieval fails for any other reason, return a genErr. If all checks pass, the agent must respond with a GetResponse-PDU containing the immediate lexicographical successor name and value for each requested object, with error-status set to noError, error-index set to zero, and the request-id matching the original request. This rule applies specifically during SNMP GetNext operations initiated by the application layer and is fundamental for iterative MIB navigation.",
+        "req_type": "GetNextRequest-PDU",
         "req_fields": [
             "request-id",
             "error-status",
@@ -339,103 +439,80 @@
         ],
         "res_type": "GetResponse-PDU",
         "res_fields": [
-            "error-status"
-        ]
-    },
-    {
-        "rule": "This rule applies during the processing of a SetRequest-PDU when the receiving SNMP entity validates the variable-bindings. Specifically, it governs the case where one or more value fields in the variable-bindings contain ASN.1-encoded data that does not match the expected type, length, or value constraints defined for the corresponding managed object in the MIB. When this condition is detected, the receiving entity must immediately terminate further processing of the SetRequest and respond with a GetResponse-PDU that mirrors the original request structure, but with the error-status field set to \"badValue\" and the error-index field indicating the position (starting from 1) of the first offending variable-binding in the received message. This validation occurs after checking for accessibility (rule 1) but before attempting any variable assignments, ensuring that only syntactically valid values are considered for modification.",
-        "req_type": "SetRequest-PDU",
-        "req_fields": [
-            "variable-bindings",
-            "value fields"
-        ],
-        "res_type": "GetResponse-PDU",
-        "res_fields": [
-            "error-status",
-            "error-index"
-        ]
-    },
-    {
-        "rule": "When processing a SetRequest-PDU that passes all validation checks (including MIB view accessibility, type consistency, message size limits, and general error conditions), the receiving entity must apply all variable assignments in the variable-bindings field as an atomic operation. This means the assignments must be executed with transactional semantics - either all succeed together or none take effect - maintaining consistency as if they occurred simultaneously. This atomicity requirement applies only after successful validation and ensures that no partial updates occur, preventing intermediate states where some variables are modified while others are not. Upon successful atomic application of all assignments, the entity must respond with a GetResponse-PDU containing noError status.",
-        "req_type": "SetRequest-PDU",
-        "req_fields": [
-            "variable-bindings"
-        ],
-        "res_type": "GetResponse-PDU",
-        "res_fields": [
-            "noError status"
-        ]
-    },
-    {
-        "rule": "This rule governs the SNMPv1 protocol behavior when a SetRequest-PDU is received and one or more requested objects cannot be modified due to access restrictions. Specifically, it applies during the processing phase of a SetRequest-PDU when the receiving entity validates whether each object in the variable-bindings field is writable within the current MIB view. The prerequisite is that a valid SetRequest-PDU has been received containing one or more object-value pairs. When this rule is triggered (i.e., when an object is not available for set operations), the expected outcome is that the receiving entity must immediately respond with a GetResponse-PDU that mirrors the original request structure, but with the error-status field set to \"noSuchName\" and the error-index field indicating the position (starting from 1) of the problematic object in the variable-bindings list. This ensures the requesting entity can identify which specific object caused the failure while maintaining protocol consistency.",
-        "req_type": "SetRequest-PDU",
-        "req_fields": [
-            "variable-bindings"
-        ],
-        "res_type": "GetResponse-PDU",
-        "res_fields": [
             "error-status",
             "error-index",
-            "variable-bindings"
-        ]
-    },
-    {
-        "rule": "This rule applies during the processing of a SetRequest-PDU in SNMPv1, specifically when the receiving entity determines that the size of the generated GetResponse-PDU would exceed local implementation constraints. The rule triggers after the receiving entity has validated the SetRequest-PDU but before attempting to perform any variable assignments. When this condition is met, the receiving entity must construct a GetResponse-PDU that mirrors the original SetRequest-PDU in structure, but with the error-status field set to \"tooBig\" and the error-index field set to zero, indicating that the response would be too large to transmit. This ensures that the protocol can handle size limitations gracefully without attempting to process the request further, while providing clear error feedback to the originator.",
-        "req_type": "SetRequest-PDU",
-        "req_fields": [],
-        "res_type": "GetResponse-PDU",
-        "res_fields": [
-            "error-status",
-            "error-index"
-        ]
-    },
-    {
-        "rule": "This rule applies during the processing of a SetRequest-PDU when the receiving SNMP entity encounters an object in the variable-bindings field that cannot be modified due to reasons not covered by previous error conditions (such as object unavailability, value type mismatches, or response size limitations). Specifically, it handles generic modification failures that may occur due to implementation-specific constraints, system resource limitations, or other unspecified operational issues. When this condition is met, the receiving entity must generate a GetResponse-PDU that mirrors the original request structure but sets the error-status field to \"genErr\" (general error) and the error-index field to the position of the problematic object within the variable-bindings list. This ensures the originator receives precise error localization while maintaining protocol consistency with other error responses.",
-        "req_type": "SetRequest-PDU",
-        "req_fields": [
-            "variable-bindings"
-        ],
-        "res_type": "GetResponse-PDU",
-        "res_fields": [
-            "error-status",
-            "error-index"
-        ]
-    },
-    {
-        "rule": "This rule governs the successful processing of a SetRequest-PDU in SNMPv1. It applies when all variable assignments specified in the received SetRequest-PDU have been successfully completed, meaning: all named objects are available for set operations in the relevant MIB view, all value fields contain syntactically correct data types consistent with the required variable definitions, no local size limitations are exceeded, and no other errors prevent the assignments. The expected outcome is that the receiving entity sends back a GetResponse-PDU that mirrors the original SetRequest-PDU in structure and content, but with the error-status field explicitly set to \"noError\" and the error-index field set to zero, indicating successful completion of all requested modifications. This response serves as positive acknowledgment that the set operations were executed as specified.",
-        "req_type": "SetRequest-PDU",
-        "req_fields": [
-            "variable assignments",
-            "named objects",
-            "value fields"
-        ],
-        "res_type": "GetResponse-PDU",
-        "res_fields": [
-            "error-status",
-            "error-index"
-        ]
-    },
-    {
-        "rule": "This ASN.1 definition specifies the complete message structure for SNMP version 1 (SNMPv1) protocol operations. It governs how SNMP messages are formatted and encoded for transmission between managers and agents.\n\n**Protocol Behavior**: Defines the core SNMPv1 protocol data units (PDUs) including request types (get, get-next, set), responses, and unsolicited trap notifications. The version field must be set to 0 for SNMPv1 compliance.\n\n**Protocol Flow Application**: \n- GetRequest-PDU: Used by managers to retrieve specific variable values\n- GetNextRequest-PDU: Used for table traversal and bulk data retrieval\n- SetRequest-PDU: Used by managers to modify variable values\n- GetResponse-PDU: Used by agents to respond to requests\n- Trap-PDU: Used by agents to send asynchronous event notifications\n\n**Expected Outcomes**:\n- Properly formatted messages enable successful SNMP operations\n- Error-status codes provide operation result indications (noError, tooBig, etc.)\n- Variable-bindings carry the actual management data being exchanged\n- Request-id ensures request-response correlation\n\n**Prerequisites**: \n- Must import data types from RFC1155-SMI (Structure of Management Information)\n- Community string provides basic authentication\n- Network connectivity between SNMP entities must be established\n- Managed devices must implement the SNMP agent supporting these PDU types\n\nRFC1157-SNMP DEFINITIONS ::= BEGIN \nIMPORTS ObjectName, ObjectSyntax, NetworkAddress, IpAddress, TimeTicks FROM RFC1155-SMI; \n\nMessage ::= SEQUENCE { \n    version INTEGER { version-1(0) }, \n    community OCTET STRING, \n    data ANY \n} \n\nPDUs ::= CHOICE { \n    get-request GetRequest-PDU,\n    get-next-request GetNextRequest-PDU,\n    get-response GetResponse-PDU,\n    set-request SetRequest-PDU,\n    trap Trap-PDU \n} \n\nGetRequest-PDU ::= [0] IMPLICIT PDU \nGetNextRequest-PDU ::= [1] IMPLICIT PDU \nGetResponse-PDU ::= [2] IMPLICIT PDU \nSetRequest-PDU ::= [3] IMPLICIT PDU \n\nPDU ::= SEQUENCE { \n    request-id INTEGER,\n    error-status INTEGER { \n        noError(0), \n        tooBig(1), \n        noSuchName(2), \n        badValue(3), \n        readOnly(4), \n        genErr(5) \n    },\n    error-index INTEGER,\n    variable-bindings VarBindList \n} \n\nTrap-PDU ::= [4] IMPLICIT SEQUENCE { \n    enterprise OBJECT IDENTIFIER,\n    agent-addr NetworkAddress,\n    generic-trap INTEGER { \n        coldStart(0),\n        warmStart(1),\n        linkDown(2),\n        linkUp(3),\n        authenticationFailure(4),\n        egpNeighborLoss(5),\n        enterpriseSpecific(6) \n    },\n    specific-trap INTEGER,\n    time-stamp TimeTicks,\n    variable-bindings VarBindList \n} \n\nVarBind ::= SEQUENCE { \n    name ObjectName,\n    value ObjectSyntax \n} \n\nVarBindList ::= SEQUENCE OF VarBind \nEND",
-        "req_type": "GetRequest-PDU, GetNextRequest-PDU, SetRequest-PDU",
-        "req_fields": [
-            "version",
-            "community",
-            "data",
             "request-id",
-            "error-status",
-            "error-index",
+            "variable-bindings"
+        ]
+    },
+    {
+        "rule": "When a receiving SNMPv1 protocol entity successfully processes a GetNextRequest-PDU and none of the error conditions specified in the preceding rules (noSuchName, tooBig, genErr) apply, it must construct a successful GetResponse-PDU. This successful response is generated by determining, for each requested object name in the variable-bindings field, the lexicographical successor object available in the relevant MIB view and returning its name and value. To indicate this successful, error-free processing, the error-status field in the GetResponse-PDU must be set to `noError`, and the error-index field must be set to zero. This rule applies specifically to the normal, successful execution path of the GetNextRequest operation and serves as the default response when all prerequisite error checks have been passed.",
+        "req_type": "GetNextRequest-PDU",
+        "req_fields": [
             "variable-bindings"
         ],
         "res_type": "GetResponse-PDU",
         "res_fields": [
-            "version",
-            "community",
-            "data",
+            "error-status",
+            "error-index",
+            "variable-bindings"
+        ]
+    },
+    {
+        "rule": "(2) This rule governs the handling of a GetNextRequest-PDU when the response would be too large to transmit. It applies during the processing phase, after the request is received and before the normal retrieval of lexicographical successors is attempted. If the receiving SNMP entity determines that the size of the GetResponse-PDU containing the retrieved successor values (as generated by the procedure described in the final paragraph of this section) would exceed a local implementation-defined size limitation (e.g., a maximum packet size), then the entity must not proceed with normal processing. Instead, it must immediately send an error response. The expected outcome is that the receiving entity sends back a GetResponse-PDU to the request originator. This response PDU must have the same `request-id` as the received GetNextRequest-PDU, but its `error-status` field must be set to `tooBig` and its `error-index` field must be set to zero. The `variable-bindings` list in this error response should be identical in form to the one received in the request, though the values are not retrieved. The prerequisite for this rule is that the request has passed initial validation (it is a syntactically valid GetNextRequest-PDU) and that no preceding rule (such as rule 1 for a `noSuchName` error) has already been triggered.",
+        "req_type": "GetNextRequest-PDU",
+        "req_fields": [
+            "request-id",
+            "variable-bindings"
+        ],
+        "res_type": "GetResponse-PDU",
+        "res_fields": [
             "request-id",
             "error-status",
             "error-index",
             "variable-bindings"
         ]
+    },
+    {
+        "rule": "When a receiving SNMPv1 protocol entity successfully processes a GetNextRequest-PDU and generates a corresponding GetResponse-PDU (either for a successful lexicographical successor retrieval or for an error condition as specified in rules 1-3), the value of the `request-id` field in the GetResponse-PDU must be copied exactly from the `request-id` field of the received GetNextRequest-PDU message. This ensures the requesting application entity can correlate the response with its original request, maintaining the synchronous request-response pairing fundamental to the protocol. This rule applies unconditionally to all GetResponse-PDUs sent in reply to a GetNextRequest-PDU, regardless of the error-status.",
+        "req_type": "GetNextRequest-PDU",
+        "req_fields": [
+            "request-id"
+        ],
+        "res_type": "GetResponse-PDU",
+        "res_fields": [
+            "request-id"
+        ]
+    },
+    {
+        "rule": "Within the SNMPv1 protocol, each Protocol Data Unit (PDU) type (GetRequest, GetNextRequest, SetRequest, GetResponse, and Trap) is formally defined by a specific ASN.1 structure. This rule governs the mandatory format and semantic content of every PDU exchanged between an SNMP manager and an agent. It applies during the encoding of an outgoing PDU before transmission and the decoding of an incoming PDU upon reception. The expected outcome is a syntactically valid and unambiguous PDU that contains the core fields: a `request-id` for matching requests with responses, `error-status` and `error-index` (which are zero in requests and set in responses to indicate success or failure), and a `variable-bindings` list carrying the managed object instances and their values (or placeholders for requests). A prerequisite for applying this rule is that the PDU type has been determined by the protocol operation (e.g., a query, set, or trap notification), and the top-level message fields (version and community) have already been established.",
+        "req_type": "GetRequest, GetNextRequest, SetRequest",
+        "req_fields": [
+            "request-id",
+            "error-status",
+            "error-index",
+            "variable-bindings"
+        ],
+        "res_type": "GetResponse",
+        "res_fields": [
+            "request-id",
+            "error-status",
+            "error-index",
+            "variable-bindings"
+        ]
+    },
+    {
+        "rule": "In the SNMPv1 protocol, when an agent generates a trap notification to inform the management station of an event, it must construct a trap Protocol Data Unit (PDU) with the specific structure defined in the MIB. This rule applies during the trap generation phase, where the agent assembles the PDU for transmission. The expected outcome is a correctly formatted trap PDU containing the required fields: enterprise (identifying the object generating the trap), agent-addr (the IP address of the agent), generic-trap (a predefined trap type), specific-trap (an enterprise-specific code if generic-trap is 'enterpriseSpecific'), time-stamp (time since last re-initialization), and variable-bindings (a sequence of additional data relevant to the trap). Prerequisites include that the agent has detected a condition warranting a trap and that the SNMP version in the message is set to SNMPv1 (version 0).",
+        "req_type": "trap",
+        "req_fields": [
+            "enterprise",
+            "agent-addr",
+            "generic-trap",
+            "specific-trap",
+            "time-stamp",
+            "variable-bindings"
+        ],
+        "res_type": "",
+        "res_fields": []
     }
 ]

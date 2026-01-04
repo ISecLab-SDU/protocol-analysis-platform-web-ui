@@ -4,13 +4,16 @@ import { computed, h, onMounted, reactive, ref } from 'vue';
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 import {
+  AutoComplete,
   Button,
   Card,
+  Divider,
   Empty,
   Form,
   FormItem,
   Input,
   message,
+  Popconfirm,
   Select,
   Space,
   Spin,
@@ -20,10 +23,6 @@ import {
   Tag,
   Typography,
   Upload,
-  Progress,
-  AutoComplete,
-  Popconfirm,
-  Divider,
 } from 'ant-design-vue';
 import type { ProtocolExtractRuleItem } from '@/api/protocol-compliance';
 import { runProtocolExtract } from '@/api/protocol-compliance';
@@ -61,7 +60,6 @@ const selectedFile = ref<File | null>(null); // 协议文档上传文件对象
 const formData = reactive({
   protocol: '',
   version: '',
-  apiKey: '',
   filterHeadings: false,
 });
 const currentPage = ref(1);
@@ -110,6 +108,15 @@ const BUILTIN_SERVER_RESULTS: Array<{ protocol: string; version: string; path: s
 // 分隔符正则
 const SPLIT_PATTERN = /[,;/]|\s+(?:or|and)\s+/gi;
 
+// 占位符判断（过滤掉 - / — / N/A 等）
+function isPlaceholder(s: string): boolean {
+  const t = String(s ?? '').trim();
+  if (!t) return true;
+  if (t === '-' || t === '—') return true;
+  if (t.toLowerCase() === 'n/a') return true;
+  return false;
+}
+
 // 生成唯一ID
 function generateUniqueId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
@@ -117,11 +124,7 @@ function generateUniqueId(): string {
 
 // 标准化协议名称
 function normalizeProtocolName(input: string) {
-  return input
-    .trim()
-    .replaceAll(/\s+/g, '')
-    .replaceAll(/[^\w./-]/g, '')
-    .toLowerCase();
+  return input.trim().replaceAll(/\s+/g, '').replaceAll(/[^\w./-]/g, '').toLowerCase();
 }
 
 // 标准化版本名称
@@ -136,33 +139,47 @@ function randomCategories(): string[] {
   return shuffled.slice(0, count);
 }
 
-// 转换为数组
+// 转换为数组（支持：数组 / 逗号分隔字符串 / 单个字符串；并过滤占位符）
 function toArray(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value
       .map((item) => String(item ?? '').trim())
-      .filter((item) => Boolean(item));
+      .filter((item) => !isPlaceholder(item));
   }
   if (typeof value === 'string') {
     const trimmed = value.trim();
-    if (!trimmed) return [];
-    const segments = trimmed.split(SPLIT_PATTERN).map((s) => s.trim()).filter(Boolean);
+    if (isPlaceholder(trimmed)) return [];
+    const segments = trimmed
+      .split(SPLIT_PATTERN)
+      .map((s) => s.trim())
+      .filter((s) => !isPlaceholder(s));
     return [...new Set(segments)];
   }
   return [];
 }
 
-// 标准化规则项
-function normalizeRuleItem(raw: any, msgType?: string): RuleItem {
+// 标准化规则项：优先从 req_type / res_type 推断 msgType；groupKey 只作为兜底且避免数字 key 覆盖
+function normalizeRuleItem(raw: any, groupKey?: string): RuleItem {
   const ruleText =
     typeof raw?.rule === 'string' ? raw.rule.trim() : String(raw?.rule ?? '').trim();
+
+  const reqTypeArr = toArray(raw?.req_type);
+  const resTypeArr = toArray(raw?.res_type);
+
+  const inferredMsgType =
+    String(raw?.msgType ?? '').trim() || reqTypeArr[0] || resTypeArr[0] || '';
+
+  const groupKeyStr = String(groupKey ?? '').trim();
+  const groupKeyLooksLikeId = groupKeyStr && /^\d+$/.test(groupKeyStr);
+  const fallbackFromGroup = !groupKeyLooksLikeId ? groupKeyStr : '';
+
   return {
     rule: ruleText,
-    group: raw?.group ?? null,
-    msgType: msgType || raw?.msgType || raw?.req_type?.[0] || '',
-    req_type: toArray(raw?.req_type),
+    group: raw?.group ?? (groupKeyStr || null),
+    msgType: inferredMsgType || fallbackFromGroup || '',
+    req_type: reqTypeArr,
     req_fields: toArray(raw?.req_fields),
-    res_type: toArray(raw?.res_type),
+    res_type: resTypeArr,
     res_fields: toArray(raw?.res_fields),
   };
 }
@@ -179,8 +196,7 @@ const beforeUploadRFC: UploadProps['beforeUpload'] = (file) => {
     return false;
   }
   const originalFile =
-    (file as UploadFile & { originFileObj?: File }).originFileObj ||
-    (file as unknown as File);
+    (file as UploadFile & { originFileObj?: File }).originFileObj || (file as unknown as File);
   selectedFile.value = originalFile;
   rfcFileList.value = [file];
   return false;
@@ -194,8 +210,7 @@ const beforeUploadResultFile: UploadProps['beforeUpload'] = (file) => {
     return false;
   }
   const originalFile =
-    (file as UploadFile & { originFileObj?: File }).originFileObj ||
-    (file as unknown as File);
+    (file as UploadFile & { originFileObj?: File }).originFileObj || (file as unknown as File);
   selectedResultFile.value = originalFile;
   resultFileList.value = [file];
   return false;
@@ -233,7 +248,7 @@ function loadHistoryFromStorage() {
       .map((item: any) => {
         const rules = Array.isArray(item?.rules)
           ? item.rules
-              .map((rule: any) => normalizeRuleItem(rule, rule.msgType))
+              .map((rule: any) => normalizeRuleItem(rule, rule.group ?? rule.msgType))
               .filter((rule: RuleItem) => rule.rule)
           : [];
         return {
@@ -260,9 +275,7 @@ async function preloadServerHistory() {
     const key = `${item.protocol}__${item.version}`;
 
     // 已存在相同协议+版本则跳过
-    const exists = historyData.value.some(
-      (h) => `${h.protocol}__${h.version}` === key,
-    );
+    const exists = historyData.value.some((h) => `${h.protocol}__${h.version}` === key);
     if (exists) continue;
 
     try {
@@ -280,14 +293,14 @@ async function preloadServerHistory() {
 
       let rules: RuleItem[] = [];
       if (Array.isArray(rawData)) {
-        rules = rawData.map(normalizeRuleItem).filter((r) => r.rule);
+        rules = rawData.map((r) => normalizeRuleItem(r)).filter((r) => r.rule);
       } else if (typeof rawData === 'object' && Array.isArray(rawData.rules)) {
-        rules = rawData.rules.map(normalizeRuleItem).filter((r) => r.rule);
+        rules = rawData.rules.map((r: any) => normalizeRuleItem(r)).filter((r) => r.rule);
       } else if (typeof rawData === 'object' && rawData !== null) {
-        Object.entries(rawData).forEach(([msgType, ruleArray]) => {
+        Object.entries(rawData).forEach(([groupKey, ruleArray]) => {
           if (Array.isArray(ruleArray)) {
             const groupRules = ruleArray
-              .map((rawRule: any) => normalizeRuleItem(rawRule, msgType))
+              .map((rawRule: any) => normalizeRuleItem(rawRule, groupKey))
               .filter((rule: RuleItem) => rule.rule);
             rules = [...rules, ...groupRules];
           }
@@ -322,12 +335,11 @@ function clearAllHistory() {
   message.success('全部历史记录已清空');
 }
 
-// 开始分析协议文档
+// 开始分析协议文档（不再传 apiKey，由后端默认处理）
 async function startAnalysis() {
   const uploadFile = selectedFile.value;
   const protocol = formData.protocol.trim();
   const version = formData.version.trim();
-  const apiKey = formData.apiKey.trim();
 
   if (!uploadFile) {
     message.warning('请先上传协议文档 (HTML/PDF/TXT/JSON)');
@@ -339,10 +351,6 @@ async function startAnalysis() {
   }
   if (!version) {
     message.warning('请输入协议版本');
-    return;
-  }
-  if (!apiKey) {
-    message.warning('请输入 DeepSeek API 密钥');
     return;
   }
 
@@ -368,12 +376,11 @@ async function startAnalysis() {
 
   try {
     const response = await runProtocolExtract({
-      apiKey,
       protocol,
       version,
       htmlFile: uploadFile,
       filterHeadings: formData.filterHeadings,
-    });
+    } as any);
 
     clearInterval(progressInterval);
     analysisProgress.value = 100;
@@ -381,7 +388,7 @@ async function startAnalysis() {
 
     const rulesData = response.rules || response.data?.rules || [];
     const rules = Array.isArray(rulesData)
-      ? rulesData.map(normalizeRuleItem).filter((rule) => rule.rule)
+      ? rulesData.map((r: any) => normalizeRuleItem(r)).filter((rule) => rule.rule)
       : [];
 
     if (rules.length === 0) {
@@ -395,15 +402,11 @@ async function startAnalysis() {
       storeDir:
         response.storeDir ||
         response.data?.storeDir ||
-        `project_store/${normalizeProtocolName(protocol)}_${normalizeVersionName(
-          version,
-        )}`,
+        `project_store/${normalizeProtocolName(protocol)}_${normalizeVersionName(version)}`,
       resultPath:
         response.resultPath ||
         response.data?.resultPath ||
-        `project_store/${normalizeProtocolName(protocol)}_${normalizeVersionName(
-          version,
-        )}/rules.json`,
+        `project_store/${normalizeProtocolName(protocol)}_${normalizeVersionName(version)}/rules.json`,
     };
 
     addToHistory(rules, protocol, version);
@@ -475,7 +478,8 @@ async function uploadAndSaveResult() {
           reject(new Error('文件读取结果不是字符串'));
         }
       };
-      reader.onerror = (err) => reject(new Error(`文件读取失败：${err.message}`));
+      reader.onerror = (err) =>
+        reject(new Error(`文件读取失败：${(err as any)?.message || ''}`));
       reader.onabort = () => reject(new Error('文件读取被中止'));
       reader.readAsText(resultFile);
     });
@@ -496,21 +500,23 @@ async function uploadAndSaveResult() {
     // 处理3种格式
     let rules: RuleItem[] = [];
     if (Array.isArray(rawData)) {
-      rules = rawData.map(normalizeRuleItem).filter((rule) => rule.rule);
+      rules = rawData.map((r) => normalizeRuleItem(r)).filter((rule) => rule.rule);
       console.log('识别到直接数组格式，共解析', rules.length, '条规则');
     } else if (typeof rawData === 'object' && Array.isArray(rawData.rules)) {
-      rules = rawData.rules.map(normalizeRuleItem).filter((rule) => rule.rule);
+      rules = rawData.rules
+        .map((r: any) => normalizeRuleItem(r))
+        .filter((rule: RuleItem) => rule.rule);
       console.log('识别到 rules 嵌套格式，共解析', rules.length, '条规则');
     } else if (typeof rawData === 'object' && rawData !== null) {
-      Object.entries(rawData).forEach(([msgType, ruleArray]) => {
+      Object.entries(rawData).forEach(([groupKey, ruleArray]) => {
         if (Array.isArray(ruleArray)) {
           const groupRules = ruleArray
-            .map((rawRule: any) => normalizeRuleItem(rawRule, msgType))
+            .map((rawRule: any) => normalizeRuleItem(rawRule, groupKey))
             .filter((rule: RuleItem) => rule.rule);
           rules = [...rules, ...groupRules];
         }
       });
-      console.log('识别到按消息类型分组格式，共解析', rules.length, '条规则');
+      console.log('识别到按消息类型/分组格式，共解析', rules.length, '条规则');
     }
 
     if (rules.length === 0) {
@@ -522,12 +528,8 @@ async function uploadAndSaveResult() {
     totalItems.value = rules.length;
     analysisCompleted.value = true;
     lastResultMeta.value = {
-      storeDir: `uploaded_results/${normalizeProtocolName(
-        protocol,
-      )}_${normalizeVersionName(version)}`,
-      resultPath: `${normalizeProtocolName(protocol)}_${normalizeVersionName(
-        version,
-      )}_uploaded.json`,
+      storeDir: `uploaded_results/${normalizeProtocolName(protocol)}_${normalizeVersionName(version)}`,
+      resultPath: `${normalizeProtocolName(protocol)}_${normalizeVersionName(version)}_uploaded.json`,
     };
 
     // 去重添加历史
@@ -633,14 +635,16 @@ async function loadExistingResult() {
     // 处理3种格式
     let rules: RuleItem[] = [];
     if (Array.isArray(rawData)) {
-      rules = rawData.map(normalizeRuleItem).filter((rule) => rule.rule);
+      rules = rawData.map((r) => normalizeRuleItem(r)).filter((rule) => rule.rule);
     } else if (typeof rawData === 'object' && Array.isArray(rawData.rules)) {
-      rules = rawData.rules.map(normalizeRuleItem).filter((rule) => rule.rule);
+      rules = rawData.rules
+        .map((r: any) => normalizeRuleItem(r))
+        .filter((rule: RuleItem) => rule.rule);
     } else if (typeof rawData === 'object' && rawData !== null) {
-      Object.entries(rawData).forEach(([msgType, ruleArray]) => {
+      Object.entries(rawData).forEach(([groupKey, ruleArray]) => {
         if (Array.isArray(ruleArray)) {
           const groupRules = ruleArray
-            .map((rawRule: any) => normalizeRuleItem(rawRule, msgType))
+            .map((rawRule: any) => normalizeRuleItem(rawRule, groupKey))
             .filter((rule: RuleItem) => rule.rule);
           rules = [...rules, ...groupRules];
         }
@@ -724,7 +728,7 @@ function downloadAnalysisResult() {
   // 按消息类型分组
   const groupedRules: Record<string, RuleItem[]> = {};
   stagedResults.value.forEach((rule) => {
-    const msgType = rule.msgType || 'default';
+    const msgType = (rule.msgType || '').trim() || 'default';
     if (!groupedRules[msgType]) {
       groupedRules[msgType] = [];
     }
@@ -763,8 +767,8 @@ function openFromHistory(item: HistoryItem) {
 const groupList = computed(() => {
   const groups = new Set(
     stagedResults.value
-      .map((r) => r.msgType)
-      .filter((group): group is string => Boolean(group)),
+      .map((r) => String(r.msgType ?? '').trim())
+      .filter((g) => g && !isPlaceholder(g)),
   );
   return [...groups];
 });
@@ -772,7 +776,9 @@ const groupList = computed(() => {
 // 计算属性：筛选后的结果
 const filteredResults = computed(() => {
   if (!selectedGroup.value) return stagedResults.value;
-  return stagedResults.value.filter((r) => r.msgType === selectedGroup.value);
+  return stagedResults.value.filter(
+    (r) => String(r.msgType ?? '').trim() === selectedGroup.value,
+  );
 });
 
 // 计算属性：当前页数据
@@ -818,8 +824,9 @@ const columns: TableColumnType<RuleItem>[] = [
     key: 'msgType',
     width: 120,
     customRender: ({ text }) => {
-      const validText = String(text ?? '未知').trim();
-      return h(Tag, { color: 'blue' }, validText);
+      const t = String(text ?? '').trim();
+      const display = t && !isPlaceholder(t) ? t : '-';
+      return h(Tag, { color: 'blue' }, display);
     },
   },
   {
@@ -915,12 +922,7 @@ const historyColumns = computed<TableColumnType<HistoryItem>[]>(() => [
           placement: 'top',
         },
         {
-          default: () =>
-            h(
-              Button,
-              { type: 'text', danger: true, size: 'small' },
-              '删除',
-            ),
+          default: () => h(Button, { type: 'text', danger: true, size: 'small' }, '删除'),
         },
       );
     },
@@ -977,10 +979,7 @@ onMounted(async () => {
                     />
                   </FormItem>
                   <FormItem label="协议版本">
-                    <Input
-                      v-model:value="formData.version"
-                      placeholder="请输入协议版本（如 1.0）"
-                    />
+                    <Input v-model:value="formData.version" placeholder="请输入协议版本（如 1.0）" />
                   </FormItem>
 
                   <!-- 功能一：上传协议文档分析 -->
@@ -993,14 +992,10 @@ onMounted(async () => {
                     "
                   >
                     <TypographyText strong>功能一：上传协议文档，自动分析</TypographyText>
-                    <FormItem label="DeepSeek API 密钥" style="margin-top: 8px">
-                      <Input.Password
-                        v-model:value="formData.apiKey"
-                        autocomplete="off"
-                        placeholder="分析需要调用API，必填"
-                      />
-                    </FormItem>
-                    <FormItem label="上传协议文档">
+
+                    <!-- 已删除：DeepSeek API 密钥输入框（由后端默认处理） -->
+
+                    <FormItem label="上传协议文档" style="margin-top: 8px">
                       <Upload
                         :file-list="rfcFileList"
                         :before-upload="beforeUploadRFC"
@@ -1014,9 +1009,11 @@ onMounted(async () => {
                         </Button>
                       </Upload>
                     </FormItem>
+
                     <FormItem label="启用目录筛选" value-prop-name="checked">
                       <Switch v-model:checked="formData.filterHeadings" />
                     </FormItem>
+
                     <Button
                       type="primary"
                       :loading="isAnalyzing"
@@ -1037,9 +1034,7 @@ onMounted(async () => {
                       border-radius: 4px;
                     "
                   >
-                    <TypographyText strong
-                      >功能二：上传已有结果文件，直接导入</TypographyText
-                    >
+                    <TypographyText strong>功能二：上传已有结果文件，直接导入</TypographyText>
                     <TypographyParagraph type="secondary" style="margin: 8px 0">
                       已提前生成分析结果JSON文件？直接上传导入，无需重复分析（无需API密钥）
                       <br />支持3种JSON格式：1. 直接数组 [{...}] 2. { "rules": [...] } 3. 按消息类型分组 {
@@ -1085,9 +1080,7 @@ onMounted(async () => {
                       border-radius: 4px;
                     "
                   >
-                    <TypographyText strong
-                      >功能三：加载本地已存结果，快速查看</TypographyText
-                    >
+                    <TypographyText strong>功能三：加载本地已存结果，快速查看</TypographyText>
                     <TypographyParagraph type="secondary" style="margin: 8px 0">
                       项目中已存在结果文件？直接输入协议名和版本，快速加载（无需上传文件）
                     </TypographyParagraph>
@@ -1118,6 +1111,7 @@ onMounted(async () => {
                   <span>规则预览</span>
                 </Space>
               </template>
+
               <div class="result-toolbar">
                 <TypographyText type="secondary">
                   共 {{ totalItems }} 条规则
@@ -1144,16 +1138,16 @@ onMounted(async () => {
                   </Button>
                 </Space>
               </div>
+
               <TypographyParagraph
                 v-if="analysisCompleted && lastResultMeta"
                 class="result-meta"
                 type="secondary"
               >
                 结果来源：{{ lastResultMeta.resultPath || '未知' }}
-                <span v-if="lastResultMeta.storeDir"
-                  >（存储目录：{{ lastResultMeta.storeDir }}）</span
-                >
+                <span v-if="lastResultMeta.storeDir">（存储目录：{{ lastResultMeta.storeDir }}）</span>
               </TypographyParagraph>
+
               <div v-if="analysisCompleted && filteredResults.length" class="table-wrapper">
                 <Table
                   :columns="columns"
@@ -1172,6 +1166,7 @@ onMounted(async () => {
                   @change="handleTableChange"
                 />
               </div>
+
               <Empty v-else-if="analysisCompleted" description="未找到规则数据" />
               <TypographyParagraph v-else class="result-placeholder" type="secondary">
                 请选择功能生成/导入规则，或加载本地已有结果。
@@ -1184,9 +1179,7 @@ onMounted(async () => {
         <Tabs.TabPane key="history" tab="历史记录">
           <Card class="history-card">
             <template #title>
-              <Space
-                style="width: 100%; justify-content: space-between; align-items: center"
-              >
+              <Space style="width: 100%; justify-content: space-between; align-items: center">
                 <Space>
                   <IconifyIcon icon="ant-design:calendar-outlined" class="text-lg" />
                   <span>历史记录（自动存储所有结果）</span>
@@ -1242,11 +1235,7 @@ onMounted(async () => {
                 :row-key="(item) => item.id"
                 bordered
                 :scroll="{ x: 'max-content' }"
-                :custom-row="
-                  (record) => ({
-                    onClick: () => openFromHistory(record as HistoryItem),
-                  })
-                "
+                :custom-row="(record) => ({ onClick: () => openFromHistory(record as HistoryItem) })"
               />
             </div>
 
@@ -1385,4 +1374,3 @@ onMounted(async () => {
   }
 }
 </style>
-
