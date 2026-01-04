@@ -1005,7 +1005,7 @@ onMounted(async () => {
                       >
                         <Button block type="dashed">
                           <IconifyIcon icon="ant-design:file-add-outlined" class="mr-1" />
-                          选择协议文档（支持 HTML/PDF/TXT/JSON）
+                          选择协议文档
                         </Button>
                       </Upload>
                     </FormItem>
