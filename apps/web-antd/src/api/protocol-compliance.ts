@@ -305,6 +305,26 @@ export function fetchProtocolStaticAnalysisResult(jobId: string) {
   );
 }
 
+export async function downloadStaticAnalysisDatabase(jobId: string) {
+  const accessStore = useAccessStore();
+  const token = accessStore.accessToken;
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = (await baseRequestClient.request(
+    `/protocol-compliance/static-analysis/${jobId}/artifact/database`,
+    {
+      headers,
+      method: 'GET',
+      responseType: 'blob',
+    },
+  )) as { data: Blob };
+
+  return response.data;
+}
+
 export function fetchProtocolStaticAnalysisHistory(
   params?: FetchProtocolStaticAnalysisHistoryParams,
 ) {

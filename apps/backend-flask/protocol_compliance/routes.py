@@ -812,6 +812,32 @@ def static_analysis_result(job_id: str):
     return make_response(success_response(result), 200)
 
 
+@bp.route("/static-analysis/<job_id>/artifact/database", methods=["GET"])
+def download_static_analysis_database(job_id: str):
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+
+    snapshot = get_static_analysis_job(job_id)
+    if not snapshot:
+        return make_response(error_response("未找到静态分析任务"), 404)
+
+    database_path = snapshot.get("database_path")
+    if not database_path:
+        return make_response(error_response("数据库路径不存在"), 404)
+
+    db_file = Path(database_path)
+    if not db_file.exists():
+        return make_response(error_response("数据库文件不存在"), 404)
+
+    return send_file(
+        db_file,
+        as_attachment=True,
+        download_name=f"analysis-{job_id}.db",
+        mimetype="application/octet-stream",
+    )
+
+
 @bp.route("/assertion-generation", methods=["POST"])
 def assertion_generation():
     _, error = _ensure_authenticated()
