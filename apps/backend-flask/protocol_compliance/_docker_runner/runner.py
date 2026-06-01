@@ -1068,6 +1068,11 @@ class ProtocolGuardDockerRunner:
         version = protocol_version or self._settings.default_protocol_version
 
         db_path = self._find_database(job_paths)
+        if db_path is None:
+            raise ProtocolGuardExecutionError(
+                "ProtocolGuard analysis completed but database file was not found",
+                logs=docker_logs,
+            )
         findings, summary_counts = self._extract_findings(db_path, protocol, version)
 
         if not findings:
@@ -1124,11 +1129,32 @@ class ProtocolGuardDockerRunner:
         return result
 
     def _find_database(self, job_paths: JobPaths) -> Optional[Path]:
+        # 优先搜索已知的database子目录
+        database_dir = job_paths.output / "database"
+        if database_dir.exists():
+            candidates = list(database_dir.glob("*.db"))
+            if candidates:
+                LOGGER.info(f"Found database in {database_dir}: {candidates[0]}")
+                return candidates[0]
+
+        # 回退到递归搜索output目录
+        LOGGER.info(f"Searching for database in output: {job_paths.output}")
         candidates = list(job_paths.output.rglob("*.db"))
+        LOGGER.info(f"Found {len(candidates)} .db files in output: {candidates}")
+
         if not candidates:
+            LOGGER.info(f"Searching for database in workspace: {job_paths.workspace}")
             candidates = list(job_paths.workspace.rglob("*.db"))
+            LOGGER.info(f"Found {len(candidates)} .db files in workspace: {candidates}")
+
         if not candidates:
+            LOGGER.warning(
+                f"No database file found. Output: {job_paths.output}, "
+                f"Workspace: {job_paths.workspace}"
+            )
             return None
+
+        LOGGER.info(f"Selected database: {candidates[0]}")
         return candidates[0]
 
     def _zip_directory(self, source: Path, destination: Path) -> Path:
