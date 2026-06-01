@@ -8,6 +8,7 @@ import type { ProtocolExtractRuleItem } from '#/api/protocol-compliance';
 
 import type { ProtocolKind, RuleOption } from '../types';
 import { BUILTIN_RULESET_INDEX } from '../types';
+import { normalizeList } from '../utils';
 
 interface Props {
   protocolType: ProtocolKind;
@@ -28,7 +29,7 @@ const selectedRowKeys = ref<string[]>([]);
 
 const columns = [
   { title: '消息类型', dataIndex: 'msgType', width: 120 },
-  { title: '规则描述', dataIndex: 'description', ellipsis: true },
+  { title: '规则描述', dataIndex: 'rule', ellipsis: true },
   { title: '请求字段', dataIndex: 'req_type', width: 200 },
   { title: '响应字段', dataIndex: 'res_type', width: 200 },
 ];
@@ -80,13 +81,17 @@ function onStart() {
   emit('start', selectedRule.value);
 }
 
+function onSelectionChange(keys: Array<number | string>) {
+  selectedRowKeys.value = keys.map(String);
+}
+
 onMounted(() => {
   loadRules();
 });
 </script>
 
 <template>
-  <Card title="规则确认">
+  <Card class="stage-card" title="规则确认">
     <template #extra>
       <Button size="small" @click="emit('back')">
         <template #icon><IconifyIcon icon="mdi:arrow-left" /></template>
@@ -107,19 +112,19 @@ onMounted(() => {
       :row-selection="{
         type: 'radio',
         selectedRowKeys,
-        onChange: (keys: string[]) => { selectedRowKeys = keys; },
+        onChange: onSelectionChange,
       }"
       row-key="id"
       size="small"
     >
       <template #bodyCell="{ column, record }">
         <template v-if="column.dataIndex === 'req_type'">
-          <Tag v-for="(field, i) in record.req_type" :key="i" color="green">
+          <Tag v-for="(field, i) in normalizeList(record.req_type)" :key="i" color="green">
             {{ field }}
           </Tag>
         </template>
         <template v-else-if="column.dataIndex === 'res_type'">
-          <Tag v-for="(field, i) in record.res_type" :key="i" color="orange">
+          <Tag v-for="(field, i) in normalizeList(record.res_type)" :key="i" color="orange">
             {{ field }}
           </Tag>
         </template>
@@ -143,6 +148,12 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.stage-card {
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: 8px;
+  box-shadow: 0 10px 26px rgb(15 23 42 / 4%);
+}
+
 .rule-info {
   display: flex;
   gap: 12px;

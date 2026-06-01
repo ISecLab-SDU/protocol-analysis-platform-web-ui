@@ -18,7 +18,7 @@ defineProps<Props>();
 </script>
 
 <template>
-  <Card title="断言生成">
+  <Card class="stage-card" title="断言生成">
     <template #extra>
       <Tag v-if="running" color="processing">进行中</Tag>
       <Tag v-else-if="result" color="success">已完成</Tag>
@@ -55,6 +55,12 @@ defineProps<Props>();
 </template>
 
 <style scoped>
+.stage-card {
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: 8px;
+  box-shadow: 0 10px 26px rgb(15 23 42 / 4%);
+}
+
 .assert-container {
   display: flex;
   flex-direction: column;

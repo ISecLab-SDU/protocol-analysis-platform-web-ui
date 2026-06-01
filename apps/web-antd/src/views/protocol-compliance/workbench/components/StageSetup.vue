@@ -48,7 +48,7 @@ const canCommit = computed(() => {
 </script>
 
 <template>
-  <Card title="项目设置">
+  <Card class="stage-card" title="项目设置">
     <div class="setup-grid">
       <div class="setup-section">
         <div class="setup-label">源码压缩包 *</div>
@@ -189,6 +189,12 @@ const canCommit = computed(() => {
 </template>
 
 <style scoped>
+.stage-card {
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: 8px;
+  box-shadow: 0 10px 26px rgb(15 23 42 / 4%);
+}
+
 .setup-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

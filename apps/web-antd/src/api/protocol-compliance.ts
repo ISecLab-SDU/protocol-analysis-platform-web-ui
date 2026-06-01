@@ -289,7 +289,7 @@ export function runProtocolStaticAnalysis(
 
 export function fetchProtocolStaticAnalysisProgress(
   jobId: string,
-  fromEventId: number,
+  fromEventId?: number,
 ) {
   return requestClient.get<ProtocolStaticAnalysisJob>(
     `/protocol-compliance/static-analysis/${jobId}/progress`,
@@ -366,6 +366,7 @@ export interface ProtocolAssertGenerationInputInfo {
   buildInstructions?: null | string;
   codeFileName?: string;
   databaseFileName?: string;
+  databasePath?: null | string;
   notes?: null | string;
 }
 
@@ -438,17 +439,22 @@ export interface ProtocolAssertGenerationJob {
 export interface RunProtocolAssertGenerationPayload {
   buildInstructions: string;
   codeArchive: File;
-  database: File;
+  database?: File;
+  databasePath?: string;
   notes?: string;
 }
 
 export function runProtocolAssertGeneration(
   payload: RunProtocolAssertGenerationPayload,
 ) {
-  const { buildInstructions, codeArchive, database, notes } = payload;
+  const { buildInstructions, codeArchive, database, databasePath, notes } = payload;
   const formData = new FormData();
   formData.append('codeArchive', codeArchive);
-  formData.append('database', database);
+  if (databasePath?.trim()) {
+    formData.append('databasePath', databasePath.trim());
+  } else if (database) {
+    formData.append('database', database);
+  }
   formData.append('buildInstructions', buildInstructions.trim());
   if (notes?.trim()) {
     formData.append('notes', notes.trim());
@@ -676,11 +682,12 @@ export interface RunProtocolExtractPayload {
 }
 
 export interface ProtocolExtractRuleItem {
+  description?: string;
   group?: string | null;
   req_fields: string[];
-  req_type: string[];
+  req_type: string | string[];
   res_fields: string[];
-  res_type: string[];
+  res_type: string | string[];
   rule: string;
 }
 

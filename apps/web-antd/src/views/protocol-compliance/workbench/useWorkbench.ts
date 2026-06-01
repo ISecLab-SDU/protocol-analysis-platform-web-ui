@@ -10,7 +10,6 @@ import type {
 } from '#/api/protocol-compliance';
 
 import {
-  downloadStaticAnalysisDatabase,
   executeCommand,
   fetchProtocolAssertGenerationProgress,
   fetchProtocolAssertGenerationResult,
@@ -32,7 +31,7 @@ import {
   STAGE_LIST,
   type WorkbenchStage,
 } from './types';
-import { ansiToHtml } from './utils';
+import { ansiToHtml, normalizeList } from './utils';
 
 const stage = ref<WorkbenchStage>('setup');
 const stageStatus = reactive<Record<WorkbenchStage, StageStatus>>({
@@ -96,6 +95,9 @@ let staticPollTimer: null | ReturnType<typeof setInterval> = null;
 let assertPollTimer: null | ReturnType<typeof setInterval> = null;
 let fuzzPollTimer: null | ReturnType<typeof setInterval> = null;
 let fuzzLogIdSeq = 0;
+
+const TEMP_ASSERTION_DATABASE_PATH =
+  '/home/lab426_system/protocol-web-ui/violations.db';
 
 function clearTimer(holder: 'static' | 'assert' | 'fuzz' | 'elapsed') {
   if (holder === 'static' && staticPollTimer) {
@@ -174,8 +176,8 @@ function buildRulesFile(): File {
   const rule = selectedRule.value;
   const msgType =
     (rule as { msgType?: string }).msgType ||
-    rule.req_type?.[0] ||
-    rule.res_type?.[0] ||
+    normalizeList(rule.req_type)[0] ||
+    normalizeList(rule.res_type)[0] ||
     'DEFAULT';
   grouped[msgType] = [rule];
   const json = JSON.stringify(grouped, null, 2);
@@ -381,18 +383,14 @@ async function runAssertGenStep() {
     markStageError('assert_gen', '缺少源码压缩包');
     return;
   }
-  setStage('assert_gen', 'running', '从静态分析下载数据库…');
+  setStage('assert_gen', 'running', '准备固定违规数据库…');
   assertLogText.value = '';
   assertDiffContent.value = '';
   try {
-    const blob = await downloadStaticAnalysisDatabase(staticJobId.value);
-    const databaseFile = new File([blob], 'analysis.db', {
-      type: 'application/octet-stream',
-    });
-    stageMessage.value = '提交断言生成任务…';
+    stageMessage.value = `使用固定违规数据库: ${TEMP_ASSERTION_DATABASE_PATH}`;
     const job = await runProtocolAssertGeneration({
       codeArchive: projectConfig.archive,
-      database: databaseFile,
+      databasePath: TEMP_ASSERTION_DATABASE_PATH,
       buildInstructions: projectConfig.buildInstructions,
       notes: projectConfig.notes,
     });

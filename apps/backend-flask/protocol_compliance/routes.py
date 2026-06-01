@@ -70,6 +70,10 @@ LOGGER = logging.getLogger(__name__)
 
 bp = Blueprint("protocol_compliance", __name__, url_prefix="/api/protocol-compliance")
 
+TEMP_ASSERTION_DATABASE_PATH = Path(
+    "/home/lab426_system/protocol-web-ui/violations.db"
+)
+
 
 # Authentication -------------------------------------------------------------
 
@@ -893,27 +897,37 @@ def assertion_generation():
         return error
 
     if not request.files:
-        return make_response(error_response("请上传源码压缩包和违规数据库"), 400)
+        return make_response(error_response("请上传源码压缩包"), 400)
 
-    uploads_map = {
-        "codeArchive": request.files.get("codeArchive"),
-        "database": request.files.get("database"),
-    }
+    code_upload_raw = request.files.get("codeArchive")
+    if not isinstance(code_upload_raw, FileStorage):
+        return make_response(error_response("请上传完整文件：源码压缩包"), 400)
 
-    missing = [key for key, value in uploads_map.items() if not isinstance(value, FileStorage)]
-    if missing:
-        labels = {
-            "codeArchive": "源码压缩包",
-            "database": "违规数据库文件",
-        }
-        readable = "、".join(labels.get(item, item) for item in missing)
-        return make_response(error_response(f"请上传完整文件：{readable}"), 400)
-
-    code_upload = cast(FileStorage, uploads_map["codeArchive"])
-    database_upload = cast(FileStorage, uploads_map["database"])
-
+    code_upload = cast(FileStorage, code_upload_raw)
     code_name, code_data = _read_upload(code_upload)
-    database_name, database_data = _read_upload(database_upload)
+
+    database_path_requested = request.form.get("databasePath")
+    database_source = "upload"
+    if database_path_requested:
+        database_path = TEMP_ASSERTION_DATABASE_PATH
+        if not database_path.is_file():
+            return make_response(
+                error_response(f"固定违规数据库不存在：{database_path}"),
+                400,
+            )
+        try:
+            database_data = database_path.read_bytes()
+        except OSError as exc:
+            LOGGER.exception("Failed to read fixed assertion database: %s", database_path)
+            return make_response(error_response(f"读取固定违规数据库失败：{exc}"), 500)
+        database_name = database_path.name
+        database_source = str(database_path)
+    else:
+        database_upload_raw = request.files.get("database")
+        if not isinstance(database_upload_raw, FileStorage):
+            return make_response(error_response("请上传完整文件：违规数据库文件"), 400)
+        database_upload = cast(FileStorage, database_upload_raw)
+        database_name, database_data = _read_upload(database_upload)
 
     if not code_data or not database_data:
         return make_response(error_response("上传的文件内容为空，请重新上传"), 400)
@@ -926,6 +940,7 @@ def assertion_generation():
         extra={
             "codeArchive": code_name,
             "database": database_name,
+            "databaseSource": database_source,
             "hasBuildInstructions": bool(build_instructions_raw.strip()),
             "notesLength": len(notes.strip()) if isinstance(notes, str) else 0,
         },
@@ -2076,4 +2091,3 @@ def add_analysis_history():
         )
 
     return success_response({'message': '已添加到历史记录'})
-

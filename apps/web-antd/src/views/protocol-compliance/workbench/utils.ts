@@ -273,3 +273,13 @@ export function formatDuration(totalSeconds: number): string {
   const ss = String(total % 60).padStart(2, '0');
   return `${hh}:${mm}:${ss}`;
 }
+
+export function normalizeList(value?: null | string | string[]): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((item) => String(item).trim().length > 0);
+  }
+  if (typeof value === 'string' && value.trim().length > 0) {
+    return [value.trim()];
+  }
+  return [];
+}
