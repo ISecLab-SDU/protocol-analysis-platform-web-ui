@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
-import { Card, Empty, Tag, Button } from 'ant-design-vue';
+import { Card, Empty, Tag } from 'ant-design-vue';
 import { IconifyIcon } from '@vben/icons';
 
 import type { ProtocolStaticAnalysisResult } from '#/api/protocol-compliance';
@@ -12,107 +12,95 @@ interface Props {
   running: boolean;
 }
 
-const props = defineProps<Props>();
+defineProps<Props>();
 
 const verdictStats = computed(() => {
-  if (!props.result?.modelResponse?.verdicts) return { compliant: 0, needs_review: 0, non_compliant: 0 };
+  const props = defineProps<Props>();
+  if (!props.result?.verdicts) return { compliant: 0, needs_review: 0, non_compliant: 0 };
   const stats = { compliant: 0, needs_review: 0, non_compliant: 0 };
-  for (const v of props.result.modelResponse.verdicts) {
-    if (v.compliance === 'compliant') stats.compliant++;
-    else if (v.compliance === 'needs_review') stats.needs_review++;
-    else if (v.compliance === 'non_compliant') stats.non_compliant++;
+  for (const v of props.result.verdicts) {
+    if (v.verdict === 'compliant') stats.compliant++;
+    else if (v.verdict === 'needs_review') stats.needs_review++;
+    else if (v.verdict === 'non_compliant') stats.non_compliant++;
   }
   return stats;
 });
-
-// 模拟代码片段数据（实际应该从后端获取）
-const getCodeSnippet = (verdict: any) => {
-  const mockCode = `// calculate maximum packet rate
-uint22_t max_calc_pps = total_br / (8 * oh);
-uint22_t limit_pps = has_smaxpr_ ? smaxpr_ : max_calc;
-current_pps_ = std::min(max_calc_pps, limit_pps);
-..`;
-
-  return {
-    filename: verdict.location.file,
-    startLine: verdict.lineRange?.[0] || 315,
-    highlightLine: verdict.lineRange?.[0] || 318,
-    code: mockCode
-  };
-};
 </script>
 
 <template>
-  <div class="code-locate-wrapper">
-    <div v-if="result && result.modelResponse?.verdicts?.length" class="code-locate-content">
-      <div
-        v-for="(verdict, idx) in result.modelResponse.verdicts"
-        :key="idx"
-        class="code-locate-card"
-      >
-        <div class="code-locate-header">
-          <div class="header-left">
-            <IconifyIcon icon="mdi:file-document-outline" class="file-icon" />
-            <span class="header-title">代码定位 (进行中)</span>
+  <Card title="代码定位">
+    <template #extra>
+      <Tag v-if="running" color="processing">进行中</Tag>
+      <Tag v-else-if="result" color="success">已完成</Tag>
+      <Tag v-else color="default">等待中</Tag>
+    </template>
+
+    <div v-if="logHtml || running" class="locate-container">
+      <div class="locate-log">
+        <div class="log-title">
+          <IconifyIcon icon="mdi:console" />
+          <span>分析日志</span>
+        </div>
+        <div class="log-content" v-html="logHtml || '等待日志输出...'" />
+      </div>
+
+      <div v-if="result" class="locate-verdict">
+        <div class="verdict-stats">
+          <div class="verdict-stat verdict-stat--ok">
+            <IconifyIcon icon="mdi:check-circle" />
+            <div>
+              <div class="verdict-label">合规</div>
+              <div class="verdict-value">{{ verdictStats.compliant }}</div>
+            </div>
           </div>
-          <Tag
-            :color="
-              verdict.compliance === 'compliant'
-                ? 'success'
-                : verdict.compliance === 'non_compliant'
-                  ? 'error'
-                  : 'warning'
-            "
-          >
-            {{ verdict.compliance === 'compliant' ? '合规' : verdict.compliance === 'non_compliant' ? '不合规' : '待审查' }}
-          </Tag>
+          <div class="verdict-stat verdict-stat--warn">
+            <IconifyIcon icon="mdi:alert" />
+            <div>
+              <div class="verdict-label">待审查</div>
+              <div class="verdict-value">{{ verdictStats.needs_review }}</div>
+            </div>
+          </div>
+          <div class="verdict-stat verdict-stat--error">
+            <IconifyIcon icon="mdi:close-circle" />
+            <div>
+              <div class="verdict-label">不合规</div>
+              <div class="verdict-value">{{ verdictStats.non_compliant }}</div>
+            </div>
+          </div>
         </div>
 
-        <div class="code-locate-body">
-          <div class="code-stats">
-            <div class="stat-title">候选路径</div>
-            <div class="stat-value">6</div>
-            <div class="stat-title">关键切片</div>
-            <div class="stat-value">2</div>
-            <div class="stat-title">相关变量</div>
-            <div class="stat-value">3</div>
-          </div>
-
-          <div class="code-display">
-            <div class="code-header">
-              <span class="code-file">目标文件: {{ verdict.location.file }}</span>
-              <span class="code-location">关键位置: {{ verdict.lineRange?.[0] || 318 }}</span>
-            </div>
-            <div class="code-snippet">
-              <div
-                v-for="(line, lineIdx) in getCodeSnippet(verdict).code.split('\n')"
-                :key="lineIdx"
-                class="code-line"
-                :class="{ 'code-line--highlight': getCodeSnippet(verdict).startLine + lineIdx === getCodeSnippet(verdict).highlightLine }"
+        <div v-if="result.verdicts && result.verdicts.length > 0" class="verdict-list">
+          <div
+            v-for="(v, i) in result.verdicts"
+            :key="i"
+            class="verdict-item"
+          >
+            <div class="verdict-header">
+              <Tag
+                :color="
+                  v.verdict === 'compliant'
+                    ? 'success'
+                    : v.verdict === 'non_compliant'
+                      ? 'error'
+                      : 'warning'
+                "
               >
-                <span class="line-number">{{ getCodeSnippet(verdict).startLine + lineIdx }}</span>
-                <span class="line-content">{{ line }}</span>
-              </div>
+                {{ v.verdict }}
+              </Tag>
+              <code class="verdict-file">{{ v.file }}</code>
             </div>
-            <Button type="link" size="small" class="view-context-btn">
-              查看代码上下文
-            </Button>
-          </div>
-
-          <div class="code-evidence">
-            <div class="evidence-title">规则证据 ({{ verdict.relatedRule.source }})</div>
-            <div class="evidence-content">
-              <div class="evidence-item">
-                <span class="evidence-label">约束类型:</span>
-                <span>{{ verdict.category }}</span>
+            <div class="verdict-body">
+              <div class="verdict-field">
+                <span class="verdict-key">行范围:</span>
+                <span>{{ v.lineRange }}</span>
               </div>
-              <div class="evidence-item">
-                <span class="evidence-label">源数据:</span>
-                <span>{{ verdict.relatedRule.requirement.slice(0, 50) }}...</span>
+              <div class="verdict-field">
+                <span class="verdict-key">说明:</span>
+                <span>{{ v.explanation }}</span>
               </div>
-              <div class="evidence-item">
-                <span class="evidence-label">目标行为:</span>
-                <span>{{ verdict.explanation.slice(0, 50) }}...</span>
+              <div v-if="v.recommendation" class="verdict-field">
+                <span class="verdict-key">建议:</span>
+                <span>{{ v.recommendation }}</span>
               </div>
             </div>
           </div>
@@ -121,189 +109,134 @@ current_pps_ = std::min(max_calc_pps, limit_pps);
     </div>
 
     <Empty v-else description="等待代码定位阶段开始" :image="Empty.PRESENTED_IMAGE_SIMPLE" />
-  </div>
+  </Card>
 </template>
 
 <style scoped>
-.code-locate-wrapper {
+.locate-container {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 20px;
+}
+
+.locate-log {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.log-title {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.log-content {
+  max-height: 400px;
+  padding: 12px;
+  overflow-y: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #e2e8f0;
+  background: #0f172a;
+  border-radius: 8px;
+}
+
+.locate-verdict {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-.code-locate-content {
+.verdict-stats {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-}
-
-.code-locate-card {
-  background: var(--ant-color-bg-container);
-  border: 1px solid var(--ant-color-border-secondary);
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.code-locate-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  background: var(--ant-color-fill-quaternary);
-  border-bottom: 1px solid var(--ant-color-border-secondary);
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
   gap: 10px;
 }
 
-.file-icon {
+.verdict-stat {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+
+.verdict-stat :first-child {
   font-size: 20px;
-  color: var(--ant-primary-color);
 }
 
-.header-title {
-  font-size: 15px;
-  font-weight: 600;
+.verdict-stat--ok {
+  color: #16a34a;
+  background: rgb(22 163 74 / 10%);
 }
 
-.code-locate-body {
-  display: grid;
-  grid-template-columns: 200px 1fr 300px;
-  gap: 20px;
-  padding: 20px;
+.verdict-stat--warn {
+  color: #d97706;
+  background: rgb(217 119 6 / 10%);
 }
 
-.code-stats {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 8px;
-  padding: 16px;
-  background: var(--ant-color-fill-quaternary);
-  border-radius: 8px;
-  height: fit-content;
+.verdict-stat--error {
+  color: #dc2626;
+  background: rgb(220 38 38 / 10%);
 }
 
-.stat-title {
+.verdict-label {
   font-size: 12px;
-  color: var(--ant-text-color-secondary);
-  margin-top: 8px;
 }
 
-.stat-title:first-child {
-  margin-top: 0;
-}
-
-.stat-value {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--ant-text-color);
-}
-
-.code-display {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.code-header {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 13px;
-}
-
-.code-file {
-  font-weight: 500;
-  color: var(--ant-text-color);
-}
-
-.code-location {
-  color: var(--ant-text-color-secondary);
-}
-
-.code-snippet {
-  padding: 16px;
-  background: #fafafa;
-  border: 1px solid var(--ant-color-border-secondary);
-  border-radius: 8px;
-  overflow-x: auto;
-}
-
-.code-line {
-  display: flex;
-  gap: 16px;
-  padding: 2px 8px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 13px;
-  line-height: 1.6;
-  transition: background-color 0.2s;
-}
-
-.code-line--highlight {
-  background: #e6f4ff;
-  border-left: 3px solid #1677ff;
-  padding-left: 5px;
-}
-
-.line-number {
-  min-width: 40px;
-  text-align: right;
-  color: #8c8c8c;
-  user-select: none;
-}
-
-.line-content {
-  flex: 1;
-  color: #262626;
-  white-space: pre;
-}
-
-.view-context-btn {
-  padding: 0;
-  font-size: 13px;
-}
-
-.code-evidence {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px;
-  background: var(--ant-color-fill-quaternary);
-  border-radius: 8px;
-  height: fit-content;
-}
-
-.evidence-title {
-  font-size: 13px;
+.verdict-value {
+  font-size: 18px;
   font-weight: 600;
   color: var(--ant-text-color);
+}
+
+.verdict-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.verdict-item {
+  padding: 12px;
+  background: var(--ant-color-fill-quaternary);
+  border-radius: 8px;
+}
+
+.verdict-header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
   margin-bottom: 8px;
 }
 
-.evidence-content {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.evidence-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.verdict-file {
+  padding: 2px 6px;
   font-size: 12px;
+  background: var(--ant-color-bg-container);
+  border-radius: 4px;
 }
 
-.evidence-label {
+.verdict-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.verdict-field {
+  display: flex;
+  gap: 8px;
+}
+
+.verdict-key {
+  min-width: 60px;
   font-weight: 500;
   color: var(--ant-text-color-secondary);
 }
-
-.evidence-item > span:last-child {
-  color: var(--ant-text-color);
-  line-height: 1.5;
-}
-
 </style>
