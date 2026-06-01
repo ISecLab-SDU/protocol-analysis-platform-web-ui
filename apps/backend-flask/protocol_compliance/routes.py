@@ -842,23 +842,39 @@ def download_static_analysis_database(job_id: str):
                 mimetype="application/octet-stream",
             )
 
-    # 如果database_path为空或文件不存在，动态查找
-    LOGGER.warning(f"[下载数据库] database_path 无效，开始动态查找")
+    # 如果database_path为空或文件不存在，尝试从output_path动态查找
+    LOGGER.warning(f"[下载数据库] database_path 无效，尝试从 output_path 查找")
     output_path = snapshot.get("output_path")
-    if not output_path:
-        LOGGER.error(f"[下载数据库] 任务 {job_id} 的 output_path 也为空")
-        return make_response(error_response("无法定位数据库文件：output_path 不存在"), 404)
+    if output_path:
+        output_dir = Path(output_path)
+        database_dir = output_dir / "database"
+        LOGGER.info(f"[下载数据库] 在 {database_dir} 目录查找数据库文件")
 
-    output_dir = Path(output_path)
-    database_dir = output_dir / "database"
-    LOGGER.info(f"[下载数据库] 在 {database_dir} 目录查找数据库文件")
+        if database_dir.exists():
+            candidates = list(database_dir.glob("*.db"))
+            LOGGER.info(f"[下载数据库] 找到 {len(candidates)} 个 .db 文件: {candidates}")
+            if candidates:
+                db_file = candidates[0]
+                LOGGER.info(f"[下载数据库] 使用 output_path 找到的文件: {db_file}")
+                return send_file(
+                    db_file,
+                    as_attachment=True,
+                    download_name=f"analysis-{job_id}.db",
+                    mimetype="application/octet-stream",
+                )
 
-    if database_dir.exists():
-        candidates = list(database_dir.glob("*.db"))
-        LOGGER.info(f"[下载数据库] 找到 {len(candidates)} 个 .db 文件: {candidates}")
+    # 最后尝试：直接从环境变量配置的output_root构造路径
+    LOGGER.warning(f"[下载数据库] output_path 也无效，尝试从环境变量构造路径")
+    output_root = os.environ.get("PG_OUTPUT_ROOT", "/tmp/protocolguard/outputs")
+    constructed_path = Path(output_root) / job_id / "database"
+    LOGGER.info(f"[下载数据库] 尝试构造的路径: {constructed_path}")
+
+    if constructed_path.exists():
+        candidates = list(constructed_path.glob("*.db"))
+        LOGGER.info(f"[下载数据库] 在构造路径找到 {len(candidates)} 个 .db 文件: {candidates}")
         if candidates:
             db_file = candidates[0]
-            LOGGER.info(f"[下载数据库] 使用动态查找的文件: {db_file}")
+            LOGGER.info(f"[下载数据库] 使用构造路径找到的文件: {db_file}")
             return send_file(
                 db_file,
                 as_attachment=True,
@@ -866,7 +882,7 @@ def download_static_analysis_database(job_id: str):
                 mimetype="application/octet-stream",
             )
 
-    LOGGER.error(f"[下载数据库] 未找到数据库文件，output_path: {output_path}")
+    LOGGER.error(f"[下载数据库] 所有方法都失败，无法找到数据库文件")
     return make_response(error_response("数据库文件不存在"), 404)
 
 
