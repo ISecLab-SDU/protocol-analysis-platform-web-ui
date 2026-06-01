@@ -27,6 +27,7 @@ const {
   projectConfig,
   selectedRule,
   staticLogHtml,
+  staticLogText,
   staticResult,
   codeLocateEvidence,
   assertLogText,
@@ -281,6 +282,7 @@ function switchRule() {
                 v-else-if="activeStageView === 'code_locate'"
                 :evidence="codeLocateEvidence"
                 :log-html="staticLogHtml"
+                :log-text="staticLogText"
                 :result="staticResult"
                 :rule="selectedRule"
                 :running="stageStatus.code_locate === 'running'"

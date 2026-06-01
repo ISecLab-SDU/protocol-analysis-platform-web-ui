@@ -28,6 +28,7 @@ import {
 
 import {
   type CodeLocateEvidence,
+  type CodeLocateFunctionSlice,
   type CodeLocateRow,
   DEFAULT_TARGET,
   type ProjectConfig,
@@ -230,7 +231,32 @@ function normalizeCodeLine(raw: string) {
 function stripLogPrefix(line: string) {
   return line
     .replace(/^\([^)]+\)\s*/, '')
-    .replace(/^.*:\s+(?=(Function:|Path:|\d+\s+))/i, '');
+    .replace(/^.*:\s+(?=(Function:|Path:|func:|\d+\s+))/i, '');
+}
+
+function ensureFunctionSlice(
+  functions: Map<string, CodeLocateFunctionSlice>,
+  name: string,
+) {
+  const normalized = name.trim();
+  const existing = functions.get(normalized);
+  if (existing) return existing;
+  const next: CodeLocateFunctionSlice = {
+    codeRows: [],
+    name: normalized,
+  };
+  functions.set(normalized, next);
+  return next;
+}
+
+function highlightCodeRows(rows: CodeLocateRow[], preferredLines: number[]) {
+  if (rows.length === 0 || rows.some((row) => row.emphasis)) return;
+  const preferred = preferredLines.find((line) =>
+    rows.some((row) => Number(row.line) === line),
+  );
+  const targetLine = preferred ?? Number(rows[0]?.line);
+  const targetRow = rows.find((row) => Number(row.line) === targetLine) ?? rows[0];
+  if (targetRow) targetRow.emphasis = true;
 }
 
 function parseCodeSnippetToEvidence(
@@ -244,18 +270,26 @@ function parseCodeSnippetToEvidence(
     violationLines?: number[];
   } = {},
 ): CodeLocateEvidence | null {
-  const functions = new Set<string>();
+  const functions = new Map<string, CodeLocateFunctionSlice>();
   const files = new Set<string>();
   const rows: CodeLocateRow[] = [];
   const pathLines: number[] = [];
   const violationLineSet = new Set(options.violationLines ?? []);
   let firstTargetFile = options.targetFile?.trim() || '';
+  let currentFunction: CodeLocateFunctionSlice | null = null;
 
   for (const rawLine of snippet.split(/\r?\n/)) {
     const line = stripLogPrefix(rawLine);
+    const extractedFunctionMatch = line.match(/^func:\s*(.+?)\s*$/i);
+    if (extractedFunctionMatch?.[1]) {
+      ensureFunctionSlice(functions, extractedFunctionMatch[1]);
+      currentFunction = null;
+      continue;
+    }
+
     const functionMatch = line.match(/Function:\s*(.+?)\s*$/i);
     if (functionMatch?.[1]) {
-      functions.add(functionMatch[1].trim());
+      currentFunction = ensureFunctionSlice(functions, functionMatch[1]);
       continue;
     }
 
@@ -266,6 +300,10 @@ function parseCodeSnippetToEvidence(
       if (!firstTargetFile) firstTargetFile = filePath;
       const lineNumber = Number(pathMatch[2]);
       if (Number.isFinite(lineNumber)) pathLines.push(lineNumber);
+      if (currentFunction) {
+        currentFunction.path = filePath;
+        currentFunction.targetLine = lineNumber;
+      }
       continue;
     }
 
@@ -273,34 +311,42 @@ function parseCodeSnippetToEvidence(
     if (!codeMatch?.[1]) continue;
     const lineNumber = Number(codeMatch[1]);
     const text = normalizeCodeLine(codeMatch[2] ?? '');
-    rows.push({
+    const row: CodeLocateRow = {
       emphasis: violationLineSet.has(lineNumber),
       line: lineNumber,
       text,
-    });
+    };
+    rows.push(row);
+    if (currentFunction) currentFunction.codeRows.push(row);
   }
 
   if (rows.length === 0 && !firstTargetFile && functions.size === 0) return null;
 
-  if (rows.length > 0 && !rows.some((row) => row.emphasis)) {
-    const targetLine = pathLines[0] ?? Number(rows[0]?.line);
-    const targetRow = rows.find((row) => row.line === targetLine) ?? rows[0];
-    if (targetRow) targetRow.emphasis = true;
+  highlightCodeRows(rows, pathLines);
+  const functionSlices = [...functions.values()];
+  for (const fn of functionSlices) {
+    const targetLine = Number(fn.targetLine);
+    highlightCodeRows(fn.codeRows, Number.isFinite(targetLine) ? [targetLine] : []);
   }
 
   const codeLines = rows
     .map((row) => (typeof row.line === 'number' ? row.line : Number(row.line)))
     .filter((line) => Number.isFinite(line));
-  const targetLines = violationLineSet.size > 0
-    ? [...violationLineSet]
-    : pathLines.length > 0
-      ? pathLines
-      : codeLines;
+  const targetLines =
+    violationLineSet.size > 0
+      ? [...violationLineSet]
+      : pathLines.length > 0
+        ? pathLines
+        : codeLines;
+  const sliceCount = functionSlices.filter((fn) => fn.codeRows.length > 0).length;
 
   return {
     candidateFunctionCount: functions.size || files.size || 1,
     codeRows: rows,
-    keySliceCount: options.keySliceCount ?? Math.max(0, violationLineSet.size || pathLines.length),
+    functions: functionSlices,
+    keySliceCount:
+      options.keySliceCount ??
+      Math.max(sliceCount, violationLineSet.size || pathLines.length),
     relatedVariableCount: getRelatedVariableCount(),
     resultLabel: options.resultLabel,
     ruleText: options.ruleText,
@@ -314,7 +360,14 @@ function parseCodeSnippetToEvidence(
 function mergeCodeLocateEvidence(next: CodeLocateEvidence | null, force = false) {
   if (!next) return;
   if (!force && codeLocateEvidence.value?.source === '静态分析数据库') return;
-  if (!force && codeLocateEvidence.value && next.codeRows.length <= codeLocateEvidence.value.codeRows.length) {
+  const currentFunctionCount = codeLocateEvidence.value?.functions?.length ?? 0;
+  const nextFunctionCount = next.functions?.length ?? 0;
+  if (
+    !force &&
+    codeLocateEvidence.value &&
+    next.codeRows.length <= codeLocateEvidence.value.codeRows.length &&
+    nextFunctionCount <= currentFunctionCount
+  ) {
     return;
   }
   codeLocateEvidence.value = next;
@@ -835,6 +888,7 @@ export function useWorkbench() {
     staticJobId,
     staticResult,
     staticLogHtml,
+    staticLogText,
     codeLocateEvidence,
     assertJob,
     assertJobId,

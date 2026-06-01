@@ -18,9 +18,17 @@ export interface CodeLocateRow {
   text: string;
 }
 
+export interface CodeLocateFunctionSlice {
+  codeRows: CodeLocateRow[];
+  name: string;
+  path?: string;
+  targetLine?: number | string;
+}
+
 export interface CodeLocateEvidence {
   candidateFunctionCount: number;
   codeRows: CodeLocateRow[];
+  functions?: CodeLocateFunctionSlice[];
   keySliceCount: number;
   relatedVariableCount: number;
   resultLabel?: string;
