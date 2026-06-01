@@ -17,6 +17,7 @@ import { formatDuration, formatTime } from './utils';
 
 const {
   stage,
+  activeStageView,
   stageStatus,
   stageMessage,
   elapsedSeconds,
@@ -27,6 +28,7 @@ const {
   selectedRule,
   staticLogHtml,
   staticResult,
+  codeLocateEvidence,
   assertLogText,
   assertDiffContent,
   assertResult,
@@ -35,6 +37,7 @@ const {
   fuzzSpeedSeries,
   commitSetup,
   backToSetup,
+  selectStageView,
   startPipeline,
   stopPipeline,
   resetWorkbench,
@@ -97,11 +100,20 @@ function stageStateLabel(key: (typeof STAGE_LIST)[number]['key']) {
   return stage.value === key ? '当前' : '等待中';
 }
 
+function canViewStage(key: (typeof STAGE_LIST)[number]['key']) {
+  return stage.value === key || stageStatus[key] !== 'idle';
+}
+
+function handleStageSelect(key: (typeof STAGE_LIST)[number]['key']) {
+  selectStageView(key);
+}
+
 function switchRule() {
   if (isRunning.value) return;
   resetWorkbench();
   stageStatus.setup = 'done';
   stage.value = 'rule_confirm';
+  activeStageView.value = 'rule_confirm';
   stageMessage.value = '请选择一条规则后启动自动化流水线';
 }
 </script>
@@ -208,7 +220,7 @@ function switchRule() {
             </header>
 
             <section class="pipeline-stepper">
-              <div
+              <button
                 v-for="(s, idx) in STAGE_LIST"
                 :key="s.key"
                 class="stepper-item"
@@ -216,9 +228,13 @@ function switchRule() {
                   'stepper-item--active':
                     stageStatus[s.key] === 'running' ||
                     (stage === s.key && stageStatus[s.key] !== 'done'),
+                  'stepper-item--selected': activeStageView === s.key,
                   'stepper-item--done': stageStatus[s.key] === 'done',
                   'stepper-item--error': stageStatus[s.key] === 'error',
                 }"
+                :disabled="!canViewStage(s.key)"
+                type="button"
+                @click="handleStageSelect(s.key)"
               >
                 <div class="stepper-circle">
                   <IconifyIcon v-if="stageStatus[s.key] === 'done'" icon="mdi:check" />
@@ -232,7 +248,7 @@ function switchRule() {
                 <div v-if="idx < STAGE_LIST.length - 1" class="stepper-arrow">
                   <IconifyIcon icon="mdi:arrow-right" />
                 </div>
-              </div>
+              </button>
             </section>
 
             <section v-if="stageMessage" class="workbench-banner">
@@ -247,14 +263,14 @@ function switchRule() {
 
             <section class="workbench-content">
               <StageSetup
-                v-if="stage === 'setup'"
+                v-if="activeStageView === 'setup'"
                 :config="projectConfig"
                 :disabled="isRunning"
                 @commit="commitSetup"
               />
 
               <StageRuleConfirm
-                v-else-if="stage === 'rule_confirm'"
+                v-else-if="activeStageView === 'rule_confirm'"
                 :protocol-type="projectConfig.protocolType"
                 :disabled="isRunning"
                 @start="startPipeline"
@@ -262,7 +278,8 @@ function switchRule() {
               />
 
               <StageCodeLocate
-                v-else-if="stage === 'code_locate'"
+                v-else-if="activeStageView === 'code_locate'"
+                :evidence="codeLocateEvidence"
                 :log-html="staticLogHtml"
                 :result="staticResult"
                 :rule="selectedRule"
@@ -270,7 +287,7 @@ function switchRule() {
               />
 
               <StageAssertGen
-                v-else-if="stage === 'assert_gen'"
+                v-else-if="activeStageView === 'assert_gen'"
                 :log-text="assertLogText"
                 :diff-content="assertDiffContent"
                 :result="assertResult"
@@ -278,7 +295,7 @@ function switchRule() {
               />
 
               <StageFuzz
-                v-else-if="stage === 'fuzz' || stage === 'done'"
+                v-else-if="activeStageView === 'fuzz' || activeStageView === 'done'"
                 :elapsed="elapsedDisplay"
                 :implementation="projectConfig.implementation"
                 :logs="fuzzLogs"
@@ -566,11 +583,27 @@ function switchRule() {
   grid-template-columns: 42px minmax(0, 1fr) 24px;
   gap: 12px;
   align-items: center;
+  width: 100%;
   min-width: 0;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
 }
 
 .stepper-item:last-child {
   grid-template-columns: 42px minmax(0, 1fr);
+}
+
+.stepper-item:disabled {
+  cursor: default;
+}
+
+.stepper-item--selected {
+  outline: 2px solid rgb(22 119 255 / 16%);
+  outline-offset: 6px;
 }
 
 .stepper-circle {

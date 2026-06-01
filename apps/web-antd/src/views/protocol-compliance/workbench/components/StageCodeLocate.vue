@@ -11,9 +11,11 @@ import type {
   ProtocolStaticAnalysisVerdict,
 } from '#/api/protocol-compliance';
 
+import type { CodeLocateEvidence } from '../types';
 import { normalizeList } from '../utils';
 
 interface Props {
+  evidence: CodeLocateEvidence | null;
   logHtml: string;
   result: null | ProtocolStaticAnalysisResult;
   rule: null | ProtocolExtractRuleItem;
@@ -24,6 +26,7 @@ const props = defineProps<Props>();
 
 const verdicts = computed(() => props.result?.modelResponse?.verdicts ?? []);
 const summary = computed(() => props.result?.modelResponse?.summary ?? null);
+const hasEvidence = computed(() => Boolean(props.evidence));
 
 const verdictStats = computed(() => {
   if (summary.value) {
@@ -53,6 +56,7 @@ const primaryVerdict = computed(() => {
 
 const ruleText = computed(() => {
   return (
+    props.evidence?.ruleText ||
     props.rule?.rule ||
     props.rule?.description ||
     primaryVerdict.value?.relatedRule?.requirement ||
@@ -61,11 +65,12 @@ const ruleText = computed(() => {
 });
 
 const ruleSource = computed(() => {
-  return primaryVerdict.value?.relatedRule?.source || '协议规则集';
+  return props.evidence?.source || primaryVerdict.value?.relatedRule?.source || '协议规则集';
 });
 
 const targetFile = computed(() => {
   return (
+    props.evidence?.targetFile ||
     primaryVerdict.value?.location?.file ||
     props.result?.inputs?.codeFileName ||
     '待定位'
@@ -73,12 +78,14 @@ const targetFile = computed(() => {
 });
 
 const targetLine = computed(() => {
+  if (props.evidence?.targetLine) return props.evidence.targetLine;
   const range = primaryVerdict.value?.lineRange;
   if (!range) return '-';
   return range[0] === range[1] ? String(range[0]) : `${range[0]}-${range[1]}`;
 });
 
 const candidateFunctionCount = computed(() => {
+  if (props.evidence) return props.evidence.candidateFunctionCount;
   const functions = new Set(
     verdicts.value
       .map((verdict) => verdict.location?.function || verdict.location?.file)
@@ -88,10 +95,12 @@ const candidateFunctionCount = computed(() => {
 });
 
 const keySliceCount = computed(() => {
+  if (props.evidence) return props.evidence.keySliceCount;
   return verdictStats.value.nonCompliant + verdictStats.value.needsReview;
 });
 
 const relatedVariableCount = computed(() => {
+  if (props.evidence) return props.evidence.relatedVariableCount;
   const fields = new Set([
     ...normalizeList(props.rule?.req_fields),
     ...normalizeList(props.rule?.res_fields),
@@ -100,6 +109,7 @@ const relatedVariableCount = computed(() => {
 });
 
 const codeRows = computed(() => {
+  if (props.evidence?.codeRows.length) return props.evidence.codeRows;
   const verdict = primaryVerdict.value;
   const lineBase = Array.isArray(verdict?.lineRange) ? verdict.lineRange[0] : 315;
   const statusText = verdict ? complianceLabel(verdict.compliance) : '定位中';
@@ -113,6 +123,11 @@ const codeRows = computed(() => {
 });
 
 const visibleVerdicts = computed(() => verdicts.value.slice(0, 4));
+const stageStateText = computed(() => {
+  if (props.running) return '进行中';
+  if (props.result || props.evidence) return '已完成';
+  return '等待中';
+});
 
 function complianceLabel(value: ProtocolStaticAnalysisComplianceStatus) {
   if (value === 'compliant') return '合规';
@@ -140,16 +155,16 @@ function formatLocation(verdict: ProtocolStaticAnalysisVerdict) {
       <div class="stage-title">
         <IconifyIcon icon="mdi:file-search-outline" />
         <span>代码定位</span>
-        <small>{{ running ? '进行中' : result ? '已完成' : '等待中' }}</small>
+        <small>{{ stageStateText }}</small>
       </div>
     </template>
     <template #extra>
       <Tag v-if="running" color="processing">进行中</Tag>
-      <Tag v-else-if="result" color="success">已完成</Tag>
+      <Tag v-else-if="result || evidence" color="success">已完成</Tag>
       <Tag v-else color="default">等待中</Tag>
     </template>
 
-    <div v-if="logHtml || running || result" class="locate-layout">
+    <div v-if="logHtml || running || result || evidence" class="locate-layout">
       <aside class="metric-rail">
         <div class="metric-item">
           <span>候选函数</span>
@@ -177,11 +192,11 @@ function formatLocation(verdict: ProtocolStaticAnalysisVerdict) {
           </div>
         </div>
 
-        <div v-if="logHtml && !result" class="log-content" v-html="logHtml || '等待日志输出...'" />
+        <div v-if="logHtml && !hasEvidence && !result" class="log-content" v-html="logHtml || '等待日志输出...'" />
         <div v-else class="code-window">
           <div
-            v-for="row in codeRows"
-            :key="row.line"
+            v-for="(row, idx) in codeRows"
+            :key="`${row.line}-${idx}`"
             class="code-row"
             :class="{ 'code-row--emphasis': row.emphasis }"
           >
@@ -194,7 +209,9 @@ function formatLocation(verdict: ProtocolStaticAnalysisVerdict) {
       <aside class="evidence-panel">
         <div class="evidence-title">
           规则证据
-          <span>({{ ruleSource }})</span>
+          <span>
+            ({{ ruleSource }}{{ evidence?.resultLabel ? ` · ${evidence.resultLabel}` : '' }})
+          </span>
         </div>
         <blockquote>{{ ruleText }}</blockquote>
         <dl class="evidence-list">
@@ -254,7 +271,7 @@ function formatLocation(verdict: ProtocolStaticAnalysisVerdict) {
     </section>
 
     <Empty
-      v-else-if="!logHtml && !running && !result"
+      v-else-if="!logHtml && !running && !result && !evidence"
       description="等待代码定位阶段开始"
       :image="Empty.PRESENTED_IMAGE_SIMPLE"
     />

@@ -5,12 +5,14 @@ import type {
   ProtocolAssertGenerationJob,
   ProtocolAssertGenerationResult,
   ProtocolExtractRuleItem,
+  ProtocolStaticAnalysisDatabaseRuleInsight,
   ProtocolStaticAnalysisJob,
   ProtocolStaticAnalysisResult,
 } from '#/api/protocol-compliance';
 
 import {
   executeCommand,
+  fetchProtocolStaticAnalysisDatabaseInsights,
   fetchProtocolAssertGenerationProgress,
   fetchProtocolAssertGenerationResult,
   fetchProtocolInstrumentationDiff,
@@ -25,6 +27,8 @@ import {
 } from '#/api/protocol-compliance';
 
 import {
+  type CodeLocateEvidence,
+  type CodeLocateRow,
   DEFAULT_TARGET,
   type ProjectConfig,
   type StageStatus,
@@ -34,6 +38,7 @@ import {
 import { ansiToHtml, normalizeList } from './utils';
 
 const stage = ref<WorkbenchStage>('setup');
+const activeStageView = ref<WorkbenchStage>('setup');
 const stageStatus = reactive<Record<WorkbenchStage, StageStatus>>({
   setup: 'idle',
   rule_confirm: 'idle',
@@ -69,6 +74,7 @@ const staticResult = ref<null | ProtocolStaticAnalysisResult>(null);
 const staticLogHtml = ref('');
 const staticLogText = ref('');
 const staticLastEventId = ref(0);
+const codeLocateEvidence = ref<CodeLocateEvidence | null>(null);
 
 const assertJobId = ref<null | string>(null);
 const assertJob = ref<null | ProtocolAssertGenerationJob>(null);
@@ -142,6 +148,7 @@ function appendFuzzLog(text: string, level: 'INFO' | 'WARN' | 'ERROR' | 'STATS' 
 
 function setStage(next: WorkbenchStage, status: StageStatus = 'running', msg?: string) {
   stage.value = next;
+  activeStageView.value = next;
   stageStatus[next] = status;
   if (msg) stageMessage.value = msg;
 }
@@ -153,8 +160,17 @@ function markStageDone(target: WorkbenchStage, msg?: string) {
 
 function markStageError(target: WorkbenchStage, msg: string) {
   stageStatus[target] = 'error';
+  activeStageView.value = target;
   errorMessage.value = msg;
   stageMessage.value = msg;
+}
+
+function selectStageView(target: WorkbenchStage) {
+  if (stage.value === target || stageStatus[target] !== 'idle') {
+    activeStageView.value = target;
+    return true;
+  }
+  return false;
 }
 
 const protocolImplementationsKey = computed(() => [
@@ -182,6 +198,197 @@ function buildRulesFile(): File {
   grouped[msgType] = [rule];
   const json = JSON.stringify(grouped, null, 2);
   return new File([json], 'rules.json', { type: 'application/json' });
+}
+
+function getRelatedVariableCount() {
+  const fields = new Set([
+    ...normalizeList(selectedRule.value?.req_fields),
+    ...normalizeList(selectedRule.value?.res_fields),
+  ]);
+  return fields.size;
+}
+
+function shortenPath(path: string) {
+  const trimmed = path.trim();
+  if (!trimmed) return '';
+  const normalized = trimmed.replaceAll('\\', '/');
+  return normalized.split('/').filter(Boolean).pop() || trimmed;
+}
+
+function formatLineRange(lines: number[]) {
+  const unique = [...new Set(lines)].sort((a, b) => a - b);
+  if (unique.length === 0) return '-';
+  const first = unique[0]!;
+  const last = unique[unique.length - 1]!;
+  return first === last ? String(first) : `${first}-${last}`;
+}
+
+function normalizeCodeLine(raw: string) {
+  return raw.replace(/\s+$/, '');
+}
+
+function stripLogPrefix(line: string) {
+  return line
+    .replace(/^\([^)]+\)\s*/, '')
+    .replace(/^.*:\s+(?=(Function:|Path:|\d+\s+))/i, '');
+}
+
+function parseCodeSnippetToEvidence(
+  snippet: string,
+  options: {
+    keySliceCount?: number;
+    resultLabel?: string;
+    ruleText?: string;
+    source?: string;
+    targetFile?: string | null;
+    violationLines?: number[];
+  } = {},
+): CodeLocateEvidence | null {
+  const functions = new Set<string>();
+  const files = new Set<string>();
+  const rows: CodeLocateRow[] = [];
+  const pathLines: number[] = [];
+  const violationLineSet = new Set(options.violationLines ?? []);
+  let firstTargetFile = options.targetFile?.trim() || '';
+
+  for (const rawLine of snippet.split(/\r?\n/)) {
+    const line = stripLogPrefix(rawLine);
+    const functionMatch = line.match(/Function:\s*(.+?)\s*$/i);
+    if (functionMatch?.[1]) {
+      functions.add(functionMatch[1].trim());
+      continue;
+    }
+
+    const pathMatch = line.match(/Path:\s*(.+?):(\d+)\s*$/i);
+    if (pathMatch?.[1]) {
+      const filePath = pathMatch[1].trim();
+      files.add(filePath);
+      if (!firstTargetFile) firstTargetFile = filePath;
+      const lineNumber = Number(pathMatch[2]);
+      if (Number.isFinite(lineNumber)) pathLines.push(lineNumber);
+      continue;
+    }
+
+    const codeMatch = line.match(/^\s*(\d{1,7})\s+(.*)$/);
+    if (!codeMatch?.[1]) continue;
+    const lineNumber = Number(codeMatch[1]);
+    const text = normalizeCodeLine(codeMatch[2] ?? '');
+    rows.push({
+      emphasis: violationLineSet.has(lineNumber),
+      line: lineNumber,
+      text,
+    });
+  }
+
+  if (rows.length === 0 && !firstTargetFile && functions.size === 0) return null;
+
+  if (rows.length > 0 && !rows.some((row) => row.emphasis)) {
+    const targetLine = pathLines[0] ?? Number(rows[0]?.line);
+    const targetRow = rows.find((row) => row.line === targetLine) ?? rows[0];
+    if (targetRow) targetRow.emphasis = true;
+  }
+
+  const codeLines = rows
+    .map((row) => (typeof row.line === 'number' ? row.line : Number(row.line)))
+    .filter((line) => Number.isFinite(line));
+  const targetLines = violationLineSet.size > 0
+    ? [...violationLineSet]
+    : pathLines.length > 0
+      ? pathLines
+      : codeLines;
+
+  return {
+    candidateFunctionCount: functions.size || files.size || 1,
+    codeRows: rows,
+    keySliceCount: options.keySliceCount ?? Math.max(0, violationLineSet.size || pathLines.length),
+    relatedVariableCount: getRelatedVariableCount(),
+    resultLabel: options.resultLabel,
+    ruleText: options.ruleText,
+    source: options.source,
+    targetFile: shortenPath(firstTargetFile) || '待定位',
+    targetLine: formatLineRange(targetLines),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function mergeCodeLocateEvidence(next: CodeLocateEvidence | null, force = false) {
+  if (!next) return;
+  if (!force && codeLocateEvidence.value?.source === '静态分析数据库') return;
+  if (!force && codeLocateEvidence.value && next.codeRows.length <= codeLocateEvidence.value.codeRows.length) {
+    return;
+  }
+  codeLocateEvidence.value = next;
+}
+
+function updateCodeLocateEvidenceFromLogs() {
+  const evidence = parseCodeSnippetToEvidence(staticLogText.value, {
+    ruleText: selectedRule.value?.rule || selectedRule.value?.description,
+    source: '实时控制台',
+  });
+  mergeCodeLocateEvidence(evidence);
+}
+
+function getSelectedRuleText() {
+  return selectedRule.value?.rule || selectedRule.value?.description || '';
+}
+
+function findBestInsight(findings: ProtocolStaticAnalysisDatabaseRuleInsight[]) {
+  const selectedText = getSelectedRuleText().trim();
+  if (selectedText) {
+    const matched = findings.find((finding) => {
+      const ruleDesc = finding.ruleDesc?.trim() || '';
+      return ruleDesc.includes(selectedText) || selectedText.includes(ruleDesc);
+    });
+    if (matched) return matched;
+  }
+  return (
+    findings.find((finding) => finding.result === 'violation_found') ??
+    findings.find((finding) => finding.result === 'unknown') ??
+    findings[0] ??
+    null
+  );
+}
+
+function buildEvidenceFromInsight(
+  insight: ProtocolStaticAnalysisDatabaseRuleInsight,
+  findings: ProtocolStaticAnalysisDatabaseRuleInsight[],
+) {
+  const violations = insight.violations ?? [];
+  const violationLines = violations.flatMap((violation) => violation.codeLines ?? []);
+  const targetFile =
+    violations.find((violation) => violation.filename)?.filename ||
+    null;
+  const keySliceCount = findings.filter((finding) => finding.result !== 'no_violation').length ||
+    violations.length ||
+    (insight.result === 'no_violation' ? 0 : 1);
+
+  return parseCodeSnippetToEvidence(insight.codeSnippet || '', {
+    keySliceCount,
+    resultLabel: insight.resultLabel,
+    ruleText: insight.ruleDesc,
+    source: '静态分析数据库',
+    targetFile,
+    violationLines,
+  });
+}
+
+async function refreshCodeLocateEvidenceFromResult(
+  jobId: string,
+  result: ProtocolStaticAnalysisResult,
+) {
+  try {
+    const insights = await fetchProtocolStaticAnalysisDatabaseInsights({
+      databasePath: result.artifacts?.database || undefined,
+      jobId,
+      workspacePath: result.artifacts?.workspace || undefined,
+    });
+    const findings = insights.findings ?? [];
+    const insight = findBestInsight(findings);
+    if (!insight) return;
+    mergeCodeLocateEvidence(buildEvidenceFromInsight(insight, findings), true);
+  } catch (err: any) {
+    console.warn('[workbench] code locate insights unavailable', err?.message || err);
+  }
 }
 
 function buildFuzzScript(): string {
@@ -243,6 +450,7 @@ function commitSetup() {
   }
   stageStatus.setup = 'done';
   stage.value = 'rule_confirm';
+  activeStageView.value = 'rule_confirm';
   stageMessage.value = '请选择一条规则后启动自动化流水线';
 }
 
@@ -252,6 +460,7 @@ function backToSetup() {
     return;
   }
   stage.value = 'setup';
+  activeStageView.value = 'setup';
   stageStatus.setup = 'idle';
   stageMessage.value = '调整项目设置后重新进入流水线';
 }
@@ -275,11 +484,13 @@ async function pollStaticAnalysis(jobId: string) {
           }
         }
         staticLogHtml.value = ansiToHtml(staticLogText.value);
+        updateCodeLocateEvidenceFromLogs();
       }
       if (snapshot.status === 'completed') {
         clearTimer('static');
         const result = await fetchProtocolStaticAnalysisResult(jobId);
         staticResult.value = result;
+        await refreshCodeLocateEvidenceFromResult(jobId, result);
         markStageDone('code_locate', '代码定位完成，进入断言生成…');
         await runAssertGenStep();
       } else if (snapshot.status === 'failed') {
@@ -345,9 +556,11 @@ async function runStaticAnalysisStep() {
     return;
   }
   setStage('code_locate', 'running', '提交静态分析任务…');
+  staticResult.value = null;
   staticLogText.value = '';
   staticLogHtml.value = '';
   staticLastEventId.value = 0;
+  codeLocateEvidence.value = null;
   try {
     const job = await runProtocolStaticAnalysis({
       codeArchive: projectConfig.archive,
@@ -362,6 +575,7 @@ async function runStaticAnalysisStep() {
     if (job.status === 'completed') {
       const result = await fetchProtocolStaticAnalysisResult(job.jobId);
       staticResult.value = result;
+      await refreshCodeLocateEvidenceFromResult(job.jobId, result);
       markStageDone('code_locate', '代码定位完成，进入断言生成…');
       await runAssertGenStep();
     } else if (job.status === 'failed') {
@@ -561,6 +775,7 @@ async function stopPipeline() {
     if (stageStatus.code_locate === 'running') stageStatus.code_locate = 'idle';
     if (stageStatus.assert_gen === 'running') stageStatus.assert_gen = 'idle';
     stage.value = 'done';
+    activeStageView.value = 'done';
     stageStatus.done = 'done';
     clearTimer('elapsed');
     stageMessage.value = '流水线已停止';
@@ -577,6 +792,7 @@ function resetWorkbench() {
   for (const s of STAGE_LIST) stageStatus[s.key] = 'idle';
   stageStatus.setup = 'idle';
   stage.value = 'setup';
+  activeStageView.value = 'setup';
   startedAt.value = null;
   elapsedSeconds.value = 0;
   selectedRule.value = null;
@@ -586,6 +802,7 @@ function resetWorkbench() {
   staticLogText.value = '';
   staticLogHtml.value = '';
   staticLastEventId.value = 0;
+  codeLocateEvidence.value = null;
   assertJobId.value = null;
   assertJob.value = null;
   assertResult.value = null;
@@ -605,6 +822,7 @@ export function useWorkbench() {
   return {
     // State
     stage,
+    activeStageView,
     stageStatus,
     stageMessage,
     elapsedSeconds,
@@ -617,6 +835,7 @@ export function useWorkbench() {
     staticJobId,
     staticResult,
     staticLogHtml,
+    codeLocateEvidence,
     assertJob,
     assertJobId,
     assertResult,
@@ -634,5 +853,6 @@ export function useWorkbench() {
     startPipeline,
     stopPipeline,
     resetWorkbench,
+    selectStageView,
   };
 }

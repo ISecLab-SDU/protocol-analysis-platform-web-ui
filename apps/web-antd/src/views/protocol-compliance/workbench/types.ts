@@ -12,6 +12,25 @@ export type StageStatus = 'idle' | 'running' | 'done' | 'error';
 
 export type ProtocolKind = 'MQTT' | 'SNMP';
 
+export interface CodeLocateRow {
+  emphasis?: boolean;
+  line: number | string;
+  text: string;
+}
+
+export interface CodeLocateEvidence {
+  candidateFunctionCount: number;
+  codeRows: CodeLocateRow[];
+  keySliceCount: number;
+  relatedVariableCount: number;
+  resultLabel?: string;
+  ruleText?: string;
+  source?: string;
+  targetFile: string;
+  targetLine: string;
+  updatedAt?: string;
+}
+
 export type MQTTImplementation =
   | 'SOL'
   | 'HiveMQ'

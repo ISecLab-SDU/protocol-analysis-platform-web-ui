@@ -90,9 +90,19 @@ export interface ProtocolStaticAnalysisModelResponse {
 
 export interface ProtocolStaticAnalysisResult {
   analysisId: string;
+  artifacts?: {
+    config?: string | null;
+    database?: string | null;
+    logs?: string | null;
+    output?: string | null;
+    workspace?: string | null;
+    workspaceSnapshots?: Array<{ path?: string; stage?: string }>;
+  };
   durationMs: number;
   inputs: {
+    builderDockerfileName?: string;
     codeFileName: string;
+    configFileName?: string;
     notes: null | string;
     protocolName: string;
     rulesFileName: string;
