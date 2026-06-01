@@ -1131,30 +1131,32 @@ class ProtocolGuardDockerRunner:
     def _find_database(self, job_paths: JobPaths) -> Optional[Path]:
         # 优先搜索已知的database子目录
         database_dir = job_paths.output / "database"
+        LOGGER.warning(f"[查找数据库] 优先搜索 database 子目录: {database_dir}")
         if database_dir.exists():
             candidates = list(database_dir.glob("*.db"))
+            LOGGER.warning(f"[查找数据库] 在 {database_dir} 找到 {len(candidates)} 个 .db 文件: {candidates}")
             if candidates:
-                LOGGER.info(f"Found database in {database_dir}: {candidates[0]}")
+                LOGGER.warning(f"[查找数据库] 选择数据库: {candidates[0]}")
                 return candidates[0]
 
         # 回退到递归搜索output目录
-        LOGGER.info(f"Searching for database in output: {job_paths.output}")
+        LOGGER.warning(f"[查找数据库] 递归搜索 output 目录: {job_paths.output}")
         candidates = list(job_paths.output.rglob("*.db"))
-        LOGGER.info(f"Found {len(candidates)} .db files in output: {candidates}")
+        LOGGER.warning(f"[查找数据库] 在 output 找到 {len(candidates)} 个 .db 文件: {candidates}")
 
         if not candidates:
-            LOGGER.info(f"Searching for database in workspace: {job_paths.workspace}")
+            LOGGER.warning(f"[查找数据库] 递归搜索 workspace 目录: {job_paths.workspace}")
             candidates = list(job_paths.workspace.rglob("*.db"))
-            LOGGER.info(f"Found {len(candidates)} .db files in workspace: {candidates}")
+            LOGGER.warning(f"[查找数据库] 在 workspace 找到 {len(candidates)} 个 .db 文件: {candidates}")
 
         if not candidates:
-            LOGGER.warning(
-                f"No database file found. Output: {job_paths.output}, "
+            LOGGER.error(
+                f"[查找数据库] 未找到数据库文件！Output: {job_paths.output}, "
                 f"Workspace: {job_paths.workspace}"
             )
             return None
 
-        LOGGER.info(f"Selected database: {candidates[0]}")
+        LOGGER.warning(f"[查找数据库] 最终选择数据库: {candidates[0]}")
         return candidates[0]
 
     def _zip_directory(self, source: Path, destination: Path) -> Path:

@@ -814,28 +814,60 @@ def static_analysis_result(job_id: str):
 
 @bp.route("/static-analysis/<job_id>/artifact/database", methods=["GET"])
 def download_static_analysis_database(job_id: str):
+    LOGGER.info(f"[下载数据库] 请求下载任务 {job_id} 的数据库文件")
     _, error = _ensure_authenticated()
     if error:
+        LOGGER.warning(f"[下载数据库] 任务 {job_id} 认证失败")
         return error
 
     snapshot = get_static_analysis_job(job_id)
     if not snapshot:
+        LOGGER.error(f"[下载数据库] 任务 {job_id} 未找到")
         return make_response(error_response("未找到静态分析任务"), 404)
 
+    LOGGER.info(f"[下载数据库] 任务 {job_id} 找到，状态: {snapshot.get('status')}")
+
+    # 优先使用存储的database_path
     database_path = snapshot.get("database_path")
-    if not database_path:
-        return make_response(error_response("数据库路径不存在"), 404)
+    LOGGER.info(f"[下载数据库] 任务 {job_id} 的 database_path: {database_path}")
 
-    db_file = Path(database_path)
-    if not db_file.exists():
-        return make_response(error_response("数据库文件不存在"), 404)
+    if database_path:
+        db_file = Path(database_path)
+        if db_file.exists():
+            LOGGER.info(f"[下载数据库] 使用存储的路径: {db_file}")
+            return send_file(
+                db_file,
+                as_attachment=True,
+                download_name=f"analysis-{job_id}.db",
+                mimetype="application/octet-stream",
+            )
 
-    return send_file(
-        db_file,
-        as_attachment=True,
-        download_name=f"analysis-{job_id}.db",
-        mimetype="application/octet-stream",
-    )
+    # 如果database_path为空或文件不存在，动态查找
+    LOGGER.warning(f"[下载数据库] database_path 无效，开始动态查找")
+    output_path = snapshot.get("output_path")
+    if not output_path:
+        LOGGER.error(f"[下载数据库] 任务 {job_id} 的 output_path 也为空")
+        return make_response(error_response("无法定位数据库文件：output_path 不存在"), 404)
+
+    output_dir = Path(output_path)
+    database_dir = output_dir / "database"
+    LOGGER.info(f"[下载数据库] 在 {database_dir} 目录查找数据库文件")
+
+    if database_dir.exists():
+        candidates = list(database_dir.glob("*.db"))
+        LOGGER.info(f"[下载数据库] 找到 {len(candidates)} 个 .db 文件: {candidates}")
+        if candidates:
+            db_file = candidates[0]
+            LOGGER.info(f"[下载数据库] 使用动态查找的文件: {db_file}")
+            return send_file(
+                db_file,
+                as_attachment=True,
+                download_name=f"analysis-{job_id}.db",
+                mimetype="application/octet-stream",
+            )
+
+    LOGGER.error(f"[下载数据库] 未找到数据库文件，output_path: {output_path}")
+    return make_response(error_response("数据库文件不存在"), 404)
 
 
 @bp.route("/assertion-generation", methods=["POST"])
