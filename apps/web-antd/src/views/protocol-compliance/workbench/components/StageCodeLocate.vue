@@ -164,7 +164,7 @@ const locateProgressSteps: LocateProgressStep[] = [
   {
     description: '运行 builder 容器，配置项目并抽取 LLVM bitcode。',
     key: 'builder-run',
-    label: '项目编译与 Bitcode 抽取',
+    label: '项目编译与 LLVM 中间表示提取',
     match: (line) =>
       line.stage === 'builder' &&
       (hasLogText(line, 'Running builder container image') ||
@@ -227,7 +227,7 @@ const locateProgressSteps: LocateProgressStep[] = [
   {
     description: '补全相关函数源码，生成最终代码切片证据。',
     key: 'code-slice',
-    label: '代码切片生成',
+    label: '相关代码定位',
     match: (line) =>
       hasLogText(line, 'Collect LLM responses for complete code'),
   },
