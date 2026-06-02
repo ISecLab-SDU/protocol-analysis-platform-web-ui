@@ -682,11 +682,11 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
             <Tag color="blue">{{ evidenceFunctionSlices.length }} 个函数</Tag>
           </div>
 
-          <div v-if="evidenceFunctionSlices.length > 0" class="function-source-list">
-            <article
+          <div v-if="evidenceFunctionSlices.length > 0" class="function-source-frame">
+            <section
               v-for="fn in evidenceFunctionSlices"
               :key="fn.name"
-              class="function-source-card"
+              class="function-source-section"
             >
               <div class="function-source-head">
                 <strong>{{ fn.name }}</strong>
@@ -703,7 +703,7 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
                   <span class="line-text">{{ row.text }}</span>
                 </div>
               </div>
-            </article>
+            </section>
           </div>
           <Empty
             v-else
@@ -1150,20 +1150,18 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
   color: #64748b;
 }
 
-.function-source-list {
-  display: flex;
-  max-height: 500px;
-  overflow: auto;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.function-source-card {
+.function-source-frame {
   min-width: 0;
+  max-height: 640px;
   overflow: hidden;
+  overflow-y: auto;
   background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
+}
+
+.function-source-section + .function-source-section {
+  border-top: 1px solid #dbe4ef;
 }
 
 .function-source-head {
