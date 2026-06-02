@@ -255,7 +255,7 @@ const rawLogLines = computed(() => {
 });
 
 const logLines = computed<LogLine[]>(() => {
-  return rawLogLines.value.slice(-220);
+  return rawLogLines.value;
 });
 
 const locateProgressSteps: LocateProgressStep[] = [
