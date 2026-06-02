@@ -92,10 +92,18 @@ const fuzzLogReadPosition = ref(0);
 const fuzzStats = reactive({
   executions: 0,
   paths: 0,
+  currentPath: 0,
+  pathsTotal: 0,
+  pendingTotal: 0,
+  pendingFavs: 0,
+  coverage: 0,
   crashes: 0,
   hangs: 0,
   cycles: 0,
   speed: 0,
+  maxDepth: 0,
+  nodes: 0,
+  edges: 0,
 });
 const fuzzSpeedSeries = ref<number[]>([]);
 
@@ -769,6 +777,77 @@ async function runAssertGenStep(runId: number) {
 function parseStatsLine(line: string) {
   const trimmed = line.trim();
   if (!trimmed) return;
+  const csvValues = trimmed
+    .replace(/^[^\[]*(?:\[\d{2}:\d{2}:\d{2}\])?\s*/, '')
+    .split(',')
+    .map((item) => item.trim());
+  if (
+    csvValues.length >= 13 &&
+    csvValues.every((item) => /^-?\d+(?:\.\d+)?%?$/.test(item))
+  ) {
+    const [
+      ,
+      cyclesDone,
+      curPath,
+      pathsTotal,
+      pendingTotal,
+      pendingFavs,
+      mapSize,
+      uniqueCrashes,
+      uniqueHangs,
+      maxDepth,
+      execsPerSec,
+      nodeCount,
+      edgeCount,
+    ] = csvValues;
+    const cyclesDoneValue = Number(cyclesDone);
+    const curPathValue = Number(curPath);
+    const pathsTotalValue = Number(pathsTotal);
+    const pendingTotalValue = Number(pendingTotal);
+    const pendingFavsValue = Number(pendingFavs);
+    const coverageValue = Number(mapSize.replace('%', ''));
+    const uniqueCrashesValue = Number(uniqueCrashes);
+    const uniqueHangsValue = Number(uniqueHangs);
+    const maxDepthValue = Number(maxDepth);
+    const execsPerSecValue = Number(execsPerSec);
+    const nodeCountValue = Number(nodeCount);
+    const edgeCountValue = Number(edgeCount);
+
+    if (Number.isFinite(cyclesDoneValue)) fuzzStats.cycles = cyclesDoneValue;
+    if (Number.isFinite(curPathValue)) fuzzStats.currentPath = curPathValue;
+    if (Number.isFinite(pathsTotalValue)) fuzzStats.pathsTotal = pathsTotalValue;
+    fuzzStats.paths = fuzzStats.pathsTotal || fuzzStats.paths;
+    if (Number.isFinite(pendingTotalValue)) fuzzStats.pendingTotal = pendingTotalValue;
+    if (Number.isFinite(pendingFavsValue)) fuzzStats.pendingFavs = pendingFavsValue;
+    if (Number.isFinite(coverageValue)) fuzzStats.coverage = coverageValue;
+    if (Number.isFinite(uniqueCrashesValue)) fuzzStats.crashes = uniqueCrashesValue;
+    if (Number.isFinite(uniqueHangsValue)) fuzzStats.hangs = uniqueHangsValue;
+    if (Number.isFinite(maxDepthValue)) fuzzStats.maxDepth = maxDepthValue;
+    if (Number.isFinite(execsPerSecValue)) fuzzStats.speed = execsPerSecValue;
+    if (Number.isFinite(nodeCountValue)) fuzzStats.nodes = nodeCountValue;
+    if (Number.isFinite(edgeCountValue)) fuzzStats.edges = edgeCountValue;
+    fuzzSpeedSeries.value.push(fuzzStats.speed);
+    if (fuzzSpeedSeries.value.length > 60) fuzzSpeedSeries.value.shift();
+    return;
+  }
+
+  const cycleMatch = trimmed.match(/cycles?(?:_done)?[^\d]*(\d+)/i);
+  if (cycleMatch?.[1]) {
+    const val = Number(cycleMatch[1]);
+    if (Number.isFinite(val) && val > fuzzStats.cycles) fuzzStats.cycles = val;
+  }
+
+  const pathPairMatch = trimmed.match(/paths?[^\d]*(\d+)\s*\/\s*(\d+)/i);
+  if (pathPairMatch?.[1] && pathPairMatch?.[2]) {
+    const current = Number(pathPairMatch[1]);
+    const total = Number(pathPairMatch[2]);
+    if (Number.isFinite(current)) fuzzStats.currentPath = current;
+    if (Number.isFinite(total) && total >= fuzzStats.pathsTotal) {
+      fuzzStats.pathsTotal = total;
+      fuzzStats.paths = total;
+    }
+  }
+
   const execMatch = trimmed.match(/execs?(?:_total|_per_sec)?[^\d]*(\d+(?:\.\d+)?)/i);
   if (execMatch?.[1]) {
     const val = Number(execMatch[1]);
@@ -779,7 +858,24 @@ function parseStatsLine(line: string) {
   const pathMatch = trimmed.match(/paths?(?:_total)?[^\d]*(\d+)/i);
   if (pathMatch?.[1]) {
     const val = Number(pathMatch[1]);
-    if (Number.isFinite(val) && val > fuzzStats.paths) fuzzStats.paths = val;
+    if (!pathPairMatch && Number.isFinite(val) && val > fuzzStats.paths) {
+      fuzzStats.paths = val;
+      fuzzStats.pathsTotal = Math.max(fuzzStats.pathsTotal, val);
+    }
+  }
+  const pendingMatch = trimmed.match(/pending[^\d]*(\d+)(?:\s*\(\s*(\d+)\s*favs?\s*\))?/i);
+  if (pendingMatch?.[1]) {
+    const val = Number(pendingMatch[1]);
+    if (Number.isFinite(val)) fuzzStats.pendingTotal = val;
+  }
+  if (pendingMatch?.[2]) {
+    const val = Number(pendingMatch[2]);
+    if (Number.isFinite(val)) fuzzStats.pendingFavs = val;
+  }
+  const coverageMatch = trimmed.match(/(?:coverage|map_size)[^\d]*(\d+(?:\.\d+)?)/i);
+  if (coverageMatch?.[1]) {
+    const val = Number(coverageMatch[1]);
+    if (Number.isFinite(val)) fuzzStats.coverage = val;
   }
   const crashMatch = trimmed.match(/(?:unique_)?crash(?:es)?[^\d]*(\d+)/i);
   if (crashMatch?.[1]) {
@@ -800,10 +896,20 @@ function parseStatsLine(line: string) {
       if (fuzzSpeedSeries.value.length > 60) fuzzSpeedSeries.value.shift();
     }
   }
-  const cycleMatch = trimmed.match(/cycles?(?:_done)?[^\d]*(\d+)/i);
-  if (cycleMatch?.[1]) {
-    const val = Number(cycleMatch[1]);
-    if (Number.isFinite(val) && val > fuzzStats.cycles) fuzzStats.cycles = val;
+  const depthMatch = trimmed.match(/(?:max_depth|max\s*depth|depth)[^\d]*(\d+)/i);
+  if (depthMatch?.[1]) {
+    const val = Number(depthMatch[1]);
+    if (Number.isFinite(val) && val > fuzzStats.maxDepth) fuzzStats.maxDepth = val;
+  }
+  const nodesMatch = trimmed.match(/nodes?[^\d]*(\d+)/i);
+  if (nodesMatch?.[1]) {
+    const val = Number(nodesMatch[1]);
+    if (Number.isFinite(val)) fuzzStats.nodes = val;
+  }
+  const edgesMatch = trimmed.match(/edges?[^\d]*(\d+)/i);
+  if (edgesMatch?.[1]) {
+    const val = Number(edgesMatch[1]);
+    if (Number.isFinite(val)) fuzzStats.edges = val;
   }
 }
 
@@ -827,9 +933,9 @@ async function readFuzzLogs() {
         if (!line.trim()) continue;
         let level: 'INFO' | 'ERROR' | 'WARN' | 'STATS' = 'INFO';
         const lower = line.toLowerCase();
-        if (lower.includes('crash') || lower.includes('error') || lower.includes('fatal')) level = 'ERROR';
+        if (/stats|execs|paths|coverage|cycles|pending|nodes|edges/i.test(line)) level = 'STATS';
+        else if (lower.includes('crash') || lower.includes('error') || lower.includes('fatal')) level = 'ERROR';
         else if (lower.includes('warn')) level = 'WARN';
-        else if (/stats|execs|paths|coverage|cycles/i.test(line)) level = 'STATS';
         appendFuzzLog(line, level);
         if (level === 'STATS') parseStatsLine(line);
       }
@@ -845,7 +951,22 @@ async function runFuzzStep(runId: number) {
   setStage('fuzz', 'running', '写入 Fuzz 脚本…');
   fuzzLogs.value = [];
   fuzzLogReadPosition.value = 0;
-  Object.assign(fuzzStats, { executions: 0, paths: 0, crashes: 0, hangs: 0, cycles: 0, speed: 0 });
+  Object.assign(fuzzStats, {
+    executions: 0,
+    paths: 0,
+    currentPath: 0,
+    pathsTotal: 0,
+    pendingTotal: 0,
+    pendingFavs: 0,
+    coverage: 0,
+    crashes: 0,
+    hangs: 0,
+    cycles: 0,
+    speed: 0,
+    maxDepth: 0,
+    nodes: 0,
+    edges: 0,
+  });
   fuzzSpeedSeries.value = [];
   await nextTick();
   if (!isCurrentPipelineRun(runId)) return;
@@ -960,7 +1081,22 @@ function resetWorkbench() {
   fuzzContainerId.value = null;
   fuzzLogs.value = [];
   fuzzLogReadPosition.value = 0;
-  Object.assign(fuzzStats, { executions: 0, paths: 0, crashes: 0, hangs: 0, cycles: 0, speed: 0 });
+  Object.assign(fuzzStats, {
+    executions: 0,
+    paths: 0,
+    currentPath: 0,
+    pathsTotal: 0,
+    pendingTotal: 0,
+    pendingFavs: 0,
+    coverage: 0,
+    crashes: 0,
+    hangs: 0,
+    cycles: 0,
+    speed: 0,
+    maxDepth: 0,
+    nodes: 0,
+    edges: 0,
+  });
   fuzzSpeedSeries.value = [];
   errorMessage.value = null;
   stageMessage.value = '请先在“项目设置”中上传所需文件';

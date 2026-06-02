@@ -42,6 +42,55 @@ function getLogClass(level: LogEntry['level']) {
   };
 }
 
+function getTimestamp(text: string) {
+  return text.match(/\[(\d{2}:\d{2}:\d{2})\]/)?.[1] || '--:--:--';
+}
+
+function getPlainLogText(text: string) {
+  return text
+    .replace(/^[^\[]*(?=\[\d{2}:\d{2}:\d{2}\])/, '')
+    .replace(/\[\d{2}:\d{2}:\d{2}\]\s*/, '')
+    .trim();
+}
+
+function getStatsLabel(label: string) {
+  const key = label.toLowerCase();
+  if (key.includes('cycle')) return '轮次';
+  if (key.includes('path')) return '路径';
+  if (key.includes('pending')) return '待处理';
+  if (key.includes('coverage')) return '覆盖率';
+  if (key.includes('crash')) return '崩溃';
+  if (key.includes('hang')) return '挂起';
+  if (key.includes('speed')) return '速度';
+  if (key.includes('node')) return '状态节点';
+  if (key.includes('edge')) return '状态转换';
+  return label;
+}
+
+function getStatsItems(text: string) {
+  const source = getPlainLogText(text);
+  const parts = source
+    .split('|')
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  return parts
+    .map((part) => {
+      const match = part.match(/^([^:]+):\s*(.+)$/);
+      if (!match) return null;
+      const label = match[1].trim();
+      const value = match[2].trim();
+      const key = label.toLowerCase();
+      let tone = 'neutral';
+      if (key.includes('crash')) tone = 'danger';
+      else if (key.includes('hang') || key.includes('pending')) tone = 'warn';
+      else if (key.includes('coverage') || key.includes('speed')) tone = 'success';
+      else if (key.includes('path')) tone = 'primary';
+      return { label: getStatsLabel(label), tone, value };
+    })
+    .filter(Boolean) as Array<{ label: string; tone: string; value: string }>;
+}
+
 watch(
   () => props.logs.length,
   (newLength, oldLength) => {
@@ -61,8 +110,25 @@ onMounted(scrollToBottom);
         class="log-row"
         :class="getLogClass(log.level)"
       >
-        <span class="log-level">{{ log.level }}</span>
-        <span class="log-text">{{ log.text }}</span>
+        <span class="log-time">[{{ getTimestamp(log.text) }}]</span>
+        <template v-if="log.level === 'STATS' && getStatsItems(log.text).length > 0">
+          <span class="log-level">STATS</span>
+          <span class="log-stats">
+            <span
+              v-for="item in getStatsItems(log.text)"
+              :key="`${log.id}-${item.label}`"
+              class="stat-chip"
+              :class="`stat-chip--${item.tone}`"
+            >
+              <span class="stat-chip-label">{{ item.label }}</span>
+              <span class="stat-chip-value">{{ item.value }}</span>
+            </span>
+          </span>
+        </template>
+        <template v-else>
+          <span class="log-level">{{ log.level }}</span>
+          <span class="log-text">{{ getPlainLogText(log.text) }}</span>
+        </template>
       </div>
 
       <div v-if="logs.length === 0" class="log-empty">
@@ -76,8 +142,8 @@ onMounted(scrollToBottom);
 <style scoped>
 .protocol-log-viewer {
   overflow: hidden;
-  background: #0f172a;
-  border: 1px solid rgb(15 23 42 / 8%);
+  background: #fff;
+  border: 1px solid #e5e7eb;
   border-radius: 8px;
 }
 
@@ -90,24 +156,33 @@ onMounted(scrollToBottom);
     monospace;
   font-size: 12px;
   line-height: 1.55;
+  background: #fff;
 }
 
 .log-row {
   display: grid;
-  grid-template-columns: 58px minmax(0, 1fr);
+  grid-template-columns: 82px 54px minmax(0, 1fr);
   gap: 10px;
-  padding: 3px 6px;
-  color: #dbeafe;
-  border-radius: 4px;
+  align-items: start;
+  padding: 5px 6px;
+  color: #334155;
+  border-bottom: 1px solid #f1f5f9;
+  border-radius: 0;
 }
 
 .log-row + .log-row {
-  margin-top: 2px;
+  margin-top: 0;
+}
+
+.log-time {
+  color: #64748b;
+  white-space: nowrap;
 }
 
 .log-level {
   font-weight: 700;
-  color: #93c5fd;
+  color: #1677ff;
+  white-space: nowrap;
 }
 
 .log-text {
@@ -117,33 +192,98 @@ onMounted(scrollToBottom);
 }
 
 .log-row--error {
-  color: #fecaca;
-  background: rgb(248 113 113 / 12%);
+  color: #991b1b;
+  background: #fff7f7;
 }
 
 .log-row--error .log-level {
-  color: #fca5a5;
+  color: #ef4444;
 }
 
 .log-row--warn {
-  color: #fde68a;
-  background: rgb(245 158 11 / 12%);
+  color: #92400e;
+  background: #fffbeb;
 }
 
 .log-row--warn .log-level {
-  color: #fbbf24;
+  color: #d97706;
 }
 
 .log-row--stats {
-  color: #bbf7d0;
+  color: #334155;
+  background: #fbfdff;
 }
 
 .log-row--stats .log-level {
-  color: #86efac;
+  color: #0ea5e9;
 }
 
 .log-row--info .log-level {
-  color: #93c5fd;
+  color: #1677ff;
+}
+
+.log-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.stat-chip {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  min-height: 24px;
+  padding: 2px 8px;
+  color: #475569;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+
+.stat-chip-label {
+  color: #64748b;
+}
+
+.stat-chip-value {
+  font-weight: 800;
+  color: #172033;
+}
+
+.stat-chip--primary {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.stat-chip--primary .stat-chip-value {
+  color: #2563eb;
+}
+
+.stat-chip--success {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.stat-chip--success .stat-chip-value {
+  color: #16a34a;
+}
+
+.stat-chip--warn {
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.stat-chip--warn .stat-chip-value {
+  color: #d97706;
+}
+
+.stat-chip--danger {
+  background: #fff1f2;
+  border-color: #fecdd3;
+}
+
+.stat-chip--danger .stat-chip-value {
+  color: #e11d48;
 }
 
 .log-empty {

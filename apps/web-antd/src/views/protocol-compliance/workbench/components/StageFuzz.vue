@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
-import { Card, Empty, Tag } from 'ant-design-vue';
+import { Card, Tag } from 'ant-design-vue';
 import { IconifyIcon } from '@vben/icons';
 
 import type { ProtocolExtractRuleItem } from '#/api/protocol-compliance';
@@ -23,72 +23,63 @@ interface Props {
   running: boolean;
   speedSeries: number[];
   stats: {
+    coverage?: number;
     crashes: number;
+    currentPath?: number;
     cycles: number;
+    edges?: number;
     executions: number;
     hangs: number;
+    maxDepth?: number;
+    nodes?: number;
     paths: number;
+    pathsTotal?: number;
+    pendingFavs?: number;
+    pendingTotal?: number;
     speed: number;
   };
 }
 
 const props = defineProps<Props>();
 
-const sparkPath = computed(() => {
-  if (props.speedSeries.length === 0) return '';
-  const max = Math.max(...props.speedSeries, 1);
-  const w = 220;
-  const h = 72;
-  const stepX = w / Math.max(props.speedSeries.length - 1, 1);
-  return props.speedSeries
-    .map((v, i) => {
-      const x = i * stepX;
-      const y = h - (v / max) * (h - 10) - 5;
-      return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
-    })
-    .join(' ');
-});
-
-const latestPointY = computed(() => {
-  if (props.speedSeries.length === 0) return 72;
-  const latest = props.speedSeries[props.speedSeries.length - 1] ?? 0;
-  const max = Math.max(...props.speedSeries, 1);
-  return 72 - (latest / max) * 62 - 5;
-});
-
-const errorLogs = computed(() => props.logs.filter((log) => log.level === 'ERROR'));
-const warnLogs = computed(() => props.logs.filter((log) => log.level === 'WARN'));
-
-const violationCount = computed(() => props.stats.crashes + errorLogs.value.length);
-const warningCount = computed(() => props.stats.hangs + warnLogs.value.length);
-const compliantCount = computed(() => {
-  if (props.stats.executions <= 0) return 0;
-  return violationCount.value === 0 ? 1 : 0;
-});
-const unknownCount = computed(() => (props.logs.length === 0 ? 1 : 0));
-
 const fuzzerName = computed(() => {
-  if (props.protocolType === 'MQTT' && props.implementation === 'SOL') return 'AFLNet';
+  if (props.protocolType === 'MQTT' && props.implementation === 'SOL') return 'SOLAFLNET';
   if (props.protocolType === 'MQTT') return 'MBFuzzer';
   return 'AFLNet';
 });
 
-const resultRows = computed(() => {
-  return [...errorLogs.value, ...warnLogs.value].slice(-4).map((log, index) => {
-    const seedMatch = log.text.match(/(?:seed|queue|id)[:=_-]?([A-Za-z0-9_.-]+)/i);
-    const locationMatch = log.text.match(/([A-Za-z0-9_./-]+\.[ch](?:c|pp)?):(\d+)/i);
-    return {
-      description: log.text,
-      expected: props.rule?.rule || '应满足当前协议规则',
-      id: `F-${String(index + 1).padStart(3, '0')}`,
-      input: seedMatch?.[1] || '-',
-      location: locationMatch ? `${locationMatch[1]}:${locationMatch[2]}` : '-',
-      observed: log.level === 'ERROR' ? '异常或崩溃' : '边界行为',
-      severity: log.level === 'ERROR' ? 'High' : 'Medium',
-      time: props.elapsed,
-    };
-  });
+const totalPaths = computed(() => props.stats.pathsTotal || props.stats.paths || 0);
+const currentPath = computed(() => props.stats.currentPath || 0);
+const pendingTotal = computed(() => props.stats.pendingTotal ?? Math.max(totalPaths.value - currentPath.value, 0));
+const pendingFavs = computed(() => props.stats.pendingFavs ?? 0);
+const coverage = computed(() => props.stats.coverage ?? 0);
+const nodes = computed(() => props.stats.nodes ?? 0);
+const edges = computed(() => props.stats.edges ?? 0);
+const maxDepth = computed(() => props.stats.maxDepth ?? 0);
+const maxDepthDisplay = computed(() => (maxDepth.value > 0 ? String(maxDepth.value) : '-'));
+
+const latestStatsLine = computed(() => {
+  return [...props.logs].reverse().find((log) => log.level === 'STATS')?.text || '';
 });
+
+const pathProgress = computed(() => {
+  if (totalPaths.value <= 0) return 0;
+  return Math.min(100, Math.round((currentPath.value / totalPaths.value) * 100));
+});
+
+const monitorStatusText = computed(() => {
+  if (props.running) return '运行中';
+  if (props.logs.length > 0) return '已停止';
+  return '待启动';
+});
+
+function formatNumber(value: number) {
+  return value.toLocaleString();
+}
+
+function formatRate(value: number) {
+  return value.toFixed(1);
+}
 </script>
 
 <template>
@@ -96,148 +87,141 @@ const resultRows = computed(() => {
     <template #title>
       <div class="stage-title">
         <IconifyIcon icon="mdi:radar" />
-        <span>验证结果</span>
-        <small>当前规则</small>
+        <span>模糊测试阶段</span>
+        <small>{{ fuzzerName }}</small>
       </div>
     </template>
     <template #extra>
       <Tag v-if="running" color="processing">运行中</Tag>
-      <Tag v-else color="default">已停止</Tag>
+      <Tag v-else color="default">待启动</Tag>
     </template>
 
-    <div class="fuzz-layout">
-      <section class="validation-panel">
-        <div class="result-cards">
-          <div class="result-card result-card--danger">
-            <IconifyIcon icon="mdi:shield-alert-outline" />
-            <div>
-              <div class="result-label">发现违规</div>
-              <div class="result-value">{{ violationCount }}</div>
-            </div>
+    <div class="fuzz-dashboard">
+      <section class="panel panel--logs">
+        <div class="panel-header">
+          <div>
+            <h3>Fuzz过程</h3>
+            <p>{{ latestStatsLine ? '实时解析 AFLNet 状态输出' : '等待 Fuzzer 输出运行状态' }}</p>
           </div>
-          <div class="result-card result-card--warn">
-            <IconifyIcon icon="mdi:alert-outline" />
-            <div>
-              <div class="result-label">警告</div>
-              <div class="result-value">{{ warningCount }}</div>
-            </div>
+        </div>
+        <ProtocolLogViewer :logs="logs" :running="running" />
+      </section>
+
+      <aside class="panel panel--monitor">
+        <div class="panel-header panel-header--compact">
+          <h3>运行监控</h3>
+          <Tag :color="running ? 'processing' : 'default'">{{ monitorStatusText }}</Tag>
+        </div>
+
+        <div class="alert-metrics">
+          <div class="metric-tile metric-tile--danger">
+            <strong>{{ formatNumber(stats.crashes) }}</strong>
+            <span>崩溃数</span>
+            <small>Crashes</small>
           </div>
-          <div class="result-card result-card--ok">
-            <IconifyIcon icon="mdi:check-circle-outline" />
-            <div>
-              <div class="result-label">合规</div>
-              <div class="result-value">{{ compliantCount }}</div>
-            </div>
-          </div>
-          <div class="result-card result-card--unknown">
-            <IconifyIcon icon="mdi:help-circle-outline" />
-            <div>
-              <div class="result-label">未判定</div>
-              <div class="result-value">{{ unknownCount }}</div>
-            </div>
+          <div class="metric-tile metric-tile--warn">
+            <strong>{{ formatNumber(stats.hangs) }}</strong>
+            <span>挂起数</span>
+            <small>Hangs</small>
           </div>
         </div>
 
-        <div class="finding-table">
-          <table v-if="resultRows.length > 0">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>严重性</th>
-                <th>违规描述</th>
-                <th>观测值</th>
-                <th>期望约束</th>
-                <th>触发输入</th>
-                <th>发现位置</th>
-                <th>时间</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="row in resultRows" :key="row.id">
-                <td>{{ row.id }}</td>
-                <td>
-                  <span
-                    class="severity-pill"
-                    :class="row.severity === 'High' ? 'severity-pill--high' : 'severity-pill--medium'"
-                  >
-                    {{ row.severity }}
-                  </span>
-                </td>
-                <td>{{ row.description }}</td>
-                <td>{{ row.observed }}</td>
-                <td>{{ row.expected }}</td>
-                <td class="mono">{{ row.input }}</td>
-                <td class="mono">{{ row.location }}</td>
-                <td>{{ row.time }}</td>
-              </tr>
-            </tbody>
-          </table>
-          <Empty
-            v-else
-            description="暂无违规记录，等待模糊测试发现可复现证据"
-            :image="Empty.PRESENTED_IMAGE_SIMPLE"
-          />
+        <div class="status-card">
+          <span>监控状态</span>
+          <strong>{{ monitorStatusText }}</strong>
+        </div>
+      </aside>
+
+      <section class="panel panel--sol">
+        <div class="panel-header">
+          <div>
+            <h3>{{ fuzzerName }}模糊测试</h3>
+            <p>{{ rule?.rule || '基于当前协议约束持续发现异常路径' }}</p>
+          </div>
+        </div>
+
+        <div class="sol-grid">
+          <div class="overview-card overview-card--blue">
+            <strong>{{ formatNumber(totalPaths) }}</strong>
+            <span>总路径数</span>
+            <small>Total Paths</small>
+          </div>
+          <div class="overview-card overview-card--green">
+            <strong>{{ formatNumber(currentPath) }}</strong>
+            <span>当前路径</span>
+            <small>Current Path</small>
+          </div>
+          <div class="overview-card overview-card--gold">
+            <strong>{{ formatNumber(pendingTotal) }}</strong>
+            <span>待处理</span>
+            <small>Pending</small>
+          </div>
+          <div class="overview-card overview-card--purple">
+            <strong>{{ formatNumber(pendingFavs) }}</strong>
+            <span>优先路径</span>
+            <small>Favored</small>
+          </div>
+        </div>
+
+        <div class="topology-card">
+          <div class="topology-title">协议状态机拓扑</div>
+          <div class="topology-body">
+            <div class="topology-node topology-node--primary">{{ nodes }}</div>
+            <div class="topology-line"></div>
+            <div class="topology-node topology-node--success">{{ edges }}</div>
+          </div>
+          <div class="topology-caption">{{ nodes }} 个状态节点 · {{ edges }} 个状态转换</div>
+          <div class="topology-footer">
+            <div>
+              <strong>{{ maxDepthDisplay }}</strong>
+              <span>最大深度</span>
+            </div>
+            <div>
+              <strong>{{ coverage.toFixed(2) }}%</strong>
+              <span>覆盖率</span>
+            </div>
+          </div>
         </div>
       </section>
 
-      <aside class="monitor-panel">
-        <div class="monitor-title">运行监控</div>
-        <dl class="monitor-list">
+      <aside class="panel panel--realtime">
+        <div class="panel-header">
           <div>
-            <dt>Fuzzer</dt>
-            <dd>{{ fuzzerName }}</dd>
+            <h3>实时统计</h3>
+            <p>当前执行路径</p>
           </div>
-          <div>
-            <dt>运行时长</dt>
-            <dd>{{ elapsed }}</dd>
-          </div>
-          <div>
-            <dt>执行次数</dt>
-            <dd>{{ stats.executions.toLocaleString() }}</dd>
-          </div>
-          <div>
-            <dt>路径数</dt>
-            <dd>{{ stats.paths.toLocaleString() }}</dd>
-          </div>
-          <div>
-            <dt>Crash</dt>
-            <dd>{{ stats.crashes }}</dd>
-          </div>
-          <div>
-            <dt>Hang</dt>
-            <dd>{{ stats.hangs }}</dd>
-          </div>
-        </dl>
+          <strong class="path-index">#{{ currentPath || '-' }}</strong>
+        </div>
 
-        <div class="speed-chart">
-          <svg viewBox="0 0 220 96" class="chart-svg">
-            <line x1="0" x2="220" y1="85" y2="85" class="chart-grid" />
-            <line x1="0" x2="220" y1="56" y2="56" class="chart-grid" />
-            <line x1="0" x2="220" y1="27" y2="27" class="chart-grid" />
-            <path v-if="sparkPath" :d="sparkPath" class="chart-line" />
-            <circle
-              v-if="sparkPath && speedSeries.length > 0"
-              cx="216"
-              :cy="latestPointY"
-              r="3"
-              class="chart-dot"
-            />
-          </svg>
-          <div class="chart-caption">
-            <span>0</span>
-            <span>{{ stats.speed.toFixed(1) }} /s</span>
+        <div class="progress-copy">{{ currentPath }} / {{ totalPaths }} 路径</div>
+        <div class="progress-track">
+          <div class="progress-fill" :style="{ width: `${pathProgress}%` }"></div>
+        </div>
+
+        <div class="runtime-grid">
+          <div class="runtime-tile runtime-tile--blue">
+            <span>执行速度</span>
+            <strong>{{ formatRate(stats.speed) }}</strong>
+            <small>exec/sec</small>
+          </div>
+          <div class="runtime-tile runtime-tile--green">
+            <span>运行时长</span>
+            <strong>{{ elapsed }}</strong>
+            <small>Duration</small>
+          </div>
+          <div class="runtime-tile runtime-tile--danger">
+            <span>崩溃数</span>
+            <strong>{{ formatNumber(stats.crashes) }}</strong>
+            <small>crashes</small>
+          </div>
+          <div class="runtime-tile runtime-tile--gold">
+            <span>挂起数</span>
+            <strong>{{ formatNumber(stats.hangs) }}</strong>
+            <small>hangs</small>
           </div>
         </div>
       </aside>
     </div>
-
-    <section class="log-panel">
-      <div class="log-heading">
-        <IconifyIcon icon="mdi:console-line" />
-        <span>实时日志</span>
-      </div>
-      <ProtocolLogViewer :logs="logs" :running="running" />
-    </section>
   </Card>
 </template>
 
@@ -266,240 +250,358 @@ const resultRows = computed(() => {
   color: var(--ant-color-text-secondary);
 }
 
-.fuzz-layout {
+.fuzz-dashboard {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-columns: minmax(0, 1fr) 360px;
   gap: 18px;
 }
 
-.validation-panel,
-.monitor-panel,
-.log-panel {
-  border: 1px solid var(--ant-color-border-secondary);
-  border-radius: 8px;
-}
-
-.validation-panel {
+.panel {
   min-width: 0;
-  padding: 16px;
-}
-
-.result-cards {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(120px, 1fr));
-  gap: 12px;
-  margin-bottom: 18px;
-}
-
-.result-card {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  min-height: 72px;
-  padding: 14px;
-  border: 1px solid transparent;
-  border-radius: 8px;
-}
-
-.result-card :first-child {
-  flex: none;
-  font-size: 26px;
-}
-
-.result-card--danger {
-  color: #dc2626;
-  background: #fff5f5;
-  border-color: #ffe0e0;
-}
-
-.result-card--warn {
-  color: #d97706;
-  background: #fffaf0;
-  border-color: #ffe8b3;
-}
-
-.result-card--ok {
-  color: #0f9f6e;
-  background: #f0fdf4;
-  border-color: #c7f3d8;
-}
-
-.result-card--unknown {
-  color: #334155;
-  background: #f8fafc;
-  border-color: #e2e8f0;
-}
-
-.result-label {
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.result-value {
-  margin-top: 2px;
-  font-size: 24px;
-  font-weight: 800;
-  line-height: 1;
-}
-
-.finding-table {
-  overflow: auto;
-  border: 1px solid var(--ant-color-border-secondary);
-  border-radius: 8px;
-}
-
-.finding-table table {
-  width: 100%;
-  min-width: 860px;
-  border-collapse: collapse;
-  font-size: 12px;
-}
-
-.finding-table th {
-  padding: 10px 12px;
-  font-weight: 700;
-  color: #475569;
-  text-align: left;
-  white-space: nowrap;
-  background: #f8fafc;
-  border-bottom: 1px solid var(--ant-color-border-secondary);
-}
-
-.finding-table td {
-  max-width: 260px;
-  padding: 12px;
-  overflow: hidden;
-  color: #172033;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  border-bottom: 1px solid var(--ant-color-border-secondary);
-}
-
-.finding-table tr:last-child td {
-  border-bottom: 0;
-}
-
-.severity-pill {
-  display: inline-flex;
-  align-items: center;
-  height: 22px;
-  padding: 0 8px;
-  font-size: 12px;
-  font-weight: 700;
-  border-radius: 999px;
-}
-
-.severity-pill--high {
-  color: #e11d48;
-  background: #fff1f2;
-}
-
-.severity-pill--medium {
-  color: #b45309;
-  background: #fffbeb;
-}
-
-.mono {
-  font-family:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
-    monospace;
-}
-
-.monitor-panel {
   padding: 18px;
   background: #fff;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
 }
 
-.monitor-title {
-  margin-bottom: 16px;
-  font-size: 16px;
-  font-weight: 700;
-}
-
-.monitor-list {
+.panel-header {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 0;
-}
-
-.monitor-list > div {
-  display: flex;
-  justify-content: space-between;
   gap: 16px;
-}
-
-.monitor-list dt {
-  color: #475569;
-}
-
-.monitor-list dd {
-  margin: 0;
-  font-weight: 700;
-  color: #172033;
-  text-align: right;
-}
-
-.speed-chart {
-  margin-top: 18px;
-}
-
-.chart-svg {
-  width: 100%;
-  height: 112px;
-}
-
-.chart-grid {
-  stroke: #e2e8f0;
-  stroke-dasharray: 3 4;
-}
-
-.chart-line {
-  fill: none;
-  stroke: #1677ff;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 3;
-}
-
-.chart-dot {
-  fill: #1677ff;
-}
-
-.chart-caption {
-  display: flex;
+  align-items: flex-start;
   justify-content: space-between;
-  margin-top: -8px;
+  margin-bottom: 16px;
+}
+
+.panel-header--compact {
+  align-items: center;
+}
+
+.panel-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: #172033;
+}
+
+.panel-header p {
+  margin: 6px 0 0;
   font-size: 12px;
   color: #64748b;
 }
 
-.log-panel {
-  margin-top: 18px;
+.panel--logs :deep(.log-scroll) {
+  height: 300px;
+}
+
+.alert-metrics,
+.sol-grid,
+.runtime-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.alert-metrics {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.metric-tile,
+.overview-card,
+.runtime-tile {
+  min-width: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+}
+
+.metric-tile {
+  min-height: 96px;
+  padding: 18px 14px;
+  text-align: center;
+}
+
+.metric-tile strong,
+.overview-card strong,
+.runtime-tile strong {
+  display: block;
+  overflow: hidden;
+  font-weight: 900;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metric-tile strong {
+  font-size: 30px;
+}
+
+.metric-tile span,
+.overview-card span,
+.runtime-tile span {
+  display: block;
+  margin-top: 8px;
+  font-size: 13px;
+  color: #475569;
+}
+
+.metric-tile small,
+.overview-card small,
+.runtime-tile small {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.metric-tile--danger,
+.runtime-tile--danger {
+  background: #fff5f7;
+  border-color: #fecdd3;
+}
+
+.metric-tile--danger strong,
+.runtime-tile--danger strong {
+  color: #e11d48;
+}
+
+.metric-tile--warn {
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.metric-tile--warn strong {
+  color: #d69e2e;
+}
+
+.status-card {
+  display: grid;
+  gap: 6px;
   padding: 16px;
+  margin-top: 18px;
+  color: #475569;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
 }
 
-.log-heading {
+.status-card strong {
+  color: #172033;
+}
+
+.panel--sol {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 1fr);
+  gap: 18px;
+}
+
+.panel--sol .panel-header {
+  grid-column: 1 / -1;
+  margin-bottom: 0;
+}
+
+.sol-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.overview-card {
+  min-height: 104px;
+  padding: 20px 16px;
+  text-align: center;
+}
+
+.overview-card strong {
+  font-size: 32px;
+}
+
+.overview-card--blue {
+  background: #eff6ff;
+  border-color: #dbeafe;
+}
+
+.runtime-tile--blue {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.overview-card--blue strong,
+.runtime-tile--blue strong {
+  color: #2563eb;
+}
+
+.overview-card--green,
+.runtime-tile--green {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.overview-card--green strong,
+.runtime-tile--green strong {
+  color: #22c55e;
+}
+
+.overview-card--gold,
+.runtime-tile--gold {
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.overview-card--gold strong,
+.runtime-tile--gold strong {
+  color: #d69e2e;
+}
+
+.overview-card--purple {
+  background: #faf5ff;
+  border-color: #e9d5ff;
+}
+
+.overview-card--purple strong {
+  color: #9333ea;
+}
+
+.topology-card {
   display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-bottom: 12px;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 220px;
+  padding: 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.topology-title {
+  font-size: 14px;
   font-weight: 700;
+  color: #475569;
+  text-align: center;
 }
 
-.log-heading :first-child {
-  color: #1677ff;
+.topology-body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 96px;
+  margin-top: 10px;
+  background: #f8fafc;
+  border-radius: 8px;
 }
 
-@media (max-width: 1200px) {
-  .fuzz-layout {
+.topology-node {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  font-weight: 900;
+  color: #fff;
+  border-radius: 999px;
+}
+
+.topology-node--primary {
+  background: #3b82f6;
+}
+
+.topology-node--success {
+  background: #4ade80;
+}
+
+.topology-line {
+  width: 52px;
+  height: 2px;
+  background: #cbd5e1;
+}
+
+.topology-caption {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #2563eb;
+  text-align: center;
+}
+
+.topology-footer {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.topology-footer > div {
+  padding: 10px;
+  text-align: center;
+  background: #f8fafc;
+  border-radius: 6px;
+}
+
+.topology-footer strong {
+  display: block;
+  font-size: 14px;
+  color: #2563eb;
+}
+
+.topology-footer span {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.path-index {
+  font-size: 18px;
+  color: #475569;
+}
+
+.progress-copy {
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.progress-track {
+  height: 8px;
+  overflow: hidden;
+  background: #e5e7eb;
+  border-radius: 999px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: #2563eb;
+  border-radius: inherit;
+  transition: width 180ms ease;
+}
+
+.runtime-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 20px;
+}
+
+.runtime-tile {
+  min-height: 92px;
+  padding: 14px;
+}
+
+.runtime-tile strong {
+  margin-top: 8px;
+  font-size: 26px;
+}
+
+@media (max-width: 1280px) {
+  .fuzz-dashboard {
+    grid-template-columns: 1fr;
+  }
+
+  .panel--sol {
     grid-template-columns: 1fr;
   }
 }
 
-@media (max-width: 860px) {
-  .result-cards {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+@media (max-width: 760px) {
+  .alert-metrics,
+  .runtime-grid,
+  .sol-grid,
+  .topology-footer {
+    grid-template-columns: 1fr;
+  }
+
+  .panel {
+    padding: 14px;
   }
 }
 </style>
