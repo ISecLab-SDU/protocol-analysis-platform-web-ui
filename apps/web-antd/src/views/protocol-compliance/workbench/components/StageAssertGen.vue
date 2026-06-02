@@ -105,13 +105,13 @@ const hasContent = computed(() => {
   return Boolean(props.logText || props.diffContent || props.running || props.result);
 });
 
-const generatedAssertionCount = computed(() => props.result?.assertionCount ?? 0);
 const effectiveDiffContent = computed(() => {
-  return (
+  const rawContent =
     props.diffContent ||
     props.result?.instrumentation?.artifacts?.diffOutput?.content ||
-    extractDiffContentFromLog(props.logText)
-  ).trimEnd();
+    extractDiffContentFromLog(props.logText);
+
+  return normalizeDiffContent(rawContent);
 });
 
 const modifiedFileCount = computed(() => {
@@ -391,6 +391,19 @@ function extractDiffContentFromLog(logText: string) {
   return diffLines.join('\n');
 }
 
+function normalizeDiffContent(content: string) {
+  const normalized = content.trimEnd();
+  const diffStartIndex = normalized.search(/^diff --git\s+/m);
+  if (diffStartIndex >= 0) return normalized.slice(diffStartIndex).trimEnd();
+
+  const detailedDiffMatch = normalized.match(/^Detailed Diff:\s*$/m);
+  if (detailedDiffMatch?.index !== undefined) {
+    return normalized.slice(detailedDiffMatch.index + detailedDiffMatch[0].length).trim();
+  }
+
+  return normalized;
+}
+
 function classifyDiffLine(text: string): RenderedDiffLine['type'] {
   if (text.startsWith('diff --git') || text.startsWith('index ')) return 'meta';
   if (text.startsWith('@@')) return 'hunk';
@@ -417,21 +430,6 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
     </template>
 
     <div v-if="hasContent" class="assert-container">
-      <section v-if="result" class="result-strip">
-        <div class="result-metric">
-          <span>断言任务</span>
-          <strong>{{ generatedAssertionCount }}</strong>
-        </div>
-        <div class="result-metric">
-          <span>修改文件</span>
-          <strong>{{ modifiedFileCount }}</strong>
-        </div>
-        <div class="result-metric result-metric--wide">
-          <span>任务编号</span>
-          <code>{{ result.jobId }}</code>
-        </div>
-      </section>
-
       <section class="assert-observe-grid">
         <section class="assert-log-panel">
           <div class="panel-head">
@@ -540,46 +538,6 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(360px, 0.75fr);
   gap: 16px;
-}
-
-.result-strip {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(120px, 0.18fr)) minmax(0, 1fr);
-  gap: 12px;
-}
-
-.result-metric {
-  min-width: 0;
-  padding: 14px;
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-left: 4px solid #1677ff;
-  border-radius: 8px;
-}
-
-.result-metric span {
-  display: block;
-  margin-bottom: 5px;
-  font-size: 12px;
-  color: #64748b;
-}
-
-.result-metric strong {
-  font-size: 22px;
-  font-weight: 800;
-  color: #111827;
-}
-
-.result-metric code {
-  display: block;
-  min-width: 0;
-  overflow: hidden;
-  font-size: 13px;
-  font-weight: 700;
-  color: #334155;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  background: transparent;
 }
 
 .assert-log-panel,
@@ -815,10 +773,6 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
 }
 
 @media (max-width: 960px) {
-  .result-strip {
-    grid-template-columns: 1fr;
-  }
-
   .assert-observe-grid {
     grid-template-columns: 1fr;
   }
