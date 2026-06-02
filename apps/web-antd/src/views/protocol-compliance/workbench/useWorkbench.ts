@@ -381,14 +381,6 @@ function mergeCodeLocateEvidence(next: CodeLocateEvidence | null, force = false)
   codeLocateEvidence.value = next;
 }
 
-function updateCodeLocateEvidenceFromLogs() {
-  const evidence = parseCodeSnippetToEvidence(staticLogText.value, {
-    ruleText: selectedRule.value?.rule || selectedRule.value?.description,
-    source: '实时控制台',
-  });
-  mergeCodeLocateEvidence(evidence);
-}
-
 function getSelectedRuleText() {
   return selectedRule.value?.rule || selectedRule.value?.description || '';
 }
@@ -555,7 +547,6 @@ async function pollStaticAnalysis(jobId: string) {
           }
         }
         staticLogHtml.value = ansiToHtml(staticLogText.value);
-        updateCodeLocateEvidenceFromLogs();
       }
       if (snapshot.status === 'completed') {
         clearTimer('static');

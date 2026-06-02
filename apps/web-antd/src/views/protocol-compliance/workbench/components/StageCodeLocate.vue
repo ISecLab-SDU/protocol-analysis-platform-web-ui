@@ -6,12 +6,10 @@ import { IconifyIcon } from '@vben/icons';
 
 import type {
   ProtocolExtractRuleItem,
-  ProtocolStaticAnalysisComplianceStatus,
   ProtocolStaticAnalysisResult,
 } from '#/api/protocol-compliance';
 
 import type { CodeLocateEvidence, CodeLocateFunctionSlice } from '../types';
-import { normalizeList } from '../utils';
 
 interface Props {
   evidence: CodeLocateEvidence | null;
@@ -46,23 +44,6 @@ const logBodyRef = ref<HTMLElement | null>(null);
 const verdicts = computed(() => props.result?.modelResponse?.verdicts ?? []);
 const summary = computed(() => props.result?.modelResponse?.summary ?? null);
 
-const verdictStats = computed(() => {
-  if (summary.value) {
-    return {
-      compliant: summary.value.compliantCount,
-      needsReview: summary.value.needsReviewCount,
-      nonCompliant: summary.value.nonCompliantCount,
-    };
-  }
-  const stats = { compliant: 0, needsReview: 0, nonCompliant: 0 };
-  for (const verdict of verdicts.value) {
-    if (verdict.compliance === 'compliant') stats.compliant += 1;
-    else if (verdict.compliance === 'needs_review') stats.needsReview += 1;
-    else if (verdict.compliance === 'non_compliant') stats.nonCompliant += 1;
-  }
-  return stats;
-});
-
 const primaryVerdict = computed(() => {
   return (
     verdicts.value.find((verdict) => verdict.compliance === 'non_compliant') ??
@@ -72,35 +53,7 @@ const primaryVerdict = computed(() => {
   );
 });
 
-const evidenceStatus = computed<null | ProtocolStaticAnalysisComplianceStatus>(() => {
-  const label = props.evidence?.resultLabel?.toLowerCase() || '';
-  if (/no[_\s-]?violation|无违规/.test(label)) return 'compliant';
-  if (/violation|违规|不合规/.test(label)) return 'non_compliant';
-  if (/合规/.test(label)) return 'compliant';
-  if (/unknown|待审查|复核/.test(label)) return 'needs_review';
-  return null;
-});
-
-const overallStatus = computed<ProtocolStaticAnalysisComplianceStatus>(() => {
-  return (
-    summary.value?.overallStatus ||
-    primaryVerdict.value?.compliance ||
-    evidenceStatus.value ||
-    'needs_review'
-  );
-});
-
-const conclusionTitle = computed(() => {
-  if (overallStatus.value === 'non_compliant') return '发现协议违规';
-  if (overallStatus.value === 'compliant') return '未发现违规';
-  return '需要人工复核';
-});
-
-const conclusionIcon = computed(() => {
-  if (overallStatus.value === 'non_compliant') return 'mdi:close-octagon-outline';
-  if (overallStatus.value === 'compliant') return 'mdi:check-decagram-outline';
-  return 'mdi:alert-outline';
-});
+const showFinalFinding = computed(() => Boolean(props.result && !props.running));
 
 const ruleId = computed(() => {
   const optionId = (props.rule as { id?: string } | null)?.id;
@@ -131,10 +84,6 @@ const violationReason = computed(() => {
   );
 });
 
-const ruleSource = computed(() => {
-  return props.evidence?.source || primaryVerdict.value?.relatedRule?.source || '协议规则集';
-});
-
 const targetFile = computed(() => {
   return (
     props.evidence?.targetFile ||
@@ -142,13 +91,6 @@ const targetFile = computed(() => {
     props.result?.inputs?.codeFileName ||
     '待定位'
   );
-});
-
-const targetLine = computed(() => {
-  if (props.evidence?.targetLine) return props.evidence.targetLine;
-  const range = primaryVerdict.value?.lineRange;
-  if (!range) return '-';
-  return range[0] === range[1] ? String(range[0]) : `${range[0]}-${range[1]}`;
 });
 
 const functionRecords = computed<CodeLocateFunctionSlice[]>(() => {
@@ -169,48 +111,8 @@ const functionRecords = computed<CodeLocateFunctionSlice[]>(() => {
   return [...records.values()];
 });
 
-const candidateFunctionCount = computed(() => {
-  if (props.evidence) return props.evidence.candidateFunctionCount;
-  return functionRecords.value.length || verdicts.value.length;
-});
-
-const keySliceCount = computed(() => {
-  if (props.evidence) return props.evidence.keySliceCount;
-  return functionRecords.value.filter((fn) => fn.codeRows.length > 0).length ||
-    verdictStats.value.nonCompliant + verdictStats.value.needsReview;
-});
-
-const relatedVariableCount = computed(() => {
-  if (props.evidence) return props.evidence.relatedVariableCount;
-  const fields = new Set([
-    ...normalizeList(props.rule?.req_fields),
-    ...normalizeList(props.rule?.res_fields),
-  ]);
-  return fields.size;
-});
-
-const fallbackCodeRows = computed(() => {
-  if (props.evidence?.codeRows.length) return props.evidence.codeRows;
-  const verdict = primaryVerdict.value;
-  const lineBase = Array.isArray(verdict?.lineRange) ? verdict.lineRange[0] : 315;
-  const statusText = verdict ? complianceLabel(verdict.compliance) : '定位中';
-  return [
-    { emphasis: false, line: lineBase, text: `// ${ruleSource.value}` },
-    { emphasis: false, line: lineBase + 1, text: `target_rule = "${ruleText.value}"` },
-    { emphasis: false, line: lineBase + 2, text: `target_file = "${targetFile.value}"` },
-    { emphasis: true, line: lineBase + 3, text: `analysis_verdict = "${statusText}"` },
-    { emphasis: false, line: lineBase + 4, text: verdict?.explanation || '等待静态分析返回代码上下文...' },
-  ];
-});
-
 const evidenceFunctionSlices = computed(() => {
   return functionRecords.value.filter((fn) => fn.codeRows.length > 0);
-});
-
-const evidenceRows = computed(() => {
-  if (props.evidence?.codeRows.length) return props.evidence.codeRows;
-  if (props.result || props.evidence) return fallbackCodeRows.value;
-  return [];
 });
 
 const stageStateText = computed(() => {
@@ -462,18 +364,6 @@ function isWaitingLogLine(line: LogLine) {
   return line.stage === 'queued' || line.text === 'Job queued';
 }
 
-function complianceLabel(value: ProtocolStaticAnalysisComplianceStatus) {
-  if (value === 'compliant') return '合规';
-  if (value === 'non_compliant') return '不合规';
-  return '待审查';
-}
-
-function complianceColor(value: ProtocolStaticAnalysisComplianceStatus) {
-  if (value === 'compliant') return 'success';
-  if (value === 'non_compliant') return 'error';
-  return 'warning';
-}
-
 function formatEvidencePath(fn: CodeLocateFunctionSlice) {
   const path = fn.path || targetFile.value;
   if (!fn.targetLine || fn.targetLine === '-') return path;
@@ -497,56 +387,15 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
     </template>
 
     <div v-if="hasContent" class="locate-workspace">
-      <section
-        v-if="result || evidence"
-        class="result-hero"
-        :class="`result-hero--${overallStatus}`"
-      >
-        <div class="result-rail">
-          <div class="result-status">
-            <IconifyIcon :icon="conclusionIcon" />
-            <div>
-              <span>检测结论</span>
-              <strong>{{ conclusionTitle }}</strong>
-            </div>
-          </div>
-
-          <div class="verdict-summary">
-            <div class="verdict-stat verdict-stat--ok">
-              <IconifyIcon icon="mdi:check-circle-outline" />
-              <span>合规</span>
-              <strong>{{ verdictStats.compliant }}</strong>
-            </div>
-            <div class="verdict-stat verdict-stat--warn">
-              <IconifyIcon icon="mdi:alert-outline" />
-              <span>待审查</span>
-              <strong>{{ verdictStats.needsReview }}</strong>
-            </div>
-            <div class="verdict-stat verdict-stat--error">
-              <IconifyIcon icon="mdi:close-circle-outline" />
-              <span>不合规</span>
-              <strong>{{ verdictStats.nonCompliant }}</strong>
-            </div>
-          </div>
-        </div>
-
+      <section v-if="showFinalFinding" class="result-hero">
         <div class="result-body">
-          <div class="result-head">
-            <div>
-              <span class="panel-kicker">代码定位检测阶段结果</span>
-              <h3>{{ ruleId }}</h3>
-            </div>
-            <Tag :color="complianceColor(overallStatus)">
-              {{ complianceLabel(overallStatus) }}
-            </Tag>
-          </div>
-
           <div class="finding-grid">
             <section class="finding-block finding-block--rule">
               <div class="finding-label">
                 <IconifyIcon icon="mdi:clipboard-check-outline" />
-                <span>检测规则</span>
+                <span>检测规则对象</span>
               </div>
+              <h3>{{ ruleId }}</h3>
               <p>{{ ruleText }}</p>
             </section>
 
@@ -558,77 +407,6 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
               <p>{{ violationReason }}</p>
             </section>
           </div>
-
-          <section class="evidence-block">
-            <div class="evidence-head">
-              <div class="finding-label">
-                <IconifyIcon icon="mdi:source-branch" />
-                <span>判定依据</span>
-              </div>
-              <Tag color="default">{{ ruleSource }}</Tag>
-            </div>
-
-            <div v-if="evidenceFunctionSlices.length > 0" class="evidence-slices">
-              <article
-                v-for="fn in evidenceFunctionSlices"
-                :key="fn.name"
-                class="evidence-slice"
-              >
-                <div class="evidence-slice-head">
-                  <span>Function: {{ fn.name }}</span>
-                  <code>Path: {{ formatEvidencePath(fn) }}</code>
-                </div>
-                <div v-if="fn.codeRows.length > 0" class="evidence-code">
-                  <div
-                    v-for="(row, idx) in fn.codeRows"
-                    :key="`${fn.name}-${row.line}-${idx}`"
-                    class="code-row"
-                    :class="{ 'code-row--emphasis': row.emphasis }"
-                  >
-                    <span class="line-no">{{ row.line }}</span>
-                    <span class="line-text">{{ row.text }}</span>
-                  </div>
-                </div>
-              </article>
-            </div>
-
-            <div v-else-if="evidenceRows.length > 0" class="evidence-code">
-              <div
-                v-for="(row, idx) in evidenceRows"
-                :key="`${row.line}-${idx}`"
-                class="code-row"
-                :class="{ 'code-row--emphasis': row.emphasis }"
-              >
-                <span class="line-no">{{ row.line }}</span>
-                <span class="line-text">{{ row.text }}</span>
-              </div>
-            </div>
-
-            <Empty
-              v-else
-              description="等待静态分析返回判定依据"
-              :image="Empty.PRESENTED_IMAGE_SIMPLE"
-            />
-          </section>
-        </div>
-      </section>
-
-      <section class="summary-strip">
-        <div class="summary-item">
-          <span>候选函数</span>
-          <strong>{{ candidateFunctionCount }}</strong>
-        </div>
-        <div class="summary-item">
-          <span>已生成切片</span>
-          <strong>{{ keySliceCount }}</strong>
-        </div>
-        <div class="summary-item">
-          <span>相关变量</span>
-          <strong>{{ relatedVariableCount }}</strong>
-        </div>
-        <div class="summary-rule">
-          <span>规则证据</span>
-          <p>{{ ruleText }}</p>
         </div>
       </section>
 
@@ -754,9 +532,6 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
 }
 
 .result-hero {
-  display: grid;
-  grid-template-columns: 196px minmax(0, 1fr);
-  gap: 18px;
   padding: 18px;
   background: #fff;
   border: 1px solid #e2e8f0;
@@ -765,97 +540,22 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
   box-shadow: 0 12px 30px rgb(15 23 42 / 6%);
 }
 
-.result-hero--compliant {
-  border-left-color: #22a06b;
-}
-
-.result-hero--needs_review {
-  border-left-color: #f59e0b;
-}
-
-.result-hero--non_compliant {
-  border-left-color: #ef4444;
-}
-
-.result-rail {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  min-width: 0;
-}
-
-.result-status {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  min-height: 66px;
-  padding: 12px;
-  color: #172033;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-}
-
-.result-status > :first-child {
-  flex: 0 0 auto;
-  font-size: 28px;
-  color: #1677ff;
-}
-
-.result-hero--compliant .result-status > :first-child {
-  color: #22a06b;
-}
-
-.result-hero--needs_review .result-status > :first-child {
-  color: #d97706;
-}
-
-.result-hero--non_compliant .result-status > :first-child {
-  color: #ef4444;
-}
-
-.result-status span,
-.finding-label,
-.evidence-head {
+.finding-label {
   font-size: 12px;
   color: #64748b;
-}
-
-.result-status strong {
-  display: block;
-  margin-top: 2px;
-  font-size: 18px;
-  color: #111827;
 }
 
 .result-body {
   min-width: 0;
 }
 
-.result-head {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-.result-head h3 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 800;
-  color: #111827;
-}
-
 .finding-grid {
   display: grid;
   grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
   gap: 12px;
-  margin-bottom: 12px;
 }
 
-.finding-block,
-.evidence-block {
+.finding-block {
   min-width: 0;
   padding: 14px;
   background: #fbfdff;
@@ -880,6 +580,14 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
   color: #ef4444;
 }
 
+.finding-block h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 800;
+  color: #111827;
+  overflow-wrap: anywhere;
+}
+
 .finding-block p {
   margin: 0;
   font-size: 14px;
@@ -888,119 +596,11 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
   overflow-wrap: anywhere;
 }
 
-.evidence-head {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-
-.evidence-slices {
-  display: flex;
-  max-height: 390px;
-  overflow: auto;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.evidence-slice {
-  min-width: 0;
-  overflow: hidden;
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-}
-
-.evidence-slice-head {
-  display: grid;
-  grid-template-columns: minmax(160px, 0.35fr) minmax(0, 0.65fr);
-  gap: 10px;
-  padding: 10px 12px;
-  font-family:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
-    monospace;
-  font-size: 12px;
-  color: #172033;
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.evidence-slice-head span,
-.evidence-slice-head code {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.evidence-slice-head code {
-  color: #475569;
-  background: transparent;
-}
-
-.evidence-code {
-  max-height: 360px;
-  padding: 8px 0;
-  overflow: auto;
-  font-family:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
-    monospace;
-  font-size: 12px;
-  line-height: 1.6;
-  color: #334155;
-  background: #fff;
-}
-
-.evidence-block > .evidence-code {
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-}
-
-.summary-strip {
-  display: grid;
-  grid-template-columns: 150px 150px 150px minmax(0, 1fr);
-  overflow: hidden;
-  border: 1px solid var(--ant-color-border-secondary);
-  border-radius: 8px;
-}
-
-.summary-item,
-.summary-rule {
-  min-width: 0;
-  padding: 14px 16px;
-  background: #fff;
-}
-
-.summary-item + .summary-item,
-.summary-rule {
-  border-left: 1px solid var(--ant-color-border-secondary);
-}
-
-.summary-item span,
-.summary-rule span,
 .panel-kicker {
   display: block;
   margin-bottom: 4px;
   font-size: 12px;
   color: #64748b;
-}
-
-.summary-item strong {
-  font-size: 26px;
-  line-height: 1;
-  color: #111827;
-}
-
-.summary-rule p {
-  display: -webkit-box;
-  margin: 0;
-  overflow: hidden;
-  font-size: 13px;
-  line-height: 1.55;
-  color: #253044;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
 }
 
 .observe-grid {
@@ -1229,65 +829,9 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
   white-space: pre-wrap;
 }
 
-.verdict-summary {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.verdict-stat {
-  display: grid;
-  grid-template-columns: 22px 1fr auto;
-  gap: 8px;
-  align-items: center;
-  min-height: 48px;
-  padding: 10px 12px;
-  border-radius: 8px;
-}
-
-.verdict-stat--ok {
-  color: #0f9f6e;
-  background: #f0fdf4;
-}
-
-.verdict-stat--warn {
-  color: #d97706;
-  background: #fffaf0;
-}
-
-.verdict-stat--error {
-  color: #dc2626;
-  background: #fff5f5;
-}
-
-.verdict-stat strong {
-  font-size: 20px;
-}
-
 @media (max-width: 1280px) {
-  .result-hero,
   .finding-grid {
     grid-template-columns: 1fr;
-  }
-
-  .result-rail {
-    display: grid;
-    grid-template-columns: 220px minmax(0, 1fr);
-  }
-
-  .verdict-summary {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .summary-strip {
-    grid-template-columns: repeat(3, minmax(120px, 1fr));
-  }
-
-  .summary-rule {
-    grid-column: 1 / -1;
-    border-top: 1px solid var(--ant-color-border-secondary);
-    border-left: 0;
   }
 
   .observe-grid {
@@ -1296,18 +840,8 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
 }
 
 @media (max-width: 860px) {
-  .summary-strip,
-  .result-rail,
-  .verdict-summary,
-  .evidence-slice-head,
   .function-source-head {
     grid-template-columns: 1fr;
-  }
-
-  .summary-item + .summary-item,
-  .summary-rule {
-    border-top: 1px solid var(--ant-color-border-secondary);
-    border-left: 0;
   }
 
   .log-line {
