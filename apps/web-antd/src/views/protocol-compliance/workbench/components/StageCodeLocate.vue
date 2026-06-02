@@ -272,18 +272,20 @@ const locateProgressSteps: LocateProgressStep[] = [
   {
     description: '根据上传的 Dockerfile 构建 builder 镜像。',
     key: 'builder-image',
-    label: '构建 Builder 镜像',
+    label: 'Builder 镜像构建',
     match: (line) =>
-      ['builder', 'builder-log', 'proxy'].includes(line.stage) ||
+      ['builder-log', 'proxy'].includes(line.stage) ||
       /Building builder image|docker CLI build|BuildKit|exporting to image/i.test(line.text),
   },
   {
     description: '运行 builder 容器，配置项目并抽取 LLVM bitcode。',
     key: 'builder-run',
-    label: '项目编译与 bitcode 抽取',
+    label: '项目编译与 Bitcode 抽取',
     match: (line) =>
+      line.source.startsWith('protocolguard-builder') ||
+      line.stage === 'config' ||
       (line.stage === 'container-log' &&
-        /CMake|gclang|Bitcode file extracted|Build files have been written/i.test(
+        /CMake|clang|gclang|compiler|compile|Configuring|Generating|Build files have been written|Bitcode file extracted|PATH|GCC installation|multilib/i.test(
           line.text,
         )) ||
       /Running builder container|Starting builder container|Builder container completed/i.test(line.text),
@@ -309,7 +311,7 @@ const locateProgressSteps: LocateProgressStep[] = [
     key: 'preprocess',
     label: 'IR/SVF/AST 预处理',
     match: (line) =>
-      /mem2reg|loop-mssa|SVF WPA|Post-processing indirect callgraph|Building AST extraction|Executing AST extraction/i.test(
+      /Parsing configuration|Using build log|Bitcode available|mem2reg|loop-mssa|SSA bitcode|SVF WPA|Post-processing indirect callgraph|Building AST extraction|Executing AST extraction|AST extraction snapshot/i.test(
         line.text,
       ),
   },
@@ -318,16 +320,16 @@ const locateProgressSteps: LocateProgressStep[] = [
     key: 'callgraph',
     label: '调用图与入口函数定位',
     match: (line) =>
-      /Generating packet-related call graph|Running match-pass|PacketRelatedFuncs|Message Type|Processing Rule|Callgraph Entry|Message Function Entry/i.test(
+      /Generating packet-related call graph|Running match-pass|PacketRelatedFuncs|PacketRelatedCallGraph|Message Type|Processing Rule|Callgraph Entry/i.test(
         line.text,
       ),
   },
   {
-    description: '通过 LLM 判断消息处理函数、接收函数和规则相关性。',
-    key: 'llm-relevance',
-    label: 'LLM 相关性判定',
+    description: '通过 LLM 判断消息处理入口和通用接收函数。',
+    key: 'entry-relevance',
+    label: '消息入口相关性分析',
     match: (line) =>
-      /Collect LLM responses|LLM Query|message handler relevant|general receive function|function rule relevant/i.test(
+      /Collect LLM responses for (message handler relevant|general receive function)|Message Function Entry/i.test(
         line.text,
       ),
   },
@@ -337,6 +339,15 @@ const locateProgressSteps: LocateProgressStep[] = [
     label: '字段变量与相关函数分析',
     match: (line) =>
       /request field variable|Req Instruction|Cannot find instruction|Extracted \d+ functions|^func:|多线程.*找到/i.test(
+        line.text,
+      ),
+  },
+  {
+    description: '判断函数是否与当前规则相关，筛出需要补全的函数。',
+    key: 'function-relevance',
+    label: '函数规则相关性分析',
+    match: (line) =>
+      /Collect LLM responses for function rule relevant|多线程.*找到\s*\d+\s*个相关函数/i.test(
         line.text,
       ),
   },
@@ -374,19 +385,21 @@ const locateProgressSteps: LocateProgressStep[] = [
 
 const locateProgress = computed(() => {
   const finished = Boolean(props.result) || (!props.running && Boolean(props.evidence));
-  let activeIndex = finished ? locateProgressSteps.length - 1 : -1;
+  let currentStep: LocateProgressStep | null = finished
+    ? locateProgressSteps[locateProgressSteps.length - 1]!
+    : null;
 
   for (const line of rawLogLines.value) {
-    for (let index = locateProgressSteps.length - 1; index >= 0; index -= 1) {
-      const step = locateProgressSteps[index]!;
-      if (step.match(line) && index >= activeIndex) {
-        activeIndex = index;
-        break;
-      }
+    const matched = findLocateProgressStep(line);
+    if (matched) {
+      currentStep = matched;
     }
   }
+  if (finished) {
+    currentStep = locateProgressSteps[locateProgressSteps.length - 1]!;
+  }
 
-  if (activeIndex < 0) {
+  if (!currentStep) {
     return {
       current: {
         description: props.running ? '正在等待后端推送静态分析日志。' : '尚未开始代码定位。',
@@ -397,7 +410,7 @@ const locateProgress = computed(() => {
   }
 
   return {
-    current: locateProgressSteps[activeIndex]!,
+    current: currentStep,
   };
 });
 
@@ -477,6 +490,10 @@ function classifyLogLine(text: string): LogLine['kind'] {
   if (/^Function:/i.test(text)) return 'slice';
   if (/^Path:/i.test(text)) return 'path';
   return 'normal';
+}
+
+function findLocateProgressStep(line: LogLine) {
+  return locateProgressSteps.find((step) => step.match(line)) ?? null;
 }
 
 function complianceLabel(value: ProtocolStaticAnalysisComplianceStatus) {
