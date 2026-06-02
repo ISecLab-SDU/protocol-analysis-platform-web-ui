@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 
-import { Card, Empty, Tag } from 'ant-design-vue';
+import { Button, Card, Empty, Tag } from 'ant-design-vue';
 import { IconifyIcon } from '@vben/icons';
 
 import type {
@@ -25,17 +25,116 @@ interface Props {
 
 interface LogLine {
   id: string;
+  group: PipelineStageKey | 'other';
+  isKey: boolean;
+  isNoise: boolean;
   kind: 'error' | 'function' | 'normal' | 'path' | 'slice' | 'summary';
+  raw: string;
   source: string;
   stage: string;
   text: string;
   time: string;
+  timestampMs?: number;
 }
 
 const props = defineProps<Props>();
 
 const selectedFunctionName = ref('');
 const logBodyRef = ref<HTMLElement | null>(null);
+const rawLogsExpanded = ref(false);
+const selectedLogGroup = ref<PipelineStageKey | 'all'>('all');
+const keyLogsOnly = ref(true);
+
+type PipelineStageKey =
+  | 'analysis'
+  | 'build'
+  | 'compile'
+  | 'prepare'
+  | 'results'
+  | 'validate';
+
+interface PipelineStep {
+  description: string;
+  key: PipelineStageKey;
+  stageAliases: string[];
+  title: string;
+}
+
+const PIPELINE_STEPS: PipelineStep[] = [
+  {
+    description: '接收任务并整理源码、规则和配置文件',
+    key: 'prepare',
+    stageAliases: ['queued', 'init', 'inputs', 'workspace'],
+    title: '准备分析任务',
+  },
+  {
+    description: '构建隔离的 Docker 分析环境，配置网络代理和依赖',
+    key: 'build',
+    stageAliases: ['proxy', 'builder', 'builder-log'],
+    title: '构建分析环境',
+  },
+  {
+    description: '运行 Builder 容器，把目标项目编译成可分析产物',
+    key: 'compile',
+    stageAliases: ['container', 'container-log', 'workspace-snapshot'],
+    title: '编译目标项目',
+  },
+  {
+    description: '确认 bitcode、数据库、规则配置等输入已经就绪',
+    key: 'validate',
+    stageAliases: ['validation'],
+    title: '校验分析产物',
+  },
+  {
+    description: '执行规则匹配、函数定位和不一致性分析',
+    key: 'analysis',
+    stageAliases: ['analysis', 'analysis-debug'],
+    title: '运行静态分析',
+  },
+  {
+    description: '收集数据库、JSON 结果、日志和工作区快照',
+    key: 'results',
+    stageAliases: ['results', 'completed'],
+    title: '生成分析结果',
+  },
+];
+
+const STAGE_TO_GROUP = PIPELINE_STEPS.reduce(
+  (acc, step) => {
+    for (const stage of step.stageAliases) acc[stage] = step.key;
+    return acc;
+  },
+  {} as Record<string, PipelineStageKey>,
+);
+
+const INSIGHT_PATTERNS = [
+  /match-pass completed/i,
+  /Inconsistency analysis completed/i,
+  /JSON outputs/i,
+  /database files after run/i,
+  /All required artefacts/i,
+  /Container .*started/i,
+];
+
+const IMPORTANT_LOG_PATTERNS = [
+  /started/i,
+  /completed/i,
+  /failed/i,
+  /error/i,
+  /warning/i,
+  /Building/i,
+  /Running/i,
+  /Launching/i,
+  /Validating/i,
+  /All required/i,
+  /match-pass/i,
+  /Inconsistency/i,
+  /JSON outputs/i,
+  /database files/i,
+  /Copying analysis artifacts/i,
+  /Container .*started/i,
+  /exited cleanly/i,
+];
 
 const verdicts = computed(() => props.result?.modelResponse?.verdicts ?? []);
 const summary = computed(() => props.result?.modelResponse?.summary ?? null);
@@ -187,7 +286,151 @@ const logLines = computed<LogLine[]>(() => {
     .split(/\r?\n/)
     .map((line) => line.trimEnd())
     .filter((line) => line.trim().length > 0);
-  return rawLines.slice(-220).map(parseLogLine);
+  return rawLines.map(parseLogLine);
+});
+
+const customerLogLines = computed(() => {
+  return logLines.value.filter((line) => line.isKey && !line.isNoise).slice(-80);
+});
+
+const technicalLogLines = computed(() => {
+  return logLines.value
+    .filter((line) => {
+      if (selectedLogGroup.value !== 'all' && line.group !== selectedLogGroup.value) {
+        return false;
+      }
+      if (keyLogsOnly.value && !line.isKey) return false;
+      return true;
+    })
+    .slice(rawLogsExpanded.value ? -500 : -160);
+});
+
+const pipelineSummaries = computed(() => {
+  const lastCompletedIndex = hasCompletedEvent.value
+    ? PIPELINE_STEPS.length - 1
+    : Math.max(
+        -1,
+        ...PIPELINE_STEPS.map((step, index) =>
+          logLines.value.some((line) => line.group === step.key) ? index - 1 : -1,
+        ),
+      );
+  const currentIndex = currentPipelineIndex.value;
+
+  return PIPELINE_STEPS.map((step, index) => {
+    const lines = logLines.value.filter((line) => line.group === step.key);
+    const keyLines = lines.filter((line) => line.isKey && !line.isNoise);
+    const hasError = lines.some((line) => line.kind === 'error');
+    let status: 'done' | 'error' | 'idle' | 'running' = 'idle';
+    if (hasError) status = 'error';
+    else if (props.result || hasCompletedEvent.value || index <= lastCompletedIndex) status = 'done';
+    else if (index === currentIndex) status = 'running';
+    else if (lines.length > 0 && index < currentIndex) status = 'done';
+
+    return {
+      ...step,
+      duration: formatStageDuration(lines),
+      lastLine: keyLines.at(-1) ?? lines.at(-1) ?? null,
+      lineCount: lines.length,
+      status,
+    };
+  });
+});
+
+const hasCompletedEvent = computed(() => {
+  return Boolean(
+    props.result ||
+      logLines.value.some(
+        (line) =>
+          line.stage === 'completed' ||
+          /completed successfully|job completed successfully/i.test(line.text),
+      ),
+  );
+});
+
+const currentPipelineIndex = computed(() => {
+  for (let index = logLines.value.length - 1; index >= 0; index -= 1) {
+    const group = logLines.value[index]?.group;
+    if (!group || group === 'other') continue;
+    const stepIndex = PIPELINE_STEPS.findIndex((step) => step.key === group);
+    if (stepIndex >= 0) return stepIndex;
+  }
+  return props.running ? 0 : -1;
+});
+
+const currentPipelineStep = computed(() => {
+  if (props.result || hasCompletedEvent.value) return PIPELINE_STEPS.at(-1) ?? null;
+  return PIPELINE_STEPS[currentPipelineIndex.value] ?? null;
+});
+
+const pipelineProgress = computed(() => {
+  if (props.result || hasCompletedEvent.value) return 100;
+  const currentIndex = currentPipelineIndex.value;
+  if (currentIndex < 0) return 0;
+  const completedWeight = currentIndex;
+  const runningWeight = props.running ? 0.55 : 0.2;
+  return Math.min(96, Math.round(((completedWeight + runningWeight) / PIPELINE_STEPS.length) * 100));
+});
+
+const currentActionText = computed(() => {
+  const lastKeyLine = [...customerLogLines.value].reverse().find((line) => line.text);
+  if (lastKeyLine) return humanizeLogText(lastKeyLine);
+  if (currentPipelineStep.value) return currentPipelineStep.value.description;
+  return props.running ? '等待分析任务输出进度' : '等待代码定位阶段开始';
+});
+
+const dashboardMetrics = computed(() => {
+  const functions = new Set<string>();
+  let directorySnapshots = 0;
+  let databaseInfo = '';
+  let jsonOutputs = '';
+  let containerId = '';
+  let builderImage = '';
+
+  for (const line of logLines.value) {
+    const functionMatch = line.text.match(/^Function:\s*(.+)$/i);
+    if (functionMatch?.[1]) functions.add(functionMatch[1].trim());
+
+    if (line.isNoise && line.group === 'compile') directorySnapshots += 1;
+
+    const databaseMatch = line.text.match(/database files after run:\s*(\d+)(?:\s*\(size=([^)]+)\))?/i);
+    if (databaseMatch?.[1]) {
+      databaseInfo = `${databaseMatch[1]} 个数据库${databaseMatch[2] ? ` / ${databaseMatch[2]}` : ''}`;
+    }
+
+    const jsonMatch = line.text.match(/JSON outputs:\s*(\d+)/i);
+    if (jsonMatch?.[1]) jsonOutputs = `${jsonMatch[1]} 个 JSON 输出`;
+
+    const containerMatch = line.text.match(/Container\s+([a-f0-9]{8,})\s+started/i);
+    if (containerMatch?.[1]) containerId = containerMatch[1].slice(0, 12);
+
+    const imageMatch =
+      line.text.match(/image[=\s]([^\s,]+)/i) ||
+      line.text.match(/tag=([^,\s]+)/i) ||
+      line.text.match(/naming to docker\.io\/library\/([^\s]+)/i);
+    if (imageMatch?.[1]) builderImage = imageMatch[1];
+  }
+
+  const functionTotal = candidateFunctionCount.value || functions.size;
+  return [
+    { label: '阶段进度', value: `${pipelineProgress.value}%` },
+    { label: '候选函数', value: String(functionTotal) },
+    { label: '分析产物', value: databaseInfo || jsonOutputs || '生成中' },
+    { label: '容器证据', value: containerId || shortEvidence(builderImage) || '待捕获' },
+    { label: '降噪日志', value: directorySnapshots > 0 ? `${directorySnapshots} 行已折叠` : '无噪声' },
+  ];
+});
+
+const insightEvents = computed(() => {
+  const events = customerLogLines.value
+    .filter((line) => {
+      return (
+        line.kind === 'function' ||
+        line.kind === 'path' ||
+        matchesAny(line.text, INSIGHT_PATTERNS)
+      );
+    })
+    .slice(-8);
+  return events;
 });
 
 const hasContent = computed(() => {
@@ -249,14 +492,22 @@ function parseLogLine(raw: string, index: number): LogLine {
       rest = sourceMatch[2] ?? '';
     }
   }
+  const kind = classifyLogLine(rest);
+  const group = resolveLogGroup(stage, rest);
+  const isNoise = isNoisyLogLine(stage, rest);
 
   return {
+    group,
     id: `${index}-${raw}`,
-    kind: classifyLogLine(rest),
+    isKey: kind !== 'normal' || isKeyLogLine(stage, rest),
+    isNoise,
+    kind,
+    raw,
     source,
     stage,
     text: rest || raw,
     time,
+    timestampMs: parseLogTime(time),
   };
 }
 
@@ -267,6 +518,107 @@ function classifyLogLine(text: string): LogLine['kind'] {
   if (/^Function:/i.test(text)) return 'slice';
   if (/^Path:/i.test(text)) return 'path';
   return 'normal';
+}
+
+function inferGroupFromText(text: string): PipelineStageKey | 'other' {
+  if (/docker|buildkit|build definition|build args|proxy/i.test(text)) return 'build';
+  if (/container|workspace|bitcode|compile|database files after run/i.test(text)) return 'compile';
+  if (/validating|required artefacts/i.test(text)) return 'validate';
+  if (/analysis|match-pass|inconsistency/i.test(text)) return 'analysis';
+  if (/collecting|completed|json outputs|artifacts/i.test(text)) return 'results';
+  return 'other';
+}
+
+function resolveLogGroup(stage: string, text: string): LogLine['group'] {
+  if (
+    /^Function:|^Path:|match-pass|database files after run|Starting inconsistency|OPENAI_API_KEY|Inconsistency analysis/i.test(
+      text,
+    )
+  ) {
+    return 'analysis';
+  }
+  if (/Copying analysis artifacts|Cleaning up empty log files|JSON outputs/i.test(text)) {
+    return 'results';
+  }
+  return STAGE_TO_GROUP[stage] ?? inferGroupFromText(text);
+}
+
+function isKeyLogLine(stage: string, text: string) {
+  const primaryStages = [
+    'queued',
+    'init',
+    'inputs',
+    'workspace',
+    'builder',
+    'proxy',
+    'container',
+    'validation',
+    'analysis',
+    'results',
+    'completed',
+  ];
+  if (primaryStages.includes(stage)) {
+    return true;
+  }
+  return matchesAny(text, IMPORTANT_LOG_PATTERNS);
+}
+
+function matchesAny(text: string, patterns: RegExp[]) {
+  return patterns.some((pattern) => pattern.test(text));
+}
+
+function isNoisyLogLine(stage: string, text: string) {
+  if (stage !== 'container-log' && stage !== 'builder-log' && stage !== 'analysis-debug') return false;
+  if (/^#\d+\s/.test(text)) return !/DONE|ERROR|CACHED|exporting|naming/i.test(text);
+  if (/^(\||`|[-\s])+/.test(text)) return true;
+  if (/^\d+\s+/.test(text)) return false;
+  if (/^(Function|Path):/i.test(text)) return false;
+  if (/match-pass|Inconsistency|JSON outputs|database files|Copying analysis artifacts/i.test(text)) return false;
+  return stage === 'analysis-debug';
+}
+
+function parseLogTime(value: string) {
+  if (!value) return undefined;
+  const iso = Date.parse(value);
+  if (Number.isFinite(iso)) return iso;
+  const match = value.match(/^(\d{1,2}):(\d{2}):(\d{2})$/);
+  if (!match) return undefined;
+  const [, hour, minute, second] = match;
+  return Number(hour) * 3_600_000 + Number(minute) * 60_000 + Number(second) * 1000;
+}
+
+function formatStageDuration(lines: LogLine[]) {
+  const times = lines
+    .map((line) => line.timestampMs)
+    .filter((value): value is number => typeof value === 'number');
+  if (times.length < 2) return '-';
+  const durationSeconds = Math.max(0, Math.round((times.at(-1)! - times[0]!) / 1000));
+  if (durationSeconds < 60) return `${durationSeconds}s`;
+  return `${Math.floor(durationSeconds / 60)}m ${durationSeconds % 60}s`;
+}
+
+function humanizeLogText(line: LogLine) {
+  const text = line.text;
+  if (/Building builder image/i.test(text)) return '正在构建隔离分析环境';
+  if (/Source archive extracted/i.test(text)) return '源码已解压，正在准备工作区';
+  if (/Running builder container|Container .*started/i.test(text)) return 'Builder 容器已启动，正在编译目标项目';
+  if (/All required artefacts present/i.test(text)) return '分析所需产物已通过校验';
+  if (/Launching analysis container/i.test(text)) return '正在启动静态分析容器';
+  if (/match-pass completed/i.test(text)) return '规则匹配完成，已生成候选数据库';
+  if (/Starting inconsistency analysis/i.test(text)) return '正在进行不一致性分析';
+  if (/Inconsistency analysis completed/i.test(text)) return '不一致性分析完成，正在汇总结果';
+  if (/ProtocolGuard job completed|Static analysis completed/i.test(text)) return '静态分析完成，结果已生成';
+  return text;
+}
+
+function pipelineTitle(group: LogLine['group'], fallback?: string) {
+  return PIPELINE_STEPS.find((step) => step.key === group)?.title || fallback || '事件';
+}
+
+function shortEvidence(value?: string) {
+  if (!value) return '';
+  if (value.length <= 28) return value;
+  return `${value.slice(0, 25)}...`;
 }
 
 function complianceLabel(value: ProtocolStaticAnalysisComplianceStatus) {
@@ -321,6 +673,74 @@ function sliceStatus(fn: CodeLocateFunctionSlice) {
     </template>
 
     <div v-if="hasContent" class="locate-workspace">
+      <section class="pipeline-dashboard">
+        <div class="pipeline-overview">
+          <div class="pipeline-copy">
+            <span class="panel-kicker">甲方视角主流程</span>
+            <h3>{{ currentPipelineStep?.title || '等待分析任务' }}</h3>
+            <p>{{ currentActionText }}</p>
+          </div>
+          <div class="progress-ring" :style="{ '--progress': `${pipelineProgress}%` }">
+            <strong>{{ pipelineProgress }}%</strong>
+            <span>总进度</span>
+          </div>
+        </div>
+
+        <div class="metric-grid">
+          <div v-for="metric in dashboardMetrics" :key="metric.label" class="metric-item">
+            <span>{{ metric.label }}</span>
+            <strong>{{ metric.value }}</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="pipeline-timeline">
+        <article
+          v-for="(item, idx) in pipelineSummaries"
+          :key="item.key"
+          class="pipeline-step"
+          :class="`pipeline-step--${item.status}`"
+        >
+          <div class="pipeline-index">
+            <IconifyIcon v-if="item.status === 'done'" icon="mdi:check" />
+            <IconifyIcon v-else-if="item.status === 'error'" icon="mdi:close" />
+            <span v-else>{{ idx + 1 }}</span>
+          </div>
+          <div class="pipeline-step-copy">
+            <div class="pipeline-step-head">
+              <strong>{{ item.title }}</strong>
+              <Tag
+                :color="
+                  item.status === 'done'
+                    ? 'success'
+                    : item.status === 'running'
+                      ? 'processing'
+                      : item.status === 'error'
+                        ? 'error'
+                        : 'default'
+                "
+              >
+                {{
+                  item.status === 'done'
+                    ? '已完成'
+                    : item.status === 'running'
+                      ? '进行中'
+                      : item.status === 'error'
+                        ? '异常'
+                        : '等待中'
+                }}
+              </Tag>
+            </div>
+            <p>{{ item.description }}</p>
+            <small>
+              {{ item.lineCount > 0 ? `${item.lineCount} 条事件` : '尚未开始' }}
+              <span v-if="item.duration !== '-'"> · 耗时 {{ item.duration }}</span>
+            </small>
+            <code v-if="item.lastLine">{{ humanizeLogText(item.lastLine) }}</code>
+          </div>
+        </article>
+      </section>
+
       <section class="summary-strip">
         <div class="summary-item">
           <span>候选函数</span>
@@ -344,17 +764,17 @@ function sliceStatus(fn: CodeLocateFunctionSlice) {
         <section class="live-log-panel">
           <div class="panel-head">
             <div>
-              <span class="panel-kicker">实时运行轨迹</span>
-              <h3>日志输出</h3>
+              <span class="panel-kicker">过程叙事</span>
+              <h3>关键事件</h3>
             </div>
             <Tag :color="running ? 'processing' : 'default'">
-              {{ running ? '自动滚动' : `${logLines.length} 行` }}
+              {{ running ? '自动滚动' : `${customerLogLines.length} 条` }}
             </Tag>
           </div>
 
           <div ref="logBodyRef" class="live-log">
             <div
-              v-for="line in logLines"
+              v-for="line in customerLogLines"
               :key="line.id"
               class="log-line"
               :class="`log-line--${line.kind}`"
@@ -362,9 +782,9 @@ function sliceStatus(fn: CodeLocateFunctionSlice) {
               <span class="log-time">{{ line.time || '--:--:--' }}</span>
               <span v-if="line.stage" class="log-chip">{{ line.stage }}</span>
               <span v-if="line.source" class="log-chip log-chip--source">{{ line.source }}</span>
-              <span class="log-text">{{ line.text }}</span>
+              <span class="log-text">{{ humanizeLogText(line) }}</span>
             </div>
-            <div v-if="logLines.length === 0" class="log-empty">
+            <div v-if="customerLogLines.length === 0" class="log-empty">
               {{ running ? '等待日志输出...' : '暂无日志输出' }}
             </div>
           </div>
@@ -404,6 +824,33 @@ function sliceStatus(fn: CodeLocateFunctionSlice) {
             :image="Empty.PRESENTED_IMAGE_SIMPLE"
           />
         </section>
+      </section>
+
+      <section class="insight-panel">
+        <div class="panel-head">
+          <div>
+            <span class="panel-kicker">技术证据视角</span>
+            <h3>关键发现</h3>
+          </div>
+          <Tag color="blue">{{ insightEvents.length }} 条证据</Tag>
+        </div>
+        <div v-if="insightEvents.length > 0" class="insight-list">
+          <article
+            v-for="event in insightEvents"
+            :key="event.id"
+            class="insight-item"
+            :class="`insight-item--${event.kind}`"
+          >
+            <span>{{ event.time || '--:--:--' }}</span>
+            <strong>{{ pipelineTitle(event.group, event.stage) }}</strong>
+            <p>{{ humanizeLogText(event) }}</p>
+          </article>
+        </div>
+        <Empty
+          v-else
+          description="等待提取关键证据"
+          :image="Empty.PRESENTED_IMAGE_SIMPLE"
+        />
       </section>
 
       <section class="slice-panel">
@@ -469,6 +916,48 @@ function sliceStatus(fn: CodeLocateFunctionSlice) {
             <dd>{{ ruleText }}</dd>
           </div>
         </dl>
+      </section>
+
+      <section class="technical-log-panel">
+        <div class="panel-head technical-log-head">
+          <div>
+            <span class="panel-kicker">工程排障视角</span>
+            <h3>技术日志</h3>
+          </div>
+          <div class="technical-actions">
+            <select v-model="selectedLogGroup" class="log-filter" aria-label="选择日志阶段">
+              <option value="all">全部阶段</option>
+              <option v-for="step in PIPELINE_STEPS" :key="step.key" :value="step.key">
+                {{ step.title }}
+              </option>
+            </select>
+            <Button size="small" @click="keyLogsOnly = !keyLogsOnly">
+              {{ keyLogsOnly ? '显示全部' : '只看关键' }}
+            </Button>
+            <Button size="small" @click="rawLogsExpanded = !rawLogsExpanded">
+              {{ rawLogsExpanded ? '收起日志' : '展开更多' }}
+            </Button>
+          </div>
+        </div>
+        <div class="technical-note">
+          已默认隐藏目录树、普通文件清单和 debug 噪声；完整原始消息仍保留在下方列表中。
+        </div>
+        <div class="technical-log">
+          <div
+            v-for="line in technicalLogLines"
+            :key="line.id"
+            class="log-line"
+            :class="[`log-line--${line.kind}`, { 'log-line--noise': line.isNoise }]"
+          >
+            <span class="log-time">{{ line.time || '--:--:--' }}</span>
+            <span v-if="line.stage" class="log-chip">{{ line.stage }}</span>
+            <span v-if="line.source" class="log-chip log-chip--source">{{ line.source }}</span>
+            <span class="log-text">{{ rawLogsExpanded ? line.raw : line.text }}</span>
+          </div>
+          <div v-if="technicalLogLines.length === 0" class="log-empty">
+            当前筛选条件下暂无日志
+          </div>
+        </div>
       </section>
     </div>
 
@@ -550,6 +1039,205 @@ function sliceStatus(fn: CodeLocateFunctionSlice) {
   gap: 16px;
 }
 
+.pipeline-dashboard {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(420px, 0.85fr);
+  gap: 16px;
+  padding: 16px;
+  background: #fff;
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: 8px;
+}
+
+.pipeline-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 118px;
+  gap: 18px;
+  align-items: center;
+  min-width: 0;
+}
+
+.pipeline-copy {
+  min-width: 0;
+}
+
+.pipeline-copy h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.pipeline-copy p {
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #334155;
+}
+
+.progress-ring {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 108px;
+  height: 108px;
+  background:
+    radial-gradient(circle at center, #fff 58%, transparent 59%),
+    conic-gradient(#1677ff var(--progress), #e2e8f0 0);
+  border-radius: 50%;
+}
+
+.progress-ring strong {
+  font-size: 24px;
+  line-height: 1;
+  color: #111827;
+}
+
+.progress-ring span {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  align-items: stretch;
+}
+
+.metric-item {
+  min-width: 0;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.metric-item span,
+.metric-item strong {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metric-item span {
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.metric-item strong {
+  font-size: 15px;
+  color: #172033;
+}
+
+.pipeline-timeline {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.pipeline-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+  min-width: 0;
+  padding: 14px;
+  background: #fff;
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: 8px;
+}
+
+.pipeline-step--running {
+  border-color: #91caff;
+  box-shadow: 0 0 0 2px rgb(22 119 255 / 8%);
+}
+
+.pipeline-step--done .pipeline-index {
+  color: #fff;
+  background: #0f9f6e;
+}
+
+.pipeline-step--running .pipeline-index {
+  color: #fff;
+  background: #1677ff;
+}
+
+.pipeline-step--error .pipeline-index {
+  color: #fff;
+  background: #dc2626;
+}
+
+.pipeline-index {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  font-weight: 700;
+  color: #475569;
+  background: #f1f5f9;
+  border-radius: 50%;
+}
+
+.pipeline-step-copy {
+  min-width: 0;
+}
+
+.pipeline-step-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.pipeline-step-head strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 14px;
+  color: #111827;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pipeline-step-copy p {
+  display: -webkit-box;
+  min-height: 38px;
+  margin: 8px 0 6px;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #475569;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.pipeline-step-copy small {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.pipeline-step-copy code {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  color: #0b5cad;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: #eef6ff;
+  border-radius: 4px;
+}
+
 .summary-strip {
   display: grid;
   grid-template-columns: 150px 150px 150px minmax(0, 1fr);
@@ -604,8 +1292,10 @@ function sliceStatus(fn: CodeLocateFunctionSlice) {
 
 .live-log-panel,
 .discovery-panel,
+.insight-panel,
 .slice-panel,
-.rule-panel {
+.rule-panel,
+.technical-log-panel {
   min-width: 0;
   padding: 16px;
   background: #fff;
@@ -630,6 +1320,20 @@ function sliceStatus(fn: CodeLocateFunctionSlice) {
 
 .live-log {
   height: 360px;
+  padding: 10px 0;
+  overflow: auto;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  background: #fbfdff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.technical-log {
+  max-height: 360px;
   padding: 10px 0;
   overflow: auto;
   font-family:
@@ -672,6 +1376,10 @@ function sliceStatus(fn: CodeLocateFunctionSlice) {
   background: #fff5f5;
 }
 
+.log-line--noise {
+  color: #94a3b8;
+}
+
 .log-time {
   flex: 0 0 70px;
   color: #64748b;
@@ -703,6 +1411,91 @@ function sliceStatus(fn: CodeLocateFunctionSlice) {
 
 .log-empty {
   padding: 14px;
+  color: #64748b;
+}
+
+.insight-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.insight-item {
+  min-width: 0;
+  padding: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.insight-item--function,
+.insight-item--slice {
+  background: #f0fdfa;
+  border-color: #99f6e4;
+}
+
+.insight-item--path {
+  background: #f8f5ff;
+  border-color: #ddd6fe;
+}
+
+.insight-item span,
+.insight-item strong {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.insight-item span {
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.insight-item strong {
+  font-size: 13px;
+  color: #111827;
+}
+
+.insight-item p {
+  display: -webkit-box;
+  margin: 8px 0 0;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #334155;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.technical-log-head {
+  align-items: center;
+}
+
+.technical-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.log-filter {
+  height: 24px;
+  max-width: 150px;
+  padding: 0 8px;
+  font-size: 12px;
+  color: #334155;
+  background: #fff;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+}
+
+.technical-note {
+  margin-bottom: 10px;
+  font-size: 12px;
+  line-height: 1.6;
   color: #64748b;
 }
 
@@ -951,6 +1744,16 @@ function sliceStatus(fn: CodeLocateFunctionSlice) {
 }
 
 @media (max-width: 1280px) {
+  .pipeline-dashboard,
+  .pipeline-timeline {
+    grid-template-columns: 1fr;
+  }
+
+  .metric-grid,
+  .insight-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .summary-strip {
     grid-template-columns: repeat(3, minmax(120px, 1fr));
   }
@@ -968,11 +1771,27 @@ function sliceStatus(fn: CodeLocateFunctionSlice) {
 
 @media (max-width: 860px) {
   .summary-strip,
+  .metric-grid,
+  .pipeline-overview,
   .verdict-section,
   .verdict-list,
+  .insight-list,
   .rule-panel,
   .rule-list {
     grid-template-columns: 1fr;
+  }
+
+  .progress-ring {
+    justify-self: start;
+  }
+
+  .technical-log-head {
+    align-items: flex-start;
+  }
+
+  .technical-actions {
+    justify-content: flex-start;
+    width: 100%;
   }
 
   .summary-item + .summary-item,
