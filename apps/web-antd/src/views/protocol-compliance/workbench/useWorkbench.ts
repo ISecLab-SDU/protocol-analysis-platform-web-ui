@@ -87,7 +87,9 @@ const assertDiffContent = ref('');
 
 const fuzzPid = ref<null | string>(null);
 const fuzzContainerId = ref<null | string>(null);
-const fuzzLogs = ref<Array<{ id: number; text: string; level: 'INFO' | 'WARN' | 'ERROR' | 'STATS' }>>([]);
+type FuzzLogLevel = 'INFO' | 'WARN' | 'ERROR' | 'STATS';
+
+const fuzzLogs = ref<Array<{ id: number; text: string; level: FuzzLogLevel }>>([]);
 const fuzzLogReadPosition = ref(0);
 const fuzzStats = reactive({
   executions: 0,
@@ -122,6 +124,21 @@ const STAGE_TRANSITION_DELAY_MS = 2000;
 type WorkbenchPipelineProfile = 'full' | 'fuzz-only';
 // Set this back to 'full' to restore code location and assertion generation.
 const WORKBENCH_PIPELINE_PROFILE: WorkbenchPipelineProfile = 'fuzz-only';
+
+interface ParsedAflNetStats {
+  coverage: number;
+  crashes: number;
+  currentPath: number;
+  cycles: number;
+  edges: number;
+  hangs: number;
+  maxDepth: number;
+  nodes: number;
+  pathsTotal: number;
+  pendingFavs: number;
+  pendingTotal: number;
+  speed: number;
+}
 
 function clearTimer(holder: 'static' | 'assert' | 'fuzz' | 'elapsed') {
   if (holder === 'static' && staticPollTimer) {
@@ -184,11 +201,148 @@ function startElapsedTimer() {
   }, 1000);
 }
 
-function appendFuzzLog(text: string, level: 'INFO' | 'WARN' | 'ERROR' | 'STATS' = 'INFO') {
+function formatLogTimestamp() {
+  return new Date()
+    .toLocaleTimeString('zh-CN', { hour12: false })
+    .padStart(8, '0');
+}
+
+function withLogTimestamp(text: string) {
+  if (/^\s*\[\d{2}:\d{2}:\d{2}\]/.test(text)) return text;
+  return `[${formatLogTimestamp()}] ${text}`;
+}
+
+function stripLogPrefix(line: string) {
+  return line
+    .trim()
+    .replace(/^\[\d{2}:\d{2}:\d{2}\]\s*/, '')
+    .replace(/^(?:INFO|STATS|WARN|ERROR)[:\s]+/i, '')
+    .trim();
+}
+
+function parseFiniteNumber(value: string) {
+  const normalized = value.replace('%', '').trim();
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseAflNetStatsCsv(line: string): ParsedAflNetStats | null {
+  const source = stripLogPrefix(line).replace(/^#\s*/, '');
+  const values = source.split(',').map((item) => item.trim());
+  if (values.length < 13) return null;
+  if (!values.every((item) => /^-?\d+(?:\.\d+)?%?$/.test(item))) return null;
+
+  const cyclesDone = values[1];
+  const curPath = values[2];
+  const pathsTotal = values[3];
+  const pendingTotal = values[4];
+  const pendingFavs = values[5];
+  const mapSize = values[6];
+  const uniqueCrashes = values[7];
+  const uniqueHangs = values[8];
+  const maxDepth = values[9];
+  const execsPerSec = values[10];
+  const nodeCount = values[11];
+  const edgeCount = values[12];
+  if (
+    !cyclesDone ||
+    !curPath ||
+    !pathsTotal ||
+    !pendingTotal ||
+    !pendingFavs ||
+    !mapSize ||
+    !uniqueCrashes ||
+    !uniqueHangs ||
+    !maxDepth ||
+    !execsPerSec ||
+    !nodeCount ||
+    !edgeCount
+  ) return null;
+
+  const parsed = {
+    coverage: parseFiniteNumber(mapSize),
+    crashes: parseFiniteNumber(uniqueCrashes),
+    currentPath: parseFiniteNumber(curPath),
+    cycles: parseFiniteNumber(cyclesDone),
+    edges: parseFiniteNumber(edgeCount),
+    hangs: parseFiniteNumber(uniqueHangs),
+    maxDepth: parseFiniteNumber(maxDepth),
+    nodes: parseFiniteNumber(nodeCount),
+    pathsTotal: parseFiniteNumber(pathsTotal),
+    pendingFavs: parseFiniteNumber(pendingFavs),
+    pendingTotal: parseFiniteNumber(pendingTotal),
+    speed: parseFiniteNumber(execsPerSec),
+  };
+
+  if (Object.values(parsed).some((value) => value === null)) return null;
+  return parsed as ParsedAflNetStats;
+}
+
+function applyAflNetStats(stats: ParsedAflNetStats) {
+  fuzzStats.cycles = stats.cycles;
+  fuzzStats.currentPath = stats.currentPath;
+  fuzzStats.pathsTotal = stats.pathsTotal;
+  fuzzStats.paths = stats.pathsTotal;
+  fuzzStats.pendingTotal = stats.pendingTotal;
+  fuzzStats.pendingFavs = stats.pendingFavs;
+  fuzzStats.coverage = stats.coverage;
+  fuzzStats.crashes = stats.crashes;
+  fuzzStats.hangs = stats.hangs;
+  fuzzStats.maxDepth = stats.maxDepth;
+  fuzzStats.speed = stats.speed;
+  fuzzStats.nodes = stats.nodes;
+  fuzzStats.edges = stats.edges;
+  fuzzSpeedSeries.value.push(stats.speed);
+  if (fuzzSpeedSeries.value.length > 60) fuzzSpeedSeries.value.shift();
+}
+
+function formatAflNetStatsForLog(stats: ParsedAflNetStats) {
+  return [
+    `轮次: ${stats.cycles}`,
+    `路径进度: ${stats.currentPath}/${stats.pathsTotal}`,
+    `待处理: ${stats.pendingTotal}`,
+    `优先路径: ${stats.pendingFavs}`,
+    `覆盖率: ${stats.coverage.toFixed(2)}%`,
+    `崩溃: ${stats.crashes}`,
+    `挂起: ${stats.hangs}`,
+    `最大深度: ${stats.maxDepth}`,
+    `执行速度: ${stats.speed.toFixed(2)} 次/秒`,
+    `状态节点: ${stats.nodes}`,
+    `状态转换: ${stats.edges}`,
+  ].join(' | ');
+}
+
+function normalizeFuzzLogLine(line: string, fallbackLevel: FuzzLogLevel) {
+  const plain = stripLogPrefix(line);
+  if (/^#?\s*unix_time\s*,\s*cycles_done\s*,\s*cur_path/i.test(plain)) {
+    return {
+      level: 'INFO' as FuzzLogLevel,
+      text: withLogTimestamp(
+        'AFLNet 状态字段已接入：轮次、路径进度、待处理队列、覆盖率、异常数、执行速度、状态机拓扑。',
+      ),
+    };
+  }
+
+  const stats = parseAflNetStatsCsv(line);
+  if (stats) {
+    return {
+      level: 'STATS' as FuzzLogLevel,
+      stats,
+      text: withLogTimestamp(formatAflNetStatsForLog(stats)),
+    };
+  }
+
+  return {
+    level: fallbackLevel,
+    text: withLogTimestamp(plain || line.trim()),
+  };
+}
+
+function appendFuzzLog(text: string, level: FuzzLogLevel = 'INFO') {
   const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
   for (const line of lines) {
     fuzzLogIdSeq += 1;
-    fuzzLogs.value.push({ id: fuzzLogIdSeq, text: line, level });
+    fuzzLogs.value.push({ id: fuzzLogIdSeq, text: withLogTimestamp(line), level });
   }
   if (fuzzLogs.value.length > 500) {
     fuzzLogs.value.splice(0, fuzzLogs.value.length - 500);
@@ -785,57 +939,9 @@ async function runAssertGenStep(runId: number) {
 function parseStatsLine(line: string) {
   const trimmed = line.trim();
   if (!trimmed) return;
-  const csvValues = trimmed
-    .replace(/^[^\[]*(?:\[\d{2}:\d{2}:\d{2}\])?\s*/, '')
-    .split(',')
-    .map((item) => item.trim());
-  if (
-    csvValues.length >= 13 &&
-    csvValues.every((item) => /^-?\d+(?:\.\d+)?%?$/.test(item))
-  ) {
-    const [
-      ,
-      cyclesDone,
-      curPath,
-      pathsTotal,
-      pendingTotal,
-      pendingFavs,
-      mapSize,
-      uniqueCrashes,
-      uniqueHangs,
-      maxDepth,
-      execsPerSec,
-      nodeCount,
-      edgeCount,
-    ] = csvValues;
-    const cyclesDoneValue = Number(cyclesDone);
-    const curPathValue = Number(curPath);
-    const pathsTotalValue = Number(pathsTotal);
-    const pendingTotalValue = Number(pendingTotal);
-    const pendingFavsValue = Number(pendingFavs);
-    const coverageValue = Number(mapSize.replace('%', ''));
-    const uniqueCrashesValue = Number(uniqueCrashes);
-    const uniqueHangsValue = Number(uniqueHangs);
-    const maxDepthValue = Number(maxDepth);
-    const execsPerSecValue = Number(execsPerSec);
-    const nodeCountValue = Number(nodeCount);
-    const edgeCountValue = Number(edgeCount);
-
-    if (Number.isFinite(cyclesDoneValue)) fuzzStats.cycles = cyclesDoneValue;
-    if (Number.isFinite(curPathValue)) fuzzStats.currentPath = curPathValue;
-    if (Number.isFinite(pathsTotalValue)) fuzzStats.pathsTotal = pathsTotalValue;
-    fuzzStats.paths = fuzzStats.pathsTotal || fuzzStats.paths;
-    if (Number.isFinite(pendingTotalValue)) fuzzStats.pendingTotal = pendingTotalValue;
-    if (Number.isFinite(pendingFavsValue)) fuzzStats.pendingFavs = pendingFavsValue;
-    if (Number.isFinite(coverageValue)) fuzzStats.coverage = coverageValue;
-    if (Number.isFinite(uniqueCrashesValue)) fuzzStats.crashes = uniqueCrashesValue;
-    if (Number.isFinite(uniqueHangsValue)) fuzzStats.hangs = uniqueHangsValue;
-    if (Number.isFinite(maxDepthValue)) fuzzStats.maxDepth = maxDepthValue;
-    if (Number.isFinite(execsPerSecValue)) fuzzStats.speed = execsPerSecValue;
-    if (Number.isFinite(nodeCountValue)) fuzzStats.nodes = nodeCountValue;
-    if (Number.isFinite(edgeCountValue)) fuzzStats.edges = edgeCountValue;
-    fuzzSpeedSeries.value.push(fuzzStats.speed);
-    if (fuzzSpeedSeries.value.length > 60) fuzzSpeedSeries.value.shift();
+  const aflNetStats = parseAflNetStatsCsv(trimmed);
+  if (aflNetStats) {
+    applyAflNetStats(aflNetStats);
     return;
   }
 
@@ -939,13 +1045,18 @@ async function readFuzzLogs() {
       const lines = content.split(/\r?\n/);
       for (const line of lines) {
         if (!line.trim()) continue;
-        let level: 'INFO' | 'ERROR' | 'WARN' | 'STATS' = 'INFO';
+        let level: FuzzLogLevel = 'INFO';
         const lower = line.toLowerCase();
         if (/stats|execs|paths|coverage|cycles|pending|nodes|edges/i.test(line)) level = 'STATS';
         else if (lower.includes('crash') || lower.includes('error') || lower.includes('fatal')) level = 'ERROR';
         else if (lower.includes('warn')) level = 'WARN';
-        appendFuzzLog(line, level);
-        if (level === 'STATS') parseStatsLine(line);
+        const normalized = normalizeFuzzLogLine(line, level);
+        appendFuzzLog(normalized.text, normalized.level);
+        if (normalized.stats) {
+          applyAflNetStats(normalized.stats);
+        } else if (normalized.level === 'STATS') {
+          parseStatsLine(line);
+        }
       }
     }
   } catch (err: any) {

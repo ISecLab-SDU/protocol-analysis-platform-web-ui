@@ -67,6 +67,13 @@ function getStatsLabel(label: string) {
   return label;
 }
 
+function getLevelLabel(level: LogEntry['level']) {
+  if (level === 'STATS') return '统计';
+  if (level === 'ERROR') return '异常';
+  if (level === 'WARN') return '告警';
+  return '信息';
+}
+
 function getStatsItems(text: string) {
   const source = getPlainLogText(text);
   const parts = source
@@ -82,10 +89,20 @@ function getStatsItems(text: string) {
       const value = match[2].trim();
       const key = label.toLowerCase();
       let tone = 'neutral';
-      if (key.includes('crash')) tone = 'danger';
-      else if (key.includes('hang') || key.includes('pending')) tone = 'warn';
-      else if (key.includes('coverage') || key.includes('speed')) tone = 'success';
-      else if (key.includes('path')) tone = 'primary';
+      if (key.includes('crash') || key.includes('崩溃')) tone = 'danger';
+      else if (
+        key.includes('hang') ||
+        key.includes('pending') ||
+        key.includes('挂起') ||
+        key.includes('待处理')
+      ) tone = 'warn';
+      else if (
+        key.includes('coverage') ||
+        key.includes('speed') ||
+        key.includes('覆盖率') ||
+        key.includes('执行速度')
+      ) tone = 'success';
+      else if (key.includes('path') || key.includes('路径')) tone = 'primary';
       return { label: getStatsLabel(label), tone, value };
     })
     .filter(Boolean) as Array<{ label: string; tone: string; value: string }>;
@@ -112,7 +129,7 @@ onMounted(scrollToBottom);
       >
         <span class="log-time">[{{ getTimestamp(log.text) }}]</span>
         <template v-if="log.level === 'STATS' && getStatsItems(log.text).length > 0">
-          <span class="log-level">STATS</span>
+          <span class="log-level">{{ getLevelLabel(log.level) }}</span>
           <span class="log-stats">
             <span
               v-for="item in getStatsItems(log.text)"
@@ -126,7 +143,7 @@ onMounted(scrollToBottom);
           </span>
         </template>
         <template v-else>
-          <span class="log-level">{{ log.level }}</span>
+          <span class="log-level">{{ getLevelLabel(log.level) }}</span>
           <span class="log-text">{{ getPlainLogText(log.text) }}</span>
         </template>
       </div>
@@ -151,9 +168,7 @@ onMounted(scrollToBottom);
   height: 280px;
   padding: 12px;
   overflow-y: auto;
-  font-family:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
-    monospace;
+  font-family: var(--font-family);
   font-size: 12px;
   line-height: 1.55;
   background: #fff;

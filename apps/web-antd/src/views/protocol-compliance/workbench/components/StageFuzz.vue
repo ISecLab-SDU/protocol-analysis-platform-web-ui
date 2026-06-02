@@ -62,6 +62,11 @@ const latestStatsLine = computed(() => {
   return [...props.logs].reverse().find((log) => log.level === 'STATS')?.text || '';
 });
 
+const logCaption = computed(() => {
+  if (latestStatsLine.value) return `正在同步 ${fuzzerName.value} 状态、路径和异常统计`;
+  return '等待 Fuzzer 输出运行状态';
+});
+
 const pathProgress = computed(() => {
   if (totalPaths.value <= 0) return 0;
   return Math.min(100, Math.round((currentPath.value / totalPaths.value) * 100));
@@ -100,8 +105,8 @@ function formatRate(value: number) {
       <section class="panel panel--logs">
         <div class="panel-header">
           <div>
-            <h3>Fuzz过程</h3>
-            <p>{{ latestStatsLine ? '实时解析 AFLNet 状态输出' : '等待 Fuzzer 输出运行状态' }}</p>
+            <h3>测试过程日志</h3>
+            <p>{{ logCaption }}</p>
           </div>
         </div>
         <ProtocolLogViewer :logs="logs" :running="running" />
@@ -135,7 +140,7 @@ function formatRate(value: number) {
       <section class="panel panel--sol">
         <div class="panel-header">
           <div>
-            <h3>{{ fuzzerName }}模糊测试</h3>
+            <h3>{{ fuzzerName }} 模糊测试</h3>
             <p>{{ rule?.rule || '基于当前协议约束持续发现异常路径' }}</p>
           </div>
         </div>
