@@ -37,6 +37,7 @@ export interface CodeLocateEvidence {
   targetFile: string;
   targetLine: string;
   updatedAt?: string;
+  violationReason?: string;
 }
 
 export type MQTTImplementation =

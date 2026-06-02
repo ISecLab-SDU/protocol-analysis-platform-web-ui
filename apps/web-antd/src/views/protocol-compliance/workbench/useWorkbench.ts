@@ -148,9 +148,14 @@ function appendFuzzLog(text: string, level: 'INFO' | 'WARN' | 'ERROR' | 'STATS' 
   }
 }
 
-function setStage(next: WorkbenchStage, status: StageStatus = 'running', msg?: string) {
+function setStage(
+  next: WorkbenchStage,
+  status: StageStatus = 'running',
+  msg?: string,
+  options: { focus?: boolean } = {},
+) {
   stage.value = next;
-  activeStageView.value = next;
+  if (options.focus !== false) activeStageView.value = next;
   stageStatus[next] = status;
   if (msg) stageMessage.value = msg;
 }
@@ -269,6 +274,7 @@ function parseCodeSnippetToEvidence(
     source?: string;
     targetFile?: string | null;
     violationLines?: number[];
+    violationReason?: string | null;
   } = {},
 ): CodeLocateEvidence | null {
   const functions = new Map<string, CodeLocateFunctionSlice>();
@@ -355,6 +361,7 @@ function parseCodeSnippetToEvidence(
     targetFile: shortenPath(firstTargetFile) || '待定位',
     targetLine: formatLineRange(targetLines),
     updatedAt: new Date().toISOString(),
+    violationReason: options.violationReason || undefined,
   };
 }
 
@@ -423,6 +430,7 @@ function buildEvidenceFromInsight(
     source: '静态分析数据库',
     targetFile,
     violationLines,
+    violationReason: insight.reason,
   });
 }
 
@@ -660,7 +668,9 @@ async function runAssertGenStep() {
     markStageError('assert_gen', '缺少源码压缩包');
     return;
   }
-  setStage('assert_gen', 'running', '准备固定违规数据库…');
+  setStage('assert_gen', 'running', '准备固定违规数据库…', {
+    focus: activeStageView.value !== 'code_locate',
+  });
   assertLogText.value = '';
   assertDiffContent.value = '';
   try {
@@ -770,7 +780,9 @@ async function readFuzzLogs() {
 }
 
 async function runFuzzStep() {
-  setStage('fuzz', 'running', '写入 Fuzz 脚本…');
+  setStage('fuzz', 'running', '写入 Fuzz 脚本…', {
+    focus: activeStageView.value !== 'code_locate',
+  });
   fuzzLogs.value = [];
   fuzzLogReadPosition.value = 0;
   Object.assign(fuzzStats, { executions: 0, paths: 0, crashes: 0, hangs: 0, cycles: 0, speed: 0 });
