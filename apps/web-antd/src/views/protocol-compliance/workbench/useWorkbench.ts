@@ -212,7 +212,7 @@ function withLogTimestamp(text: string) {
   return `[${formatLogTimestamp()}] ${text}`;
 }
 
-function stripLogPrefix(line: string) {
+function stripFuzzLogPrefix(line: string) {
   return line
     .trim()
     .replace(/^\[\d{2}:\d{2}:\d{2}\]\s*/, '')
@@ -227,7 +227,7 @@ function parseFiniteNumber(value: string) {
 }
 
 function parseAflNetStatsCsv(line: string): ParsedAflNetStats | null {
-  const source = stripLogPrefix(line).replace(/^#\s*/, '');
+  const source = stripFuzzLogPrefix(line).replace(/^#\s*/, '');
   const values = source.split(',').map((item) => item.trim());
   if (values.length < 13) return null;
   if (!values.every((item) => /^-?\d+(?:\.\d+)?%?$/.test(item))) return null;
@@ -313,7 +313,7 @@ function formatAflNetStatsForLog(stats: ParsedAflNetStats) {
 }
 
 function normalizeFuzzLogLine(line: string, fallbackLevel: FuzzLogLevel) {
-  const plain = stripLogPrefix(line);
+  const plain = stripFuzzLogPrefix(line);
   if (/^#?\s*unix_time\s*,\s*cycles_done\s*,\s*cur_path/i.test(plain)) {
     return {
       level: 'INFO' as FuzzLogLevel,
