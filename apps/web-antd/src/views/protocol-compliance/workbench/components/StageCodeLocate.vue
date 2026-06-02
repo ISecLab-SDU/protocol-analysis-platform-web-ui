@@ -252,19 +252,23 @@ const rawLogLines = computed(() => {
     .split(/\r?\n/)
     .map((line) => line.trimEnd())
     .filter((line) => line.trim().length > 0);
-  return rawLines.map(parseLogLine);
+  return rawLines.map(parseLogLine).filter((line) => !isWaitingLogLine(line));
 });
 
 const logLines = computed<LogLine[]>(() => {
-  let currentStep: LocateProgressStep | null = null;
-  return rawLogLines.value.map((line) => {
-    const matched = findLocateProgressStep(line);
-    if (matched) currentStep = matched;
-    return {
+  let currentStepIndex = -1;
+  const lines: LogLine[] = [];
+  for (const line of rawLogLines.value) {
+    const matchedStepIndex = findLocateProgressStepIndex(line, currentStepIndex + 1);
+    if (matchedStepIndex >= 0) currentStepIndex = matchedStepIndex;
+    if (currentStepIndex < 0) continue;
+    const currentStep = locateProgressSteps[currentStepIndex]!;
+    lines.push({
       ...line,
-      phase: currentStep?.label || '未识别',
-    };
-  });
+      phase: currentStep.label,
+    });
+  }
+  return lines;
 });
 
 const locateProgressSteps: LocateProgressStep[] = [
@@ -273,147 +277,131 @@ const locateProgressSteps: LocateProgressStep[] = [
     key: 'inputs',
     label: '输入与工作区准备',
     match: (line) =>
-      ['init', 'inputs', 'queued', 'workspace'].includes(line.stage) ||
-      /Job queued|Preparing analysis inputs|Persisting uploaded artefacts|Workspace directories|Source archive extracted/i.test(
-        line.text,
-      ),
+      line.stage === 'init' && hasLogText(line, 'Preparing analysis inputs'),
   },
   {
     description: '根据上传的 Dockerfile 构建 builder 镜像。',
     key: 'builder-image',
     label: 'Builder 镜像构建',
     match: (line) =>
-      ['builder-log', 'proxy'].includes(line.stage) ||
-      /Building builder image|docker CLI build|BuildKit|exporting to image/i.test(line.text),
+      line.stage === 'builder' &&
+      hasLogText(line, 'Building builder image from uploaded Dockerfile'),
   },
   {
     description: '运行 builder 容器，配置项目并抽取 LLVM bitcode。',
     key: 'builder-run',
     label: '项目编译与 Bitcode 抽取',
     match: (line) =>
-      line.source.startsWith('protocolguard-builder') ||
-      line.stage === 'config' ||
-      (line.stage === 'container-log' &&
-        /CMake|clang|gclang|compiler|compile|Configuring|Generating|Build files have been written|Bitcode file extracted|PATH|GCC installation|multilib/i.test(
-          line.text,
-        )) ||
-      /Running builder container|Starting builder container|Builder container completed/i.test(line.text),
+      line.stage === 'builder' &&
+      (hasLogText(line, 'Running builder container image') ||
+        hasLogText(line, 'Starting builder container')),
   },
   {
     description: '检查 program.bc、build_log.txt 等静态分析必需产物。',
     key: 'validation',
     label: '分析产物校验',
     match: (line) =>
-      ['validation', 'workspace-snapshot'].includes(line.stage) ||
-      /Validating required artefacts|All required artefacts present/i.test(line.text),
+      line.stage === 'validation' &&
+      hasLogText(line, 'Validating required artefacts exist before analysis'),
   },
   {
     description: '启动 ProtocolGuard 静态分析容器并挂载工作区。',
     key: 'analysis-start',
     label: '启动分析容器',
     match: (line) =>
-      ['analysis', 'analysis-debug'].includes(line.stage) ||
-      /Starting analysis container|workspace mount inspection|Parsing configuration/i.test(line.text),
+      line.stage === 'analysis' &&
+      (hasLogText(line, 'Launching analysis container image') ||
+        hasLogText(line, 'Starting analysis container')),
   },
   {
     description: '执行 LLVM SSA 化、SVF 指针分析和 AST 提取。',
     key: 'preprocess',
     label: 'IR/SVF/AST 预处理',
     match: (line) =>
-      /Parsing configuration|Using build log|Bitcode available|mem2reg|loop-mssa|SSA bitcode|SVF WPA|Post-processing indirect callgraph|Building AST extraction|Executing AST extraction|AST extraction snapshot/i.test(
-        line.text,
-      ),
+      hasLogText(line, 'Running mem2reg/loop-mssa preprocessing'),
   },
   {
     description: '生成包相关调用图，定位协议消息入口函数。',
     key: 'callgraph',
     label: '调用图与入口函数定位',
     match: (line) =>
-      /Generating packet-related call graph|Running match-pass|PacketRelatedFuncs|PacketRelatedCallGraph|Message Type|Processing Rule|Callgraph Entry/i.test(
-        line.text,
-      ),
+      hasLogText(line, 'Generating packet-related call graph and function summaries'),
   },
   {
     description: '通过 LLM 判断消息处理入口和通用接收函数。',
     key: 'entry-relevance',
     label: '消息入口相关性分析',
     match: (line) =>
-      /Collect LLM responses for (message handler relevant|general receive function)|Message Function Entry/i.test(
-        line.text,
-      ),
+      hasLogText(line, 'Collect LLM responses for message handler relevant') ||
+      hasLogText(line, 'Collect LLM responses for general receive function'),
   },
   {
     description: '抽取请求字段变量、IR 指令和候选相关函数。',
     key: 'field-analysis',
     label: '字段变量与相关函数分析',
     match: (line) =>
-      /request field variable|Req Instruction|Cannot find instruction|Extracted \d+ functions|^func:|多线程.*找到/i.test(
-        line.text,
-      ),
+      /Extracted \d+ functions that are related to the message/i.test(line.text) ||
+      hasLogText(line, 'Collect LLM responses for request field variable'),
   },
   {
     description: '判断函数是否与当前规则相关，筛出需要补全的函数。',
     key: 'function-relevance',
     label: '函数规则相关性分析',
     match: (line) =>
-      /Collect LLM responses for function rule relevant|多线程.*找到\s*\d+\s*个相关函数/i.test(
-        line.text,
-      ),
+      hasLogText(line, 'Collect LLM responses for function rule relevant'),
   },
   {
     description: '补全相关函数源码，生成最终代码切片证据。',
     key: 'code-slice',
     label: '代码切片生成',
     match: (line) =>
-      /complete code|多线程补全|Unique mergedCodeSliceLineStr|^Function:|^Path:|^\d+\s+/i.test(line.text),
+      hasLogText(line, 'Collect LLM responses for complete code'),
   },
   {
     description: '根据规则与代码证据执行违规一致性分析。',
     key: 'inconsistency',
     label: '违规一致性分析',
     match: (line) =>
-      /Starting inconsistency analysis|Inconsistency analysis completed|JSON outputs/i.test(line.text),
+      hasLogText(line, 'Starting inconsistency analysis'),
   },
   {
     description: '复制输出、清理日志并收集分析结果。',
     key: 'results',
     label: '结果归档',
     match: (line) =>
-      ['results'].includes(line.stage) ||
-      /Copying analysis artifacts|Cleaning up empty log files|Collecting analysis results/i.test(line.text),
+      hasLogText(line, 'Copying analysis artifacts to /out') ||
+      hasLogText(line, 'Collecting analysis results and metadata'),
   },
   {
     description: '静态分析任务已完成。',
     key: 'completed',
     label: '完成',
     match: (line) =>
-      ['completed'].includes(line.stage) ||
-      /ProtocolGuard job completed successfully|Static analysis completed/i.test(line.text),
+      line.stage === 'completed' ||
+      hasLogText(line, 'ProtocolGuard job completed successfully') ||
+      hasLogText(line, 'Static analysis completed successfully'),
   },
 ];
 
 const locateProgress = computed(() => {
   const finished = Boolean(props.result) || (!props.running && Boolean(props.evidence));
-  let currentStep: LocateProgressStep | null = finished
-    ? locateProgressSteps[locateProgressSteps.length - 1]!
-    : null;
-
-  for (const line of rawLogLines.value) {
-    const matched = findLocateProgressStep(line);
-    if (matched) {
-      currentStep = matched;
-    }
-  }
   if (finished) {
-    currentStep = locateProgressSteps[locateProgressSteps.length - 1]!;
+    return {
+      current: locateProgressSteps[locateProgressSteps.length - 1]!,
+    };
   }
+
+  const latestLine = logLines.value[logLines.value.length - 1];
+  const currentStep = latestLine
+    ? locateProgressSteps.find((step) => step.label === latestLine.phase)
+    : null;
 
   if (!currentStep) {
     return {
       current: {
-        description: props.running ? '正在等待后端推送静态分析日志。' : '尚未开始代码定位。',
+        description: props.running ? '正在等待阶段起始日志。' : '尚未开始代码定位。',
         key: 'waiting',
-        label: props.running ? '等待日志' : '未开始',
+        label: props.running ? '等待阶段日志' : '未开始',
       },
     };
   }
@@ -502,8 +490,18 @@ function classifyLogLine(text: string): LogLine['kind'] {
   return 'normal';
 }
 
-function findLocateProgressStep(line: LogLine) {
-  return locateProgressSteps.find((step) => step.match(line)) ?? null;
+function findLocateProgressStepIndex(line: LogLine, startIndex: number) {
+  return locateProgressSteps.findIndex((step, index) => {
+    return index >= startIndex && step.match(line);
+  });
+}
+
+function hasLogText(line: LogLine, text: string) {
+  return line.text.includes(text);
+}
+
+function isWaitingLogLine(line: LogLine) {
+  return line.stage === 'queued' || line.text === 'Job queued';
 }
 
 function complianceLabel(value: ProtocolStaticAnalysisComplianceStatus) {
