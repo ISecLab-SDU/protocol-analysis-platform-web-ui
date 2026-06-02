@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 
-import { Card, Empty, Tag } from 'ant-design-vue';
+import { Card, Empty, Progress, Tag } from 'ant-design-vue';
 import { IconifyIcon } from '@vben/icons';
 
 import type {
@@ -29,6 +29,13 @@ interface LogLine {
   stage: string;
   text: string;
   time: string;
+}
+
+interface LocateProgressStep {
+  description: string;
+  key: string;
+  label: string;
+  match: (line: LogLine) => boolean;
 }
 
 const props = defineProps<Props>();
@@ -239,12 +246,181 @@ const stageStateText = computed(() => {
   return '等待中';
 });
 
-const logLines = computed<LogLine[]>(() => {
+const rawLogLines = computed(() => {
   const rawLines = props.logText
     .split(/\r?\n/)
     .map((line) => line.trimEnd())
     .filter((line) => line.trim().length > 0);
-  return rawLines.slice(-220).map(parseLogLine);
+  return rawLines.map(parseLogLine);
+});
+
+const logLines = computed<LogLine[]>(() => {
+  return rawLogLines.value.slice(-220);
+});
+
+const locateProgressSteps: LocateProgressStep[] = [
+  {
+    description: '任务已进入队列，正在创建静态分析作业。',
+    key: 'queued',
+    label: '任务排队',
+    match: (line) => line.stage === 'queued' || /Job queued/i.test(line.text),
+  },
+  {
+    description: '保存上传的源码、规则和配置，准备工作目录。',
+    key: 'inputs',
+    label: '输入与工作区准备',
+    match: (line) =>
+      ['init', 'inputs', 'workspace'].includes(line.stage) ||
+      /Preparing analysis inputs|Persisting uploaded artefacts|Workspace directories|Source archive extracted/i.test(
+        line.text,
+      ),
+  },
+  {
+    description: '根据上传的 Dockerfile 构建 builder 镜像。',
+    key: 'builder-image',
+    label: '构建 Builder 镜像',
+    match: (line) =>
+      ['builder', 'builder-log', 'proxy'].includes(line.stage) ||
+      /Building builder image|docker CLI build|BuildKit|exporting to image/i.test(line.text),
+  },
+  {
+    description: '运行 builder 容器，配置项目并抽取 LLVM bitcode。',
+    key: 'builder-run',
+    label: '项目编译与 bitcode 抽取',
+    match: (line) =>
+      (line.stage === 'container-log' &&
+        /CMake|gclang|Bitcode file extracted|Build files have been written/i.test(
+          line.text,
+        )) ||
+      /Running builder container|Starting builder container|Builder container completed/i.test(line.text),
+  },
+  {
+    description: '检查 program.bc、build_log.txt 等静态分析必需产物。',
+    key: 'validation',
+    label: '分析产物校验',
+    match: (line) =>
+      ['validation', 'workspace-snapshot'].includes(line.stage) ||
+      /Validating required artefacts|All required artefacts present/i.test(line.text),
+  },
+  {
+    description: '启动 ProtocolGuard 静态分析容器并挂载工作区。',
+    key: 'analysis-start',
+    label: '启动分析容器',
+    match: (line) =>
+      ['analysis', 'analysis-debug'].includes(line.stage) ||
+      /Starting analysis container|workspace mount inspection|Parsing configuration/i.test(line.text),
+  },
+  {
+    description: '执行 LLVM SSA 化、SVF 指针分析和 AST 提取。',
+    key: 'preprocess',
+    label: 'IR/SVF/AST 预处理',
+    match: (line) =>
+      /mem2reg|loop-mssa|SVF WPA|Post-processing indirect callgraph|Building AST extraction|Executing AST extraction/i.test(
+        line.text,
+      ),
+  },
+  {
+    description: '生成包相关调用图，定位协议消息入口函数。',
+    key: 'callgraph',
+    label: '调用图与入口函数定位',
+    match: (line) =>
+      /Generating packet-related call graph|Running match-pass|PacketRelatedFuncs|Message Type|Processing Rule|Callgraph Entry|Message Function Entry/i.test(
+        line.text,
+      ),
+  },
+  {
+    description: '通过 LLM 判断消息处理函数、接收函数和规则相关性。',
+    key: 'llm-relevance',
+    label: 'LLM 相关性判定',
+    match: (line) =>
+      /Collect LLM responses|LLM Query|message handler relevant|general receive function|function rule relevant/i.test(
+        line.text,
+      ),
+  },
+  {
+    description: '抽取请求字段变量、IR 指令和候选相关函数。',
+    key: 'field-analysis',
+    label: '字段变量与相关函数分析',
+    match: (line) =>
+      /request field variable|Req Instruction|Cannot find instruction|Extracted \d+ functions|^func:|多线程.*找到/i.test(
+        line.text,
+      ),
+  },
+  {
+    description: '补全相关函数源码，生成最终代码切片证据。',
+    key: 'code-slice',
+    label: '代码切片生成',
+    match: (line) =>
+      /complete code|多线程补全|Unique mergedCodeSliceLineStr|^Function:|^Path:|^\d+\s+/i.test(line.text),
+  },
+  {
+    description: '根据规则与代码证据执行违规一致性分析。',
+    key: 'inconsistency',
+    label: '违规一致性分析',
+    match: (line) =>
+      /Starting inconsistency analysis|Inconsistency analysis completed|JSON outputs/i.test(line.text),
+  },
+  {
+    description: '复制输出、清理日志并收集分析结果。',
+    key: 'results',
+    label: '结果归档',
+    match: (line) =>
+      ['results'].includes(line.stage) ||
+      /Copying analysis artifacts|Cleaning up empty log files|Collecting analysis results/i.test(line.text),
+  },
+  {
+    description: '静态分析任务已完成。',
+    key: 'completed',
+    label: '完成',
+    match: (line) =>
+      ['completed'].includes(line.stage) ||
+      /ProtocolGuard job completed successfully|Static analysis completed/i.test(line.text),
+  },
+];
+
+const locateProgress = computed(() => {
+  const finished = Boolean(props.result) || (!props.running && Boolean(props.evidence));
+  let activeIndex = finished ? locateProgressSteps.length - 1 : -1;
+  let activeLine: LogLine | null = null;
+
+  for (const line of rawLogLines.value) {
+    for (let index = locateProgressSteps.length - 1; index >= 0; index -= 1) {
+      const step = locateProgressSteps[index]!;
+      if (step.match(line) && index >= activeIndex) {
+        activeIndex = index;
+        activeLine = line;
+        break;
+      }
+    }
+  }
+
+  if (activeIndex < 0) {
+    return {
+      current: {
+        description: props.running ? '正在等待后端推送静态分析日志。' : '尚未开始代码定位。',
+        key: 'waiting',
+        label: props.running ? '等待日志' : '未开始',
+      },
+      lastTime: '',
+      percent: props.running ? 3 : 0,
+      step: 0,
+      total: locateProgressSteps.length,
+    };
+  }
+
+  const isComplete = activeIndex === locateProgressSteps.length - 1 || finished;
+  return {
+    current: locateProgressSteps[activeIndex]!,
+    lastTime:
+      activeLine?.time ||
+      rawLogLines.value[rawLogLines.value.length - 1]?.time ||
+      '',
+    percent: isComplete
+      ? 100
+      : Math.max(6, Math.round(((activeIndex + 1) / locateProgressSteps.length) * 96)),
+    step: activeIndex + 1,
+    total: locateProgressSteps.length,
+  };
 });
 
 const hasContent = computed(() => {
@@ -522,6 +698,26 @@ function sliceStatus(fn: CodeLocateFunctionSlice) {
             <Tag :color="running ? 'processing' : 'default'">
               {{ running ? '自动滚动' : `${logLines.length} 行` }}
             </Tag>
+          </div>
+
+          <div class="log-progress">
+            <div class="log-progress-main">
+              <div class="log-progress-title">
+                <span>当前阶段</span>
+                <strong>{{ locateProgress.current.label }}</strong>
+              </div>
+              <p>{{ locateProgress.current.description }}</p>
+            </div>
+            <div class="log-progress-meta">
+              <span>{{ locateProgress.step }}/{{ locateProgress.total }}</span>
+              <small>{{ locateProgress.lastTime || '--:--:--' }}</small>
+            </div>
+            <Progress
+              :percent="locateProgress.percent"
+              :show-info="false"
+              size="small"
+              status="active"
+            />
           </div>
 
           <div ref="logBodyRef" class="live-log">
@@ -943,6 +1139,70 @@ function sliceStatus(fn: CodeLocateFunctionSlice) {
   color: #111827;
 }
 
+.log-progress {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 12px;
+  align-items: start;
+  padding: 12px;
+  margin-bottom: 12px;
+  background: #f7fbff;
+  border: 1px solid #d6e9ff;
+  border-radius: 8px;
+}
+
+.log-progress :deep(.ant-progress) {
+  grid-column: 1 / -1;
+  line-height: 1;
+}
+
+.log-progress-main {
+  min-width: 0;
+}
+
+.log-progress-title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.log-progress-title span,
+.log-progress-meta small {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.log-progress-title strong {
+  font-size: 15px;
+  color: #0b5cad;
+}
+
+.log-progress p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #334155;
+  overflow-wrap: anywhere;
+}
+
+.log-progress-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-end;
+  min-width: 70px;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    monospace;
+}
+
+.log-progress-meta span {
+  font-size: 13px;
+  font-weight: 700;
+  color: #172033;
+}
+
 .live-log {
   height: 360px;
   padding: 10px 0;
@@ -1219,6 +1479,14 @@ function sliceStatus(fn: CodeLocateFunctionSlice) {
 
   .log-line {
     flex-wrap: wrap;
+  }
+
+  .log-progress {
+    grid-template-columns: 1fr;
+  }
+
+  .log-progress-meta {
+    align-items: flex-start;
   }
 
   .log-text {
