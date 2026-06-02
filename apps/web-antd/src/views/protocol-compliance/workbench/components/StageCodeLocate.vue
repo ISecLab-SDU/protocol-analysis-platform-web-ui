@@ -41,7 +41,6 @@ interface LocateProgressStep {
 
 const props = defineProps<Props>();
 
-const selectedFunctionName = ref('');
 const logBodyRef = ref<HTMLElement | null>(null);
 
 const verdicts = computed(() => props.result?.modelResponse?.verdicts ?? []);
@@ -170,14 +169,6 @@ const functionRecords = computed<CodeLocateFunctionSlice[]>(() => {
   return [...records.values()];
 });
 
-const selectedFunction = computed(() => {
-  return (
-    functionRecords.value.find((fn) => fn.name === selectedFunctionName.value) ??
-    functionRecords.value[0] ??
-    null
-  );
-});
-
 const candidateFunctionCount = computed(() => {
   if (props.evidence) return props.evidence.candidateFunctionCount;
   return functionRecords.value.length || verdicts.value.length;
@@ -212,31 +203,12 @@ const fallbackCodeRows = computed(() => {
   ];
 });
 
-const detailRows = computed(() => {
-  if (selectedFunction.value) return selectedFunction.value.codeRows;
-  if (!props.evidence && !props.result) return [];
-  return fallbackCodeRows.value;
-});
-
-const detailTitle = computed(() => {
-  return selectedFunction.value?.name || primaryVerdict.value?.location?.function || '等待函数切片';
-});
-
-const detailPath = computed(() => {
-  return selectedFunction.value?.path || targetFile.value;
-});
-
-const detailLine = computed(() => {
-  return selectedFunction.value?.targetLine || targetLine.value;
-});
-
 const evidenceFunctionSlices = computed(() => {
   return functionRecords.value.filter((fn) => fn.codeRows.length > 0);
 });
 
 const evidenceRows = computed(() => {
   if (props.evidence?.codeRows.length) return props.evidence.codeRows;
-  if (detailRows.value.length > 0) return detailRows.value;
   if (props.result || props.evidence) return fallbackCodeRows.value;
   return [];
 });
@@ -416,20 +388,6 @@ const hasContent = computed(() => {
 });
 
 watch(
-  functionRecords,
-  (records) => {
-    if (records.length === 0) {
-      selectedFunctionName.value = '';
-      return;
-    }
-    if (!records.some((record) => record.name === selectedFunctionName.value)) {
-      selectedFunctionName.value = records[0]?.name ?? '';
-    }
-  },
-  { immediate: true },
-);
-
-watch(
   () => props.logText,
   async () => {
     await nextTick();
@@ -516,26 +474,10 @@ function complianceColor(value: ProtocolStaticAnalysisComplianceStatus) {
   return 'warning';
 }
 
-function shortPath(path?: string) {
-  if (!path) return '待定位';
-  const normalized = path.replaceAll('\\', '/');
-  return normalized.split('/').filter(Boolean).pop() || path;
-}
-
-function formatFunctionLocation(fn: CodeLocateFunctionSlice) {
-  const path = fn.path ? shortPath(fn.path) : targetFile.value;
-  if (!fn.targetLine || fn.targetLine === '-') return path;
-  return `${path}:${fn.targetLine}`;
-}
-
 function formatEvidencePath(fn: CodeLocateFunctionSlice) {
-  const path = fn.path || detailPath.value;
+  const path = fn.path || targetFile.value;
   if (!fn.targetLine || fn.targetLine === '-') return path;
   return `${path}:${fn.targetLine}`;
-}
-
-function sliceStatus(fn: CodeLocateFunctionSlice) {
-  return fn.codeRows.length > 0 ? '已生成切片' : '已发现';
 }
 </script>
 
@@ -734,81 +676,41 @@ function sliceStatus(fn: CodeLocateFunctionSlice) {
         <section class="discovery-panel">
           <div class="panel-head">
             <div>
-              <span class="panel-kicker">检测到的相关内容</span>
-              <h3>函数发现记录</h3>
+              <span class="panel-kicker">代码定位结果</span>
+              <h3>相关函数源码</h3>
             </div>
-            <Tag color="blue">{{ functionRecords.length }} 个函数</Tag>
+            <Tag color="blue">{{ evidenceFunctionSlices.length }} 个函数</Tag>
           </div>
 
-          <div v-if="functionRecords.length > 0" class="function-list">
-            <button
-              v-for="fn in functionRecords"
+          <div v-if="evidenceFunctionSlices.length > 0" class="function-source-list">
+            <article
+              v-for="fn in evidenceFunctionSlices"
               :key="fn.name"
-              class="function-item"
-              :class="{ 'function-item--active': selectedFunction?.name === fn.name }"
-              type="button"
-              :aria-pressed="selectedFunction?.name === fn.name"
-              @click="selectedFunctionName = fn.name"
+              class="function-source-card"
             >
-              <span class="function-main">
+              <div class="function-source-head">
                 <strong>{{ fn.name }}</strong>
-                <small>{{ formatFunctionLocation(fn) }}</small>
-              </span>
-              <Tag :color="fn.codeRows.length > 0 ? 'success' : 'default'">
-                {{ sliceStatus(fn) }}
-              </Tag>
-            </button>
+                <code>{{ formatEvidencePath(fn) }}</code>
+              </div>
+              <div class="function-source-code">
+                <div
+                  v-for="(row, idx) in fn.codeRows"
+                  :key="`${fn.name}-${row.line}-${idx}`"
+                  class="code-row"
+                  :class="{ 'code-row--emphasis': row.emphasis }"
+                >
+                  <span class="line-no">{{ row.line }}</span>
+                  <span class="line-text">{{ row.text }}</span>
+                </div>
+              </div>
+            </article>
           </div>
           <Empty
             v-else
-            description="等待发现相关函数"
+            description="等待生成相关函数源码"
             :image="Empty.PRESENTED_IMAGE_SIMPLE"
           />
         </section>
-      </section>
-
-      <section class="slice-panel">
-        <div class="panel-head">
-          <div>
-            <span class="panel-kicker">点击函数查看证据</span>
-            <h3>{{ detailTitle }}</h3>
-          </div>
-          <Tag v-if="selectedFunction" :color="detailRows.length > 0 ? 'success' : 'default'">
-            {{ detailRows.length > 0 ? '切片已生成' : '等待切片' }}
-          </Tag>
-        </div>
-
-        <div class="slice-meta">
-          <div>
-            <span>Path:</span>
-            <code>{{ detailPath }}</code>
-          </div>
-          <div>
-            <span>Line:</span>
-            <code>{{ detailLine }}</code>
-          </div>
-          <div>
-            <span>Source:</span>
-            <code>{{ ruleSource }}{{ evidence?.resultLabel ? ` · ${evidence.resultLabel}` : '' }}</code>
-          </div>
-        </div>
-
-        <div v-if="detailRows.length > 0" class="code-window">
-          <div
-            v-for="(row, idx) in detailRows"
-            :key="`${row.line}-${idx}`"
-            class="code-row"
-            :class="{ 'code-row--emphasis': row.emphasis }"
-          >
-            <span class="line-no">{{ row.line }}</span>
-            <span class="line-text">{{ row.text }}</span>
-          </div>
-        </div>
-        <Empty
-          v-else
-          description="已记录函数名，等待切片日志输出"
-          :image="Empty.PRESENTED_IMAGE_SIMPLE"
-        />
       </section>
     </div>
 
@@ -1108,8 +1010,7 @@ function sliceStatus(fn: CodeLocateFunctionSlice) {
 }
 
 .live-log-panel,
-.discovery-panel,
-.slice-panel {
+.discovery-panel {
   min-width: 0;
   padding: 16px;
   background: #fff;
@@ -1249,88 +1150,55 @@ function sliceStatus(fn: CodeLocateFunctionSlice) {
   color: #64748b;
 }
 
-.function-list {
+.function-source-list {
   display: flex;
-  max-height: 360px;
+  max-height: 500px;
   overflow: auto;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
-.function-item {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: center;
-  width: 100%;
-  min-height: 58px;
-  padding: 10px 12px;
-  text-align: left;
-  cursor: pointer;
+.function-source-card {
+  min-width: 0;
+  overflow: hidden;
   background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
 }
 
-.function-item:hover,
-.function-item--active {
-  background: #f7fbff;
-  border-color: #91caff;
+.function-source-head {
+  display: grid;
+  grid-template-columns: minmax(140px, 0.36fr) minmax(0, 0.64fr);
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    monospace;
+  font-size: 12px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
 }
 
-.function-main {
-  min-width: 0;
-}
-
-.function-main strong,
-.function-main small {
-  display: block;
+.function-source-head strong,
+.function-source-head code {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.function-main strong {
-  font-family:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
-    monospace;
-  font-size: 13px;
+.function-source-head strong {
   color: #111827;
 }
 
-.function-main small {
-  margin-top: 4px;
-  font-size: 12px;
+.function-source-head code {
   color: #64748b;
+  background: transparent;
 }
 
-.slice-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 18px;
-  margin-bottom: 12px;
-  font-size: 13px;
-  color: #475569;
-}
-
-.slice-meta div {
-  min-width: 0;
-}
-
-.slice-meta code {
-  margin-left: 6px;
-  color: #172033;
-  overflow-wrap: anywhere;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 4px;
-}
-
-.code-window {
-  max-height: 360px;
+.function-source-code {
   padding: 10px 0;
-  overflow: auto;
   font-family:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
     monospace;
@@ -1338,8 +1206,6 @@ function sliceStatus(fn: CodeLocateFunctionSlice) {
   line-height: 1.65;
   color: #334155;
   background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
 }
 
 .code-row {
@@ -1435,7 +1301,8 @@ function sliceStatus(fn: CodeLocateFunctionSlice) {
   .summary-strip,
   .result-rail,
   .verdict-summary,
-  .evidence-slice-head {
+  .evidence-slice-head,
+  .function-source-head {
     grid-template-columns: 1fr;
   }
 
