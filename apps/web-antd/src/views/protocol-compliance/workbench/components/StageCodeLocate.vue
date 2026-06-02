@@ -25,6 +25,7 @@ interface Props {
 interface LogLine {
   id: string;
   kind: 'function' | 'normal' | 'path' | 'slice' | 'summary';
+  phase: string;
   source: string;
   stage: string;
   text: string;
@@ -255,7 +256,15 @@ const rawLogLines = computed(() => {
 });
 
 const logLines = computed<LogLine[]>(() => {
-  return rawLogLines.value;
+  let currentStep: LocateProgressStep | null = null;
+  return rawLogLines.value.map((line) => {
+    const matched = findLocateProgressStep(line);
+    if (matched) currentStep = matched;
+    return {
+      ...line,
+      phase: currentStep?.label || '未识别',
+    };
+  });
 });
 
 const locateProgressSteps: LocateProgressStep[] = [
@@ -477,6 +486,7 @@ function parseLogLine(raw: string, index: number): LogLine {
   return {
     id: `${index}-${raw}`,
     kind: classifyLogLine(rest),
+    phase: '',
     source,
     stage,
     text: rest || raw,
@@ -712,6 +722,7 @@ function sliceStatus(fn: CodeLocateFunctionSlice) {
               :class="`log-line--${line.kind}`"
             >
               <span class="log-time">{{ line.time || '--:--:--' }}</span>
+              <span class="log-chip log-chip--phase">{{ line.phase }}</span>
               <span v-if="line.stage" class="log-chip">{{ line.stage }}</span>
               <span v-if="line.source" class="log-chip log-chip--source">{{ line.source }}</span>
               <span class="log-text">{{ line.text }}</span>
@@ -1215,6 +1226,13 @@ function sliceStatus(fn: CodeLocateFunctionSlice) {
   white-space: nowrap;
   background: #eef2f7;
   border-radius: 4px;
+}
+
+.log-chip--phase {
+  max-width: 180px;
+  font-weight: 700;
+  color: #0b5cad;
+  background: #e8f2ff;
 }
 
 .log-chip--source {
