@@ -8,7 +8,7 @@ export type WorkbenchStage =
   | 'fuzz'
   | 'done';
 
-export type StageStatus = 'idle' | 'running' | 'done' | 'error';
+export type StageStatus = 'idle' | 'running' | 'done' | 'error' | 'skipped';
 
 export type ProtocolKind = 'MQTT' | 'SNMP';
 

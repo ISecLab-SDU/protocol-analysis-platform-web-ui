@@ -99,6 +99,7 @@ function stageStateLabel(key: (typeof STAGE_LIST)[number]['key']) {
   const status = stageStatus[key];
   if (status === 'done') return '已完成';
   if (status === 'running') return '进行中';
+  if (status === 'skipped') return '已跳过';
   if (status === 'error') return '异常';
   return stage.value === key ? '当前' : '等待中';
 }
@@ -233,6 +234,7 @@ function switchRule() {
                     (stage === s.key && stageStatus[s.key] !== 'done'),
                   'stepper-item--selected': activeStageView === s.key,
                   'stepper-item--done': stageStatus[s.key] === 'done',
+                  'stepper-item--skipped': stageStatus[s.key] === 'skipped',
                   'stepper-item--error': stageStatus[s.key] === 'error',
                 }"
                 :disabled="!canViewStage(s.key)"
@@ -241,6 +243,10 @@ function switchRule() {
               >
                 <div class="stepper-circle">
                   <IconifyIcon v-if="stageStatus[s.key] === 'done'" icon="mdi:check" />
+                  <IconifyIcon
+                    v-else-if="stageStatus[s.key] === 'skipped'"
+                    icon="mdi:debug-step-over"
+                  />
                   <IconifyIcon v-else-if="stageStatus[s.key] === 'error'" icon="mdi:close" />
                   <span v-else>{{ s.index }}</span>
                 </div>
@@ -664,6 +670,17 @@ function switchRule() {
   color: #fff;
   background: #28a879;
   border-color: #28a879;
+}
+
+.stepper-item--skipped .stepper-circle {
+  color: #1f2937;
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.stepper-item--skipped .stepper-state {
+  color: #475569;
+  font-weight: 700;
 }
 
 .stepper-item--error .stepper-circle {

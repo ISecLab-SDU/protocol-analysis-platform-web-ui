@@ -119,6 +119,9 @@ let pipelineRunId = 0;
 const TEMP_ASSERTION_DATABASE_PATH =
   '/home/lab426_system/protocol-web-ui/violations.db';
 const STAGE_TRANSITION_DELAY_MS = 2000;
+type WorkbenchPipelineProfile = 'full' | 'fuzz-only';
+// Set this back to 'full' to restore code location and assertion generation.
+const WORKBENCH_PIPELINE_PROFILE: WorkbenchPipelineProfile = 'fuzz-only';
 
 function clearTimer(holder: 'static' | 'assert' | 'fuzz' | 'elapsed') {
   if (holder === 'static' && staticPollTimer) {
@@ -206,6 +209,11 @@ function setStage(
 
 function markStageDone(target: WorkbenchStage, msg?: string) {
   stageStatus[target] = 'done';
+  if (msg) stageMessage.value = msg;
+}
+
+function markStageSkipped(target: WorkbenchStage, msg?: string) {
+  stageStatus[target] = 'skipped';
   if (msg) stageMessage.value = msg;
 }
 
@@ -995,6 +1003,29 @@ async function runFuzzStep(runId: number) {
   }
 }
 
+async function runConfiguredPipeline(runId: number) {
+  if (WORKBENCH_PIPELINE_PROFILE === 'fuzz-only') {
+    staticJobId.value = null;
+    staticJob.value = null;
+    staticResult.value = null;
+    staticLogText.value = '';
+    staticLogHtml.value = '';
+    staticLastEventId.value = 0;
+    codeLocateEvidence.value = null;
+    assertJobId.value = null;
+    assertJob.value = null;
+    assertResult.value = null;
+    assertLogText.value = '';
+    assertDiffContent.value = '';
+    markStageSkipped('code_locate');
+    markStageSkipped('assert_gen', '已跳过代码定位和断言生成，直接进入模糊测试');
+    await nextTick();
+    await runFuzzStep(runId);
+    return;
+  }
+  await runStaticAnalysisStep(runId);
+}
+
 async function startPipeline(rule: ProtocolExtractRuleItem) {
   if (!(await ensureProjectReady())) return;
   clearTransitionTimer(false);
@@ -1006,7 +1037,7 @@ async function startPipeline(rule: ProtocolExtractRuleItem) {
   elapsedSeconds.value = 0;
   startElapsedTimer();
   stageStatus.rule_confirm = 'done';
-  await runStaticAnalysisStep(runId);
+  await runConfiguredPipeline(runId);
 }
 
 async function stopPipeline() {
