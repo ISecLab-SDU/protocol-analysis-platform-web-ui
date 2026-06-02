@@ -1152,7 +1152,7 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
 
 .function-source-frame {
   min-width: 0;
-  max-height: 640px;
+  height: 440px;
   overflow: hidden;
   overflow-y: auto;
   background: #fff;
