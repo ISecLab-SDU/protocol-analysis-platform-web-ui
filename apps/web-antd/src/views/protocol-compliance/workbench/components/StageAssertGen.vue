@@ -1,9 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 
-import { DiffFile } from '@git-diff-view/vue';
-import '@git-diff-view/vue/styles/diff-view.css';
-
 import { Card, Empty, Tag } from 'ant-design-vue';
 import { IconifyIcon } from '@vben/icons';
 
@@ -33,6 +30,12 @@ interface AssertProgressStep {
   match: (line: AssertLogLine) => boolean;
 }
 
+interface RenderedDiffLine {
+  id: string;
+  text: string;
+  type: 'add' | 'context' | 'delete' | 'file' | 'hunk' | 'meta';
+}
+
 const props = defineProps<Props>();
 
 const logBodyRef = ref<HTMLElement | null>(null);
@@ -44,12 +47,14 @@ const stageStateText = computed(() => {
 });
 
 const rawLogLines = computed(() => {
-  return props.logText
+  const lines = props.logText
     .split(/\r?\n/)
     .map((line) => line.trimEnd())
     .filter((line) => line.trim().length > 0)
     .map(parseLogLine)
     .filter((line) => !isWaitingLogLine(line));
+
+  return stripInlineDiffPayload(lines);
 });
 
 const logLines = computed<AssertLogLine[]>(() => {
@@ -101,9 +106,25 @@ const hasContent = computed(() => {
 });
 
 const generatedAssertionCount = computed(() => props.result?.assertionCount ?? 0);
+const effectiveDiffContent = computed(() => {
+  return (
+    props.diffContent ||
+    props.result?.instrumentation?.artifacts?.diffOutput?.content ||
+    extractDiffContentFromLog(props.logText)
+  ).trimEnd();
+});
+
 const modifiedFileCount = computed(() => {
-  const matches = props.diffContent.match(/^diff --git\s+/gm);
+  const matches = effectiveDiffContent.value.match(/^diff --git\s+/gm);
   return matches?.length ?? 0;
+});
+
+const renderedDiffLines = computed<RenderedDiffLine[]>(() => {
+  return effectiveDiffContent.value.split(/\r?\n/).map((text, index) => ({
+    id: `${index}-${text}`,
+    text,
+    type: classifyDiffLine(text),
+  }));
 });
 
 const assertProgressSteps: AssertProgressStep[] = [
@@ -319,6 +340,65 @@ function hasLogText(line: AssertLogLine, text: string) {
 function isWaitingLogLine(line: AssertLogLine) {
   return line.stage === 'queued' || line.text === 'Job queued';
 }
+
+function stripInlineDiffPayload(lines: AssertLogLine[]) {
+  let inDiffPayload = false;
+  return lines.filter((line) => {
+    if (line.text.startsWith('diff --git')) {
+      inDiffPayload = true;
+      return false;
+    }
+
+    if (!inDiffPayload) return true;
+
+    if (isDiffPayloadTerminator(line)) {
+      inDiffPayload = false;
+      return true;
+    }
+
+    return false;
+  });
+}
+
+function isDiffPayloadTerminator(line: AssertLogLine) {
+  return (
+    line.stage !== 'instrumentation-log' ||
+    hasLogText(line, 'Instrumentation completed') ||
+    hasLogText(line, 'Copying instrumentation results') ||
+    hasLogText(line, 'Assertion generation flow completed')
+  );
+}
+
+function extractDiffContentFromLog(logText: string) {
+  const diffLines: string[] = [];
+  let inDiffPayload = false;
+
+  for (const rawLine of logText.split(/\r?\n/)) {
+    if (!rawLine.trim()) {
+      if (inDiffPayload) diffLines.push('');
+      continue;
+    }
+
+    const line = parseLogLine(rawLine.trimEnd(), diffLines.length);
+    if (line.text.startsWith('diff --git')) {
+      inDiffPayload = true;
+    }
+    if (!inDiffPayload) continue;
+    if (isDiffPayloadTerminator(line)) break;
+    diffLines.push(line.text);
+  }
+
+  return diffLines.join('\n');
+}
+
+function classifyDiffLine(text: string): RenderedDiffLine['type'] {
+  if (text.startsWith('diff --git') || text.startsWith('index ')) return 'meta';
+  if (text.startsWith('@@')) return 'hunk';
+  if (text.startsWith('--- ') || text.startsWith('+++ ')) return 'file';
+  if (text.startsWith('+')) return 'add';
+  if (text.startsWith('-')) return 'delete';
+  return 'context';
+}
 </script>
 
 <template>
@@ -400,13 +480,16 @@ function isWaitingLogLine(line: AssertLogLine) {
             <Tag color="blue">{{ modifiedFileCount }} 个文件</Tag>
           </div>
 
-          <div v-if="diffContent" class="diff-wrapper">
-            <DiffFile
-              :diff-file="{
-                fileName: 'instrumentation.diff',
-                fileContent: diffContent,
-              }"
-            />
+          <div v-if="effectiveDiffContent" class="diff-wrapper">
+            <div
+              v-for="line in renderedDiffLines"
+              :key="line.id"
+              class="diff-line"
+              :class="`diff-line--${line.type}`"
+            >
+              <span class="diff-line-number">{{ line.text ? '' : ' ' }}</span>
+              <code>{{ line.text || ' ' }}</code>
+            </div>
           </div>
           <Empty
             v-else
@@ -660,10 +743,65 @@ function isWaitingLogLine(line: AssertLogLine) {
 .diff-wrapper {
   height: 440px;
   min-width: 0;
+  padding: 8px 0;
   overflow: auto;
-  background: #fff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #334155;
+  background: #fbfdff;
   border: 1px solid var(--ant-color-border);
   border-radius: 8px;
+}
+
+.diff-line {
+  display: grid;
+  grid-template-columns: 18px minmax(max-content, 1fr);
+  min-width: max-content;
+  padding: 1px 12px;
+  white-space: pre;
+}
+
+.diff-line code {
+  padding: 0;
+  color: inherit;
+  white-space: pre;
+  background: transparent;
+}
+
+.diff-line-number {
+  color: #94a3b8;
+  user-select: none;
+}
+
+.diff-line--meta {
+  font-weight: 700;
+  color: #334155;
+  background: #f1f5f9;
+}
+
+.diff-line--file {
+  color: #0f4c81;
+  background: #eef6ff;
+}
+
+.diff-line--hunk {
+  color: #6d28d9;
+  background: #f5f3ff;
+}
+
+.diff-line--add {
+  color: #047857;
+  background: #ecfdf5;
+}
+
+.diff-line--delete {
+  color: #b42318;
+  background: #fff1f2;
+}
+
+.diff-line--context {
+  color: #334155;
 }
 
 .diff-empty {
