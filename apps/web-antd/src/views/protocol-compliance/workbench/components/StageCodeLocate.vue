@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 
-import { Card, Empty, Progress, Tag } from 'ant-design-vue';
+import { Card, Empty, Tag } from 'ant-design-vue';
 import { IconifyIcon } from '@vben/icons';
 
 import type {
@@ -24,7 +24,7 @@ interface Props {
 
 interface LogLine {
   id: string;
-  kind: 'error' | 'function' | 'normal' | 'path' | 'slice' | 'summary';
+  kind: 'function' | 'normal' | 'path' | 'slice' | 'summary';
   source: string;
   stage: string;
   text: string;
@@ -260,18 +260,12 @@ const logLines = computed<LogLine[]>(() => {
 
 const locateProgressSteps: LocateProgressStep[] = [
   {
-    description: '任务已进入队列，正在创建静态分析作业。',
-    key: 'queued',
-    label: '任务排队',
-    match: (line) => line.stage === 'queued' || /Job queued/i.test(line.text),
-  },
-  {
     description: '保存上传的源码、规则和配置，准备工作目录。',
     key: 'inputs',
     label: '输入与工作区准备',
     match: (line) =>
-      ['init', 'inputs', 'workspace'].includes(line.stage) ||
-      /Preparing analysis inputs|Persisting uploaded artefacts|Workspace directories|Source archive extracted/i.test(
+      ['init', 'inputs', 'queued', 'workspace'].includes(line.stage) ||
+      /Job queued|Preparing analysis inputs|Persisting uploaded artefacts|Workspace directories|Source archive extracted/i.test(
         line.text,
       ),
   },
@@ -381,14 +375,12 @@ const locateProgressSteps: LocateProgressStep[] = [
 const locateProgress = computed(() => {
   const finished = Boolean(props.result) || (!props.running && Boolean(props.evidence));
   let activeIndex = finished ? locateProgressSteps.length - 1 : -1;
-  let activeLine: LogLine | null = null;
 
   for (const line of rawLogLines.value) {
     for (let index = locateProgressSteps.length - 1; index >= 0; index -= 1) {
       const step = locateProgressSteps[index]!;
       if (step.match(line) && index >= activeIndex) {
         activeIndex = index;
-        activeLine = line;
         break;
       }
     }
@@ -401,25 +393,11 @@ const locateProgress = computed(() => {
         key: 'waiting',
         label: props.running ? '等待日志' : '未开始',
       },
-      lastTime: '',
-      percent: props.running ? 3 : 0,
-      step: 0,
-      total: locateProgressSteps.length,
     };
   }
 
-  const isComplete = activeIndex === locateProgressSteps.length - 1 || finished;
   return {
     current: locateProgressSteps[activeIndex]!,
-    lastTime:
-      activeLine?.time ||
-      rawLogLines.value[rawLogLines.value.length - 1]?.time ||
-      '',
-    percent: isComplete
-      ? 100
-      : Math.max(6, Math.round(((activeIndex + 1) / locateProgressSteps.length) * 96)),
-    step: activeIndex + 1,
-    total: locateProgressSteps.length,
   };
 });
 
@@ -442,7 +420,7 @@ watch(
 );
 
 watch(
-  () => logLines.value.length,
+  () => props.logText,
   async () => {
     await nextTick();
     const target = logBodyRef.value;
@@ -494,7 +472,6 @@ function parseLogLine(raw: string, index: number): LogLine {
 }
 
 function classifyLogLine(text: string): LogLine['kind'] {
-  if (/error|failed|失败/i.test(text)) return 'error';
   if (/Extracted\s+\d+\s+functions/i.test(text)) return 'summary';
   if (/^func:/i.test(text)) return 'function';
   if (/^Function:/i.test(text)) return 'slice';
@@ -708,16 +685,6 @@ function sliceStatus(fn: CodeLocateFunctionSlice) {
               </div>
               <p>{{ locateProgress.current.description }}</p>
             </div>
-            <div class="log-progress-meta">
-              <span>{{ locateProgress.step }}/{{ locateProgress.total }}</span>
-              <small>{{ locateProgress.lastTime || '--:--:--' }}</small>
-            </div>
-            <Progress
-              :percent="locateProgress.percent"
-              :show-info="false"
-              size="small"
-              status="active"
-            />
           </div>
 
           <div ref="logBodyRef" class="live-log">
@@ -1140,20 +1107,11 @@ function sliceStatus(fn: CodeLocateFunctionSlice) {
 }
 
 .log-progress {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px 12px;
-  align-items: start;
   padding: 12px;
   margin-bottom: 12px;
   background: #f7fbff;
   border: 1px solid #d6e9ff;
   border-radius: 8px;
-}
-
-.log-progress :deep(.ant-progress) {
-  grid-column: 1 / -1;
-  line-height: 1;
 }
 
 .log-progress-main {
@@ -1167,8 +1125,7 @@ function sliceStatus(fn: CodeLocateFunctionSlice) {
   align-items: baseline;
 }
 
-.log-progress-title span,
-.log-progress-meta small {
+.log-progress-title span {
   font-size: 12px;
   color: #64748b;
 }
@@ -1184,23 +1141,6 @@ function sliceStatus(fn: CodeLocateFunctionSlice) {
   line-height: 1.5;
   color: #334155;
   overflow-wrap: anywhere;
-}
-
-.log-progress-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  align-items: flex-end;
-  min-width: 70px;
-  font-family:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
-    monospace;
-}
-
-.log-progress-meta span {
-  font-size: 13px;
-  font-weight: 700;
-  color: #172033;
 }
 
 .live-log {
@@ -1240,11 +1180,6 @@ function sliceStatus(fn: CodeLocateFunctionSlice) {
 .log-line--path {
   color: #7c3aed;
   background: #f8f5ff;
-}
-
-.log-line--error {
-  color: #dc2626;
-  background: #fff5f5;
 }
 
 .log-time {
@@ -1479,14 +1414,6 @@ function sliceStatus(fn: CodeLocateFunctionSlice) {
 
   .log-line {
     flex-wrap: wrap;
-  }
-
-  .log-progress {
-    grid-template-columns: 1fr;
-  }
-
-  .log-progress-meta {
-    align-items: flex-start;
   }
 
   .log-text {
