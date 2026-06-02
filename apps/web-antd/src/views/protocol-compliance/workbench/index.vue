@@ -23,6 +23,7 @@ const {
   elapsedSeconds,
   startedAt,
   isStopping,
+  isTransitioning,
   errorMessage,
   projectConfig,
   selectedRule,
@@ -48,7 +49,8 @@ const isRunning = computed(() => {
   return (
     stageStatus.code_locate === 'running' ||
     stageStatus.assert_gen === 'running' ||
-    stageStatus.fuzz === 'running'
+    stageStatus.fuzz === 'running' ||
+    isTransitioning.value
   );
 });
 

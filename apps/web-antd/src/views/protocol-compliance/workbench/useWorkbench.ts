@@ -1,4 +1,4 @@
-import { reactive, ref, computed } from 'vue';
+import { computed, nextTick, reactive, ref } from 'vue';
 import { message } from 'ant-design-vue';
 
 import type {
@@ -52,6 +52,7 @@ const stageMessage = ref('请先在“项目设置”中上传所需文件');
 const elapsedSeconds = ref(0);
 const startedAt = ref<Date | null>(null);
 const isStopping = ref(false);
+const isTransitioning = ref(false);
 const errorMessage = ref<null | string>(null);
 
 const projectConfig = reactive<ProjectConfig>({
@@ -102,10 +103,14 @@ let elapsedTimer: null | ReturnType<typeof setInterval> = null;
 let staticPollTimer: null | ReturnType<typeof setInterval> = null;
 let assertPollTimer: null | ReturnType<typeof setInterval> = null;
 let fuzzPollTimer: null | ReturnType<typeof setInterval> = null;
+let transitionTimer: null | ReturnType<typeof setTimeout> = null;
+let transitionResolver: null | ((shouldContinue: boolean) => void) = null;
 let fuzzLogIdSeq = 0;
+let pipelineRunId = 0;
 
 const TEMP_ASSERTION_DATABASE_PATH =
   '/home/lab426_system/protocol-web-ui/violations.db';
+const STAGE_TRANSITION_DELAY_MS = 2000;
 
 function clearTimer(holder: 'static' | 'assert' | 'fuzz' | 'elapsed') {
   if (holder === 'static' && staticPollTimer) {
@@ -124,6 +129,37 @@ function clearTimer(holder: 'static' | 'assert' | 'fuzz' | 'elapsed') {
     clearInterval(elapsedTimer);
     elapsedTimer = null;
   }
+}
+
+function clearTransitionTimer(shouldContinue = false) {
+  isTransitioning.value = false;
+  if (transitionTimer) {
+    clearTimeout(transitionTimer);
+    transitionTimer = null;
+  }
+  if (transitionResolver) {
+    const resolve = transitionResolver;
+    transitionResolver = null;
+    resolve(shouldContinue);
+  }
+}
+
+function isCurrentPipelineRun(runId: number) {
+  return pipelineRunId === runId && !isStopping.value;
+}
+
+function waitForStageTransition(runId: number, delay = STAGE_TRANSITION_DELAY_MS) {
+  clearTransitionTimer(false);
+  isTransitioning.value = true;
+  return new Promise<boolean>((resolve) => {
+    transitionResolver = resolve;
+    transitionTimer = setTimeout(() => {
+      isTransitioning.value = false;
+      transitionTimer = null;
+      transitionResolver = null;
+      resolve(isCurrentPipelineRun(runId));
+    }, delay);
+  });
 }
 
 function startElapsedTimer() {
@@ -536,14 +572,19 @@ function backToSetup() {
   stageMessage.value = '调整项目设置后重新进入流水线';
 }
 
-async function pollStaticAnalysis(jobId: string) {
+async function pollStaticAnalysis(jobId: string, runId: number) {
   clearTimer('static');
   staticPollTimer = setInterval(async () => {
+    if (!isCurrentPipelineRun(runId)) {
+      clearTimer('static');
+      return;
+    }
     try {
       const snapshot = await fetchProtocolStaticAnalysisProgress(
         jobId,
         staticLastEventId.value || undefined,
       );
+      if (!isCurrentPipelineRun(runId)) return;
       staticJob.value = snapshot;
       const events = snapshot.events ?? [];
       if (events.length > 0) {
@@ -560,26 +601,34 @@ async function pollStaticAnalysis(jobId: string) {
       if (snapshot.status === 'completed') {
         clearTimer('static');
         const result = await fetchProtocolStaticAnalysisResult(jobId);
+        if (!isCurrentPipelineRun(runId)) return;
         staticResult.value = result;
         await refreshCodeLocateEvidenceFromResult(jobId, result);
-        markStageDone('code_locate', '代码定位完成，进入断言生成…');
-        await runAssertGenStep();
+        if (!isCurrentPipelineRun(runId)) return;
+        markStageDone('code_locate', '代码定位完成，2 秒后进入断言生成…');
+        if (await waitForStageTransition(runId)) await runAssertGenStep(runId);
       } else if (snapshot.status === 'failed') {
         clearTimer('static');
         markStageError('code_locate', snapshot.error || '静态分析失败');
       }
     } catch (err: any) {
+      if (!isCurrentPipelineRun(runId)) return;
       clearTimer('static');
       markStageError('code_locate', err?.message || '静态分析进度查询失败');
     }
   }, 1500);
 }
 
-async function pollAssertGen(jobId: string) {
+async function pollAssertGen(jobId: string, runId: number) {
   clearTimer('assert');
   assertPollTimer = setInterval(async () => {
+    if (!isCurrentPipelineRun(runId)) {
+      clearTimer('assert');
+      return;
+    }
     try {
       const snapshot = await fetchProtocolAssertGenerationProgress(jobId);
+      if (!isCurrentPipelineRun(runId)) return;
       assertJob.value = snapshot;
       const events = snapshot.events ?? [];
       if (events.length > 0) {
@@ -597,27 +646,30 @@ async function pollAssertGen(jobId: string) {
       if (snapshot.status === 'completed') {
         clearTimer('assert');
         const result = await fetchProtocolAssertGenerationResult(jobId);
+        if (!isCurrentPipelineRun(runId)) return;
         assertResult.value = result;
         try {
           const diff = await fetchProtocolInstrumentationDiff(jobId);
+          if (!isCurrentPipelineRun(runId)) return;
           assertDiffContent.value = diff?.content || '';
         } catch {
           assertDiffContent.value = '';
         }
-        markStageDone('assert_gen', '断言生成完成，开始模糊测试…');
-        await runFuzzStep();
+        markStageDone('assert_gen', '断言生成完成，2 秒后进入模糊测试…');
+        if (await waitForStageTransition(runId)) await runFuzzStep(runId);
       } else if (snapshot.status === 'failed') {
         clearTimer('assert');
         markStageError('assert_gen', snapshot.error || '断言生成失败');
       }
     } catch (err: any) {
+      if (!isCurrentPipelineRun(runId)) return;
       clearTimer('assert');
       markStageError('assert_gen', err?.message || '断言生成进度查询失败');
     }
   }, 1500);
 }
 
-async function runStaticAnalysisStep() {
+async function runStaticAnalysisStep(runId: number) {
   if (!projectConfig.archive || !projectConfig.builder || !projectConfig.config) {
     markStageError('code_locate', '项目设置不完整');
     return;
@@ -640,26 +692,31 @@ async function runStaticAnalysisStep() {
       rules: buildRulesFile(),
       notes: projectConfig.notes,
     });
+    if (!isCurrentPipelineRun(runId)) return;
     staticJobId.value = job.jobId;
     staticJob.value = job;
     stageMessage.value = '静态分析进行中…';
     if (job.status === 'completed') {
       const result = await fetchProtocolStaticAnalysisResult(job.jobId);
+      if (!isCurrentPipelineRun(runId)) return;
       staticResult.value = result;
       await refreshCodeLocateEvidenceFromResult(job.jobId, result);
-      markStageDone('code_locate', '代码定位完成，进入断言生成…');
-      await runAssertGenStep();
+      if (!isCurrentPipelineRun(runId)) return;
+      markStageDone('code_locate', '代码定位完成，2 秒后进入断言生成…');
+      if (await waitForStageTransition(runId)) await runAssertGenStep(runId);
     } else if (job.status === 'failed') {
       markStageError('code_locate', job.error || '静态分析失败');
     } else {
-      await pollStaticAnalysis(job.jobId);
+      await pollStaticAnalysis(job.jobId, runId);
     }
   } catch (err: any) {
+    if (!isCurrentPipelineRun(runId)) return;
     markStageError('code_locate', err?.message || '静态分析启动失败');
   }
 }
 
-async function runAssertGenStep() {
+async function runAssertGenStep(runId: number) {
+  if (!isCurrentPipelineRun(runId)) return;
   if (!staticJobId.value) {
     markStageError('assert_gen', '缺少静态分析结果，无法生成断言');
     return;
@@ -668,11 +725,11 @@ async function runAssertGenStep() {
     markStageError('assert_gen', '缺少源码压缩包');
     return;
   }
-  setStage('assert_gen', 'running', '准备固定违规数据库…', {
-    focus: activeStageView.value !== 'code_locate',
-  });
+  setStage('assert_gen', 'running', '准备固定违规数据库…');
   assertLogText.value = '';
   assertDiffContent.value = '';
+  await nextTick();
+  if (!isCurrentPipelineRun(runId)) return;
   try {
     stageMessage.value = `使用固定违规数据库: ${TEMP_ASSERTION_DATABASE_PATH}`;
     const job = await runProtocolAssertGeneration({
@@ -681,26 +738,30 @@ async function runAssertGenStep() {
       buildInstructions: projectConfig.buildInstructions,
       notes: projectConfig.notes,
     });
+    if (!isCurrentPipelineRun(runId)) return;
     assertJobId.value = job.jobId;
     assertJob.value = job;
     stageMessage.value = '断言生成进行中…';
     if (job.status === 'completed') {
       const result = await fetchProtocolAssertGenerationResult(job.jobId);
+      if (!isCurrentPipelineRun(runId)) return;
       assertResult.value = result;
       try {
         const diff = await fetchProtocolInstrumentationDiff(job.jobId);
+        if (!isCurrentPipelineRun(runId)) return;
         assertDiffContent.value = diff?.content || '';
       } catch {
         assertDiffContent.value = '';
       }
-      markStageDone('assert_gen', '断言生成完成，开始模糊测试…');
-      await runFuzzStep();
+      markStageDone('assert_gen', '断言生成完成，2 秒后进入模糊测试…');
+      if (await waitForStageTransition(runId)) await runFuzzStep(runId);
     } else if (job.status === 'failed') {
       markStageError('assert_gen', job.error || '断言生成失败');
     } else {
-      await pollAssertGen(job.jobId);
+      await pollAssertGen(job.jobId, runId);
     }
   } catch (err: any) {
+    if (!isCurrentPipelineRun(runId)) return;
     markStageError('assert_gen', err?.message || '断言生成启动失败');
   }
 }
@@ -779,14 +840,15 @@ async function readFuzzLogs() {
   }
 }
 
-async function runFuzzStep() {
-  setStage('fuzz', 'running', '写入 Fuzz 脚本…', {
-    focus: activeStageView.value !== 'code_locate',
-  });
+async function runFuzzStep(runId: number) {
+  if (!isCurrentPipelineRun(runId)) return;
+  setStage('fuzz', 'running', '写入 Fuzz 脚本…');
   fuzzLogs.value = [];
   fuzzLogReadPosition.value = 0;
   Object.assign(fuzzStats, { executions: 0, paths: 0, crashes: 0, hangs: 0, cycles: 0, speed: 0 });
   fuzzSpeedSeries.value = [];
+  await nextTick();
+  if (!isCurrentPipelineRun(runId)) return;
   try {
     const script = buildFuzzScript();
     await writeScript({
@@ -794,36 +856,44 @@ async function runFuzzStep() {
       protocol: protocolKindForApi.value,
       protocolImplementations: protocolImplementationsKey.value,
     } as any);
+    if (!isCurrentPipelineRun(runId)) return;
     stageMessage.value = '启动 Fuzzer 容器/进程…';
     const launch: any = await executeCommand({
       protocol: protocolKindForApi.value,
       protocolImplementations: protocolImplementationsKey.value,
     } as any);
+    if (!isCurrentPipelineRun(runId)) return;
     const launchData = launch?.data ?? launch;
     if (launchData?.pid) fuzzPid.value = String(launchData.pid);
     if (launchData?.container_id) fuzzContainerId.value = String(launchData.container_id);
     stageMessage.value = '模糊测试运行中，点击"停止"结束';
     fuzzPollTimer = setInterval(readFuzzLogs, 2000);
   } catch (err: any) {
+    if (!isCurrentPipelineRun(runId)) return;
     markStageError('fuzz', err?.message || '模糊测试启动失败');
   }
 }
 
 async function startPipeline(rule: ProtocolExtractRuleItem) {
   if (!(await ensureProjectReady())) return;
+  clearTransitionTimer(false);
+  pipelineRunId += 1;
+  const runId = pipelineRunId;
   selectedRule.value = rule;
   errorMessage.value = null;
   startedAt.value = new Date();
   elapsedSeconds.value = 0;
   startElapsedTimer();
   stageStatus.rule_confirm = 'done';
-  await runStaticAnalysisStep();
+  await runStaticAnalysisStep(runId);
 }
 
 async function stopPipeline() {
   if (isStopping.value) return;
   isStopping.value = true;
   try {
+    pipelineRunId += 1;
+    clearTransitionTimer(false);
     clearTimer('static');
     clearTimer('assert');
     clearTimer('fuzz');
@@ -860,6 +930,8 @@ async function stopPipeline() {
 }
 
 function resetWorkbench() {
+  pipelineRunId += 1;
+  clearTransitionTimer(false);
   clearTimer('static');
   clearTimer('assert');
   clearTimer('fuzz');
@@ -869,6 +941,7 @@ function resetWorkbench() {
   stage.value = 'setup';
   activeStageView.value = 'setup';
   startedAt.value = null;
+  isTransitioning.value = false;
   elapsedSeconds.value = 0;
   selectedRule.value = null;
   staticJobId.value = null;
@@ -903,6 +976,7 @@ export function useWorkbench() {
     elapsedSeconds,
     startedAt,
     isStopping,
+    isTransitioning,
     errorMessage,
     projectConfig,
     selectedRule,
