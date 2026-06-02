@@ -58,6 +58,7 @@ const projectConfig = reactive<ProjectConfig>({
   archive: null,
   builder: null,
   config: null,
+  rules: null,
   buildInstructions: 'make',
   protocolType: 'MQTT',
   implementation: 'Mosquitto',
@@ -485,6 +486,10 @@ async function ensureProjectReady(): Promise<boolean> {
     message.warning('请上传配置 TOML');
     return false;
   }
+  if (!projectConfig.rules) {
+    message.warning('请上传协议规则 JSON');
+    return false;
+  }
   if (!projectConfig.buildInstructions.trim()) {
     message.warning('请填写编译命令');
     return false;
@@ -493,7 +498,12 @@ async function ensureProjectReady(): Promise<boolean> {
 }
 
 function commitSetup() {
-  if (!projectConfig.archive || !projectConfig.builder || !projectConfig.config) {
+  if (
+    !projectConfig.archive ||
+    !projectConfig.builder ||
+    !projectConfig.config ||
+    !projectConfig.rules
+  ) {
     message.warning('请先完成项目设置');
     return;
   }

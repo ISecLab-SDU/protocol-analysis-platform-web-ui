@@ -273,6 +273,7 @@ function switchRule() {
               <StageRuleConfirm
                 v-else-if="activeStageView === 'rule_confirm'"
                 :protocol-type="projectConfig.protocolType"
+                :rules-file="projectConfig.rules"
                 :disabled="isRunning"
                 @start="startPipeline"
                 @back="backToSetup"

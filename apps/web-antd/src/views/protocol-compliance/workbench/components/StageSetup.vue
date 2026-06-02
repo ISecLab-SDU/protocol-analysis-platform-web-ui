@@ -28,12 +28,15 @@ function onProtocolChange(val: 'MQTT' | 'SNMP') {
   props.config.targetPort = DEFAULT_TARGET[val].port;
 }
 
-function beforeUpload(file: File, field: 'archive' | 'builder' | 'config') {
+function beforeUpload(
+  file: File,
+  field: 'archive' | 'builder' | 'config' | 'rules',
+) {
   props.config[field] = file;
   return false;
 }
 
-function removeFile(field: 'archive' | 'builder' | 'config') {
+function removeFile(field: 'archive' | 'builder' | 'config' | 'rules') {
   props.config[field] = null;
 }
 
@@ -42,6 +45,7 @@ const canCommit = computed(() => {
     props.config.archive &&
     props.config.builder &&
     props.config.config &&
+    props.config.rules &&
     props.config.buildInstructions.trim()
   );
 });
@@ -94,6 +98,27 @@ const canCommit = computed(() => {
             选择文件
           </Button>
         </Upload>
+      </div>
+
+      <div class="setup-section">
+        <div class="setup-label">协议规则 JSON *</div>
+        <Upload
+          :file-list="
+            config.rules
+              ? [{ uid: '-4', name: config.rules.name, status: 'done' }]
+              : []
+          "
+          :before-upload="(file) => beforeUpload(file, 'rules')"
+          :disabled="disabled"
+          accept=".json,application/json"
+          @remove="() => removeFile('rules')"
+        >
+          <Button :disabled="disabled">
+            <template #icon><IconifyIcon icon="mdi:upload" /></template>
+            选择文件
+          </Button>
+        </Upload>
+        <div class="setup-hint">支持 rule.json / rules.json</div>
       </div>
 
       <div class="setup-section">

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import { Button, Card, Empty, message, Table, Tag } from 'ant-design-vue';
 import { IconifyIcon } from '@vben/icons';
@@ -12,6 +12,7 @@ import { normalizeList } from '../utils';
 
 interface Props {
   protocolType: ProtocolKind;
+  rulesFile?: File | null;
   disabled?: boolean;
 }
 
@@ -34,6 +35,45 @@ const columns = [
   { title: '响应字段', dataIndex: 'res_type', width: 200 },
 ];
 
+function normalizeRulesPayload(data: any, sourceLabel: string) {
+  const entries: any[] = [];
+
+  if (Array.isArray(data)) {
+    entries.push(...data.map((rule) => ({ rule, msgType: sourceLabel })));
+  } else if (Array.isArray(data?.rules)) {
+    entries.push(
+      ...data.rules.map((rule: any) => ({ rule, msgType: sourceLabel })),
+    );
+  } else if (Array.isArray(data?.data?.rules)) {
+    entries.push(
+      ...data.data.rules.map((rule: any) => ({
+        rule,
+        msgType: sourceLabel,
+      })),
+    );
+  } else if (data && typeof data === 'object') {
+    for (const [msgType, ruleList] of Object.entries(data)) {
+      if (Array.isArray(ruleList)) {
+        entries.push(...ruleList.map((rule) => ({ rule, msgType })));
+      }
+    }
+  }
+
+  return entries
+    .filter(({ rule }) => rule && typeof rule === 'object')
+    .map(({ rule, msgType }, index) => ({
+      ...rule,
+      id: `${msgType}-${index}`,
+      msgType,
+      req_fields: normalizeList(rule.req_fields),
+      req_type: rule.req_type ?? [],
+      res_fields: normalizeList(rule.res_fields),
+      res_type: rule.res_type ?? [],
+      rule: String(rule.rule || rule.requirement || rule.description || '').trim(),
+    }))
+    .filter((rule) => rule.rule);
+}
+
 const selectedRule = computed(() => {
   if (selectedRowKeys.value.length === 0) return null;
   return rules.value.find((r) => r.id === selectedRowKeys.value[0]) ?? null;
@@ -42,29 +82,31 @@ const selectedRule = computed(() => {
 async function loadRules() {
   loading.value = true;
   try {
-    const entry = BUILTIN_RULESET_INDEX.find((e) => e.protocol === props.protocolType);
-    if (!entry) {
-      message.error(`未找到 ${props.protocolType} 的内置规则集`);
-      return;
-    }
-    const response = await fetch(entry.path);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data = await response.json();
-    const flatRules: RuleOption[] = [];
-    for (const [msgType, ruleList] of Object.entries(data)) {
-      if (Array.isArray(ruleList)) {
-        for (const rule of ruleList) {
-          flatRules.push({
-            ...rule,
-            id: `${msgType}-${flatRules.length}`,
-            msgType,
-          });
-        }
+    let data: any;
+    let sourceLabel = 'UPLOADED';
+    if (props.rulesFile) {
+      data = JSON.parse(await props.rulesFile.text());
+      sourceLabel = props.rulesFile.name.replace(/\.json$/i, '') || sourceLabel;
+    } else {
+      const entry = BUILTIN_RULESET_INDEX.find(
+        (e) => e.protocol === props.protocolType,
+      );
+      if (!entry) {
+        message.error(`未找到 ${props.protocolType} 的内置规则集`);
+        return;
       }
+      const response = await fetch(entry.path);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      data = await response.json();
+      sourceLabel = entry.key;
     }
+
+    const flatRules: RuleOption[] = normalizeRulesPayload(data, sourceLabel);
     rules.value = flatRules;
     if (flatRules.length > 0) {
       selectedRowKeys.value = [flatRules[0]!.id!];
+    } else {
+      selectedRowKeys.value = [];
     }
   } catch (err: any) {
     message.error(`加载规则失败: ${err?.message || err}`);
@@ -85,9 +127,13 @@ function onSelectionChange(keys: Array<number | string>) {
   selectedRowKeys.value = keys.map(String);
 }
 
-onMounted(() => {
-  loadRules();
-});
+watch(
+  () => [props.protocolType, props.rulesFile] as const,
+  () => {
+    loadRules();
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
