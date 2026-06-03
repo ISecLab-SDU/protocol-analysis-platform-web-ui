@@ -663,6 +663,11 @@ export function stopAndCleanup(data: { container_id: string; protocol: string })
   return requestClient.post('/protocol-compliance/stop-and-cleanup', data);
 }
 
+// 启动前清理残留容器和输出文件
+export function preStartCleanup(data: { protocol: string }) {
+  return requestClient.post('/protocol-compliance/pre-start-cleanup', data);
+}
+
 // 写入脚本文件
 export function writeScript(data: { content: string; protocol: string; protocolImplementations?: string[] }) {
   return requestClient.post('/protocol-compliance/write-script', data);

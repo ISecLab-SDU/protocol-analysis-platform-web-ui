@@ -18,6 +18,7 @@ import {
   fetchProtocolInstrumentationDiff,
   fetchProtocolStaticAnalysisProgress,
   fetchProtocolStaticAnalysisResult,
+  preStartCleanup,
   readLog,
   runProtocolAssertGeneration,
   runProtocolStaticAnalysis,
@@ -396,6 +397,39 @@ const protocolKindForApi = computed(() => {
   }
   return projectConfig.protocolType;
 });
+
+const isSolAflNetFuzzing = computed(() => (
+  projectConfig.protocolType === 'MQTT' && projectConfig.implementation === 'SOL'
+));
+
+function formatCleanupSummary(result: any) {
+  const data = result?.data ?? result;
+  const cleanup = data?.cleanup_results;
+  if (!cleanup) return '启动前清理完成';
+
+  const parts = [
+    `停止容器 ${cleanup.containers_stopped ?? 0} 个`,
+    `删除容器 ${cleanup.containers_removed ?? 0} 个`,
+    cleanup.output_cleaned ? '输出目录已清理' : '输出目录无需清理',
+  ];
+  if (Array.isArray(cleanup.errors) && cleanup.errors.length > 0) {
+    parts.push(`错误 ${cleanup.errors.length} 个`);
+  }
+  return parts.join('，');
+}
+
+async function cleanupBeforeFuzzStart(runId: number) {
+  if (!isSolAflNetFuzzing.value) return;
+  if (!isCurrentPipelineRun(runId)) return;
+
+  stageMessage.value = '清理 SOL/AFLNET 上次运行残留…';
+  appendFuzzLog('清理 SOL/AFLNET 上次运行残留：停止旧容器并清空输出目录', 'INFO');
+  const cleanupResult = await preStartCleanup({
+    protocol: protocolKindForApi.value,
+  });
+  if (!isCurrentPipelineRun(runId)) return;
+  appendFuzzLog(formatCleanupSummary(cleanupResult), 'INFO');
+}
 
 function buildRulesFile(): File {
   if (!selectedRule.value) {
@@ -1090,7 +1124,11 @@ async function runFuzzStep(runId: number) {
   await nextTick();
   if (!isCurrentPipelineRun(runId)) return;
   try {
+    await cleanupBeforeFuzzStart(runId);
+    if (!isCurrentPipelineRun(runId)) return;
+
     const script = buildFuzzScript();
+    stageMessage.value = '写入 Fuzz 脚本…';
     await writeScript({
       content: script,
       protocol: protocolKindForApi.value,
