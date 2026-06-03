@@ -411,7 +411,6 @@ function enterResultVerificationAfterCrash() {
   solAflNetRestartAttempts = 0;
   solAflNetRestarting = false;
   appendFuzzLog('检测到首个崩溃，自动进入结果验证阶段', 'ERROR');
-  await stopFuzzProcessForCrashVerification();
   stageStatus.fuzz = 'done';
   stage.value = 'done';
   activeStageView.value = 'done';
