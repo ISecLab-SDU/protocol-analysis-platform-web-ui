@@ -15,4 +15,7 @@ export const overridesPreferences = defineOverridesPreferences({
     enable: true,
     fit: 'none',
   },
+  sidebar: {
+    enable: false,
+  },
 });
