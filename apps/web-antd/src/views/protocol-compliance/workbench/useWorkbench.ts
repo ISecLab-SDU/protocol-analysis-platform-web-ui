@@ -11,6 +11,7 @@ import type {
 } from '#/api/protocol-compliance';
 
 import {
+  checkStatus,
   executeCommand,
   fetchProtocolStaticAnalysisDatabaseInsights,
   fetchProtocolAssertGenerationProgress,
@@ -118,10 +119,15 @@ let transitionTimer: null | ReturnType<typeof setTimeout> = null;
 let transitionResolver: null | ((shouldContinue: boolean) => void) = null;
 let fuzzLogIdSeq = 0;
 let pipelineRunId = 0;
+let lastFuzzLogGrowthAt = 0;
+let solAflNetRestartAttempts = 0;
+let solAflNetRestarting = false;
 
 const TEMP_ASSERTION_DATABASE_PATH =
   '/home/lab426_system/protocol-web-ui/violations.db';
 const STAGE_TRANSITION_DELAY_MS = 2000;
+const SOL_AFLNET_STALE_LOG_RESTART_MS = 15_000;
+const SOL_AFLNET_MAX_RESTART_ATTEMPTS = 3;
 type WorkbenchPipelineProfile = 'full' | 'fuzz-only';
 // Set this back to 'full' to restore code location and assertion generation.
 const WORKBENCH_PIPELINE_PROFILE: WorkbenchPipelineProfile = 'fuzz-only';
@@ -429,6 +435,95 @@ async function cleanupBeforeFuzzStart(runId: number) {
   });
   if (!isCurrentPipelineRun(runId)) return;
   appendFuzzLog(formatCleanupSummary(cleanupResult), 'INFO');
+}
+
+function isCurrentFuzzContainerRunning(statusData: any) {
+  const dockerContainers = String(statusData?.docker_containers || '');
+  if (!dockerContainers.trim()) return false;
+
+  const containerId = fuzzContainerId.value;
+  if (containerId) {
+    return (
+      dockerContainers.includes(containerId) ||
+      dockerContainers.includes(containerId.slice(0, 12))
+    );
+  }
+  return dockerContainers.includes('protocolguard:latest');
+}
+
+function isFuzzLogFilePresent(data: any) {
+  return (
+    data?.file_size !== undefined ||
+    data?.log_file_exists === true ||
+    String(data?.message || '').includes('文件大小')
+  );
+}
+
+async function restartSolAflNetContainer(runId: number) {
+  solAflNetRestartAttempts += 1;
+  stageMessage.value = `SOL/AFLNET 容器已停止，正在重启 (${solAflNetRestartAttempts}/${SOL_AFLNET_MAX_RESTART_ATTEMPTS})…`;
+  appendFuzzLog(
+    `检测到 SOL/AFLNET 容器已停止，正在重启 Docker 容器 (${solAflNetRestartAttempts}/${SOL_AFLNET_MAX_RESTART_ATTEMPTS})`,
+    'WARN',
+  );
+
+  const launch: any = await executeCommand({
+    protocol: protocolKindForApi.value,
+    protocolImplementations: protocolImplementationsKey.value,
+  });
+  if (!isCurrentPipelineRun(runId)) return;
+
+  const launchData = launch?.data ?? launch;
+  fuzzPid.value = launchData?.pid ? String(launchData.pid) : null;
+  fuzzContainerId.value = launchData?.container_id
+    ? String(launchData.container_id)
+    : null;
+  fuzzLogReadPosition.value = 0;
+  lastFuzzLogGrowthAt = Date.now();
+  stageMessage.value = '模糊测试运行中，点击"停止"结束';
+  appendFuzzLog('SOL/AFLNET Docker 容器已重启，重新等待 plot_data 输出', 'INFO');
+}
+
+async function checkAndRestartStaleSolAflNetFuzzer(data: any) {
+  if (!isSolAflNetFuzzing.value || stageStatus.fuzz !== 'running') return;
+  if (solAflNetRestarting || !isFuzzLogFilePresent(data)) return;
+  if (!lastFuzzLogGrowthAt) {
+    lastFuzzLogGrowthAt = Date.now();
+    return;
+  }
+  if (Date.now() - lastFuzzLogGrowthAt < SOL_AFLNET_STALE_LOG_RESTART_MS) return;
+
+  if (solAflNetRestartAttempts >= SOL_AFLNET_MAX_RESTART_ATTEMPTS) {
+    appendFuzzLog('SOL/AFLNET 日志持续无新数据，已达到自动重启次数上限，请人工检查容器和 seed', 'ERROR');
+    lastFuzzLogGrowthAt = Date.now();
+    return;
+  }
+
+  solAflNetRestarting = true;
+  const runId = pipelineRunId;
+  try {
+    appendFuzzLog('plot_data 已存在但 15 秒没有新数据，正在检查 Docker 容器状态', 'WARN');
+    const status: any = await checkStatus({
+      protocol: protocolKindForApi.value,
+      protocolImplementations: protocolImplementationsKey.value,
+    });
+    if (!isCurrentPipelineRun(runId)) return;
+
+    const statusData = status?.data ?? status;
+    if (isCurrentFuzzContainerRunning(statusData)) {
+      appendFuzzLog('Docker 容器仍在运行，继续等待 AFLNET 写入新状态', 'INFO');
+      lastFuzzLogGrowthAt = Date.now();
+      return;
+    }
+
+    await restartSolAflNetContainer(runId);
+  } catch (err: any) {
+    if (!isCurrentPipelineRun(runId)) return;
+    appendFuzzLog(`SOL/AFLNET 自动重启检查失败: ${err?.message || err}`, 'ERROR');
+    lastFuzzLogGrowthAt = Date.now();
+  } finally {
+    solAflNetRestarting = false;
+  }
 }
 
 function buildRulesFile(): File {
@@ -1074,6 +1169,7 @@ async function readFuzzLogs() {
     const position: number = typeof data?.position === 'number' ? data.position : fuzzLogReadPosition.value;
     if (position > fuzzLogReadPosition.value) {
       fuzzLogReadPosition.value = position;
+      lastFuzzLogGrowthAt = Date.now();
     }
     if (content) {
       const lines = content.split(/\r?\n/);
@@ -1093,6 +1189,7 @@ async function readFuzzLogs() {
         }
       }
     }
+    await checkAndRestartStaleSolAflNetFuzzer(data);
   } catch (err: any) {
     // Non-fatal: keep polling until user stops
     console.warn('[workbench] readLog error', err?.message || err);
@@ -1121,6 +1218,9 @@ async function runFuzzStep(runId: number) {
     edges: 0,
   });
   fuzzSpeedSeries.value = [];
+  lastFuzzLogGrowthAt = Date.now();
+  solAflNetRestartAttempts = 0;
+  solAflNetRestarting = false;
   await nextTick();
   if (!isCurrentPipelineRun(runId)) return;
   try {
@@ -1144,6 +1244,7 @@ async function runFuzzStep(runId: number) {
     const launchData = launch?.data ?? launch;
     if (launchData?.pid) fuzzPid.value = String(launchData.pid);
     if (launchData?.container_id) fuzzContainerId.value = String(launchData.container_id);
+    lastFuzzLogGrowthAt = Date.now();
     stageMessage.value = '模糊测试运行中，点击"停止"结束';
     fuzzPollTimer = setInterval(readFuzzLogs, 2000);
   } catch (err: any) {
@@ -1198,6 +1299,9 @@ async function stopPipeline() {
     clearTimer('static');
     clearTimer('assert');
     clearTimer('fuzz');
+    lastFuzzLogGrowthAt = 0;
+    solAflNetRestartAttempts = 0;
+    solAflNetRestarting = false;
     if (stage.value === 'fuzz' && (fuzzPid.value || fuzzContainerId.value)) {
       try {
         if (fuzzContainerId.value) {
@@ -1261,6 +1365,9 @@ function resetWorkbench() {
   fuzzContainerId.value = null;
   fuzzLogs.value = [];
   fuzzLogReadPosition.value = 0;
+  lastFuzzLogGrowthAt = 0;
+  solAflNetRestartAttempts = 0;
+  solAflNetRestarting = false;
   Object.assign(fuzzStats, {
     executions: 0,
     paths: 0,

@@ -679,12 +679,12 @@ export function executeCommand(data: { protocol: string; protocolImplementations
 }
 
 // 读取日志
-export function readLog(data: { protocol: string; lastPosition: number }) {
+export function readLog(data: { protocol: string; lastPosition: number; protocolImplementations?: string[] }) {
   return requestClient.post('/protocol-compliance/read-log', data);
 }
 
 // 检查状态
-export function checkStatus(data: { protocol: string }) {
+export function checkStatus(data: { protocol: string; protocolImplementations?: string[] }) {
   return requestClient.post('/protocol-compliance/check-status', data);
 }
 
