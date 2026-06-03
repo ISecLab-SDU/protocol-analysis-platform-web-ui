@@ -6,6 +6,7 @@ import { IconifyIcon } from '@vben/icons';
 
 import { Button, Tag } from 'ant-design-vue';
 
+import ProtocolLogViewer from './components/ProtocolLogViewer.vue';
 import StageAssertGen from './components/StageAssertGen.vue';
 import StageCodeLocate from './components/StageCodeLocate.vue';
 import StageFuzz from './components/StageFuzz.vue';
@@ -56,6 +57,8 @@ const isRunning = computed(() => {
 });
 
 const elapsedDisplay = computed(() => formatDuration(elapsedSeconds.value));
+
+const isFuzzRunning = computed(() => stageStatus.fuzz === 'running');
 
 const currentRuleText = computed(() => {
   return (
@@ -343,6 +346,29 @@ function switchRule() {
                 :static-result="staticResult"
                 :stats="fuzzStats"
               />
+            </section>
+          </section>
+
+          <section v-else-if="activeSideNav === 'logs'" class="logs-shell">
+            <header class="logs-header">
+              <div>
+                <h1>日志信息</h1>
+                <p>{{ taskTitle }} · {{ currentRuleId }}</p>
+              </div>
+              <Tag :color="isFuzzRunning ? 'processing' : 'default'">
+                {{ isFuzzRunning ? '实时同步' : fuzzLogs.length > 0 ? '已归档' : '暂无日志' }}
+              </Tag>
+            </header>
+
+            <section class="logs-panel">
+              <div class="logs-panel-head">
+                <div>
+                  <h2>运行日志</h2>
+                  <span>包含 Fuzzer 输出和流水线最终结果摘要</span>
+                </div>
+                <strong>{{ fuzzLogs.length }} 条</strong>
+              </div>
+              <ProtocolLogViewer :logs="fuzzLogs" :running="isFuzzRunning" />
             </section>
           </section>
 
@@ -754,6 +780,72 @@ function switchRule() {
   min-height: 420px;
 }
 
+.logs-shell {
+  min-height: 100%;
+  padding: 24px 28px 28px;
+}
+
+.logs-header {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.logs-header h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+.logs-header p {
+  margin: 7px 0 0;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.logs-panel {
+  padding: 16px;
+  background: #fff;
+  border: 1px solid #e7edf5;
+  border-radius: 8px;
+  box-shadow: 0 8px 22px rgb(15 23 42 / 4%);
+}
+
+.logs-panel-head {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.logs-panel-head h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.logs-panel-head span {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.logs-panel-head strong {
+  font-size: 13px;
+  color: #1677ff;
+}
+
+.logs-panel :deep(.log-scroll) {
+  height: min(640px, calc(100vh - 290px));
+  min-height: 360px;
+}
+
 @media (max-width: 1180px) {
   .guard-layout {
     grid-template-columns: 1fr;
@@ -796,6 +888,10 @@ function switchRule() {
   }
 
   .task-shell {
+    padding: 18px 14px;
+  }
+
+  .logs-shell {
     padding: 18px 14px;
   }
 }

@@ -122,6 +122,7 @@ let pipelineRunId = 0;
 let lastFuzzLogGrowthAt = 0;
 let solAflNetRestartAttempts = 0;
 let solAflNetRestarting = false;
+let resultSummaryLogAppended = false;
 
 const TEMP_ASSERTION_DATABASE_PATH =
   '/home/lab426_system/protocol-web-ui/violations.db';
@@ -355,6 +356,91 @@ function appendFuzzLog(text: string, level: FuzzLogLevel = 'INFO') {
   }
 }
 
+function getPrimaryStaticVerdict() {
+  const verdicts = staticResult.value?.modelResponse?.verdicts ?? [];
+  return (
+    verdicts.find((verdict) => verdict.compliance === 'non_compliant') ??
+    verdicts.find((verdict) => verdict.compliance === 'needs_review') ??
+    verdicts[0] ??
+    null
+  );
+}
+
+function getRuleSummaryText() {
+  return (
+    codeLocateEvidence.value?.ruleText ||
+    selectedRule.value?.rule ||
+    selectedRule.value?.description ||
+    getPrimaryStaticVerdict()?.relatedRule?.requirement ||
+    '未记录规则'
+  );
+}
+
+function getViolationSummaryText() {
+  return (
+    codeLocateEvidence.value?.violationReason ||
+    getPrimaryStaticVerdict()?.explanation ||
+    staticResult.value?.modelResponse?.summary?.notes ||
+    '未生成违规原因'
+  );
+}
+
+function getAssertionSummaryText() {
+  const changedFileCount =
+    (assertDiffContent.value.match(/^diff --git\s+/gm) ?? []).length;
+  if (assertResult.value) {
+    return `${assertResult.value.assertionCount} 条断言任务，${changedFileCount} 个文件发生插桩变更`;
+  }
+  if (assertDiffContent.value) {
+    return `${changedFileCount} 个文件发生插桩变更`;
+  }
+  return '未生成断言插桩结果';
+}
+
+function buildFuzzResultStatsLine() {
+  return [
+    `轮次: ${fuzzStats.cycles}`,
+    `路径进度: ${fuzzStats.currentPath}/${fuzzStats.pathsTotal || fuzzStats.paths}`,
+    `待处理: ${fuzzStats.pendingTotal}`,
+    `优先路径: ${fuzzStats.pendingFavs}`,
+    `覆盖率: ${fuzzStats.coverage.toFixed(2)}%`,
+    `崩溃: ${fuzzStats.crashes}`,
+    `挂起: ${fuzzStats.hangs}`,
+    `最大深度: ${fuzzStats.maxDepth}`,
+    `执行速度: ${fuzzStats.speed.toFixed(2)} 次/秒`,
+    `状态节点: ${fuzzStats.nodes}`,
+    `状态转换: ${fuzzStats.edges}`,
+  ].join(' | ');
+}
+
+function appendResultSummaryLog(reason: 'crash' | 'stopped') {
+  if (resultSummaryLogAppended) return;
+  resultSummaryLogAppended = true;
+
+  const evidence = codeLocateEvidence.value;
+  const targetText = evidence
+    ? `${evidence.targetFile}:${evidence.targetLine}`
+    : '未生成代码定位结果';
+  const functionCount =
+    evidence?.functions?.length ?? evidence?.candidateFunctionCount ?? 0;
+  const conclusion =
+    reason === 'crash' || fuzzStats.crashes > 0
+      ? `发现 ${fuzzStats.crashes || 1} 个崩溃，已进入结果验证`
+      : '流水线已停止，当前结果已汇总';
+
+  appendFuzzLog('========== 最终结果摘要 ==========', 'INFO');
+  appendFuzzLog(
+    `协议实现: ${projectConfig.protocolType}/${projectConfig.implementation}`,
+    'INFO',
+  );
+  appendFuzzLog(`触发规则: ${getRuleSummaryText()}`, 'INFO');
+  appendFuzzLog(`代码定位: ${targetText}，相关函数 ${functionCount} 个`, 'INFO');
+  appendFuzzLog(`违规原因: ${getViolationSummaryText()}`, 'WARN');
+  appendFuzzLog(`断言生成: ${getAssertionSummaryText()}`, 'INFO');
+  appendFuzzLog(buildFuzzResultStatsLine(), 'STATS');
+  appendFuzzLog(`验证结论: ${conclusion}`, fuzzStats.crashes > 0 ? 'ERROR' : 'INFO');
+}
+
 function isCrashDiscoveryLine(line: string) {
   const crashCountMatch = line.match(/(?:unique_)?crash(?:es)?[^\d]*(\d+)/i);
   if (crashCountMatch?.[1]) {
@@ -420,6 +506,7 @@ async function enterResultVerificationAfterCrash() {
   stage.value = 'done';
   activeStageView.value = 'done';
   stageStatus.done = 'done';
+  appendResultSummaryLog('crash');
   stageMessage.value = '已发现崩溃，结果验证模块已生成证据摘要';
   return true;
 }
@@ -1273,6 +1360,7 @@ async function runFuzzStep(runId: number) {
   setStage('fuzz', 'running', '写入 Fuzz 脚本…');
   fuzzLogs.value = [];
   fuzzLogReadPosition.value = 0;
+  resultSummaryLogAppended = false;
   Object.assign(fuzzStats, {
     executions: 0,
     paths: 0,
@@ -1400,6 +1488,7 @@ async function stopPipeline() {
     stage.value = 'done';
     activeStageView.value = 'done';
     stageStatus.done = 'done';
+    appendResultSummaryLog('stopped');
     clearTimer('elapsed');
     stageMessage.value = '流水线已停止';
   } finally {
@@ -1438,6 +1527,7 @@ function resetWorkbench() {
   fuzzContainerId.value = null;
   fuzzLogs.value = [];
   fuzzLogReadPosition.value = 0;
+  resultSummaryLogAppended = false;
   lastFuzzLogGrowthAt = 0;
   solAflNetRestartAttempts = 0;
   solAflNetRestarting = false;
