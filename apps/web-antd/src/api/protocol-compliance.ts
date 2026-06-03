@@ -341,6 +341,15 @@ export interface DownloadAflNetPocParams {
   protocol: string;
 }
 
+export interface SnapshotAflNetPocParams extends DownloadAflNetPocParams {}
+
+export interface SnapshotAflNetPocResponse {
+  artifactId: string;
+  createdAt: string;
+  downloadUrl: string;
+  fileSize: number;
+}
+
 export async function downloadAflNetPoc(params: DownloadAflNetPocParams) {
   const accessStore = useAccessStore();
   const token = accessStore.accessToken;
@@ -359,6 +368,33 @@ export async function downloadAflNetPoc(params: DownloadAflNetPocParams) {
 
   const response = (await baseRequestClient.request(
     `/protocol-compliance/fuzzing/aflnet-result/download?${query.toString()}`,
+    {
+      headers,
+      method: 'GET',
+      responseType: 'blob',
+    },
+  )) as { data: Blob };
+
+  return response.data;
+}
+
+export function snapshotAflNetPoc(params: SnapshotAflNetPocParams) {
+  return requestClient.post<SnapshotAflNetPocResponse>(
+    '/protocol-compliance/fuzzing/aflnet-result/snapshot',
+    params,
+  );
+}
+
+export async function downloadAflNetPocArtifact(artifactId: string) {
+  const accessStore = useAccessStore();
+  const token = accessStore.accessToken;
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = (await baseRequestClient.request(
+    `/protocol-compliance/fuzzing/aflnet-result/artifacts/${artifactId}/download`,
     {
       headers,
       method: 'GET',

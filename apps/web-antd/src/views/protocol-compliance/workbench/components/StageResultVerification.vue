@@ -25,6 +25,7 @@ interface Props {
   evidence: CodeLocateEvidence | null;
   implementation: string;
   logs: FuzzLogEntry[];
+  pocPath?: string;
   protocolType: string;
   rule: null | ProtocolExtractRuleItem;
   staticResult: null | ProtocolStaticAnalysisResult;
@@ -112,6 +113,8 @@ const assertionSummary = computed(() => {
 });
 
 const crashLogPath = computed(() => {
+  if (props.pocPath?.trim()) return props.pocPath.trim();
+
   for (const log of props.logs) {
     const text = log.text;
     const cnMatch = text.match(/崩溃队列信息导出[:：]\s*(.+)$/);
@@ -315,8 +318,8 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
           </div>
           <div class="poc-body">
             <div>
-              <span>崩溃队列</span>
-              <strong>{{ crashLogPath || '等待后端返回 AFLNET 输出路径' }}</strong>
+              <span>POC 输出</span>
+              <strong>{{ stats.crashes > 0 ? '已生成可下载 POC 包' : '等待崩溃证据' }}</strong>
             </div>
             <Button
               type="primary"

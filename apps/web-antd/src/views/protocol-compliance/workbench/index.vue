@@ -36,15 +36,18 @@ const {
   assertDiffContent,
   assertResult,
   fuzzLogs,
+  aflNetPocPath,
   resultHistory,
   fuzzStats,
   fuzzSpeedSeries,
+  downloadingPocArtifactId,
   commitSetup,
   backToSetup,
   selectStageView,
   startPipeline,
   stopPipeline,
   resetWorkbench,
+  downloadHistoryPocArtifact,
 } = useWorkbench();
 
 const isRunning = computed(() => {
@@ -339,6 +342,7 @@ function switchRule() {
                 :evidence="codeLocateEvidence"
                 :implementation="projectConfig.implementation"
                 :logs="fuzzLogs"
+                :poc-path="aflNetPocPath"
                 :protocol-type="projectConfig.protocolType"
                 :rule="selectedRule"
                 :static-result="staticResult"
@@ -409,8 +413,37 @@ function switchRule() {
                   </div>
                   <div class="history-block">
                     <span>POC 输出</span>
-                    <strong>{{ entry.crashLogPath || '未记录崩溃队列路径' }}</strong>
-                    <small>速度 {{ entry.stats.speed.toFixed(2) }} exec/sec</small>
+                    <strong>
+                      {{
+                        entry.stats.crashes <= 0
+                          ? '未生成 POC 包'
+                          : entry.pocSnapshotStatus === 'ready'
+                            ? 'POC 包已归档'
+                            : entry.pocSnapshotStatus === 'failed'
+                              ? 'POC 归档失败'
+                              : entry.pocSnapshotStatus === 'saving'
+                                ? '正在归档 POC 包'
+                                : '未归档 POC 包'
+                      }}
+                    </strong>
+                    <small>
+                      速度 {{ entry.stats.speed.toFixed(2) }} exec/sec
+                    </small>
+                    <Button
+                      v-if="entry.pocSnapshotStatus !== 'idle'"
+                      class="history-poc-download"
+                      size="small"
+                      type="link"
+                      :disabled="entry.pocSnapshotStatus !== 'ready'"
+                      :loading="
+                        entry.pocSnapshotStatus === 'saving' ||
+                        downloadingPocArtifactId === entry.id
+                      "
+                      @click="downloadHistoryPocArtifact(entry.id)"
+                    >
+                      <template #icon><IconifyIcon icon="mdi:download" /></template>
+                      下载 POC
+                    </Button>
                   </div>
                 </section>
 
@@ -968,6 +1001,12 @@ function switchRule() {
   margin-top: 5px;
   font-size: 12px;
   color: #64748b;
+}
+
+.history-poc-download {
+  height: 24px;
+  padding: 0;
+  margin-top: 8px;
 }
 
 .history-block p {

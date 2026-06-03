@@ -1192,6 +1192,30 @@ def _aflnet_output_root() -> Path:
     return Path(os.environ.get("AFLNET_OUTPUT_ROOT") or os.path.dirname(RTSP_CONFIG["log_file_path"]))
 
 
+def _aflnet_artifact_root() -> Path:
+    configured = os.environ.get("AFLNET_ARTIFACT_ROOT")
+    if configured:
+        return Path(configured).expanduser()
+    pg_output_root = Path(os.environ.get("PG_OUTPUT_ROOT", "/tmp/protocolguard/outputs")).expanduser()
+    return pg_output_root.parent / "fuzz-artifacts"
+
+
+def _aflnet_result_path_info() -> Dict[str, str]:
+    output_root = _aflnet_output_root().expanduser()
+    log_file = Path(RTSP_CONFIG["log_file_path"]).expanduser()
+    poc_path = output_root
+    for name in ("replayable-crashes", "crashes", "crash", "crash_logs", "queue"):
+        candidate = output_root / name
+        if candidate.exists():
+            poc_path = candidate
+            break
+    return {
+        "logFilePath": str(log_file),
+        "outputRoot": str(output_root),
+        "pocPath": str(poc_path),
+    }
+
+
 def _poc_artifact_candidates(output_root: Path, requested_path: Optional[str]) -> list[Path]:
     allowed_roots = [output_root]
     candidates: list[Path] = []
@@ -1251,6 +1275,38 @@ def _add_path_to_zip(archive: zipfile.ZipFile, path: Path, output_root: Path) ->
     return added
 
 
+def _write_aflnet_poc_archive(
+    target: Any,
+    *,
+    artifact_id: Optional[str],
+    crash_log_path: Optional[str],
+    implementation: str,
+    output_root: Path,
+    protocol: str,
+) -> int:
+    candidates = _poc_artifact_candidates(output_root, crash_log_path)
+    if not candidates:
+        return 0
+
+    manifest = {
+        "artifactId": artifact_id,
+        "protocol": protocol,
+        "implementation": implementation,
+        "outputRoot": str(output_root),
+        "requestedCrashLogPath": crash_log_path,
+        "generatedAt": datetime.now(timezone.utc).isoformat(),
+    }
+    added = 0
+
+    with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
+        added += 1
+        for candidate in candidates:
+            added += _add_path_to_zip(archive, candidate, output_root)
+
+    return added
+
+
 @bp.route("/fuzzing/aflnet-result/download", methods=["GET"])
 def download_aflnet_result():
     """Download AFLNET crash/queue artefacts as a zip bundle."""
@@ -1269,25 +1325,15 @@ def download_aflnet_result():
             404,
         )
 
-    candidates = _poc_artifact_candidates(output_root, crash_log_path)
-    if not candidates:
-        return make_response(error_response("未找到 AFLNET POC 输出文件"), 404)
-
     buffer = io.BytesIO()
-    manifest = {
-        "protocol": protocol,
-        "implementation": implementation,
-        "outputRoot": str(output_root),
-        "requestedCrashLogPath": crash_log_path,
-        "generatedAt": datetime.now(timezone.utc).isoformat(),
-    }
-    added = 0
-
-    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
-        added += 1
-        for candidate in candidates:
-            added += _add_path_to_zip(archive, candidate, output_root)
+    added = _write_aflnet_poc_archive(
+        buffer,
+        artifact_id=None,
+        crash_log_path=crash_log_path,
+        implementation=implementation,
+        output_root=output_root,
+        protocol=protocol,
+    )
 
     if added <= 1:
         return make_response(error_response("AFLNET 输出目录中没有可打包的 POC 文件"), 404)
@@ -1300,6 +1346,79 @@ def download_aflnet_result():
         mimetype="application/zip",
         as_attachment=True,
         download_name=f"{safe_impl}-aflnet-poc-{timestamp}.zip",
+        max_age=0,
+    )
+
+
+@bp.route("/fuzzing/aflnet-result/snapshot", methods=["POST"])
+def snapshot_aflnet_result():
+    """Persist the current AFLNET POC bundle for history downloads."""
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+
+    data = request.get_json(silent=True) or {}
+    protocol = data.get("protocol") or "MQTT"
+    implementation = data.get("implementation") or "SOL"
+    crash_log_path = data.get("crashLogPath")
+
+    output_root = _aflnet_output_root().expanduser()
+    if not output_root.exists() or not output_root.is_dir():
+        return make_response(
+            error_response(f"AFLNET 输出目录不存在：{output_root}"),
+            404,
+        )
+
+    artifact_id = f"aflnet-{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:8]}"
+    artifact_dir = (_aflnet_artifact_root() / artifact_id).resolve()
+    artifact_dir.mkdir(parents=True, exist_ok=False)
+    zip_path = artifact_dir / "poc.zip"
+
+    added = _write_aflnet_poc_archive(
+        zip_path,
+        artifact_id=artifact_id,
+        crash_log_path=crash_log_path,
+        implementation=implementation,
+        output_root=output_root,
+        protocol=protocol,
+    )
+
+    if added <= 1:
+        with contextlib.suppress(OSError):
+            zip_path.unlink()
+        with contextlib.suppress(OSError):
+            artifact_dir.rmdir()
+        return make_response(error_response("AFLNET 输出目录中没有可归档的 POC 文件"), 404)
+
+    file_size = zip_path.stat().st_size
+    return success_response({
+        "artifactId": artifact_id,
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+        "downloadUrl": f"/protocol-compliance/fuzzing/aflnet-result/artifacts/{artifact_id}/download",
+        "fileSize": file_size,
+    })
+
+
+@bp.route("/fuzzing/aflnet-result/artifacts/<artifact_id>/download", methods=["GET"])
+def download_aflnet_result_artifact(artifact_id: str):
+    """Download a persisted AFLNET POC artifact."""
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", artifact_id):
+        return make_response(error_response("POC artifact id 非法"), 400)
+
+    artifact_root = _aflnet_artifact_root().resolve()
+    zip_path = (artifact_root / artifact_id / "poc.zip").resolve()
+    if not _is_path_inside(zip_path, [artifact_root]) or not zip_path.is_file():
+        return make_response(error_response("POC artifact 不存在或已过期"), 404)
+
+    return send_file(
+        zip_path,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=f"{artifact_id}.zip",
         max_age=0,
     )
 
@@ -1450,7 +1569,8 @@ def execute_command():
                                 "message": f"{protocol_name} ProtocolGuard启动成功，正在后台运行fuzzing任务",
                                 "command": command,
                                 "pid": None,  # Docker容器没有直接的PID
-                                "container_id": container_id
+                                "container_id": container_id,
+                                **_aflnet_result_path_info(),
                             }
                             print(f"[DEBUG] 返回成功响应: {response_data}")
                             return success_response(response_data)
@@ -1527,6 +1647,11 @@ def read_log():
 
     # 根据协议获取配置
     protocol_implementations = data.get("protocolImplementations", [])
+    is_sol_aflnet = (
+        protocol == "MQTT"
+        and protocol_implementations
+        and "SOL" in protocol_implementations
+    )
     
     if protocol == "MQTT":
         # MQTT协议支持双引擎配置
@@ -1551,11 +1676,14 @@ def read_log():
         log_dir = os.path.dirname(file_path)
         if not os.path.exists(log_dir):
             print(f"[DEBUG] 日志目录不存在: {log_dir}")
-            return success_response({
+            response_data = {
                 "content": "",
                 "position": last_position,
-                "message": f"日志目录不存在: {log_dir}"
-            })
+                "message": f"日志目录不存在: {log_dir}",
+            }
+            if is_sol_aflnet:
+                response_data.update(_aflnet_result_path_info())
+            return success_response(response_data)
         
         # 列出目录中的文件
         try:
@@ -1566,11 +1694,14 @@ def read_log():
         
         if not os.path.exists(file_path):
             print(f"[DEBUG] 日志文件不存在: {file_path}")
-            return success_response({
+            response_data = {
                 "content": "",
                 "position": last_position,
-                "message": f"日志文件尚未创建: {file_path}"
-            })
+                "message": f"日志文件尚未创建: {file_path}",
+            }
+            if is_sol_aflnet:
+                response_data.update(_aflnet_result_path_info())
+            return success_response(response_data)
         
         # 获取文件信息
         file_stat = os.stat(file_path)
@@ -1593,13 +1724,16 @@ def read_log():
         if new_content:
             print(f"[DEBUG] 新内容预览: {new_content[:200]}...")
         
-        return success_response({
+        response_data = {
             "content": new_content,
             "position": current_position,
             "protocol": protocol,
             "file_size": file_size,
-            "message": f"成功读取{len(new_content)}字符，文件大小{file_size}字节"
-        })
+            "message": f"成功读取{len(new_content)}字符，文件大小{file_size}字节",
+        }
+        if is_sol_aflnet:
+            response_data.update(_aflnet_result_path_info())
+        return success_response(response_data)
 
     except Exception as e:
         print(f"[DEBUG] 读取日志文件异常: {e}")
@@ -1634,6 +1768,7 @@ def check_status():
                 log_file_path = RTSP_CONFIG["log_file_path"]
                 status_info["engine"] = "AFLNET"
                 status_info["implementation"] = "SOL"
+                status_info.update(_aflnet_result_path_info())
             else:
                 # 检查传统MQTT broker状态 (使用MBFuzzer引擎)
                 log_file_path = MQTT_CONFIG["log_file_path"]
