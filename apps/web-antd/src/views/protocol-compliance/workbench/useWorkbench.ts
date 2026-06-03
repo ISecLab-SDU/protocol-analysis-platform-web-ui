@@ -129,7 +129,7 @@ const STAGE_TRANSITION_DELAY_MS = 2000;
 const SOL_AFLNET_STALE_LOG_RESTART_MS = 25_000;
 const SOL_AFLNET_MAX_RESTART_ATTEMPTS = 3;
 type WorkbenchPipelineProfile = 'full' | 'fuzz-only';
-const WORKBENCH_PIPELINE_PROFILE: WorkbenchPipelineProfile = 'full';
+const WORKBENCH_PIPELINE_PROFILE: WorkbenchPipelineProfile = 'fuzz-only';
 
 interface ParsedAflNetStats {
   coverage: number;
