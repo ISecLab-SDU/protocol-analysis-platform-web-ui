@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -91,10 +91,20 @@ const sourceArchiveName = computed(() => projectConfig.archive?.name || '未上�
 
 const sideNavItems = [
   { icon: 'mdi:view-dashboard-outline', key: 'overview', label: '概览' },
-  { icon: 'mdi:format-list-bulleted-square', key: 'rules', label: '规则列表' },
-  { icon: 'mdi:source-branch', key: 'evidence', label: '证据链' },
+  { icon: 'mdi:briefcase-outline', key: 'workbench', label: '工作台' },
   { icon: 'mdi:clipboard-text-clock-outline', key: 'logs', label: '日志' },
 ] as const;
+
+type SideNavKey = (typeof sideNavItems)[number]['key'];
+
+const activeSideNav = ref<SideNavKey>('overview');
+
+const activeSideNavLabel = computed(() => {
+  return (
+    sideNavItems.find((item) => item.key === activeSideNav.value)?.label ||
+    '概览'
+  );
+});
 
 function stageStateLabel(key: (typeof STAGE_LIST)[number]['key']) {
   const status = stageStatus[key];
@@ -133,10 +143,10 @@ function switchRule() {
           </div>
           <div class="brand-name">ProtocolGuard</div>
           <div class="topbar-divider" />
-          <div class="topbar-section">工作台</div>
+          <div class="topbar-section">{{ activeSideNavLabel }}</div>
         </div>
 
-        <div class="topbar-actions">
+        <div v-if="activeSideNav === 'workbench'" class="topbar-actions">
           <div class="runtime-status" :class="{ 'runtime-status--idle': !isRunning }">
             <span class="status-dot" />
             <span>{{ isRunning ? '运行中' : '空闲' }}</span>
@@ -170,15 +180,16 @@ function switchRule() {
               v-for="item in sideNavItems"
               :key="item.key"
               class="nav-item"
-              :class="{ 'nav-item--active': item.key === 'overview' }"
+              :class="{ 'nav-item--active': item.key === activeSideNav }"
               type="button"
+              @click="activeSideNav = item.key"
             >
               <IconifyIcon :icon="item.icon" />
               <span>{{ item.label }}</span>
             </button>
           </nav>
 
-          <section class="current-task">
+          <section v-if="activeSideNav === 'workbench'" class="current-task">
             <div class="current-task-title">当前任务</div>
             <dl>
               <div>
@@ -202,7 +213,9 @@ function switchRule() {
         </aside>
 
         <main class="guard-main">
-          <section class="task-shell">
+          <section v-if="activeSideNav === 'overview'" class="overview-blank" />
+
+          <section v-else-if="activeSideNav === 'workbench'" class="task-shell">
             <header class="task-header">
               <div class="task-heading">
                 <div class="task-title-line">
@@ -332,6 +345,8 @@ function switchRule() {
               />
             </section>
           </section>
+
+          <section v-else class="overview-blank" />
         </main>
       </div>
     </div>
@@ -469,7 +484,7 @@ function switchRule() {
   font-weight: 700;
   color: #24324b;
   text-align: left;
-  cursor: default;
+  cursor: pointer;
   background: transparent;
   border: 0;
   border-radius: 6px;
@@ -529,6 +544,10 @@ function switchRule() {
 .guard-main {
   min-width: 0;
   padding: 0;
+}
+
+.overview-blank {
+  min-height: 100%;
 }
 
 .task-shell {
