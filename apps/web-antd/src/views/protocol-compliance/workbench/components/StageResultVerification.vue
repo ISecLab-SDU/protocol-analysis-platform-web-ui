@@ -367,7 +367,7 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
 
 .verification-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.85fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
 }
 
@@ -386,7 +386,7 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
 
 .evidence-output-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
 }
 

@@ -401,8 +401,8 @@ async function stopFuzzProcessForCrashVerification(runId: number) {
   }
 }
 
-function enterResultVerificationAfterCrash() {
-  if (stageStatus.fuzz !== 'running' || fuzzStats.crashes <= 0) return;
+async function enterResultVerificationAfterCrash() {
+  if (stageStatus.fuzz !== 'running' || fuzzStats.crashes <= 0) return false;
 
   const runId = pipelineRunId;
   clearTimer('fuzz');
@@ -410,13 +410,18 @@ function enterResultVerificationAfterCrash() {
   lastFuzzLogGrowthAt = 0;
   solAflNetRestartAttempts = 0;
   solAflNetRestarting = false;
-  appendFuzzLog('检测到首个崩溃，自动进入结果验证阶段', 'ERROR');
+  appendFuzzLog('检测到首个崩溃，2 秒后自动进入结果验证阶段', 'ERROR');
   stageStatus.fuzz = 'done';
+  stageMessage.value = '检测到崩溃，2 秒后进入结果验证…';
+  void stopFuzzProcessForCrashVerification(runId);
+
+  if (!(await waitForStageTransition(runId))) return true;
+
   stage.value = 'done';
   activeStageView.value = 'done';
   stageStatus.done = 'done';
   stageMessage.value = '已发现崩溃，结果验证模块已生成证据摘要';
-  void stopFuzzProcessForCrashVerification(runId);
+  return true;
 }
 
 function setStage(
@@ -1255,7 +1260,7 @@ async function readFuzzLogs() {
         }
       }
     }
-    enterResultVerificationAfterCrash();
+    if (await enterResultVerificationAfterCrash()) return;
     await checkAndRestartStaleSolAflNetFuzzer(data);
   } catch (err: any) {
     // Non-fatal: keep polling until user stops
