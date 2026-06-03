@@ -356,6 +356,63 @@ function appendFuzzLog(text: string, level: FuzzLogLevel = 'INFO') {
   }
 }
 
+function isCrashDiscoveryLine(line: string) {
+  const crashCountMatch = line.match(/(?:unique_)?crash(?:es)?[^\d]*(\d+)/i);
+  if (crashCountMatch?.[1]) {
+    const crashCount = Number(crashCountMatch[1]);
+    return Number.isFinite(crashCount) && crashCount > 0;
+  }
+
+  const cnCrashCountMatch = line.match(/崩溃[^\d]*(\d+)/);
+  if (cnCrashCountMatch?.[1]) {
+    const crashCount = Number(cnCrashCountMatch[1]);
+    return Number.isFinite(crashCount) && crashCount > 0;
+  }
+
+  return /崩溃|fatal|segmentation fault|assertion.*failed|\bcrash(?:es|ed|ing)?\b/i.test(line);
+}
+
+async function stopFuzzProcessForCrashVerification() {
+  if (!fuzzPid.value && !fuzzContainerId.value) return;
+
+  try {
+    if (fuzzContainerId.value) {
+      await stopAndCleanup({
+        container_id: fuzzContainerId.value,
+        protocol: protocolKindForApi.value,
+      } as any);
+    } else if (fuzzPid.value) {
+      await stopProcess({
+        pid: fuzzPid.value,
+        protocol: protocolKindForApi.value,
+      } as any);
+    }
+    appendFuzzLog('已停止当前 Fuzzer，保留崩溃证据用于结果验证', 'INFO');
+  } catch (err: any) {
+    appendFuzzLog(`停止 Fuzzer 失败，请人工确认进程状态: ${err?.message || err}`, 'WARN');
+  } finally {
+    fuzzPid.value = null;
+    fuzzContainerId.value = null;
+  }
+}
+
+async function enterResultVerificationAfterCrash() {
+  if (stageStatus.fuzz !== 'running' || fuzzStats.crashes <= 0) return;
+
+  clearTimer('fuzz');
+  clearTimer('elapsed');
+  lastFuzzLogGrowthAt = 0;
+  solAflNetRestartAttempts = 0;
+  solAflNetRestarting = false;
+  appendFuzzLog('检测到首个崩溃，自动进入结果验证阶段', 'ERROR');
+  await stopFuzzProcessForCrashVerification();
+  stageStatus.fuzz = 'done';
+  stage.value = 'done';
+  activeStageView.value = 'done';
+  stageStatus.done = 'done';
+  stageMessage.value = '已发现崩溃，结果验证模块已生成证据摘要';
+}
+
 function setStage(
   next: WorkbenchStage,
   status: StageStatus = 'running',
@@ -1178,10 +1235,13 @@ async function readFuzzLogs() {
         let level: FuzzLogLevel = 'INFO';
         const lower = line.toLowerCase();
         if (/stats|execs|paths|coverage|cycles|pending|nodes|edges/i.test(line)) level = 'STATS';
-        else if (lower.includes('crash') || lower.includes('error') || lower.includes('fatal')) level = 'ERROR';
+        else if (isCrashDiscoveryLine(line) || lower.includes('error')) level = 'ERROR';
         else if (lower.includes('warn')) level = 'WARN';
         const normalized = normalizeFuzzLogLine(line, level);
         appendFuzzLog(normalized.text, normalized.level);
+        if (isCrashDiscoveryLine(line)) {
+          fuzzStats.crashes = Math.max(fuzzStats.crashes, 1);
+        }
         if (normalized.stats) {
           applyAflNetStats(normalized.stats);
         } else if (normalized.level === 'STATS') {
@@ -1189,6 +1249,7 @@ async function readFuzzLogs() {
         }
       }
     }
+    await enterResultVerificationAfterCrash();
     await checkAndRestartStaleSolAflNetFuzzer(data);
   } catch (err: any) {
     // Non-fatal: keep polling until user stops

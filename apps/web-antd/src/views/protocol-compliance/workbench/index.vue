@@ -9,6 +9,7 @@ import { Button, Tag } from 'ant-design-vue';
 import StageAssertGen from './components/StageAssertGen.vue';
 import StageCodeLocate from './components/StageCodeLocate.vue';
 import StageFuzz from './components/StageFuzz.vue';
+import StageResultVerification from './components/StageResultVerification.vue';
 import StageRuleConfirm from './components/StageRuleConfirm.vue';
 import StageSetup from './components/StageSetup.vue';
 import { STAGE_LIST } from './types';
@@ -306,7 +307,7 @@ function switchRule() {
               />
 
               <StageFuzz
-                v-else-if="activeStageView === 'fuzz' || activeStageView === 'done'"
+                v-else-if="activeStageView === 'fuzz'"
                 :elapsed="elapsedDisplay"
                 :implementation="projectConfig.implementation"
                 :logs="fuzzLogs"
@@ -315,6 +316,20 @@ function switchRule() {
                 :stats="fuzzStats"
                 :speed-series="fuzzSpeedSeries"
                 :running="stageStatus.fuzz === 'running'"
+              />
+
+              <StageResultVerification
+                v-else-if="activeStageView === 'done'"
+                :assert-diff-content="assertDiffContent"
+                :assert-result="assertResult"
+                :elapsed="elapsedDisplay"
+                :evidence="codeLocateEvidence"
+                :implementation="projectConfig.implementation"
+                :logs="fuzzLogs"
+                :protocol-type="projectConfig.protocolType"
+                :rule="selectedRule"
+                :static-result="staticResult"
+                :stats="fuzzStats"
               />
             </section>
           </section>
