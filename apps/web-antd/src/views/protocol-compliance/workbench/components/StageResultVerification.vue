@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 
-import { Button, Card, Empty, Tag } from 'ant-design-vue';
+import { Button, Card, Empty, message, Tag } from 'ant-design-vue';
 import { IconifyIcon } from '@vben/icons';
 
 import type {
@@ -9,6 +9,7 @@ import type {
   ProtocolExtractRuleItem,
   ProtocolStaticAnalysisResult,
 } from '#/api/protocol-compliance';
+import { downloadAflNetPoc } from '#/api/protocol-compliance';
 
 import type { CodeLocateEvidence, CodeLocateFunctionSlice } from '../types';
 
@@ -44,6 +45,7 @@ interface RelatedFunctionView {
 }
 
 const props = defineProps<Props>();
+const isPocDownloading = ref(false);
 
 const verdicts = computed(() => props.staticResult?.modelResponse?.verdicts ?? []);
 const primaryVerdict = computed(() => {
@@ -136,20 +138,39 @@ const fuzzerName = computed(() => {
   return 'AFLNET';
 });
 
-const pocDownloadHref = computed(() => {
-  const apiBase = import.meta.env.VITE_GLOB_API_URL || '/api';
-  const params = new URLSearchParams({
-    implementation: props.implementation,
-    protocol: props.protocolType,
-  });
-  if (crashLogPath.value) params.set('crashLogPath', crashLogPath.value);
-  return `${apiBase}/protocol-compliance/fuzzing/aflnet-result/download?${params.toString()}`;
-});
-
 const verificationStatus = computed(() => {
   if (props.stats.crashes > 0) return '已触发崩溃验证';
   return '等待崩溃证据';
 });
+
+async function handleDownloadPoc() {
+  if (props.stats.crashes <= 0 || isPocDownloading.value) return;
+
+  isPocDownloading.value = true;
+  try {
+    const blob = await downloadAflNetPoc({
+      crashLogPath: crashLogPath.value || undefined,
+      implementation: props.implementation,
+      protocol: props.protocolType,
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const timestamp = new Date()
+      .toISOString()
+      .replace(/[:.]/g, '-')
+      .slice(0, 19);
+    link.href = url;
+    link.download = `${props.implementation || 'aflnet'}-poc-${timestamp}.zip`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  } catch (err: any) {
+    message.error(err?.message || 'POC 下载失败，请检查 AFLNET 输出目录');
+  } finally {
+    isPocDownloading.value = false;
+  }
+}
 
 function buildFunctionsFromEvidence(functions: CodeLocateFunctionSlice[]) {
   return functions
@@ -289,9 +310,9 @@ function formatNumber(value: number) {
             </div>
             <Button
               type="primary"
-              :disabled="stats.crashes <= 0"
-              :href="pocDownloadHref"
-              target="_blank"
+              :disabled="stats.crashes <= 0 || isPocDownloading"
+              :loading="isPocDownloading"
+              @click="handleDownloadPoc"
             >
               <template #icon><IconifyIcon icon="mdi:download" /></template>
               下载 POC

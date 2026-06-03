@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import io
 import json
 import logging
 import os
@@ -11,6 +12,7 @@ import sqlite3
 import subprocess
 import threading
 import uuid
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, cast
@@ -1169,6 +1171,137 @@ SNMP_CONFIG = {
     "shell_command": "echo 'SNMP Fuzzer模拟运行'",  # SNMP Fuzzer启动命令（临时模拟）
     "output_dir": os.path.join(os.path.dirname(__file__), "snmpfuzzer_logs")  # SNMP Fuzzer输出目录
 }
+
+
+def _is_path_inside(path: Path, allowed_roots: list[Path]) -> bool:
+    try:
+        resolved = path.expanduser().resolve()
+    except (OSError, RuntimeError, ValueError):
+        return False
+
+    for root in allowed_roots:
+        try:
+            resolved.relative_to(root.expanduser().resolve())
+            return True
+        except (OSError, RuntimeError, ValueError):
+            continue
+    return False
+
+
+def _aflnet_output_root() -> Path:
+    return Path(os.environ.get("AFLNET_OUTPUT_ROOT") or os.path.dirname(RTSP_CONFIG["log_file_path"]))
+
+
+def _poc_artifact_candidates(output_root: Path, requested_path: Optional[str]) -> list[Path]:
+    allowed_roots = [output_root]
+    candidates: list[Path] = []
+
+    if requested_path:
+        requested = Path(requested_path).expanduser()
+        if requested.exists() and _is_path_inside(requested, allowed_roots):
+            candidates.append(requested)
+
+    for name in (
+        "replayable-crashes",
+        "crashes",
+        "crash",
+        "crash_logs",
+        "queue",
+        "hangs",
+        "fuzzer_stats",
+        "plot_data",
+    ):
+        candidate = output_root / name
+        if candidate.exists():
+            candidates.append(candidate)
+
+    if not candidates and output_root.exists():
+        candidates.append(output_root)
+
+    deduped: list[Path] = []
+    seen: set[Path] = set()
+    for candidate in candidates:
+        try:
+            resolved = candidate.resolve()
+        except (OSError, RuntimeError):
+            continue
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        deduped.append(candidate)
+    return deduped
+
+
+def _add_path_to_zip(archive: zipfile.ZipFile, path: Path, output_root: Path) -> int:
+    if not path.exists() or not _is_path_inside(path, [output_root]):
+        return 0
+
+    added = 0
+    if path.is_file():
+        archive.write(path, path.relative_to(output_root).as_posix())
+        return 1
+
+    for child in sorted(path.rglob("*")):
+        if not child.is_file() or child.is_symlink():
+            continue
+        if not _is_path_inside(child, [output_root]):
+            continue
+        archive.write(child, child.relative_to(output_root).as_posix())
+        added += 1
+    return added
+
+
+@bp.route("/fuzzing/aflnet-result/download", methods=["GET"])
+def download_aflnet_result():
+    """Download AFLNET crash/queue artefacts as a zip bundle."""
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+
+    protocol = request.args.get("protocol") or "MQTT"
+    implementation = request.args.get("implementation") or "SOL"
+    crash_log_path = request.args.get("crashLogPath")
+
+    output_root = _aflnet_output_root().expanduser()
+    if not output_root.exists() or not output_root.is_dir():
+        return make_response(
+            error_response(f"AFLNET 输出目录不存在：{output_root}"),
+            404,
+        )
+
+    candidates = _poc_artifact_candidates(output_root, crash_log_path)
+    if not candidates:
+        return make_response(error_response("未找到 AFLNET POC 输出文件"), 404)
+
+    buffer = io.BytesIO()
+    manifest = {
+        "protocol": protocol,
+        "implementation": implementation,
+        "outputRoot": str(output_root),
+        "requestedCrashLogPath": crash_log_path,
+        "generatedAt": datetime.now(timezone.utc).isoformat(),
+    }
+    added = 0
+
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
+        added += 1
+        for candidate in candidates:
+            added += _add_path_to_zip(archive, candidate, output_root)
+
+    if added <= 1:
+        return make_response(error_response("AFLNET 输出目录中没有可打包的 POC 文件"), 404)
+
+    buffer.seek(0)
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    safe_impl = re.sub(r"[^A-Za-z0-9_.-]+", "-", implementation).strip("-") or "aflnet"
+    return send_file(
+        buffer,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=f"{safe_impl}-aflnet-poc-{timestamp}.zip",
+        max_age=0,
+    )
 
 @bp.route("/write-script", methods=["POST"])
 def write_script():

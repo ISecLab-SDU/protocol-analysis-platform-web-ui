@@ -335,6 +335,40 @@ export async function downloadStaticAnalysisDatabase(jobId: string) {
   return response.data;
 }
 
+export interface DownloadAflNetPocParams {
+  crashLogPath?: string;
+  implementation: string;
+  protocol: string;
+}
+
+export async function downloadAflNetPoc(params: DownloadAflNetPocParams) {
+  const accessStore = useAccessStore();
+  const token = accessStore.accessToken;
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const query = new URLSearchParams({
+    implementation: params.implementation,
+    protocol: params.protocol,
+  });
+  if (params.crashLogPath) {
+    query.set('crashLogPath', params.crashLogPath);
+  }
+
+  const response = (await baseRequestClient.request(
+    `/protocol-compliance/fuzzing/aflnet-result/download?${query.toString()}`,
+    {
+      headers,
+      method: 'GET',
+      responseType: 'blob',
+    },
+  )) as { data: Blob };
+
+  return response.data;
+}
+
 export function fetchProtocolStaticAnalysisHistory(
   params?: FetchProtocolStaticAnalysisHistoryParams,
 ) {
