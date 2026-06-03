@@ -14,7 +14,7 @@ import StageRuleConfirm from './components/StageRuleConfirm.vue';
 import StageSetup from './components/StageSetup.vue';
 import { STAGE_LIST } from './types';
 import { useWorkbench } from './useWorkbench';
-import { formatDuration } from './utils';
+import { formatDuration, formatTime } from './utils';
 
 const {
   stage,
@@ -22,6 +22,7 @@ const {
   stageStatus,
   stageMessage,
   elapsedSeconds,
+  startedAt,
   isStopping,
   isTransitioning,
   errorMessage,
@@ -81,6 +82,19 @@ const protocolVersion = computed(() => {
   if (projectConfig.protocolType === 'MQTT') return 'MQTT 3.1.1';
   return 'SNMP v2c/v3';
 });
+
+const startedAtDisplay = computed(() => {
+  return startedAt.value ? formatTime(startedAt.value.toISOString()) : '-';
+});
+
+const sourceArchiveName = computed(() => projectConfig.archive?.name || '未上传');
+
+const sideNavItems = [
+  { icon: 'mdi:view-dashboard-outline', key: 'overview', label: '概览' },
+  { icon: 'mdi:format-list-bulleted-square', key: 'rules', label: '规则列表' },
+  { icon: 'mdi:source-branch', key: 'evidence', label: '证据链' },
+  { icon: 'mdi:clipboard-text-clock-outline', key: 'logs', label: '日志' },
+] as const;
 
 function stageStateLabel(key: (typeof STAGE_LIST)[number]['key']) {
   const status = stageStatus[key];
@@ -150,6 +164,43 @@ function switchRule() {
       </header>
 
       <div class="guard-layout">
+        <aside class="guard-sidebar">
+          <nav class="sidebar-nav">
+            <button
+              v-for="item in sideNavItems"
+              :key="item.key"
+              class="nav-item"
+              :class="{ 'nav-item--active': item.key === 'overview' }"
+              type="button"
+            >
+              <IconifyIcon :icon="item.icon" />
+              <span>{{ item.label }}</span>
+            </button>
+          </nav>
+
+          <section class="current-task">
+            <div class="current-task-title">当前任务</div>
+            <dl>
+              <div>
+                <dt>项目:</dt>
+                <dd>{{ projectConfig.protocolType }} ({{ projectConfig.implementation }})</dd>
+              </div>
+              <div>
+                <dt>协议版本:</dt>
+                <dd>{{ protocolVersion }}</dd>
+              </div>
+              <div>
+                <dt>源码包:</dt>
+                <dd>{{ sourceArchiveName }}</dd>
+              </div>
+              <div>
+                <dt>开始时间:</dt>
+                <dd>{{ startedAtDisplay }}</dd>
+              </div>
+            </dl>
+          </section>
+        </aside>
+
         <main class="guard-main">
           <section class="task-shell">
             <header class="task-header">
@@ -387,7 +438,92 @@ function switchRule() {
 }
 
 .guard-layout {
+  display: grid;
+  grid-template-columns: 236px minmax(0, 1fr);
   min-height: calc(100vh - 156px);
+}
+
+.guard-sidebar {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 18px 14px;
+  background: #fff;
+  border-right: 1px solid #e7edf5;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nav-item {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  height: 44px;
+  padding: 0 14px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #24324b;
+  text-align: left;
+  cursor: default;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+}
+
+.nav-item :first-child {
+  font-size: 19px;
+}
+
+.nav-item--active {
+  color: #1677ff;
+  background: #edf5ff;
+}
+
+.current-task {
+  padding: 16px;
+  background: #fff;
+  border: 1px solid #e7edf5;
+  border-radius: 8px;
+  box-shadow: 0 8px 22px rgb(15 23 42 / 4%);
+}
+
+.current-task-title {
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.current-task dl {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+}
+
+.current-task div {
+  min-width: 0;
+}
+
+.current-task dt {
+  margin-bottom: 2px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.current-task dd {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 600;
+  color: #172033;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .guard-main {
@@ -600,6 +736,14 @@ function switchRule() {
 }
 
 @media (max-width: 1180px) {
+  .guard-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .guard-sidebar {
+    display: none;
+  }
+
   .pipeline-stepper {
     grid-template-columns: 1fr;
   }

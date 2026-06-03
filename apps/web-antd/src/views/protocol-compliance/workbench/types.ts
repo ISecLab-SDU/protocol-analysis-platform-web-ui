@@ -74,7 +74,7 @@ export interface RuleOption extends ProtocolExtractRuleItem {
 
 export const STAGE_LIST: Array<{ key: WorkbenchStage; index: number; title: string }> = [
   { key: 'rule_confirm', index: 1, title: '规则确认' },
-  { key: 'code_locate', index: 2, title: '代码定位与一致性分析' },
+  { key: 'code_locate', index: 2, title: '代码定位' },
   { key: 'assert_gen', index: 3, title: '断言生成' },
   { key: 'fuzz', index: 4, title: '模糊测试' },
   { key: 'done', index: 5, title: '结果验证' },
