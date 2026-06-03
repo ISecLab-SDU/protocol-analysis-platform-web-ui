@@ -37,10 +37,10 @@ interface Props {
   };
 }
 
-interface RelatedFunctionView {
-  file: string;
-  line: string;
-  name: string;
+interface RenderedDiffLine {
+  id: string;
+  text: string;
+  type: 'add' | 'context' | 'delete' | 'file' | 'hunk' | 'meta';
 }
 
 const props = defineProps<Props>();
@@ -75,45 +75,37 @@ const violationReason = computed(() => {
   );
 });
 
-const relatedFunctions = computed<RelatedFunctionView[]>(() => {
-  const fromEvidence = buildFunctionsFromEvidence(props.evidence?.functions ?? []);
-  if (fromEvidence.length > 0) return fromEvidence;
-
-  const records = new Map<string, RelatedFunctionView>();
-  for (const verdict of verdicts.value) {
-    const name = verdict.location?.function || verdict.location?.file;
-    if (!name || records.has(name)) continue;
-    records.set(name, {
-      file: verdict.location?.file || props.evidence?.targetFile || '-',
-      line: verdict.lineRange?.length ? verdict.lineRange.join('-') : '-',
-      name,
-    });
-  }
-  return [...records.values()];
+const evidenceFunctionSlices = computed(() => {
+  return (props.evidence?.functions ?? []).filter((fn) => fn.name.trim() && fn.codeRows.length > 0);
 });
 
-const assertionLines = computed(() => {
-  return props.assertDiffContent
-    .split(/\r?\n/)
-    .filter((line) => {
-      if (!line.startsWith('+') || line.startsWith('+++')) return false;
-      return /assert\s*\(|assert_related_rule|#include\s+<assert\.h>|static\s+int/i.test(line);
-    })
-    .map((line) => line.slice(1).trimEnd())
-    .filter(Boolean)
-    .slice(0, 8);
+const effectiveDiffContent = computed(() => {
+  const rawContent =
+    props.assertDiffContent ||
+    props.assertResult?.instrumentation?.artifacts?.diffOutput?.content ||
+    '';
+
+  return normalizeDiffContent(rawContent);
 });
 
 const changedFileCount = computed(() => {
-  const matches = props.assertDiffContent.match(/^diff --git\s+/gm);
+  const matches = effectiveDiffContent.value.match(/^diff --git\s+/gm);
   return matches?.length ?? 0;
+});
+
+const renderedDiffLines = computed<RenderedDiffLine[]>(() => {
+  return effectiveDiffContent.value.split(/\r?\n/).map((text, index) => ({
+    id: `${index}-${text}`,
+    text,
+    type: classifyDiffLine(text),
+  }));
 });
 
 const assertionSummary = computed(() => {
   if (props.assertResult) {
     return `${props.assertResult.assertionCount} 条断言任务，${changedFileCount.value} 个文件发生插桩变更`;
   }
-  if (props.assertDiffContent) {
+  if (effectiveDiffContent.value) {
     return `${changedFileCount.value} 个文件发生插桩变更`;
   }
   return '等待断言生成模块输出';
@@ -171,14 +163,32 @@ async function handleDownloadPoc() {
   }
 }
 
-function buildFunctionsFromEvidence(functions: CodeLocateFunctionSlice[]) {
-  return functions
-    .filter((fn) => fn.name.trim())
-    .map((fn) => ({
-      file: fn.path || props.evidence?.targetFile || '-',
-      line: fn.targetLine ? String(fn.targetLine) : props.evidence?.targetLine || '-',
-      name: fn.name,
-    }));
+function formatEvidencePath(fn: CodeLocateFunctionSlice) {
+  const path = fn.path || props.evidence?.targetFile || '-';
+  if (!fn.targetLine || fn.targetLine === '-') return path;
+  return `${path}:${fn.targetLine}`;
+}
+
+function normalizeDiffContent(content: string) {
+  const normalized = content.trimEnd();
+  const diffStartIndex = normalized.search(/^diff --git\s+/m);
+  if (diffStartIndex >= 0) return normalized.slice(diffStartIndex).trimEnd();
+
+  const detailedDiffMatch = normalized.match(/^Detailed Diff:\s*$/m);
+  if (detailedDiffMatch?.index !== undefined) {
+    return normalized.slice(detailedDiffMatch.index + detailedDiffMatch[0].length).trim();
+  }
+
+  return normalized;
+}
+
+function classifyDiffLine(text: string): RenderedDiffLine['type'] {
+  if (text.startsWith('diff --git') || text.startsWith('index ')) return 'meta';
+  if (text.startsWith('@@')) return 'hunk';
+  if (text.startsWith('--- ') || text.startsWith('+++ ')) return 'file';
+  if (text.startsWith('+')) return 'add';
+  if (text.startsWith('-')) return 'delete';
+  return 'context';
 }
 </script>
 
@@ -223,50 +233,74 @@ function buildFunctionsFromEvidence(functions: CodeLocateFunctionSlice[]) {
           <p class="reason-text">{{ violationReason }}</p>
         </section>
 
-        <section class="panel panel--functions">
-          <div class="panel-head">
-            <div>
-              <span class="panel-kicker">相关函数</span>
-              <h3>代码定位输出</h3>
-            </div>
-            <Tag color="blue">{{ relatedFunctions.length }} 个函数</Tag>
-          </div>
-          <div v-if="relatedFunctions.length > 0" class="function-list">
-            <div v-for="fn in relatedFunctions" :key="`${fn.file}:${fn.name}`" class="function-row">
-              <div class="function-icon">
-                <IconifyIcon icon="mdi:function-variant" />
-              </div>
+        <section class="evidence-output-grid">
+          <section class="panel panel--functions">
+            <div class="panel-head">
               <div>
-                <strong>{{ fn.name }}</strong>
-                <span>{{ fn.file }}:{{ fn.line }}</span>
+                <span class="panel-kicker">代码定位结果</span>
+                <h3>相关函数源码</h3>
+              </div>
+              <Tag color="blue">{{ evidenceFunctionSlices.length }} 个函数</Tag>
+            </div>
+
+            <div v-if="evidenceFunctionSlices.length > 0" class="function-source-frame">
+              <section
+                v-for="fn in evidenceFunctionSlices"
+                :key="fn.name"
+                class="function-source-section"
+              >
+                <div class="function-source-head">
+                  <strong>{{ fn.name }}</strong>
+                  <code>{{ formatEvidencePath(fn) }}</code>
+                </div>
+                <div class="function-source-code">
+                  <div
+                    v-for="(row, idx) in fn.codeRows"
+                    :key="`${fn.name}-${row.line}-${idx}`"
+                    class="code-row"
+                    :class="{ 'code-row--emphasis': row.emphasis }"
+                  >
+                    <span class="line-no">{{ row.line }}</span>
+                    <span class="line-text">{{ row.text }}</span>
+                  </div>
+                </div>
+              </section>
+            </div>
+            <Empty
+              v-else
+              description="等待生成相关函数源码"
+              :image="Empty.PRESENTED_IMAGE_SIMPLE"
+            />
+          </section>
+
+          <section class="panel panel--assert">
+            <div class="panel-head">
+              <div>
+                <span class="panel-kicker">断言生成结果</span>
+                <h3>插桩代码差异</h3>
+              </div>
+              <Tag :color="assertResult || effectiveDiffContent ? 'success' : 'default'">
+                {{ assertionSummary }}
+              </Tag>
+            </div>
+            <div v-if="effectiveDiffContent" class="diff-wrapper">
+              <div
+                v-for="line in renderedDiffLines"
+                :key="line.id"
+                class="diff-line"
+                :class="`diff-line--${line.type}`"
+              >
+                <span class="diff-line-number">{{ line.text ? '' : ' ' }}</span>
+                <code>{{ line.text || ' ' }}</code>
               </div>
             </div>
-          </div>
-          <Empty
-            v-else
-            description="等待代码定位输出相关函数"
-            :image="Empty.PRESENTED_IMAGE_SIMPLE"
-          />
-        </section>
-
-        <section class="panel panel--assert">
-          <div class="panel-head">
-            <div>
-              <span class="panel-kicker">代码插断言生成</span>
-              <h3>插桩摘要</h3>
-            </div>
-            <Tag :color="assertResult || assertDiffContent ? 'success' : 'default'">
-              {{ assertionSummary }}
-            </Tag>
-          </div>
-          <div v-if="assertionLines.length > 0" class="assert-lines">
-            <code v-for="line in assertionLines" :key="line">{{ line }}</code>
-          </div>
-          <Empty
-            v-else
-            description="等待断言生成模块输出插桩差异"
-            :image="Empty.PRESENTED_IMAGE_SIMPLE"
-          />
+            <Empty
+              v-else
+              class="diff-empty"
+              description="等待生成插桩差异"
+              :image="Empty.PRESENTED_IMAGE_SIMPLE"
+            />
+          </section>
         </section>
 
         <section class="panel panel--poc">
@@ -345,10 +379,15 @@ function buildFunctionsFromEvidence(functions: CodeLocateFunctionSlice[]) {
   border-radius: 8px;
 }
 
-.panel--assert,
-.panel--functions,
+.evidence-output-grid,
 .panel--poc {
   grid-column: 1 / -1;
+}
+
+.evidence-output-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
 }
 
 .panel-head {
@@ -382,70 +421,157 @@ function buildFunctionsFromEvidence(functions: CodeLocateFunctionSlice[]) {
   overflow-wrap: anywhere;
 }
 
-.function-list {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.function-row {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
+.function-source-frame {
   min-width: 0;
-  padding: 12px;
-  background: #f8fafc;
+  height: 440px;
+  overflow: hidden;
+  overflow-y: auto;
+  background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
 }
 
-.function-icon {
-  display: grid;
-  flex: 0 0 auto;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  color: #1677ff;
-  background: #eff6ff;
-  border-radius: 8px;
+.function-source-section + .function-source-section {
+  border-top: 1px solid #dbe4ef;
 }
 
-.function-row strong,
-.function-row span {
-  display: block;
+.function-source-head {
+  display: grid;
+  grid-template-columns: minmax(140px, 0.36fr) minmax(0, 0.64fr);
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    monospace;
+  font-size: 12px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.function-source-head strong,
+.function-source-head code {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.function-row strong {
-  font-size: 14px;
+.function-source-head strong {
   color: #111827;
 }
 
-.function-row span {
-  margin-top: 4px;
-  font-size: 12px;
+.function-source-head code {
   color: #64748b;
+  background: transparent;
 }
 
-.assert-lines {
+.function-source-code {
+  padding: 10px 0;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    monospace;
+  font-size: 13px;
+  line-height: 1.65;
+  color: #334155;
+  background: #fff;
+}
+
+.code-row {
   display: grid;
-  gap: 6px;
-  padding: 12px;
+  grid-template-columns: 62px minmax(0, 1fr);
+  min-height: 28px;
+  padding: 0 14px;
+}
+
+.code-row--emphasis {
+  color: #0b5cad;
+  background: #e8f2ff;
+}
+
+.line-no {
+  color: #94a3b8;
+  user-select: none;
+}
+
+.line-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.diff-wrapper {
+  height: 440px;
+  min-width: 0;
+  padding: 8px 0;
   overflow: auto;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 12px;
-  line-height: 1.6;
-  color: #0f172a;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  line-height: 1.55;
+  color: #334155;
+  background: #fbfdff;
+  border: 1px solid var(--ant-color-border);
   border-radius: 8px;
 }
 
-.assert-lines code {
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
+.diff-line {
+  display: grid;
+  grid-template-columns: 18px minmax(max-content, 1fr);
+  min-width: max-content;
+  padding: 1px 12px;
+  white-space: pre;
+}
+
+.diff-line code {
+  padding: 0;
+  color: inherit;
+  white-space: pre;
+  background: transparent;
+}
+
+.diff-line-number {
+  color: #94a3b8;
+  user-select: none;
+}
+
+.diff-line--meta {
+  font-weight: 700;
+  color: #334155;
+  background: #f1f5f9;
+}
+
+.diff-line--file {
+  color: #0f4c81;
+  background: #eef6ff;
+}
+
+.diff-line--hunk {
+  color: #6d28d9;
+  background: #f5f3ff;
+}
+
+.diff-line--add {
+  color: #047857;
+  background: #ecfdf5;
+}
+
+.diff-line--delete {
+  color: #b42318;
+  background: #fff1f2;
+}
+
+.diff-line--context {
+  color: #334155;
+}
+
+.diff-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 440px;
+  margin: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
 }
 
 .poc-body {
@@ -478,7 +604,7 @@ function buildFunctionsFromEvidence(functions: CodeLocateFunctionSlice[]) {
 
 @media (max-width: 1024px) {
   .verification-grid,
-  .function-list {
+  .evidence-output-grid {
     grid-template-columns: 1fr;
   }
 
