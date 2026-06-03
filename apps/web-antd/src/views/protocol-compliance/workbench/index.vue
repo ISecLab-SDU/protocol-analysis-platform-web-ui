@@ -6,7 +6,6 @@ import { IconifyIcon } from '@vben/icons';
 
 import { Button, Tag } from 'ant-design-vue';
 
-import ProtocolLogViewer from './components/ProtocolLogViewer.vue';
 import StageAssertGen from './components/StageAssertGen.vue';
 import StageCodeLocate from './components/StageCodeLocate.vue';
 import StageFuzz from './components/StageFuzz.vue';
@@ -37,6 +36,7 @@ const {
   assertDiffContent,
   assertResult,
   fuzzLogs,
+  resultHistory,
   fuzzStats,
   fuzzSpeedSeries,
   commitSetup,
@@ -57,8 +57,6 @@ const isRunning = computed(() => {
 });
 
 const elapsedDisplay = computed(() => formatDuration(elapsedSeconds.value));
-
-const isFuzzRunning = computed(() => stageStatus.fuzz === 'running');
 
 const currentRuleText = computed(() => {
   return (
@@ -353,22 +351,104 @@ function switchRule() {
             <header class="logs-header">
               <div>
                 <h1>日志信息</h1>
-                <p>{{ taskTitle }} · {{ currentRuleId }}</p>
+                <p>历史运行结果 · 共 {{ resultHistory.length }} 条</p>
               </div>
-              <Tag :color="isFuzzRunning ? 'processing' : 'default'">
-                {{ isFuzzRunning ? '实时同步' : fuzzLogs.length > 0 ? '已归档' : '暂无日志' }}
+              <Tag :color="resultHistory.length > 0 ? 'blue' : 'default'">
+                {{ resultHistory.length > 0 ? '已记录' : '暂无结果' }}
               </Tag>
             </header>
 
-            <section class="logs-panel">
-              <div class="logs-panel-head">
-                <div>
-                  <h2>运行日志</h2>
-                  <span>包含 Fuzzer 输出和流水线最终结果摘要</span>
+            <div v-if="resultHistory.length > 0" class="result-history-list">
+              <article
+                v-for="entry in resultHistory"
+                :key="entry.id"
+                class="result-history-card"
+              >
+                <div class="result-history-head">
+                  <div>
+                    <div class="result-history-title">
+                      {{ entry.implementation }} {{ entry.protocolType }} 分析结果
+                    </div>
+                    <div class="result-history-meta">
+                      {{ formatTime(entry.finishedAt) }} · {{ entry.conclusion }}
+                    </div>
+                  </div>
+                  <Tag :color="entry.stats.crashes > 0 ? 'error' : 'default'">
+                    {{ entry.stats.crashes > 0 ? '发现崩溃' : '已停止' }}
+                  </Tag>
                 </div>
-                <strong>{{ fuzzLogs.length }} 条</strong>
-              </div>
-              <ProtocolLogViewer :logs="fuzzLogs" :running="isFuzzRunning" />
+
+                <section class="result-history-grid">
+                  <div class="history-block history-block--wide">
+                    <span>触发规则</span>
+                    <p>{{ entry.ruleText }}</p>
+                  </div>
+                  <div class="history-block history-block--wide">
+                    <span>定位结论</span>
+                    <p>{{ entry.violationReason }}</p>
+                  </div>
+                  <div class="history-block">
+                    <span>代码定位</span>
+                    <strong>{{ entry.targetFile }}:{{ entry.targetLine }}</strong>
+                    <small>{{ entry.functionCount }} 个相关函数 · {{ entry.codeLocateSource }}</small>
+                  </div>
+                  <div class="history-block">
+                    <span>断言生成</span>
+                    <strong>{{ entry.assertionSummary }}</strong>
+                    <small>{{ entry.changedFileCount }} 个文件变更</small>
+                  </div>
+                  <div class="history-block">
+                    <span>Fuzz 结果</span>
+                    <strong>
+                      崩溃 {{ entry.stats.crashes }} · 挂起 {{ entry.stats.hangs }}
+                    </strong>
+                    <small>
+                      路径 {{ entry.stats.currentPath }}/{{ entry.stats.pathsTotal }} ·
+                      覆盖率 {{ entry.stats.coverage.toFixed(2) }}%
+                    </small>
+                  </div>
+                  <div class="history-block">
+                    <span>POC 输出</span>
+                    <strong>{{ entry.crashLogPath || '未记录崩溃队列路径' }}</strong>
+                    <small>速度 {{ entry.stats.speed.toFixed(2) }} exec/sec</small>
+                  </div>
+                </section>
+
+                <details v-if="entry.codeFunctions.length > 0" class="history-source">
+                  <summary>查看相关函数源码</summary>
+                  <section
+                    v-for="fn in entry.codeFunctions"
+                    :key="`${entry.id}-${fn.name}`"
+                    class="history-source-section"
+                  >
+                    <div class="history-source-head">
+                      <strong>{{ fn.name }}</strong>
+                      <code>{{ fn.path || entry.targetFile }}:{{ fn.targetLine || '-' }}</code>
+                    </div>
+                    <div class="history-source-code">
+                      <div
+                        v-for="(row, idx) in fn.codeRows"
+                        :key="`${entry.id}-${fn.name}-${row.line}-${idx}`"
+                        class="history-code-row"
+                        :class="{ 'history-code-row--emphasis': row.emphasis }"
+                      >
+                        <span>{{ row.line }}</span>
+                        <code>{{ row.text }}</code>
+                      </div>
+                    </div>
+                  </section>
+                </details>
+
+                <details v-if="entry.diffContent" class="history-diff">
+                  <summary>查看插桩代码差异</summary>
+                  <pre>{{ entry.diffContent }}</pre>
+                </details>
+              </article>
+            </div>
+
+            <section v-else class="result-history-empty">
+              <div>暂无历史运行结果</div>
+              <p>流水线进入结果验证或手动停止后，会在这里记录一条结果快照。</p>
             </section>
           </section>
 
@@ -807,43 +887,215 @@ function switchRule() {
   color: #64748b;
 }
 
-.logs-panel {
-  padding: 16px;
+.result-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.result-history-card,
+.result-history-empty {
   background: #fff;
   border: 1px solid #e7edf5;
   border-radius: 8px;
   box-shadow: 0 8px 22px rgb(15 23 42 / 4%);
 }
 
-.logs-panel-head {
+.result-history-card {
+  padding: 16px;
+}
+
+.result-history-head {
   display: flex;
   gap: 16px;
   align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
-.logs-panel-head h2 {
-  margin: 0;
+.result-history-title {
   font-size: 16px;
   font-weight: 800;
+  color: #172033;
 }
 
-.logs-panel-head span {
-  display: block;
+.result-history-meta {
   margin-top: 4px;
   font-size: 12px;
   color: #64748b;
 }
 
-.logs-panel-head strong {
-  font-size: 13px;
-  color: #1677ff;
+.result-history-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
-.logs-panel :deep(.log-scroll) {
-  height: min(640px, calc(100vh - 290px));
-  min-height: 360px;
+.history-block {
+  min-width: 0;
+  padding: 12px;
+  background: #fbfdff;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+}
+
+.history-block--wide {
+  grid-column: 1 / -1;
+}
+
+.history-block span,
+.history-block strong,
+.history-block small {
+  display: block;
+}
+
+.history-block span {
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.history-block strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  color: #172033;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-block small {
+  margin-top: 5px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.history-block p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.65;
+  color: #334155;
+  overflow-wrap: anywhere;
+}
+
+.history-source,
+.history-diff {
+  margin-top: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.history-source summary,
+.history-diff summary {
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1677ff;
+  cursor: pointer;
+}
+
+.history-source-section {
+  border-top: 1px solid #e2e8f0;
+}
+
+.history-source-section + .history-source-section {
+  border-top-color: #dbe4ef;
+}
+
+.history-source-head {
+  display: grid;
+  grid-template-columns: minmax(140px, 0.36fr) minmax(0, 0.64fr);
+  gap: 10px;
+  align-items: center;
+  padding: 9px 12px;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    monospace;
+  font-size: 12px;
+  background: #f8fafc;
+}
+
+.history-source-head strong,
+.history-source-head code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-source-head code {
+  color: #64748b;
+  background: transparent;
+}
+
+.history-source-code {
+  max-height: 360px;
+  padding: 8px 0;
+  overflow: auto;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    monospace;
+  font-size: 12px;
+  line-height: 1.65;
+  color: #334155;
+  background: #fff;
+}
+
+.history-code-row {
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr);
+  min-height: 24px;
+  padding: 0 12px;
+}
+
+.history-code-row--emphasis {
+  color: #0b5cad;
+  background: #e8f2ff;
+}
+
+.history-code-row span {
+  color: #94a3b8;
+  user-select: none;
+}
+
+.history-code-row code {
+  min-width: 0;
+  color: inherit;
+  white-space: pre-wrap;
+  background: transparent;
+}
+
+.history-diff pre {
+  max-height: 360px;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #334155;
+  white-space: pre;
+  background: #fbfdff;
+  border-top: 1px solid #e2e8f0;
+}
+
+.result-history-empty {
+  padding: 56px 20px;
+  text-align: center;
+}
+
+.result-history-empty div {
+  font-size: 16px;
+  font-weight: 800;
+  color: #172033;
+}
+
+.result-history-empty p {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: #64748b;
 }
 
 @media (max-width: 1180px) {
@@ -893,6 +1145,10 @@ function switchRule() {
 
   .logs-shell {
     padding: 18px 14px;
+  }
+
+  .result-history-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>
