@@ -126,11 +126,10 @@ let solAflNetRestarting = false;
 const TEMP_ASSERTION_DATABASE_PATH =
   '/home/lab426_system/protocol-web-ui/violations.db';
 const STAGE_TRANSITION_DELAY_MS = 2000;
-const SOL_AFLNET_STALE_LOG_RESTART_MS = 15_000;
+const SOL_AFLNET_STALE_LOG_RESTART_MS = 25_000;
 const SOL_AFLNET_MAX_RESTART_ATTEMPTS = 3;
 type WorkbenchPipelineProfile = 'full' | 'fuzz-only';
-// Set this back to 'full' to restore code location and assertion generation.
-const WORKBENCH_PIPELINE_PROFILE: WorkbenchPipelineProfile = 'fuzz-only';
+const WORKBENCH_PIPELINE_PROFILE: WorkbenchPipelineProfile = 'full';
 
 interface ParsedAflNetStats {
   coverage: number;
@@ -372,33 +371,40 @@ function isCrashDiscoveryLine(line: string) {
   return /崩溃|fatal|segmentation fault|assertion.*failed|\bcrash(?:es|ed|ing)?\b/i.test(line);
 }
 
-async function stopFuzzProcessForCrashVerification() {
-  if (!fuzzPid.value && !fuzzContainerId.value) return;
+async function stopFuzzProcessForCrashVerification(runId: number) {
+  const containerId = fuzzContainerId.value;
+  const pid = fuzzPid.value;
+  if (!pid && !containerId) return;
+
+  fuzzPid.value = null;
+  fuzzContainerId.value = null;
 
   try {
-    if (fuzzContainerId.value) {
+    if (containerId) {
       await stopAndCleanup({
-        container_id: fuzzContainerId.value,
+        container_id: containerId,
         protocol: protocolKindForApi.value,
       } as any);
-    } else if (fuzzPid.value) {
+    } else if (pid) {
       await stopProcess({
-        pid: fuzzPid.value,
+        pid,
         protocol: protocolKindForApi.value,
       } as any);
     }
-    appendFuzzLog('已停止当前 Fuzzer，保留崩溃证据用于结果验证', 'INFO');
+    if (isCurrentPipelineRun(runId)) {
+      appendFuzzLog('已停止当前 Fuzzer，保留崩溃证据用于结果验证', 'INFO');
+    }
   } catch (err: any) {
-    appendFuzzLog(`停止 Fuzzer 失败，请人工确认进程状态: ${err?.message || err}`, 'WARN');
-  } finally {
-    fuzzPid.value = null;
-    fuzzContainerId.value = null;
+    if (isCurrentPipelineRun(runId)) {
+      appendFuzzLog(`停止 Fuzzer 失败，请人工确认进程状态: ${err?.message || err}`, 'WARN');
+    }
   }
 }
 
-async function enterResultVerificationAfterCrash() {
+function enterResultVerificationAfterCrash() {
   if (stageStatus.fuzz !== 'running' || fuzzStats.crashes <= 0) return;
 
+  const runId = pipelineRunId;
   clearTimer('fuzz');
   clearTimer('elapsed');
   lastFuzzLogGrowthAt = 0;
@@ -411,6 +417,7 @@ async function enterResultVerificationAfterCrash() {
   activeStageView.value = 'done';
   stageStatus.done = 'done';
   stageMessage.value = '已发现崩溃，结果验证模块已生成证据摘要';
+  void stopFuzzProcessForCrashVerification(runId);
 }
 
 function setStage(
@@ -559,7 +566,7 @@ async function checkAndRestartStaleSolAflNetFuzzer(data: any) {
   solAflNetRestarting = true;
   const runId = pipelineRunId;
   try {
-    appendFuzzLog('plot_data 已存在但 15 秒没有新数据，正在检查 Docker 容器状态', 'WARN');
+    appendFuzzLog('plot_data 已存在但 25 秒没有新数据，正在检查 Docker 容器状态', 'WARN');
     const status: any = await checkStatus({
       protocol: protocolKindForApi.value,
       protocolImplementations: protocolImplementationsKey.value,
@@ -1249,7 +1256,7 @@ async function readFuzzLogs() {
         }
       }
     }
-    await enterResultVerificationAfterCrash();
+    enterResultVerificationAfterCrash();
     await checkAndRestartStaleSolAflNetFuzzer(data);
   } catch (err: any) {
     // Non-fatal: keep polling until user stops
@@ -1307,7 +1314,8 @@ async function runFuzzStep(runId: number) {
     if (launchData?.container_id) fuzzContainerId.value = String(launchData.container_id);
     lastFuzzLogGrowthAt = Date.now();
     stageMessage.value = '模糊测试运行中，点击"停止"结束';
-    fuzzPollTimer = setInterval(readFuzzLogs, 2000);
+    void readFuzzLogs();
+    fuzzPollTimer = setInterval(readFuzzLogs, 1000);
   } catch (err: any) {
     if (!isCurrentPipelineRun(runId)) return;
     markStageError('fuzz', err?.message || '模糊测试启动失败');

@@ -322,7 +322,6 @@ function switchRule() {
                 v-else-if="activeStageView === 'done'"
                 :assert-diff-content="assertDiffContent"
                 :assert-result="assertResult"
-                :elapsed="elapsedDisplay"
                 :evidence="codeLocateEvidence"
                 :implementation="projectConfig.implementation"
                 :logs="fuzzLogs"

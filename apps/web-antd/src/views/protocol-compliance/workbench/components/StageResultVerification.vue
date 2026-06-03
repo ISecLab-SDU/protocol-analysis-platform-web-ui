@@ -22,7 +22,6 @@ interface FuzzLogEntry {
 interface Props {
   assertDiffContent: string;
   assertResult: ProtocolAssertGenerationResult | null;
-  elapsed: string;
   evidence: CodeLocateEvidence | null;
   implementation: string;
   logs: FuzzLogEntry[];
@@ -181,10 +180,6 @@ function buildFunctionsFromEvidence(functions: CodeLocateFunctionSlice[]) {
       name: fn.name,
     }));
 }
-
-function formatNumber(value: number) {
-  return value.toLocaleString();
-}
 </script>
 
 <template>
@@ -203,25 +198,6 @@ function formatNumber(value: number) {
     </template>
 
     <div class="verification-layout">
-      <section class="summary-band">
-        <div class="summary-tile summary-tile--danger">
-          <strong>{{ formatNumber(stats.crashes) }}</strong>
-          <span>崩溃数</span>
-        </div>
-        <div class="summary-tile summary-tile--warn">
-          <strong>{{ formatNumber(stats.hangs) }}</strong>
-          <span>挂起数</span>
-        </div>
-        <div class="summary-tile summary-tile--blue">
-          <strong>{{ formatNumber(stats.paths) }}</strong>
-          <span>覆盖路径</span>
-        </div>
-        <div class="summary-tile summary-tile--green">
-          <strong>{{ elapsed }}</strong>
-          <span>运行时长</span>
-        </div>
-      </section>
-
       <section class="verification-grid">
         <section class="panel panel--rule">
           <div class="panel-head">
@@ -353,74 +329,6 @@ function formatNumber(value: number) {
   display: flex;
   flex-direction: column;
   gap: 16px;
-}
-
-.summary-band {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.summary-tile {
-  min-width: 0;
-  min-height: 92px;
-  padding: 16px;
-  text-align: center;
-  border: 1px solid transparent;
-  border-radius: 8px;
-}
-
-.summary-tile strong {
-  display: block;
-  overflow: hidden;
-  font-size: 28px;
-  font-weight: 900;
-  line-height: 1.1;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.summary-tile span {
-  display: block;
-  margin-top: 8px;
-  font-size: 13px;
-  color: #475569;
-}
-
-.summary-tile--danger {
-  background: #fff5f7;
-  border-color: #fecdd3;
-}
-
-.summary-tile--danger strong {
-  color: #e11d48;
-}
-
-.summary-tile--warn {
-  background: #fffbeb;
-  border-color: #fde68a;
-}
-
-.summary-tile--warn strong {
-  color: #d69e2e;
-}
-
-.summary-tile--blue {
-  background: #eff6ff;
-  border-color: #bfdbfe;
-}
-
-.summary-tile--blue strong {
-  color: #2563eb;
-}
-
-.summary-tile--green {
-  background: #f0fdf4;
-  border-color: #bbf7d0;
-}
-
-.summary-tile--green strong {
-  color: #16a34a;
 }
 
 .verification-grid {
@@ -569,7 +477,6 @@ function formatNumber(value: number) {
 }
 
 @media (max-width: 1024px) {
-  .summary-band,
   .verification-grid,
   .function-list {
     grid-template-columns: 1fr;
