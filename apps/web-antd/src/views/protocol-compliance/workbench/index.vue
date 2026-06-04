@@ -270,6 +270,10 @@ const implementationRanking = computed(() => {
     .sort((left, right) => right.violationRules - left.violationRules);
 });
 
+const maxProtocolRuleResults = computed(() => {
+  return Math.max(1, ...protocolCards.value.map((item) => item.ruleResults));
+});
+
 const maxImplementationViolation = computed(() => {
   return Math.max(
     1,
@@ -577,8 +581,8 @@ function switchRule() {
                           class="score-track__ok"
                           :style="{
                             width: barWidth(
-                              item.noViolationRules,
                               item.ruleResults,
+                              maxProtocolRuleResults,
                             ),
                           }"
                         />
@@ -1686,7 +1690,7 @@ function switchRule() {
   position: relative;
   height: 8px;
   overflow: hidden;
-  background: #edf2f7;
+  background: transparent;
   border-radius: 999px;
 }
 
@@ -1701,12 +1705,14 @@ function switchRule() {
 
 .protocol-scoreboard {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(5, minmax(188px, 1fr));
+  gap: 10px;
+  padding-bottom: 4px;
+  overflow-x: auto;
 }
 
 .protocol-card {
-  min-width: 0;
+  min-width: 188px;
   padding: 16px 14px;
   background: #fff;
   border: 1px solid #dfe8f5;
@@ -1740,6 +1746,10 @@ function switchRule() {
 .protocol-bars span {
   font-size: 12px;
   color: #64748b;
+}
+
+.protocol-meta span {
+  white-space: nowrap;
 }
 
 .protocol-badge {
@@ -1792,15 +1802,16 @@ function switchRule() {
 }
 
 .implementation-table {
-  overflow: hidden;
+  overflow: auto;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
+  scrollbar-gutter: stable;
 }
 
 .overview-card--ranking .implementation-table {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  max-height: 220px;
 }
 
 .implementation-row {
@@ -2501,6 +2512,10 @@ function switchRule() {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .protocol-card {
+    min-width: 0;
+  }
+
   .workflow-step:not(:last-child)::after {
     display: none;
   }
@@ -2572,6 +2587,10 @@ function switchRule() {
 
   .implementation-table {
     overflow-x: auto;
+  }
+
+  .overview-card--ranking .implementation-table {
+    max-height: 340px;
   }
 
   .implementation-row {
