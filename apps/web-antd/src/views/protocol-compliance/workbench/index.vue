@@ -582,15 +582,6 @@ function switchRule() {
                             ),
                           }"
                         />
-                        <i
-                          class="score-track__risk"
-                          :style="{
-                            width: barWidth(
-                              item.violationRules,
-                              item.ruleResults,
-                            ),
-                          }"
-                        />
                       </div>
                     </div>
                     <div class="protocol-meta">
@@ -598,11 +589,6 @@ function switchRule() {
                       <span>记录 {{ formatNumber(item.analysisRecords) }} 条</span>
                     </div>
                   </article>
-                </div>
-                <div class="protocol-legend">
-                  <span><i class="legend-dot legend-dot--ok" />已覆盖规则</span>
-                  <span><i class="legend-dot legend-dot--risk" />未覆盖规则</span>
-                  <strong>覆盖率越高，风险越低</strong>
                 </div>
               </article>
 
@@ -1785,12 +1771,6 @@ function switchRule() {
   background: #20b977;
 }
 
-.score-track__risk {
-  left: auto !important;
-  right: 0;
-  background: #ff4656;
-}
-
 .protocol-card--coap .protocol-badge {
   background: #3a8cff;
 }
@@ -1809,42 +1789,6 @@ function switchRule() {
 
 .protocol-card--tls .protocol-badge {
   background: #26b85d;
-}
-
-.protocol-legend {
-  display: flex;
-  gap: 22px;
-  align-items: center;
-  margin-top: 14px;
-  font-size: 12px;
-  font-weight: 700;
-  color: #64748b;
-}
-
-.protocol-legend span {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.protocol-legend strong {
-  margin-left: auto;
-  font-size: 12px;
-  color: #64748b;
-}
-
-.legend-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-
-.legend-dot--ok {
-  background: #20b977;
-}
-
-.legend-dot--risk {
-  background: #ff4656;
 }
 
 .implementation-table {
@@ -2620,16 +2564,6 @@ function switchRule() {
 
   .hero-flow-arrow {
     display: none;
-  }
-
-  .protocol-legend {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .protocol-legend strong {
-    margin-left: 0;
   }
 
   .overview-card-head {
