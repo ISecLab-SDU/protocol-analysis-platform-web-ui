@@ -463,7 +463,7 @@ function switchRule() {
       class="guard-shell"
       :class="{ 'guard-shell--overview': activeSideNav === 'overview' }"
     >
-      <header v-if="activeSideNav !== 'overview'" class="guard-topbar">
+      <header class="guard-topbar">
         <div class="topbar-left">
           <div class="brand-mark">
             <IconifyIcon icon="mdi:shield-check-outline" />
@@ -503,13 +503,6 @@ function switchRule() {
       <div class="guard-layout">
         <aside class="guard-sidebar">
           <div class="sidebar-main">
-            <div v-if="activeSideNav === 'overview'" class="sidebar-brand">
-              <div class="brand-mark">
-                <IconifyIcon icon="mdi:shield-check-outline" />
-              </div>
-              <div class="brand-name">ProtocolGuard</div>
-            </div>
-
             <nav class="sidebar-nav">
               <button
                 v-for="item in sideNavItems"
@@ -1228,10 +1221,6 @@ function switchRule() {
   min-height: calc(100vh - 156px);
 }
 
-.guard-shell--overview .guard-layout {
-  min-height: calc(100vh - 92px);
-}
-
 .guard-sidebar {
   display: flex;
   flex-direction: column;
@@ -1243,15 +1232,6 @@ function switchRule() {
 
 .sidebar-main {
   min-width: 0;
-}
-
-.sidebar-brand {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  height: 54px;
-  margin-bottom: 28px;
-  padding: 0 10px;
 }
 
 .sidebar-nav {
