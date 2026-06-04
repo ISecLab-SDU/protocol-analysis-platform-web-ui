@@ -350,7 +350,7 @@ function switchRule() {
 </script>
 
 <template>
-  <Page>
+  <Page content-class="p-0">
     <div
       class="guard-shell"
       :class="{ 'guard-shell--overview': activeSideNav === 'overview' }"
@@ -956,8 +956,6 @@ function switchRule() {
   overflow: hidden;
   color: #111827;
   background: #f4f7fb;
-  border: 1px solid var(--ant-color-border-secondary);
-  border-radius: 8px;
 }
 
 .guard-shell--overview {
@@ -1240,9 +1238,7 @@ function switchRule() {
 
 .overview-shell {
   width: 100%;
-  max-width: 1680px;
   min-height: 100%;
-  margin: 0 auto;
   padding: 28px 28px 24px;
 }
 
