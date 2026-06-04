@@ -161,11 +161,6 @@ const activeSideNavLabel = computed(() => {
 const overviewStats = ref<null | ProtocolGuardOverviewStats>(null);
 const overviewLoadError = ref('');
 
-const projectIntroParagraphs = [
-  '网络协议实现应严格遵循其规范，以保障通信的可靠性与安全性。然而，自然语言规范固有的模糊性易导致开发者理解偏差，使实际实现偏离标准行为。此类协议不合规漏洞在现实世界的协议实现中普遍存在，可引发行为错误、互操作性故障乃至严重的安全漏洞。例如，MatrixSSL 中的高危漏洞 CVE-2022-46505 即源于其会话恢复处理对 RFC 的错误实现，该验证逻辑缺陷允许攻击者通过精心构造的会话 ID 强制重用空的主密钥，最终导致全球数万台设备的安全通信被完全解密。与内存损坏型漏洞不同，不合规漏洞常表现为静默的逻辑错误，缺乏崩溃等明显异常信号，因此难以被模糊测试等传统方法有效检测。现有检测方法通常依赖大量人工来验证发现和进行根因分析，严重制约了其在实际应用中的可扩展性。',
-  '为此，我们提出 ProtocolGuard，一种新颖的框架，通过将大语言模型引导的静态分析与基于模糊测试的动态验证相结合，系统化检测协议实现中的非合规性漏洞。ProtocolGuard 首先采用混合方法从协议规范中自动提取规范规则，并执行大语言模型引导的程序切片，精准抽取与每条规则相关的代码片段。随后，利用大语言模型识别这些规则与代码逻辑之间的语义不一致，并动态验证此类不一致是否可被实际触发。首先 ProtocolGuard 先借助大语言模型自动生成断言语句，并通过代码插桩将静默的不一致转化为可观测的断言失败；接着，利用大语言模型生成更可能触发漏洞的初始测试用例；最后，对插桩后的代码实施动态测试，以确认漏洞存在并生成概念验证测试用例。',
-];
-
 const fallbackSummary: OverviewSummary = {
   analysisRecords: 0,
   codeSnippets: 0,
@@ -182,7 +177,20 @@ const overviewSummary = computed(() => {
   return overviewStats.value?.summary || fallbackSummary;
 });
 
+const protocolOverview = computed(() => overviewStats.value?.protocols || []);
+const implementationOverview = computed(
+  () => overviewStats.value?.implementations || [],
+);
+const topFindings = computed(() => overviewStats.value?.topFindings || []);
+
 const overviewMetrics = computed(() => [
+  {
+    accent: 'blue',
+    icon: 'mdi:layers-triple-outline',
+    label: '协议类型',
+    suffix: '类',
+    value: protocolOverview.value.length,
+  },
   {
     accent: 'blue',
     icon: 'mdi:cube-scan',
@@ -191,7 +199,7 @@ const overviewMetrics = computed(() => [
     value: overviewSummary.value.implementations,
   },
   {
-    accent: 'cyan',
+    accent: 'indigo',
     icon: 'mdi:chart-box-outline',
     label: '分析记录',
     suffix: '条',
@@ -205,36 +213,68 @@ const overviewMetrics = computed(() => [
     value: overviewSummary.value.ruleResults,
   },
   {
-    accent: 'red',
-    icon: 'mdi:alert-octagon-outline',
+    accent: 'orange',
+    icon: 'mdi:alert-outline',
     label: '违规判定',
     suffix: '条',
     value: overviewSummary.value.violationRules,
   },
   {
-    accent: 'orange',
-    icon: 'mdi:source-branch',
+    accent: 'red',
+    icon: 'mdi:target',
     label: '违规定位',
     suffix: '处',
     value: overviewSummary.value.violationLocations,
   },
-  {
-    accent: 'purple',
-    icon: 'mdi:code-braces',
-    label: '代码片段',
-    suffix: '段',
-    value: overviewSummary.value.codeSnippets,
-  },
 ]);
 
-const protocolOverview = computed(() => overviewStats.value?.protocols || []);
-const implementationOverview = computed(
-  () => overviewStats.value?.implementations || [],
-);
-const topFindings = computed(() => overviewStats.value?.topFindings || []);
-const tableTotalEntries = computed(() => {
-  return Object.entries(overviewStats.value?.tableTotals || {}).sort(
-    (left, right) => right[1] - left[1],
+const heroPipelineSteps = [
+  { icon: 'mdi:file-document-filter-outline', label: '规则提取' },
+  { icon: 'mdi:share-variant-outline', label: '静态分析' },
+  { icon: 'mdi:code-json', label: '断言插桩' },
+  { icon: 'mdi:check-circle-outline', label: '动态验证' },
+] as const;
+
+const workflowSteps = [
+  {
+    description: '从标准文档中筛选关键规则，形成可分析的规则集。',
+    icon: 'mdi:file-document-filter-outline',
+    label: '规则筛选与抽取',
+  },
+  {
+    description: '基于规则与代码理解，定位潜在不合规路径。',
+    icon: 'mdi:share-variant-outline',
+    label: 'LLM 引导静态分析',
+  },
+  {
+    description: '生成断言并精确定位到相关代码片段。',
+    icon: 'mdi:code-json',
+    label: '生成断言与代码片段定位',
+  },
+  {
+    description: '插桩验证并收集证据，确认违规并生成报告。',
+    icon: 'mdi:shield-check-outline',
+    label: '动态验证与结果确认',
+  },
+] as const;
+
+const protocolCards = computed(() => {
+  return protocolOverview.value.map((item) => ({
+    ...item,
+    accent: protocolAccent(item.name),
+  }));
+});
+
+const topRiskImplementations = computed(() => {
+  return [...implementationOverview.value]
+    .sort((left, right) => right.violationRules - left.violationRules)
+    .slice(0, 7);
+});
+
+const maxImplementationViolation = computed(() => {
+  return Math.max(
+    1,
+    ...topRiskImplementations.value.map((item) => item.violationRules),
   );
 });
 
@@ -249,14 +289,18 @@ function formatNumber(value: number) {
   return new Intl.NumberFormat('zh-CN').format(value);
 }
 
-function formatPercent(value: number, total: number) {
-  if (!total) return '0%';
-  return `${Math.round((value / total) * 100)}%`;
-}
-
 function barWidth(value: number, total: number) {
   if (!total || value <= 0) return '0%';
   return `${Math.max(4, Math.round((value / total) * 100))}%`;
+}
+
+function protocolAccent(name: string) {
+  const key = name.toLowerCase();
+  if (key.includes('dhcp')) return 'dhcp';
+  if (key.includes('ftp')) return 'ftp';
+  if (key.includes('mqtt')) return 'mqtt';
+  if (key.includes('tls')) return 'tls';
+  return 'coap';
 }
 
 onMounted(async () => {
@@ -306,8 +350,11 @@ function switchRule() {
 
 <template>
   <Page>
-    <div class="guard-shell">
-      <header class="guard-topbar">
+    <div
+      class="guard-shell"
+      :class="{ 'guard-shell--overview': activeSideNav === 'overview' }"
+    >
+      <header v-if="activeSideNav !== 'overview'" class="guard-topbar">
         <div class="topbar-left">
           <div class="brand-mark">
             <IconifyIcon icon="mdi:shield-check-outline" />
@@ -346,19 +393,28 @@ function switchRule() {
 
       <div class="guard-layout">
         <aside class="guard-sidebar">
-          <nav class="sidebar-nav">
-            <button
-              v-for="item in sideNavItems"
-              :key="item.key"
-              class="nav-item"
-              :class="{ 'nav-item--active': item.key === activeSideNav }"
-              type="button"
-              @click="activeSideNav = item.key"
-            >
-              <IconifyIcon :icon="item.icon" />
-              <span>{{ item.label }}</span>
-            </button>
-          </nav>
+          <div class="sidebar-main">
+            <div v-if="activeSideNav === 'overview'" class="sidebar-brand">
+              <div class="brand-mark">
+                <IconifyIcon icon="mdi:shield-check-outline" />
+              </div>
+              <div class="brand-name">ProtocolGuard</div>
+            </div>
+
+            <nav class="sidebar-nav">
+              <button
+                v-for="item in sideNavItems"
+                :key="item.key"
+                class="nav-item"
+                :class="{ 'nav-item--active': item.key === activeSideNav }"
+                type="button"
+                @click="activeSideNav = item.key"
+              >
+                <IconifyIcon :icon="item.icon" />
+                <span>{{ item.label }}</span>
+              </button>
+            </nav>
+          </div>
 
           <section v-if="activeSideNav === 'workbench'" class="current-task">
             <div class="current-task-title">当前任务</div>
@@ -381,39 +437,79 @@ function switchRule() {
               </div>
             </dl>
           </section>
+          <section v-else class="sidebar-footer">
+            <button class="sidebar-footer-item" type="button">
+              <IconifyIcon icon="mdi:cog-outline" />
+              <span>系统设置</span>
+            </button>
+            <button class="sidebar-footer-user" type="button">
+              <span class="sidebar-avatar">PG</span>
+              <span>研究员</span>
+              <IconifyIcon icon="mdi:chevron-down" />
+            </button>
+          </section>
         </aside>
 
         <main class="guard-main">
           <section v-if="activeSideNav === 'overview'" class="overview-shell">
             <header class="overview-hero">
               <div class="overview-hero-copy">
-                <div class="overview-kicker">
-                  <IconifyIcon icon="mdi:shield-search" />
-                  <span>ProtocolGuard</span>
-                </div>
                 <h1>协议实现非合规漏洞检测与验证平台</h1>
                 <p>
-                  将规范规则提取、LLM 引导静态分析、断言插桩和动态验证串联为可复用流程，
-                  面向协议实现中的静默逻辑缺陷形成端到端证据链。
+                  结合协议规则提取、LLM 引导静态分析、断言插桩和动态验证，
+                  自动化发现协议实现中的非合规漏洞并完成可验证确认。
                 </p>
-                <div class="overview-hero-signals">
-                  <div class="hero-signal">
-                    <IconifyIcon icon="mdi:radar" />
-                    <span>态势更新 {{ generatedAtDisplay }}</span>
+
+                <div class="overview-hero-flow">
+                  <div
+                    v-for="(item, index) in heroPipelineSteps"
+                    :key="item.label"
+                    class="hero-flow-step"
+                  >
+                    <IconifyIcon :icon="item.icon" />
+                    <span>{{ item.label }}</span>
+                    <IconifyIcon
+                      v-if="index < heroPipelineSteps.length - 1"
+                      class="hero-flow-arrow"
+                      icon="mdi:chevron-right"
+                    />
                   </div>
-                  <div class="hero-signal hero-signal--risk">
-                    <IconifyIcon icon="mdi:alert-decagram" />
+                </div>
+
+                <div class="overview-hero-badges">
+                  <div class="hero-badge">
+                    <IconifyIcon icon="mdi:check-decagram-outline" />
                     <span>
-                      风险命中
-                      {{
-                        formatPercent(
-                          overviewSummary.violationRules,
-                          overviewSummary.ruleResults,
-                        )
-                      }}
+                      已支持
+                      <strong>{{ formatNumber(protocolOverview.length) }}</strong>
+                      类协议
+                    </span>
+                  </div>
+                  <div class="hero-badge hero-badge--green">
+                    <IconifyIcon icon="mdi:server-network" />
+                    <span>
+                      已接入
+                      <strong>{{ formatNumber(overviewSummary.implementations) }}</strong>
+                      个实现
                     </span>
                   </div>
                 </div>
+              </div>
+
+              <div class="overview-hero-art" aria-hidden="true">
+                <div class="hero-art-plane hero-art-plane--back" />
+                <div class="hero-art-plane">
+                  <div class="hero-art-document">
+                    <IconifyIcon icon="mdi:shield-check" />
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                  <div class="hero-art-magnifier" />
+                </div>
+                <i class="hero-art-cube hero-art-cube--one" />
+                <i class="hero-art-cube hero-art-cube--two" />
+                <i class="hero-art-cube hero-art-cube--three" />
               </div>
             </header>
 
@@ -442,31 +538,82 @@ function switchRule() {
               </article>
             </section>
 
-            <section class="overview-grid">
-              <article class="overview-card overview-card--intro">
+            <section class="overview-grid overview-grid--primary">
+              <article class="overview-card overview-card--coverage">
                 <header class="overview-card-head">
                   <div>
-                    <h2>项目介绍</h2>
-                    <p>面向协议实现语义偏差的自动化分析框架</p>
+                    <h2>当前支持与覆盖</h2>
+                    <p>覆盖主流协议实现，提供高置信度的规则检测与定位能力。</p>
                   </div>
-                  <Tag color="blue">LLM + 静态分析 + Fuzz</Tag>
+                  <button class="card-link" type="button">
+                    查看全部协议
+                    <IconifyIcon icon="mdi:arrow-right" />
+                  </button>
                 </header>
-                <div class="intro-copy">
-                  <p
-                    v-for="paragraph in projectIntroParagraphs"
-                    :key="paragraph"
+
+                <div class="protocol-scoreboard">
+                  <article
+                    v-for="item in protocolCards"
+                    :key="item.name"
+                    class="protocol-card"
+                    :class="`protocol-card--${item.accent}`"
                   >
-                    {{ paragraph }}
-                  </p>
+                    <div class="protocol-card-head">
+                      <div class="protocol-badge">{{ item.name }}</div>
+                      <div>
+                        <strong>{{ item.name }}</strong>
+                        <span>{{ item.implementations }} 个实现</span>
+                      </div>
+                    </div>
+                    <div class="protocol-bars">
+                      <div>
+                        <span>规则覆盖</span>
+                        <strong>{{ formatNumber(item.ruleResults) }} 条</strong>
+                      </div>
+                      <div class="score-track">
+                        <i
+                          class="score-track__ok"
+                          :style="{
+                            width: barWidth(
+                              item.noViolationRules,
+                              item.ruleResults,
+                            ),
+                          }"
+                        />
+                        <i
+                          class="score-track__risk"
+                          :style="{
+                            width: barWidth(
+                              item.violationRules,
+                              item.ruleResults,
+                            ),
+                          }"
+                        />
+                      </div>
+                    </div>
+                    <div class="protocol-meta">
+                      <span>定位 {{ formatNumber(item.violationLocations) }} 处</span>
+                      <span>记录 {{ formatNumber(item.analysisRecords) }} 条</span>
+                    </div>
+                  </article>
+                </div>
+                <div class="protocol-legend">
+                  <span><i class="legend-dot legend-dot--ok" />已覆盖规则</span>
+                  <span><i class="legend-dot legend-dot--risk" />未覆盖规则</span>
+                  <strong>覆盖率越高，风险越低</strong>
                 </div>
               </article>
 
               <article class="overview-card overview-card--ranking">
                 <header class="overview-card-head">
                   <div>
-                    <h2>风险排名</h2>
-                    <p>按违规判定数量排序</p>
+                    <h2>风险发现概览</h2>
+                    <p>按违规数排序</p>
                   </div>
+                  <button class="card-link" type="button">
+                    查看更多
+                    <IconifyIcon icon="mdi:arrow-right" />
+                  </button>
                 </header>
                 <div class="implementation-table">
                   <div class="implementation-row implementation-row--head">
@@ -477,15 +624,25 @@ function switchRule() {
                     <span>定位</span>
                   </div>
                   <div
-                    v-for="item in implementationOverview"
+                    v-for="item in topRiskImplementations"
                     :key="item.database"
                     class="implementation-row"
                   >
                     <strong>{{ item.name }}</strong>
                     <span>{{ item.protocol }}</span>
                     <span>{{ formatNumber(item.ruleResults) }}</span>
-                    <span class="risk-text">
-                      {{ formatNumber(item.violationRules) }}
+                    <span class="risk-cell">
+                      <strong>{{ formatNumber(item.violationRules) }}</strong>
+                      <i>
+                        <em
+                          :style="{
+                            width: barWidth(
+                              item.violationRules,
+                              maxImplementationViolation,
+                            ),
+                          }"
+                        />
+                      </i>
                     </span>
                     <span>{{ formatNumber(item.violationLocations) }}</span>
                   </div>
@@ -493,98 +650,27 @@ function switchRule() {
               </article>
             </section>
 
-            <section class="overview-card">
-              <header class="overview-card-head">
-                <div>
-                  <h2>成果展示</h2>
-                  <p>按协议族聚合的规则结果与违规定位情况</p>
-                </div>
-                <Tag color="red">
-                  违规占比
-                  {{
-                    formatPercent(
-                      overviewSummary.violationRules,
-                      overviewSummary.ruleResults,
-                    )
-                  }}
-                </Tag>
-              </header>
-
-              <div class="protocol-scoreboard">
-                <article
-                  v-for="item in protocolOverview"
-                  :key="item.name"
-                  class="protocol-card"
-                >
-                  <div class="protocol-card-head">
-                    <strong>{{ item.name }}</strong>
-                    <span>{{ item.implementations }} 个实现</span>
-                  </div>
-                  <div class="protocol-main-value">
-                    {{ formatNumber(item.violationRules) }}
-                    <small>条违规判定</small>
-                  </div>
-                  <div class="protocol-bars">
-                    <div>
-                      <span>规则覆盖</span>
-                      <strong>{{ formatNumber(item.ruleResults) }}</strong>
-                    </div>
-                    <div class="score-track">
-                      <i
-                        class="score-track__ok"
-                        :style="{
-                          width: barWidth(
-                            item.noViolationRules,
-                            item.ruleResults,
-                          ),
-                        }"
-                      />
-                      <i
-                        class="score-track__risk"
-                        :style="{
-                          width: barWidth(
-                            item.violationRules,
-                            item.ruleResults,
-                          ),
-                        }"
-                      />
-                    </div>
-                  </div>
-                  <div class="protocol-meta">
-                    <span>定位 {{ formatNumber(item.violationLocations) }} 处</span>
-                    <span>记录 {{ formatNumber(item.analysisRecords) }} 条</span>
-                  </div>
-                </article>
-              </div>
-            </section>
-
             <section class="overview-grid overview-grid--results">
               <article class="overview-card">
                 <header class="overview-card-head">
                   <div>
-                    <h2>分析链路</h2>
-                    <p>多阶段分析记录聚合</p>
+                    <h2>平台是如何工作的</h2>
+                    <p>更新时间：{{ generatedAtDisplay }}</p>
                   </div>
                 </header>
-                <div class="pipeline-records">
+                <div class="workflow-list">
                   <div
-                    v-for="[tableName, count] in tableTotalEntries"
-                    :key="tableName"
-                    class="pipeline-record"
+                    v-for="(item, index) in workflowSteps"
+                    :key="item.label"
+                    class="workflow-step"
                   >
-                    <div>
-                      <strong>{{ tableName }}</strong>
-                      <span>{{ formatNumber(count) }} 条</span>
+                    <span class="workflow-index">{{ index + 1 }}</span>
+                    <div class="workflow-icon">
+                      <IconifyIcon :icon="item.icon" />
                     </div>
-                    <div class="record-track">
-                      <i
-                        :style="{
-                          width: barWidth(
-                            count,
-                            overviewSummary.analysisRecords,
-                          ),
-                        }"
-                      />
+                    <div>
+                      <strong>{{ item.label }}</strong>
+                      <p>{{ item.description }}</p>
                     </div>
                   </div>
                 </div>
@@ -599,7 +685,7 @@ function switchRule() {
                 </header>
                 <div class="finding-list">
                   <article
-                    v-for="finding in topFindings"
+                    v-for="finding in topFindings.slice(0, 2)"
                     :key="`${finding.protocol}-${finding.implementation}-${finding.rule}`"
                     class="finding-item"
                   >
@@ -893,9 +979,13 @@ function switchRule() {
   min-height: calc(100vh - 92px);
   overflow: hidden;
   color: #111827;
-  background: #f6f8fb;
+  background: #f4f7fb;
   border: 1px solid var(--ant-color-border-secondary);
   border-radius: 8px;
+}
+
+.guard-shell--overview {
+  background: #f5f8fd;
 }
 
 .guard-topbar {
@@ -989,17 +1079,34 @@ function switchRule() {
 
 .guard-layout {
   display: grid;
-  grid-template-columns: 236px minmax(0, 1fr);
+  grid-template-columns: 246px minmax(0, 1fr);
   min-height: calc(100vh - 156px);
+}
+
+.guard-shell--overview .guard-layout {
+  min-height: calc(100vh - 92px);
 }
 
 .guard-sidebar {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 18px 14px;
+  padding: 18px 16px;
   background: #fff;
   border-right: 1px solid #e7edf5;
+}
+
+.sidebar-main {
+  min-width: 0;
+}
+
+.sidebar-brand {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  height: 54px;
+  margin-bottom: 28px;
+  padding: 0 10px;
 }
 
 .sidebar-nav {
@@ -1013,9 +1120,9 @@ function switchRule() {
   gap: 12px;
   align-items: center;
   width: 100%;
-  height: 44px;
-  padding: 0 14px;
-  font-size: 14px;
+  height: 50px;
+  padding: 0 16px;
+  font-size: 15px;
   font-weight: 700;
   color: #24324b;
   text-align: left;
@@ -1030,8 +1137,20 @@ function switchRule() {
 }
 
 .nav-item--active {
+  position: relative;
   color: #1677ff;
-  background: #edf5ff;
+  background: linear-gradient(90deg, #eaf3ff 0%, #f3f8ff 100%);
+}
+
+.nav-item--active::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -16px;
+  width: 4px;
+  content: '';
+  background: #1677ff;
+  border-radius: 0 3px 3px 0;
 }
 
 .current-task {
@@ -1076,6 +1195,64 @@ function switchRule() {
   white-space: nowrap;
 }
 
+.sidebar-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.sidebar-footer-item,
+.sidebar-footer-user {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  color: #64748b;
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+}
+
+.sidebar-footer-item {
+  gap: 12px;
+  height: 36px;
+  padding: 0 12px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.sidebar-footer-item :first-child {
+  font-size: 20px;
+}
+
+.sidebar-footer-user {
+  gap: 10px;
+  min-height: 42px;
+  padding: 0 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #475569;
+}
+
+.sidebar-footer-user :last-child {
+  margin-left: auto;
+  font-size: 16px;
+}
+
+.sidebar-avatar {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  font-size: 12px;
+  font-weight: 850;
+  color: #1677ff;
+  background: linear-gradient(180deg, #dceaff 0%, #c9ddff 100%);
+  border-radius: 50%;
+}
+
 .guard-main {
   min-width: 0;
   padding: 0;
@@ -1090,15 +1267,26 @@ function switchRule() {
   max-width: 1680px;
   min-height: 100%;
   margin: 0 auto;
-  padding: 24px 28px 28px;
+  padding: 28px 28px 24px;
 }
 
 .overview-hero {
-  display: block;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 0.64fr) minmax(340px, 0.36fr);
+  gap: 20px;
+  min-height: 310px;
+  padding: 44px 48px 32px;
   margin-bottom: 16px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 82% 24%, rgb(89 143 255 / 24%), transparent 36%),
+    linear-gradient(104deg, #fff 0%, #f4f8ff 48%, #eaf2ff 100%);
+  border: 1px solid #e1ebfb;
+  border-radius: 8px;
+  box-shadow: 0 12px 30px rgb(20 45 82 / 7%);
 }
 
-.overview-hero-copy,
 .overview-card,
 .overview-metric-card,
 .overview-error {
@@ -1109,73 +1297,241 @@ function switchRule() {
 }
 
 .overview-hero-copy {
+  position: relative;
+  z-index: 1;
   min-width: 0;
-  padding: 22px 24px;
-}
-
-.overview-kicker {
-  display: inline-flex;
-  gap: 8px;
-  align-items: center;
-  margin-bottom: 10px;
-  font-size: 13px;
-  font-weight: 800;
-  color: #1677ff;
-}
-
-.overview-kicker :first-child {
-  font-size: 18px;
 }
 
 .overview-hero h1 {
-  max-width: 980px;
+  max-width: 760px;
   margin: 0;
-  font-size: 25px;
+  font-size: 32px;
   font-weight: 850;
-  line-height: 1.28;
-  color: #111827;
+  line-height: 1.24;
+  color: #101b36;
   letter-spacing: 0;
 }
 
 .overview-hero p {
-  max-width: 920px;
-  margin: 10px 0 0;
-  font-size: 14px;
-  line-height: 1.75;
-  color: #475569;
+  max-width: 760px;
+  margin: 14px 0 0;
+  font-size: 15px;
+  line-height: 1.8;
+  color: #5b6b83;
 }
 
-.overview-hero-signals {
+.overview-hero-flow {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(124px, 1fr));
+  max-width: 830px;
+  min-height: 66px;
+  margin-top: 22px;
+  overflow: hidden;
+  background: rgb(255 255 255 / 86%);
+  border: 1px solid #dce8f9;
+  border-radius: 8px;
+  box-shadow: 0 10px 24px rgb(45 91 155 / 8%);
+}
+
+.hero-flow-step {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 0 16px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #1d2b46;
+}
+
+.hero-flow-step > :first-child {
+  flex: 0 0 auto;
+  font-size: 30px;
+  color: #1677ff;
+}
+
+.hero-flow-step:nth-child(2) > :first-child {
+  color: #10b3b1;
+}
+
+.hero-flow-step:nth-child(3) > :first-child {
+  color: #7c5cff;
+}
+
+.hero-flow-step:nth-child(4) > :first-child {
+  color: #22b26f;
+}
+
+.hero-flow-step span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hero-flow-arrow {
+  position: absolute;
+  right: -12px;
+  z-index: 1;
+  font-size: 24px !important;
+  color: #9aaac0 !important;
+}
+
+.overview-hero-badges {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 14px;
+  gap: 12px;
+  margin-top: 12px;
 }
 
-.hero-signal {
+.hero-badge {
   display: inline-flex;
   gap: 8px;
-  min-width: 0;
   align-items: center;
-  min-height: 34px;
-  padding: 0 12px;
-  font-size: 12px;
+  min-height: 38px;
+  padding: 0 16px;
+  font-size: 13px;
   font-weight: 800;
-  color: #0b5cad;
-  background: #eef6ff;
-  border: 1px solid #d7eaff;
+  color: #1677ff;
+  background: rgb(255 255 255 / 82%);
+  border: 1px solid #dceaff;
   border-radius: 8px;
+  box-shadow: 0 8px 18px rgb(45 91 155 / 6%);
 }
 
-.hero-signal :first-child {
+.hero-badge :first-child {
   flex: 0 0 auto;
   font-size: 16px;
 }
 
-.hero-signal--risk {
-  color: #b91c1c;
-  background: #fff5f5;
-  border-color: #ffd6d6;
+.hero-badge strong {
+  margin: 0 4px;
+  font-size: 16px;
+}
+
+.hero-badge--green {
+  color: #17a261;
+  border-color: #d7f1e2;
+}
+
+.overview-hero-art {
+  position: relative;
+  min-height: 230px;
+}
+
+.hero-art-plane,
+.hero-art-plane--back {
+  position: absolute;
+  right: 28px;
+  bottom: 20px;
+  width: min(420px, 100%);
+  height: 174px;
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 72%) 0%, rgb(81 139 255 / 18%) 100%),
+    linear-gradient(135deg, transparent 48%, rgb(64 133 255 / 28%) 49%, transparent 51%);
+  border: 1px solid rgb(64 133 255 / 28%);
+  box-shadow: 0 22px 46px rgb(42 100 205 / 20%);
+  transform: skewY(-10deg) rotate(-4deg);
+}
+
+.hero-art-plane--back {
+  right: -10px;
+  bottom: 54px;
+  opacity: 0.56;
+  transform: skewY(-10deg) rotate(-4deg) scale(1.12);
+}
+
+.hero-art-document {
+  position: absolute;
+  right: 122px;
+  bottom: 42px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 150px;
+  height: 186px;
+  padding: 82px 24px 0;
+  background: linear-gradient(180deg, #fff 0%, #e7f0ff 100%);
+  border: 1px solid #d5e3fb;
+  box-shadow: 0 18px 26px rgb(40 89 174 / 17%);
+  transform: skewY(10deg) rotate(4deg);
+}
+
+.hero-art-document :first-child {
+  position: absolute;
+  top: -54px;
+  left: 30px;
+  font-size: 96px;
+  color: #4c8cff;
+  filter: drop-shadow(0 14px 16px rgb(38 105 230 / 26%));
+}
+
+.hero-art-document span {
+  display: block;
+  height: 10px;
+  background: #d5e2f4;
+  border-radius: 999px;
+}
+
+.hero-art-document span:nth-child(3) {
+  width: 80%;
+}
+
+.hero-art-document span:nth-child(4) {
+  width: 64%;
+}
+
+.hero-art-magnifier {
+  position: absolute;
+  right: 56px;
+  bottom: 16px;
+  width: 72px;
+  height: 72px;
+  border: 10px solid rgb(68 132 240 / 72%);
+  border-radius: 50%;
+  transform: skewY(10deg) rotate(4deg);
+}
+
+.hero-art-magnifier::after {
+  position: absolute;
+  right: -36px;
+  bottom: -30px;
+  width: 58px;
+  height: 11px;
+  content: '';
+  background: #4b8cff;
+  border-radius: 999px;
+  transform: rotate(45deg);
+}
+
+.hero-art-cube {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  background: linear-gradient(135deg, #dbe9ff 0%, #8fb7ff 100%);
+  box-shadow: 0 10px 20px rgb(64 133 255 / 15%);
+  transform: rotate(45deg) skew(-8deg, -8deg);
+}
+
+.hero-art-cube--one {
+  top: 46px;
+  left: 34px;
+}
+
+.hero-art-cube--two {
+  right: 16px;
+  top: 58px;
+  width: 22px;
+  height: 22px;
+}
+
+.hero-art-cube--three {
+  bottom: 24px;
+  left: 18px;
+  width: 20px;
+  height: 20px;
 }
 
 .overview-error {
@@ -1192,16 +1548,17 @@ function switchRule() {
 .overview-metrics {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 12px;
+  gap: 16px;
   margin-bottom: 16px;
 }
 
 .overview-metric-card {
   display: flex;
-  gap: 12px;
+  gap: 14px;
   align-items: center;
   min-width: 0;
-  padding: 14px;
+  min-height: 96px;
+  padding: 18px 20px;
 }
 
 .metric-icon {
@@ -1209,16 +1566,17 @@ function switchRule() {
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
-  font-size: 22px;
-  border-radius: 8px;
+  width: 56px;
+  height: 56px;
+  font-size: 28px;
+  border-radius: 50%;
 }
 
 .overview-metric-card span {
   display: block;
-  margin-bottom: 4px;
-  font-size: 12px;
+  margin-bottom: 7px;
+  font-size: 13px;
+  font-weight: 800;
   color: #64748b;
 }
 
@@ -1226,17 +1584,17 @@ function switchRule() {
   display: block;
   min-width: 0;
   overflow: hidden;
-  font-size: 22px;
+  font-size: 30px;
   font-weight: 850;
   line-height: 1.15;
-  color: #0f172a;
+  color: #111b34;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .overview-metric-card small {
   margin-left: 3px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   color: #64748b;
 }
@@ -1246,9 +1604,9 @@ function switchRule() {
   background: #edf5ff;
 }
 
-.overview-metric-card--cyan .metric-icon {
-  color: #0891b2;
-  background: #ecfeff;
+.overview-metric-card--indigo .metric-icon {
+  color: #2188ff;
+  background: #eef6ff;
 }
 
 .overview-metric-card--green .metric-icon {
@@ -1266,37 +1624,31 @@ function switchRule() {
   background: #fff7ed;
 }
 
-.overview-metric-card--purple .metric-icon {
-  color: #7c3aed;
-  background: #f5f3ff;
-}
-
 .overview-grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 16px;
   align-items: stretch;
   margin-bottom: 16px;
 }
 
-.overview-grid--results {
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-  align-items: start;
+.overview-grid--primary {
+  grid-template-columns: minmax(0, 1.1fr) minmax(420px, 0.9fr);
 }
 
-.overview-card--intro {
-  grid-column: span 2;
+.overview-grid--results {
+  grid-template-columns: minmax(0, 1.1fr) minmax(460px, 0.9fr);
+  align-items: start;
 }
 
 .overview-card--ranking {
   display: flex;
   flex-direction: column;
-  grid-column: span 4;
 }
 
 .overview-card {
   min-width: 0;
-  padding: 18px;
+  padding: 18px 20px;
 }
 
 .overview-card-head {
@@ -1309,7 +1661,7 @@ function switchRule() {
 
 .overview-card-head h2 {
   margin: 0;
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 850;
   line-height: 1.25;
   color: #0f172a;
@@ -1322,66 +1674,27 @@ function switchRule() {
   color: #64748b;
 }
 
-.intro-copy {
+.card-link {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.intro-copy p {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.85;
-  color: #334155;
-  text-align: justify;
-}
-
-.pipeline-records {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.pipeline-record {
-  min-width: 0;
-}
-
-.pipeline-record div:first-child {
-  display: flex;
-  gap: 10px;
+  gap: 6px;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 6px;
-}
-
-.pipeline-record strong {
-  min-width: 0;
-  overflow: hidden;
-  font-family:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
-    monospace;
+  padding: 0;
   font-size: 12px;
-  color: #0f172a;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-weight: 800;
+  color: #1677ff;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
 }
 
-.pipeline-record span {
-  flex: 0 0 auto;
-  font-size: 12px;
-  color: #64748b;
-}
-
-.record-track,
 .score-track {
   position: relative;
-  height: 9px;
+  height: 8px;
   overflow: hidden;
-  background: #e2e8f0;
+  background: #edf2f7;
   border-radius: 999px;
 }
 
-.record-track i,
 .score-track i {
   position: absolute;
   top: 0;
@@ -1391,25 +1704,28 @@ function switchRule() {
   border-radius: inherit;
 }
 
-.record-track i {
-  background: #1677ff;
-}
-
 .protocol-scoreboard {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .protocol-card {
   min-width: 0;
-  padding: 14px;
-  background: #fbfdff;
-  border: 1px solid #dbeafe;
+  padding: 16px 14px;
+  background: #fff;
+  border: 1px solid #dfe8f5;
   border-radius: 8px;
 }
 
-.protocol-card-head,
+.protocol-card-head {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-start;
+  margin-bottom: 18px;
+}
+
 .protocol-meta,
 .protocol-bars div:first-child {
   display: flex;
@@ -1419,6 +1735,7 @@ function switchRule() {
 }
 
 .protocol-card-head strong {
+  display: block;
   font-size: 15px;
   color: #0f172a;
 }
@@ -1430,20 +1747,19 @@ function switchRule() {
   color: #64748b;
 }
 
-.protocol-main-value {
-  margin: 14px 0 12px;
-  font-size: 26px;
+.protocol-badge {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  overflow: hidden;
+  font-size: 11px;
   font-weight: 850;
-  line-height: 1.1;
-  color: #dc2626;
-}
-
-.protocol-main-value small {
-  display: block;
-  margin-top: 4px;
-  font-size: 12px;
-  font-weight: 700;
-  color: #64748b;
+  color: #fff;
+  text-align: center;
+  border-radius: 50%;
 }
 
 .protocol-bars strong {
@@ -1453,17 +1769,73 @@ function switchRule() {
 
 .score-track {
   display: flex;
-  margin: 7px 0 11px;
+  margin: 10px 0 16px;
 }
 
 .score-track__ok {
-  background: #28a879;
+  background: #20b977;
 }
 
 .score-track__risk {
   left: auto !important;
   right: 0;
-  background: #ef4444;
+  background: #ff4656;
+}
+
+.protocol-card--coap .protocol-badge {
+  background: #3a8cff;
+}
+
+.protocol-card--dhcp .protocol-badge {
+  background: #16c6c0;
+}
+
+.protocol-card--ftp .protocol-badge {
+  background: #8a65e6;
+}
+
+.protocol-card--mqtt .protocol-badge {
+  background: #f6a31a;
+}
+
+.protocol-card--tls .protocol-badge {
+  background: #26b85d;
+}
+
+.protocol-legend {
+  display: flex;
+  gap: 22px;
+  align-items: center;
+  margin-top: 14px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.protocol-legend span {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.protocol-legend strong {
+  margin-left: auto;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.legend-dot--ok {
+  background: #20b977;
+}
+
+.legend-dot--risk {
+  background: #ff4656;
 }
 
 .implementation-table {
@@ -1480,11 +1852,11 @@ function switchRule() {
 
 .implementation-row {
   display: grid;
-  grid-template-columns: minmax(110px, 1.3fr) 80px repeat(3, minmax(52px, 0.6fr));
+  grid-template-columns: minmax(100px, 1.2fr) 76px 68px minmax(136px, 1.2fr) 74px;
   gap: 10px;
   align-items: center;
-  min-height: 38px;
-  padding: 0 12px;
+  min-height: 42px;
+  padding: 0 16px;
   font-size: 12px;
   color: #334155;
   border-top: 1px solid #eef2f7;
@@ -1513,9 +1885,131 @@ function switchRule() {
   color: #0f172a;
 }
 
-.risk-text {
-  font-weight: 800;
-  color: #dc2626 !important;
+.risk-cell {
+  display: grid !important;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.risk-cell strong {
+  font-weight: 850;
+  color: #ff3346;
+}
+
+.risk-cell i {
+  position: relative;
+  height: 6px;
+  overflow: hidden;
+  background: #edf2f7;
+  border-radius: 999px;
+}
+
+.risk-cell em {
+  position: absolute;
+  inset: 0 auto 0 0;
+  display: block;
+  background: #ff3346;
+  border-radius: inherit;
+}
+
+.workflow-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 28px;
+}
+
+.workflow-step {
+  position: relative;
+  min-width: 0;
+  min-height: 136px;
+  padding: 18px 16px;
+  background: linear-gradient(180deg, #fff 0%, #f8fbff 100%);
+  border: 1px solid #e2eaf5;
+  border-radius: 8px;
+}
+
+.workflow-step:not(:last-child)::after {
+  position: absolute;
+  top: 50%;
+  right: -21px;
+  width: 12px;
+  height: 12px;
+  content: '';
+  border-top: 2px solid #9aaac0;
+  border-right: 2px solid #9aaac0;
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.workflow-index {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  font-size: 12px;
+  font-weight: 850;
+  color: #fff;
+  background: #1677ff;
+  border-radius: 50%;
+}
+
+.workflow-step:nth-child(2) .workflow-index {
+  background: #20b977;
+}
+
+.workflow-step:nth-child(3) .workflow-index {
+  background: #8a65e6;
+}
+
+.workflow-step:nth-child(4) .workflow-index {
+  background: #59b356;
+}
+
+.workflow-icon {
+  display: flex;
+  justify-content: center;
+  margin: 2px 0 12px;
+  font-size: 40px;
+  color: #1677ff;
+}
+
+.workflow-step:nth-child(2) .workflow-icon {
+  color: #10b3b1;
+}
+
+.workflow-step:nth-child(3) .workflow-icon {
+  color: #8a65e6;
+}
+
+.workflow-step:nth-child(4) .workflow-icon {
+  color: #28a879;
+}
+
+.workflow-step strong {
+  display: block;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 850;
+  color: #172033;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workflow-step p {
+  display: -webkit-box;
+  margin: 8px 0 0;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #64748b;
+  text-align: center;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .finding-list {
@@ -1526,8 +2020,9 @@ function switchRule() {
 
 .finding-item {
   min-width: 0;
-  padding: 12px;
-  background: #fbfdff;
+  min-height: 138px;
+  padding: 14px;
+  background: linear-gradient(180deg, #fff 0%, #fbfdff 100%);
   border: 1px solid #e2e8f0;
   border-radius: 8px;
 }
@@ -2028,19 +2523,33 @@ function switchRule() {
   }
 
   .overview-hero,
+  .overview-grid--primary,
   .overview-grid,
   .overview-grid--results {
     grid-template-columns: 1fr;
   }
 
-  .overview-card--intro,
-  .overview-card--ranking {
-    grid-column: auto;
+  .overview-hero {
+    min-height: 0;
+    padding: 32px;
+  }
+
+  .overview-hero-art {
+    display: none;
+  }
+
+  .overview-hero-flow,
+  .workflow-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .overview-metrics,
   .protocol-scoreboard {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .workflow-step:not(:last-child)::after {
+    display: none;
   }
 
   .pipeline-stepper {
@@ -2083,7 +2592,7 @@ function switchRule() {
     padding: 18px 14px;
   }
 
-  .overview-hero-copy,
+  .overview-hero,
   .overview-card {
     padding: 16px;
   }
@@ -2094,8 +2603,24 @@ function switchRule() {
 
   .overview-metrics,
   .protocol-scoreboard,
-  .finding-list {
+  .finding-list,
+  .overview-hero-flow,
+  .workflow-list {
     grid-template-columns: 1fr;
+  }
+
+  .hero-flow-arrow {
+    display: none;
+  }
+
+  .protocol-legend {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .protocol-legend strong {
+    margin-left: 0;
   }
 
   .overview-card-head {
