@@ -813,16 +813,13 @@ def _read_violation_history_from_database(
         elif reason is not None:
             reason = json.dumps(reason, ensure_ascii=False)
 
-        stable_key = "|".join(
-            [
-                source_type,
-                job_id or "",
-                str(db_path),
-                str(row["rule_desc"]),
-                str(index),
-            ]
+        item_id = _build_violation_history_item_id(
+            db_path=db_path,
+            job_id=job_id,
+            row_index=index,
+            rule_desc=row["rule_desc"],
+            source_type=source_type,
         )
-        item_id = hashlib.sha1(stable_key.encode("utf-8")).hexdigest()
         items.append(
             {
                 "id": item_id,
@@ -848,6 +845,91 @@ def _read_violation_history_from_database(
 
     conn.close()
     return items, warnings
+
+
+def _build_violation_history_item_id(
+    *,
+    db_path: Path,
+    job_id: Optional[str],
+    row_index: int,
+    rule_desc: Any,
+    source_type: str,
+) -> str:
+    stable_key = "|".join(
+        [
+            source_type,
+            job_id or "",
+            str(db_path),
+            str(rule_desc),
+            str(row_index),
+        ]
+    )
+    return hashlib.sha1(stable_key.encode("utf-8")).hexdigest()
+
+
+def _delete_violation_history_from_database(
+    db_path: Path,
+    *,
+    item_id: str,
+    job_id: Optional[str] = None,
+    source_type: str,
+) -> tuple[Optional[Dict[str, Any]], List[str]]:
+    warnings: List[str] = []
+
+    try:
+        conn = sqlite3.connect(db_path)
+    except sqlite3.Error as exc:
+        return None, [f"无法打开数据库 {db_path}: {exc}"]
+
+    conn.row_factory = sqlite3.Row
+    query = (
+        "SELECT rowid AS __rowid, rule_desc, llm_response "
+        "FROM rule_code_snippet"
+    )
+    try:
+        rows = conn.execute(query).fetchall()
+    except sqlite3.Error as exc:
+        conn.close()
+        return None, [f"无法读取数据库 {db_path} 的 rule_code_snippet: {exc}"]
+
+    for index, row in enumerate(rows, start=1):
+        llm_payload = _parse_llm_response(row["llm_response"])
+        result_status, _ = _classify_rule_result(llm_payload)
+        if result_status != "violation_found":
+            continue
+
+        current_id = _build_violation_history_item_id(
+            db_path=db_path,
+            job_id=job_id,
+            row_index=index,
+            rule_desc=row["rule_desc"],
+            source_type=source_type,
+        )
+        if current_id != item_id:
+            continue
+
+        try:
+            conn.execute(
+                "DELETE FROM rule_code_snippet WHERE rowid = ?",
+                (row["__rowid"],),
+            )
+            conn.commit()
+        except sqlite3.Error as exc:
+            conn.close()
+            raise RuntimeError(f"删除数据库记录失败：{exc}") from exc
+
+        conn.close()
+        return (
+            {
+                "databaseName": db_path.name,
+                "databasePath": str(db_path),
+                "id": item_id,
+            },
+            warnings,
+        )
+
+    conn.close()
+    return None, warnings
 
 
 def _truncate_text(value: Any, limit: int) -> Optional[str]:
@@ -1171,6 +1253,43 @@ def static_analysis_violation_history():
     if warnings:
         payload["warnings"] = warnings
     return success_response(payload)
+
+
+@bp.route("/static-analysis/violation-history/<item_id>", methods=["DELETE"])
+def delete_static_analysis_violation_history(item_id: str):
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+
+    if not isinstance(item_id, str) or not item_id.strip():
+        return make_response(error_response("无效的违规记录 ID"), 400)
+
+    job_limit = _to_int(request.args.get("jobLimit"), 200)
+    sources, warnings = _iter_static_analysis_database_sources(job_limit)
+
+    try:
+        for source in sources:
+            db_path = cast(Path, source["path"])
+            deleted, db_warnings = _delete_violation_history_from_database(
+                db_path,
+                item_id=item_id,
+                job_id=cast(Optional[str], source.get("jobId")),
+                source_type=cast(str, source["sourceType"]),
+            )
+            warnings.extend(db_warnings)
+            if deleted:
+                payload: Dict[str, Any] = {**deleted, "deleted": True}
+                if warnings:
+                    payload["warnings"] = warnings
+                return make_response(success_response(payload), 200)
+    except RuntimeError as exc:
+        LOGGER.error("Failed to delete violation history item %s: %s", item_id, exc)
+        return make_response(error_response(str(exc)), 500)
+
+    detail: Dict[str, Any] = {"id": item_id}
+    if warnings:
+        detail["warnings"] = warnings
+    return make_response(error_response("违规记录不存在", detail), 404)
 
 
 @bp.route("/static-analysis/database-insights", methods=["POST"])

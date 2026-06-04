@@ -4,7 +4,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import { Button, Select, Tag } from 'ant-design-vue';
+import { Button, message, Popconfirm, Select, Tag } from 'ant-design-vue';
 
 import type {
   ProtocolDatabaseOverviewStats,
@@ -12,6 +12,7 @@ import type {
   ProtocolViolationHistoryEntry,
 } from '#/api/protocol-compliance';
 import {
+  deleteProtocolViolationHistory,
   fetchProtocolDatabaseOverview,
   fetchProtocolViolationHistory,
 } from '#/api/protocol-compliance';
@@ -118,6 +119,7 @@ const violationHistoryGeneratedAt = ref('');
 const violationHistoryLoading = ref(false);
 const violationHistoryWarnings = ref<string[]>([]);
 const selectedViolationHistoryId = ref('');
+const deletingViolationHistoryId = ref('');
 const historyFilters = reactive<{
   implementation: string;
   protocol: string;
@@ -402,6 +404,28 @@ function truncateText(value: null | string | undefined, maxLength: number) {
 function toggleViolationHistoryDetail(entry: ProtocolViolationHistoryEntry) {
   selectedViolationHistoryId.value =
     selectedViolationHistoryId.value === entry.id ? '' : entry.id;
+}
+
+async function handleDeleteViolationHistory(entry: ProtocolViolationHistoryEntry) {
+  if (deletingViolationHistoryId.value) return;
+
+  deletingViolationHistoryId.value = entry.id;
+  try {
+    await deleteProtocolViolationHistory(entry.id);
+    violationHistory.value = violationHistory.value.filter(
+      (item) => item.id !== entry.id,
+    );
+    if (selectedViolationHistoryId.value === entry.id) {
+      selectedViolationHistoryId.value = '';
+    }
+    void loadOverviewStats(true);
+    message.success('违规记录已删除');
+  } catch (error) {
+    console.error('删除违规记录失败:', error);
+    message.error('删除违规记录失败');
+  } finally {
+    deletingViolationHistoryId.value = '';
+  }
 }
 
 function formatViolationLocations(entry: ProtocolViolationHistoryEntry) {
@@ -1050,26 +1074,46 @@ async function handleLoadDemoConfig() {
 
                 <footer class="history-summary-footer">
                   <span>{{ formatViolationLocations(entry) }}</span>
-                  <Button
-                    size="small"
-                    type="primary"
-                    @click="toggleViolationHistoryDetail(entry)"
-                  >
-                    {{
-                      entry.id === selectedViolationHistoryId
-                        ? '收起详情'
-                        : '查看详情'
-                    }}
-                    <template #icon>
-                      <IconifyIcon
-                        :icon="
-                          entry.id === selectedViolationHistoryId
-                            ? 'mdi:chevron-up'
-                            : 'mdi:chevron-down'
-                        "
-                      />
-                    </template>
-                  </Button>
+                  <div class="history-summary-actions">
+                    <Popconfirm
+                      cancel-text="取消"
+                      ok-text="确定"
+                      title="确定删除这条违规记录吗？"
+                      description="此操作会删除数据库中的对应记录，且不可撤销。"
+                      @confirm="handleDeleteViolationHistory(entry)"
+                    >
+                      <Button
+                        danger
+                        size="small"
+                        :loading="deletingViolationHistoryId === entry.id"
+                      >
+                        <template #icon>
+                          <IconifyIcon icon="mdi:delete-outline" />
+                        </template>
+                        删除
+                      </Button>
+                    </Popconfirm>
+                    <Button
+                      size="small"
+                      type="primary"
+                      @click="toggleViolationHistoryDetail(entry)"
+                    >
+                      {{
+                        entry.id === selectedViolationHistoryId
+                          ? '收起详情'
+                          : '查看详情'
+                      }}
+                      <template #icon>
+                        <IconifyIcon
+                          :icon="
+                            entry.id === selectedViolationHistoryId
+                              ? 'mdi:chevron-up'
+                              : 'mdi:chevron-down'
+                          "
+                        />
+                      </template>
+                    </Button>
+                  </div>
                 </footer>
 
                 <section
@@ -2606,6 +2650,13 @@ async function handleLoadDemoConfig() {
   white-space: nowrap;
 }
 
+.history-summary-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+  align-items: center;
+}
+
 .result-history-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2969,6 +3020,11 @@ async function handleLoadDemoConfig() {
   .history-summary-footer span {
     width: 100%;
     white-space: normal;
+  }
+
+  .history-summary-actions {
+    width: 100%;
+    justify-content: flex-end;
   }
 }
 </style>

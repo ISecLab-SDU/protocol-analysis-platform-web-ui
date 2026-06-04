@@ -260,6 +260,14 @@ export interface FetchProtocolViolationHistoryResponse {
   warnings?: string[];
 }
 
+export interface DeleteProtocolViolationHistoryResponse {
+  databaseName: string;
+  databasePath?: string;
+  deleted: boolean;
+  id: string;
+  warnings?: string[];
+}
+
 export interface ProtocolDatabaseOverviewSummary {
   analysisRecords: number;
   codeSnippets: number;
@@ -515,6 +523,12 @@ export function fetchProtocolViolationHistory(
   return requestClient.get<FetchProtocolViolationHistoryResponse>(
     '/protocol-compliance/static-analysis/violation-history',
     { params },
+  );
+}
+
+export function deleteProtocolViolationHistory(itemId: string) {
+  return requestClient.delete<DeleteProtocolViolationHistoryResponse>(
+    `/protocol-compliance/static-analysis/violation-history/${itemId}`,
   );
 }
 
