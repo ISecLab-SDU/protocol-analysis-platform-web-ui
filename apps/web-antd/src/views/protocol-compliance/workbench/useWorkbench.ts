@@ -201,6 +201,19 @@ interface ParsedAflNetStats {
   speed: number;
 }
 
+type DemoProjectFileField = 'archive' | 'builder' | 'config' | 'rules';
+
+const DEMO_INPUT_FILES: Array<{
+  field: DemoProjectFileField;
+  mimeType: string;
+  name: string;
+}> = [
+  { field: 'archive', mimeType: 'application/x-tar', name: 'sol.tar' },
+  { field: 'builder', mimeType: 'text/plain', name: 'Dockerfile' },
+  { field: 'config', mimeType: 'application/toml', name: 'config.toml' },
+  { field: 'rules', mimeType: 'application/json', name: 'rule_config.json' },
+];
+
 function clearTimer(holder: 'static' | 'assert' | 'fuzz' | 'elapsed') {
   if (holder === 'static' && staticPollTimer) {
     clearInterval(staticPollTimer);
@@ -218,6 +231,27 @@ function clearTimer(holder: 'static' | 'assert' | 'fuzz' | 'elapsed') {
     clearInterval(elapsedTimer);
     elapsedTimer = null;
   }
+}
+
+function buildDemoInputUrl(fileName: string) {
+  const appBase = import.meta.env.BASE_URL || '/';
+  const normalizedBase = appBase.endsWith('/') ? appBase : `${appBase}/`;
+  return `${normalizedBase}New-Input/${encodeURIComponent(fileName)}`;
+}
+
+async function fetchDemoInputFile(fileName: string, mimeType: string) {
+  const response = await fetch(buildDemoInputUrl(fileName), {
+    cache: 'no-store',
+  });
+  if (!response.ok) {
+    throw new Error(
+      `无法读取 New-Input/${fileName} (${response.status} ${response.statusText})`,
+    );
+  }
+  const blob = await response.blob();
+  return new File([blob], fileName, {
+    type: blob.type || mimeType,
+  });
 }
 
 function clearTransitionTimer(shouldContinue = false) {
@@ -1188,6 +1222,56 @@ function commitSetup() {
   stageMessage.value = '请选择一条规则后启动自动化流水线';
 }
 
+async function loadDemoConfig() {
+  if (
+    stageStatus.code_locate === 'running' ||
+    stageStatus.assert_gen === 'running' ||
+    stageStatus.fuzz === 'running' ||
+    isTransitioning.value
+  ) {
+    message.warning('请先停止当前流水线');
+    return false;
+  }
+
+  try {
+    const files = await Promise.all(
+      DEMO_INPUT_FILES.map(async (item) => ({
+        field: item.field,
+        file: await fetchDemoInputFile(item.name, item.mimeType),
+      })),
+    );
+
+    resetWorkbench();
+
+    for (const { field, file } of files) {
+      projectConfig[field] = file;
+    }
+
+    projectConfig.protocolType = 'MQTT';
+    projectConfig.implementation = 'SOL';
+    projectConfig.targetHost = DEFAULT_TARGET.MQTT.host;
+    projectConfig.targetPort = DEFAULT_TARGET.MQTT.port;
+    projectConfig.buildInstructions = 'make all';
+    projectConfig.fuzzScript = buildDefaultFuzzScript(
+      projectConfig.protocolType,
+      projectConfig.implementation,
+      projectConfig.targetHost,
+      projectConfig.targetPort,
+    );
+    projectConfig.notes = 'Demo mode: loaded from local New-Input folder';
+
+    stageStatus.setup = 'done';
+    stage.value = 'rule_confirm';
+    activeStageView.value = 'rule_confirm';
+    stageMessage.value = '演示模式已加载，请选择一条规则后启动自动化流水线';
+    message.success('演示模式配置已加载');
+    return true;
+  } catch (err: any) {
+    message.error(err?.message || '演示模式配置加载失败');
+    return false;
+  }
+}
+
 function backToSetup() {
   if (stageStatus.code_locate === 'running' || stageStatus.assert_gen === 'running' || stageStatus.fuzz === 'running') {
     message.warning('请先停止当前流水线');
@@ -1767,6 +1851,7 @@ export function useWorkbench() {
 
     // Methods
     commitSetup,
+    loadDemoConfig,
     backToSetup,
     startPipeline,
     stopPipeline,

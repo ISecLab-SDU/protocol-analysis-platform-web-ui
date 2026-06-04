@@ -55,6 +55,7 @@ const {
   startPipeline,
   stopPipeline,
   resetWorkbench,
+  loadDemoConfig,
 } = useWorkbench();
 
 const isRunning = computed(() => {
@@ -109,6 +110,7 @@ const sideNavItems = [
 type SideNavKey = (typeof sideNavItems)[number]['key'];
 
 const activeSideNav = ref<SideNavKey>('overview');
+const demoConfigLoading = ref(false);
 const violationHistory = ref<ProtocolViolationHistoryEntry[]>([]);
 const violationHistoryError = ref('');
 const violationHistoryGeneratedAt = ref('');
@@ -455,6 +457,16 @@ function switchRule() {
   activeStageView.value = 'rule_confirm';
   stageMessage.value = '请选择一条规则后启动自动化流水线';
 }
+
+async function handleLoadDemoConfig() {
+  if (demoConfigLoading.value || isRunning.value) return;
+  demoConfigLoading.value = true;
+  try {
+    await loadDemoConfig();
+  } finally {
+    demoConfigLoading.value = false;
+  }
+}
 </script>
 
 <template>
@@ -479,6 +491,14 @@ function switchRule() {
             <span>{{ isRunning ? '运行中' : '空闲' }}</span>
           </div>
           <div class="runtime-clock">{{ elapsedDisplay }}</div>
+          <Button
+            :disabled="isRunning"
+            :loading="demoConfigLoading"
+            @click="handleLoadDemoConfig"
+          >
+            <template #icon><IconifyIcon icon="mdi:presentation-play" /></template>
+            演示模式
+          </Button>
           <Button
             v-if="isRunning"
             danger
