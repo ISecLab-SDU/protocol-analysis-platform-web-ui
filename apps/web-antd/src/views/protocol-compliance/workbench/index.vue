@@ -177,6 +177,13 @@ const overviewMetrics = computed(() => [
     value: protocolOverview.value.length,
   },
   {
+    accent: 'green',
+    icon: 'mdi:clipboard-check-outline',
+    label: '提取规则',
+    suffix: '条',
+    value: overviewSummary.value.ruleResults,
+  },
+  {
     accent: 'blue',
     icon: 'mdi:cube-scan',
     label: '协议实现',
@@ -191,13 +198,6 @@ const overviewMetrics = computed(() => [
     value: overviewSummary.value.analysisRecords,
   },
   {
-    accent: 'green',
-    icon: 'mdi:clipboard-check-outline',
-    label: '规则级结果',
-    suffix: '条',
-    value: overviewSummary.value.ruleResults,
-  },
-  {
     accent: 'orange',
     icon: 'mdi:alert-outline',
     label: '违规判定',
@@ -207,7 +207,7 @@ const overviewMetrics = computed(() => [
   {
     accent: 'red',
     icon: 'mdi:target',
-    label: '违规定位',
+    label: '违规位置',
     suffix: '处',
     value: overviewSummary.value.violationLocations,
   },
