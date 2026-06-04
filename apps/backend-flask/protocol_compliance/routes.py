@@ -15,7 +15,7 @@ import threading
 import uuid
 import zipfile
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, cast
 
@@ -859,6 +859,26 @@ def _truncate_text(value: Any, limit: int) -> Optional[str]:
     return f"{text[:limit - 1]}…"
 
 
+def _parse_history_datetime(value: Any) -> Optional[datetime]:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _history_item_datetime(item: Dict[str, Any]) -> Optional[datetime]:
+    return (
+        _parse_history_datetime(item.get("updatedAt"))
+        or _parse_history_datetime(item.get("extractedAt"))
+        or _parse_history_datetime(item.get("createdAt"))
+    )
+
+
 def _read_overview_from_database(
     db_path: Path,
     *,
@@ -1095,6 +1115,9 @@ def static_analysis_violation_history():
         return error
 
     job_limit = _to_int(request.args.get("jobLimit"), 200)
+    protocol_filter = _dedupe_key(request.args.get("protocol"))
+    implementation_filter = _dedupe_key(request.args.get("implementation"))
+    time_range = _dedupe_key(request.args.get("timeRange"))
     sources, warnings = _iter_static_analysis_database_sources(job_limit)
     items: List[Dict[str, Any]] = []
 
@@ -1110,6 +1133,34 @@ def static_analysis_violation_history():
         )
         items.extend(db_items)
         warnings.extend(db_warnings)
+
+    if protocol_filter:
+        items = [
+            item
+            for item in items
+            if _dedupe_key(item.get("protocolName")) == protocol_filter
+        ]
+
+    if implementation_filter:
+        items = [
+            item
+            for item in items
+            if _dedupe_key(item.get("implementationName")) == implementation_filter
+        ]
+
+    range_days = {
+        "week": 7,
+        "month": 30,
+        "year": 365,
+    }.get(time_range)
+    if range_days:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=range_days)
+        items = [
+            item
+            for item in items
+            if (item_time := _history_item_datetime(item)) is not None
+            and item_time >= cutoff
+        ]
 
     items.sort(key=lambda item: str(item.get("updatedAt") or ""), reverse=True)
     payload: Dict[str, Any] = {

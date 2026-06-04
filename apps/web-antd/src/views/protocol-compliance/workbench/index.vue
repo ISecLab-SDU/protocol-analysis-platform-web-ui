@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import { Button, Tag } from 'ant-design-vue';
+import { Button, Select, Tag } from 'ant-design-vue';
 
 import type {
   ProtocolDatabaseOverviewStats,
@@ -115,6 +115,15 @@ const violationHistoryGeneratedAt = ref('');
 const violationHistoryLoading = ref(false);
 const violationHistoryWarnings = ref<string[]>([]);
 const selectedViolationHistoryId = ref('');
+const historyFilters = reactive<{
+  implementation: string;
+  protocol: string;
+  timeRange: '' | 'month' | 'week' | 'year';
+}>({
+  implementation: '',
+  protocol: '',
+  timeRange: '',
+});
 
 const activeSideNavLabel = computed(() => {
   return (
@@ -237,6 +246,37 @@ const implementationRanking = computed(() => {
     .sort((left, right) => right.violationRules - left.violationRules);
 });
 
+const historyProtocolOptions = computed(() => [
+  { label: '全部协议', value: '' },
+  ...protocolOverview.value.map((item) => ({
+    label: item.name,
+    value: item.name,
+  })),
+]);
+
+const historyImplementationOptions = computed(() => {
+  const seen = new Set<string>();
+  const options = implementationOverview.value
+    .filter((item) => {
+      const key = item.name.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .map((item) => ({
+      label: item.name,
+      value: item.name,
+    }));
+  return [{ label: '全部程序', value: '' }, ...options];
+});
+
+const historyTimeRangeOptions = [
+  { label: '全部时间', value: '' },
+  { label: '近一周', value: 'week' },
+  { label: '近一个月', value: 'month' },
+  { label: '近一年', value: 'year' },
+] as const;
+
 const maxImplementationViolation = computed(() => {
   return Math.max(
     1,
@@ -276,7 +316,11 @@ async function loadViolationHistory(force = false) {
   violationHistoryLoading.value = true;
   violationHistoryError.value = '';
   try {
-    const response = await fetchProtocolViolationHistory();
+    const response = await fetchProtocolViolationHistory({
+      implementation: historyFilters.implementation || undefined,
+      protocol: historyFilters.protocol || undefined,
+      timeRange: historyFilters.timeRange || undefined,
+    });
     violationHistory.value = response.items || [];
     violationHistoryWarnings.value = response.warnings || [];
     violationHistoryGeneratedAt.value = response.generatedAt || '';
@@ -316,6 +360,11 @@ function openViolationHistory() {
 function handleSideNavClick(key: SideNavKey) {
   activeSideNav.value = key;
   if (key === 'logs') void loadViolationHistory();
+}
+
+function handleHistoryFilterChange() {
+  selectedViolationHistoryId.value = '';
+  void loadViolationHistory(true);
 }
 
 function formatOptionalTime(value?: null | string) {
@@ -874,6 +923,27 @@ function switchRule() {
                 </Button>
               </div>
             </header>
+
+            <section class="history-filter-bar">
+              <Select
+                v-model:value="historyFilters.protocol"
+                class="history-filter-select"
+                :options="historyProtocolOptions"
+                @change="handleHistoryFilterChange"
+              />
+              <Select
+                v-model:value="historyFilters.implementation"
+                class="history-filter-select"
+                :options="historyImplementationOptions"
+                @change="handleHistoryFilterChange"
+              />
+              <Select
+                v-model:value="historyFilters.timeRange"
+                class="history-filter-select"
+                :options="historyTimeRangeOptions"
+                @change="handleHistoryFilterChange"
+              />
+            </section>
 
             <section
               v-if="violationHistoryError"
@@ -2331,6 +2401,18 @@ function switchRule() {
   align-items: center;
 }
 
+.history-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin: -4px 0 14px;
+}
+
+.history-filter-select {
+  width: 180px;
+}
+
 .result-history-list {
   display: flex;
   flex-direction: column;
@@ -2808,6 +2890,10 @@ function switchRule() {
 
   .logs-shell {
     padding: 18px 14px;
+  }
+
+  .history-filter-select {
+    width: 100%;
   }
 
   .result-history-grid {

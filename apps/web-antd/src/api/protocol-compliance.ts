@@ -247,7 +247,10 @@ export interface ProtocolViolationHistoryEntry {
 }
 
 export interface FetchProtocolViolationHistoryParams {
+  implementation?: string;
   jobLimit?: number;
+  protocol?: string;
+  timeRange?: 'month' | 'week' | 'year';
 }
 
 export interface FetchProtocolViolationHistoryResponse {
