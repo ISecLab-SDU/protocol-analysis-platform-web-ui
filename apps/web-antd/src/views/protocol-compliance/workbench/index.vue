@@ -144,7 +144,7 @@ const sourceArchiveName = computed(() => projectConfig.archive?.name || '未上�
 const sideNavItems = [
   { icon: 'mdi:view-dashboard-outline', key: 'overview', label: '概览' },
   { icon: 'mdi:briefcase-outline', key: 'workbench', label: '工作台' },
-  { icon: 'mdi:clipboard-text-clock-outline', key: 'logs', label: '日志' },
+  { icon: 'mdi:clipboard-text-clock-outline', key: 'logs', label: '历史结果' },
 ] as const;
 
 type SideNavKey = (typeof sideNavItems)[number]['key'];
@@ -240,7 +240,7 @@ const heroPipelineSteps = [
 const workflowSteps = [
   {
     description: '从标准文档中筛选关键规则，形成可分析的规则集。',
-    icon: 'mdi:file-document-filter-outline',
+    icon: 'mdi:filter-variant',
     label: '规则筛选与抽取',
   },
   {
@@ -812,7 +812,7 @@ function switchRule() {
           <section v-else-if="activeSideNav === 'logs'" class="logs-shell">
             <header class="logs-header">
               <div>
-                <h1>日志信息</h1>
+                <h1>历史结果</h1>
                 <p>历史运行结果 · 共 {{ resultHistory.length }} 条</p>
               </div>
               <Tag :color="resultHistory.length > 0 ? 'blue' : 'default'">
