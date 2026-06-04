@@ -164,7 +164,6 @@ const overviewLoadError = ref('');
 const projectIntroParagraphs = [
   '网络协议实现应严格遵循其规范，以保障通信的可靠性与安全性。然而，自然语言规范固有的模糊性易导致开发者理解偏差，使实际实现偏离标准行为。此类协议不合规漏洞在现实世界的协议实现中普遍存在，可引发行为错误、互操作性故障乃至严重的安全漏洞。例如，MatrixSSL 中的高危漏洞 CVE-2022-46505 即源于其会话恢复处理对 RFC 的错误实现，该验证逻辑缺陷允许攻击者通过精心构造的会话 ID 强制重用空的主密钥，最终导致全球数万台设备的安全通信被完全解密。与内存损坏型漏洞不同，不合规漏洞常表现为静默的逻辑错误，缺乏崩溃等明显异常信号，因此难以被模糊测试等传统方法有效检测。现有检测方法通常依赖大量人工来验证发现和进行根因分析，严重制约了其在实际应用中的可扩展性。',
   '为此，我们提出 ProtocolGuard，一种新颖的框架，通过将大语言模型引导的静态分析与基于模糊测试的动态验证相结合，系统化检测协议实现中的非合规性漏洞。ProtocolGuard 首先采用混合方法从协议规范中自动提取规范规则，并执行大语言模型引导的程序切片，精准抽取与每条规则相关的代码片段。随后，利用大语言模型识别这些规则与代码逻辑之间的语义不一致，并动态验证此类不一致是否可被实际触发。首先 ProtocolGuard 先借助大语言模型自动生成断言语句，并通过代码插桩将静默的不一致转化为可观测的断言失败；接着，利用大语言模型生成更可能触发漏洞的初始测试用例；最后，对插桩后的代码实施动态测试，以确认漏洞存在并生成概念验证测试用例。',
-  '当前成果统计以 database 目录下的 SQLite 结果库为准，覆盖 MQTT、TLS、DHCPv6、FTP 与 CoAP 等协议实现。平台会聚合规则分析、程序切片、代码片段、LLM 判定与违规定位等数据，形成面向甲方演示的总体成果视图。',
 ];
 
 const fallbackSummary: OverviewSummary = {
@@ -186,10 +185,10 @@ const overviewSummary = computed(() => {
 const overviewMetrics = computed(() => [
   {
     accent: 'blue',
-    icon: 'mdi:database-search-outline',
-    label: '结果数据库',
+    icon: 'mdi:cube-scan',
+    label: '协议实现',
     suffix: '个',
-    value: overviewSummary.value.databaseFiles,
+    value: overviewSummary.value.implementations,
   },
   {
     accent: 'cyan',
@@ -388,6 +387,7 @@ function switchRule() {
           <section v-if="activeSideNav === 'overview'" class="overview-shell">
             <header class="overview-hero">
               <div class="overview-hero-copy">
+                <div class="overview-hero-glow" />
                 <div class="overview-kicker">
                   <IconifyIcon icon="mdi:shield-search" />
                   <span>ProtocolGuard</span>
@@ -397,11 +397,24 @@ function switchRule() {
                   将规范规则提取、LLM 引导静态分析、断言插桩和动态验证串联为可复用流程，
                   面向协议实现中的静默逻辑缺陷形成端到端证据链。
                 </p>
-              </div>
-              <div class="overview-hero-panel">
-                <span>数据来源</span>
-                <strong>{{ overviewStats?.sourceDirectory || 'database' }}</strong>
-                <small>更新时间: {{ generatedAtDisplay }}</small>
+                <div class="overview-hero-signals">
+                  <div class="hero-signal">
+                    <IconifyIcon icon="mdi:radar" />
+                    <span>态势更新 {{ generatedAtDisplay }}</span>
+                  </div>
+                  <div class="hero-signal hero-signal--risk">
+                    <IconifyIcon icon="mdi:alert-decagram" />
+                    <span>
+                      风险命中
+                      {{
+                        formatPercent(
+                          overviewSummary.violationRules,
+                          overviewSummary.ruleResults,
+                        )
+                      }}
+                    </span>
+                  </div>
+                </div>
               </div>
             </header>
 
@@ -449,33 +462,33 @@ function switchRule() {
                 </div>
               </article>
 
-              <article class="overview-card overview-card--pipeline">
+              <article class="overview-card overview-card--ranking">
                 <header class="overview-card-head">
                   <div>
-                    <h2>分析链路</h2>
-                    <p>数据库中的多阶段分析记录</p>
+                    <h2>风险排名</h2>
+                    <p>按违规判定数量排序</p>
                   </div>
                 </header>
-                <div class="pipeline-records">
+                <div class="implementation-table">
+                  <div class="implementation-row implementation-row--head">
+                    <span>实现</span>
+                    <span>协议</span>
+                    <span>规则</span>
+                    <span>违规</span>
+                    <span>定位</span>
+                  </div>
                   <div
-                    v-for="[tableName, count] in tableTotalEntries"
-                    :key="tableName"
-                    class="pipeline-record"
+                    v-for="item in implementationOverview"
+                    :key="item.database"
+                    class="implementation-row"
                   >
-                    <div>
-                      <strong>{{ tableName }}</strong>
-                      <span>{{ formatNumber(count) }} 条</span>
-                    </div>
-                    <div class="record-track">
-                      <i
-                        :style="{
-                          width: barWidth(
-                            count,
-                            overviewSummary.analysisRecords,
-                          ),
-                        }"
-                      />
-                    </div>
+                    <strong>{{ item.name }}</strong>
+                    <span>{{ item.protocol }}</span>
+                    <span>{{ formatNumber(item.ruleResults) }}</span>
+                    <span class="risk-text">
+                      {{ formatNumber(item.violationRules) }}
+                    </span>
+                    <span>{{ formatNumber(item.violationLocations) }}</span>
                   </div>
                 </div>
               </article>
@@ -550,30 +563,30 @@ function switchRule() {
               <article class="overview-card">
                 <header class="overview-card-head">
                   <div>
-                    <h2>实现排名</h2>
-                    <p>按违规判定数量排序</p>
+                    <h2>分析链路</h2>
+                    <p>多阶段分析记录聚合</p>
                   </div>
                 </header>
-                <div class="implementation-table">
-                  <div class="implementation-row implementation-row--head">
-                    <span>实现</span>
-                    <span>协议</span>
-                    <span>规则</span>
-                    <span>违规</span>
-                    <span>定位</span>
-                  </div>
+                <div class="pipeline-records">
                   <div
-                    v-for="item in implementationOverview"
-                    :key="item.database"
-                    class="implementation-row"
+                    v-for="[tableName, count] in tableTotalEntries"
+                    :key="tableName"
+                    class="pipeline-record"
                   >
-                    <strong>{{ item.name }}</strong>
-                    <span>{{ item.protocol }}</span>
-                    <span>{{ formatNumber(item.ruleResults) }}</span>
-                    <span class="risk-text">
-                      {{ formatNumber(item.violationRules) }}
-                    </span>
-                    <span>{{ formatNumber(item.violationLocations) }}</span>
+                    <div>
+                      <strong>{{ tableName }}</strong>
+                      <span>{{ formatNumber(count) }} 条</span>
+                    </div>
+                    <div class="record-track">
+                      <i
+                        :style="{
+                          width: barWidth(
+                            count,
+                            overviewSummary.analysisRecords,
+                          ),
+                        }"
+                      />
+                    </div>
                   </div>
                 </div>
               </article>
@@ -880,9 +893,12 @@ function switchRule() {
 .guard-shell {
   min-height: calc(100vh - 92px);
   overflow: hidden;
-  color: #111827;
-  background: #f6f8fb;
-  border: 1px solid var(--ant-color-border-secondary);
+  color: #102033;
+  background:
+    radial-gradient(circle at 18% 18%, rgb(20 184 166 / 18%), transparent 28%),
+    radial-gradient(circle at 86% 12%, rgb(244 63 94 / 14%), transparent 24%),
+    linear-gradient(135deg, #eef5ff 0%, #f8fafc 44%, #fff7ed 100%);
+  border: 1px solid rgb(148 163 184 / 24%);
   border-radius: 8px;
 }
 
@@ -893,8 +909,11 @@ function switchRule() {
   justify-content: space-between;
   height: 64px;
   padding: 0 18px;
-  background: #fff;
-  border-bottom: 1px solid #e7edf5;
+  color: #e5f6ff;
+  background:
+    linear-gradient(120deg, rgb(10 18 32 / 96%) 0%, rgb(13 35 58 / 96%) 56%, rgb(69 14 32 / 94%) 100%);
+  border-bottom: 1px solid rgb(125 211 252 / 18%);
+  box-shadow: 0 18px 42px rgb(15 23 42 / 12%);
 }
 
 .topbar-left,
@@ -911,9 +930,11 @@ function switchRule() {
   width: 34px;
   height: 34px;
   font-size: 24px;
-  color: #1677ff;
-  border: 1px solid #cfe3ff;
+  color: #67e8f9;
+  background: rgb(8 145 178 / 14%);
+  border: 1px solid rgb(103 232 249 / 36%);
   border-radius: 8px;
+  box-shadow: 0 0 22px rgb(34 211 238 / 24%);
 }
 
 .brand-name {
@@ -925,7 +946,7 @@ function switchRule() {
 .topbar-divider {
   width: 1px;
   height: 26px;
-  background: #e2e8f0;
+  background: rgb(226 232 240 / 22%);
 }
 
 .topbar-section {
@@ -986,8 +1007,9 @@ function switchRule() {
   flex-direction: column;
   justify-content: space-between;
   padding: 18px 14px;
-  background: #fff;
-  border-right: 1px solid #e7edf5;
+  background: rgb(255 255 255 / 72%);
+  border-right: 1px solid rgb(148 163 184 / 24%);
+  backdrop-filter: blur(18px);
 }
 
 .sidebar-nav {
@@ -1005,7 +1027,7 @@ function switchRule() {
   padding: 0 14px;
   font-size: 14px;
   font-weight: 700;
-  color: #24324b;
+  color: #1d2b42;
   text-align: left;
   cursor: pointer;
   background: transparent;
@@ -1018,8 +1040,9 @@ function switchRule() {
 }
 
 .nav-item--active {
-  color: #1677ff;
-  background: #edf5ff;
+  color: #0369a1;
+  background: linear-gradient(135deg, rgb(224 242 254 / 94%), rgb(204 251 241 / 68%));
+  box-shadow: inset 3px 0 0 #06b6d4;
 }
 
 .current-task {
@@ -1079,37 +1102,78 @@ function switchRule() {
 }
 
 .overview-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 260px;
-  gap: 18px;
-  align-items: stretch;
+  display: block;
   margin-bottom: 16px;
 }
 
 .overview-hero-copy,
-.overview-hero-panel,
 .overview-card,
 .overview-metric-card,
 .overview-error {
-  background: #fff;
-  border: 1px solid #e7edf5;
+  background: rgb(255 255 255 / 88%);
+  border: 1px solid rgb(148 163 184 / 24%);
   border-radius: 8px;
-  box-shadow: 0 8px 22px rgb(15 23 42 / 4%);
+  box-shadow: 0 18px 45px rgb(15 23 42 / 8%);
+  backdrop-filter: blur(18px);
 }
 
 .overview-hero-copy {
+  position: relative;
   min-width: 0;
-  padding: 22px 24px;
+  padding: 30px 32px 28px;
+  overflow: hidden;
+  color: #ecfeff;
+  background:
+    linear-gradient(110deg, rgb(7 16 31 / 96%) 0%, rgb(10 37 52 / 95%) 52%, rgb(82 18 37 / 94%) 100%);
+  border-color: rgb(103 232 249 / 28%);
+  box-shadow:
+    0 24px 70px rgb(8 47 73 / 22%),
+    inset 0 1px 0 rgb(255 255 255 / 10%);
+}
+
+.overview-hero-copy::before {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: '';
+  background-image:
+    linear-gradient(rgb(125 211 252 / 7%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(125 211 252 / 7%) 1px, transparent 1px);
+  background-size: 36px 36px;
+  mask-image: linear-gradient(90deg, #000 0%, transparent 78%);
+}
+
+.overview-hero-glow {
+  position: absolute;
+  right: 34px;
+  bottom: -72px;
+  width: 280px;
+  height: 280px;
+  pointer-events: none;
+  background:
+    radial-gradient(circle, rgb(34 211 238 / 38%) 0 2px, transparent 3px),
+    radial-gradient(
+      circle,
+      transparent 42%,
+      rgb(34 211 238 / 16%) 43% 44%,
+      transparent 45% 56%,
+      rgb(244 63 94 / 18%) 57% 58%,
+      transparent 59%
+    );
+  background-size: 22px 22px, 100% 100%;
+  border-radius: 50%;
+  opacity: 0.86;
 }
 
 .overview-kicker {
+  position: relative;
   display: inline-flex;
   gap: 8px;
   align-items: center;
   margin-bottom: 10px;
   font-size: 13px;
   font-weight: 800;
-  color: #1677ff;
+  color: #67e8f9;
 }
 
 .overview-kicker :first-child {
@@ -1117,46 +1181,57 @@ function switchRule() {
 }
 
 .overview-hero h1 {
+  position: relative;
+  max-width: 980px;
   margin: 0;
-  font-size: 25px;
+  font-size: 31px;
   font-weight: 850;
   line-height: 1.28;
-  color: #111827;
+  color: #f8fafc;
   letter-spacing: 0;
 }
 
 .overview-hero p {
+  position: relative;
   max-width: 920px;
-  margin: 10px 0 0;
+  margin: 12px 0 0;
   font-size: 14px;
   line-height: 1.75;
-  color: #475569;
+  color: #b8d5e5;
 }
 
-.overview-hero-panel {
+.overview-hero-signals {
+  position: relative;
   display: flex;
-  flex-direction: column;
-  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.hero-signal {
+  display: inline-flex;
+  gap: 8px;
   min-width: 0;
-  padding: 18px;
-  background: linear-gradient(135deg, #ffffff 0%, #f5f9ff 100%);
-}
-
-.overview-hero-panel span,
-.overview-hero-panel small {
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
   font-size: 12px;
-  color: #64748b;
+  font-weight: 800;
+  color: #cffafe;
+  background: rgb(8 145 178 / 16%);
+  border: 1px solid rgb(103 232 249 / 26%);
+  border-radius: 8px;
 }
 
-.overview-hero-panel strong {
-  margin: 7px 0 8px;
-  overflow: hidden;
-  font-size: 28px;
-  font-weight: 850;
-  line-height: 1.1;
-  color: #1677ff;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.hero-signal :first-child {
+  flex: 0 0 auto;
+  font-size: 16px;
+}
+
+.hero-signal--risk {
+  color: #ffe4e6;
+  background: rgb(244 63 94 / 16%);
+  border-color: rgb(251 113 133 / 30%);
 }
 
 .overview-error {
@@ -1178,11 +1253,36 @@ function switchRule() {
 }
 
 .overview-metric-card {
+  position: relative;
   display: flex;
   gap: 12px;
   align-items: center;
   min-width: 0;
   padding: 14px;
+  overflow: hidden;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.overview-metric-card::after {
+  position: absolute;
+  right: -34px;
+  bottom: -42px;
+  width: 98px;
+  height: 98px;
+  pointer-events: none;
+  content: '';
+  background: currentcolor;
+  border-radius: 50%;
+  opacity: 0.08;
+}
+
+.overview-metric-card:hover {
+  border-color: rgb(14 165 233 / 32%);
+  box-shadow: 0 22px 52px rgb(14 116 144 / 14%);
+  transform: translateY(-2px);
 }
 
 .metric-icon {
@@ -1194,6 +1294,7 @@ function switchRule() {
   height: 38px;
   font-size: 22px;
   border-radius: 8px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 55%);
 }
 
 .overview-metric-card span {
@@ -1210,7 +1311,7 @@ function switchRule() {
   font-size: 22px;
   font-weight: 850;
   line-height: 1.15;
-  color: #172033;
+  color: #0f172a;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1223,38 +1324,38 @@ function switchRule() {
 }
 
 .overview-metric-card--blue .metric-icon {
-  color: #1677ff;
-  background: #edf5ff;
+  color: #0284c7;
+  background: linear-gradient(135deg, #e0f2fe, #cffafe);
 }
 
 .overview-metric-card--cyan .metric-icon {
   color: #0891b2;
-  background: #ecfeff;
+  background: linear-gradient(135deg, #ecfeff, #ccfbf1);
 }
 
 .overview-metric-card--green .metric-icon {
   color: #0f9f6e;
-  background: #ecfdf5;
+  background: linear-gradient(135deg, #ecfdf5, #dcfce7);
 }
 
 .overview-metric-card--red .metric-icon {
   color: #dc2626;
-  background: #fff1f2;
+  background: linear-gradient(135deg, #fff1f2, #ffe4e6);
 }
 
 .overview-metric-card--orange .metric-icon {
   color: #d97706;
-  background: #fff7ed;
+  background: linear-gradient(135deg, #fff7ed, #ffedd5);
 }
 
 .overview-metric-card--purple .metric-icon {
-  color: #7c3aed;
-  background: #f5f3ff;
+  color: #9333ea;
+  background: linear-gradient(135deg, #faf5ff, #f0abfc);
 }
 
 .overview-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+  grid-template-columns: minmax(0, 1.18fr) minmax(390px, 0.82fr);
   gap: 16px;
   margin-bottom: 16px;
 }
@@ -1265,11 +1366,35 @@ function switchRule() {
 }
 
 .overview-card {
+  position: relative;
   min-width: 0;
   padding: 18px;
+  overflow: hidden;
+}
+
+.overview-card::before {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  pointer-events: none;
+  content: '';
+  background: linear-gradient(90deg, #06b6d4, #22c55e, #f43f5e);
+  opacity: 0.86;
+}
+
+.overview-card--intro {
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 92%) 0%, rgb(240 253 250 / 88%) 52%, rgb(255 247 237 / 88%) 100%);
+}
+
+.overview-card--ranking {
+  background:
+    radial-gradient(circle at 100% 0%, rgb(244 63 94 / 16%), transparent 38%),
+    linear-gradient(135deg, rgb(255 255 255 / 94%), rgb(248 250 252 / 90%));
 }
 
 .overview-card-head {
+  position: relative;
   display: flex;
   gap: 12px;
   align-items: flex-start;
@@ -1282,7 +1407,7 @@ function switchRule() {
   font-size: 17px;
   font-weight: 850;
   line-height: 1.25;
-  color: #172033;
+  color: #0f172a;
   letter-spacing: 0;
 }
 
@@ -1302,7 +1427,7 @@ function switchRule() {
   margin: 0;
   font-size: 14px;
   line-height: 1.85;
-  color: #334155;
+  color: #21324a;
   text-align: justify;
 }
 
@@ -1314,6 +1439,10 @@ function switchRule() {
 
 .pipeline-record {
   min-width: 0;
+  padding: 10px 11px;
+  background: linear-gradient(135deg, rgb(248 250 252 / 94%), rgb(240 249 255 / 88%));
+  border: 1px solid rgb(226 232 240 / 88%);
+  border-radius: 8px;
 }
 
 .pipeline-record div:first-child {
@@ -1331,7 +1460,7 @@ function switchRule() {
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
     monospace;
   font-size: 12px;
-  color: #172033;
+  color: #0f172a;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1345,9 +1474,9 @@ function switchRule() {
 .record-track,
 .score-track {
   position: relative;
-  height: 8px;
+  height: 9px;
   overflow: hidden;
-  background: #eef2f7;
+  background: #e2e8f0;
   border-radius: 999px;
 }
 
@@ -1362,7 +1491,8 @@ function switchRule() {
 }
 
 .record-track i {
-  background: #1677ff;
+  background: linear-gradient(90deg, #06b6d4, #22c55e);
+  box-shadow: 0 0 16px rgb(6 182 212 / 45%);
 }
 
 .protocol-scoreboard {
@@ -1372,11 +1502,29 @@ function switchRule() {
 }
 
 .protocol-card {
+  position: relative;
   min-width: 0;
   padding: 14px;
-  background: #fbfdff;
-  border: 1px solid #dbeafe;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 100% 0%, rgb(14 165 233 / 13%), transparent 42%),
+    #fbfdff;
+  border: 1px solid rgb(186 230 253 / 72%);
   border-radius: 8px;
+  box-shadow: 0 12px 28px rgb(15 23 42 / 6%);
+}
+
+.protocol-card::after {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  width: 36px;
+  height: 36px;
+  pointer-events: none;
+  content: '';
+  border: 1px solid rgb(6 182 212 / 26%);
+  border-radius: 50%;
+  box-shadow: 0 0 0 9px rgb(6 182 212 / 6%);
 }
 
 .protocol-card-head,
@@ -1390,7 +1538,7 @@ function switchRule() {
 
 .protocol-card-head strong {
   font-size: 15px;
-  color: #172033;
+  color: #0f172a;
 }
 
 .protocol-card-head span,
@@ -1405,7 +1553,8 @@ function switchRule() {
   font-size: 26px;
   font-weight: 850;
   line-height: 1.1;
-  color: #dc2626;
+  color: #e11d48;
+  text-shadow: 0 8px 22px rgb(225 29 72 / 18%);
 }
 
 .protocol-main-value small {
@@ -1418,7 +1567,7 @@ function switchRule() {
 
 .protocol-bars strong {
   font-size: 12px;
-  color: #172033;
+  color: #0f172a;
 }
 
 .score-track {
@@ -1427,19 +1576,27 @@ function switchRule() {
 }
 
 .score-track__ok {
-  background: #28a879;
+  background: linear-gradient(90deg, #10b981, #22c55e);
+  box-shadow: 0 0 14px rgb(34 197 94 / 40%);
 }
 
 .score-track__risk {
   left: auto !important;
   right: 0;
-  background: #ef4444;
+  background: linear-gradient(90deg, #fb7185, #ef4444);
+  box-shadow: 0 0 14px rgb(239 68 68 / 40%);
 }
 
 .implementation-table {
   overflow: hidden;
-  border: 1px solid #e2e8f0;
+  border: 1px solid rgb(226 232 240 / 90%);
   border-radius: 8px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 64%);
+}
+
+.overview-card--ranking .implementation-table {
+  max-height: 420px;
+  overflow: auto;
 }
 
 .implementation-row {
@@ -1451,7 +1608,8 @@ function switchRule() {
   padding: 0 12px;
   font-size: 12px;
   color: #334155;
-  border-top: 1px solid #eef2f7;
+  background: rgb(255 255 255 / 72%);
+  border-top: 1px solid rgb(226 232 240 / 78%);
 }
 
 .implementation-row:first-child {
@@ -1461,8 +1619,12 @@ function switchRule() {
 .implementation-row--head {
   min-height: 34px;
   font-weight: 800;
-  color: #64748b;
-  background: #f8fafc;
+  color: #475569;
+  background: linear-gradient(90deg, #f8fafc, #ecfeff);
+}
+
+.implementation-row:not(.implementation-row--head):hover {
+  background: linear-gradient(90deg, rgb(255 241 242 / 82%), rgb(240 249 255 / 86%));
 }
 
 .implementation-row strong,
@@ -1474,12 +1636,12 @@ function switchRule() {
 }
 
 .implementation-row strong {
-  color: #172033;
+  color: #0f172a;
 }
 
 .risk-text {
   font-weight: 800;
-  color: #dc2626 !important;
+  color: #e11d48 !important;
 }
 
 .finding-list {
@@ -1489,11 +1651,22 @@ function switchRule() {
 }
 
 .finding-item {
+  position: relative;
   min-width: 0;
   padding: 12px;
-  background: #fbfdff;
-  border: 1px solid #e2e8f0;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 88%), rgb(248 250 252 / 94%));
+  border: 1px solid rgb(226 232 240 / 88%);
   border-radius: 8px;
+}
+
+.finding-item::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  content: '';
+  background: linear-gradient(180deg, #06b6d4, #f43f5e);
 }
 
 .finding-head {
@@ -1507,7 +1680,7 @@ function switchRule() {
   min-width: 0;
   overflow: hidden;
   font-size: 13px;
-  color: #172033;
+  color: #0f172a;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1519,7 +1692,7 @@ function switchRule() {
   overflow: hidden;
   font-size: 13px;
   line-height: 1.6;
-  color: #172033;
+  color: #0f172a;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
@@ -2043,13 +2216,17 @@ function switchRule() {
   }
 
   .overview-hero-copy,
-  .overview-card,
-  .overview-hero-panel {
+  .overview-card {
     padding: 16px;
   }
 
   .overview-hero h1 {
-    font-size: 22px;
+    font-size: 24px;
+  }
+
+  .overview-hero-glow {
+    right: -110px;
+    bottom: -120px;
   }
 
   .overview-metrics,
