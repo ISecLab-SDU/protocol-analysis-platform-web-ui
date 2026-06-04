@@ -181,7 +181,9 @@ const protocolOverview = computed(() => overviewStats.value?.protocols || []);
 const implementationOverview = computed(
   () => overviewStats.value?.implementations || [],
 );
-const topFindings = computed(() => overviewStats.value?.topFindings || []);
+const topFindings = computed(() => {
+  return (overviewStats.value?.topFindings || []).slice(0, 2);
+});
 
 const overviewMetrics = computed(() => [
   {
@@ -268,10 +270,6 @@ const protocolCards = computed(() => {
 const implementationRanking = computed(() => {
   return [...implementationOverview.value]
     .sort((left, right) => right.violationRules - left.violationRules);
-});
-
-const maxProtocolRuleResults = computed(() => {
-  return Math.max(1, ...protocolCards.value.map((item) => item.ruleResults));
 });
 
 const maxImplementationViolation = computed(() => {
@@ -577,15 +575,7 @@ function switchRule() {
                         <strong>{{ formatNumber(item.ruleResults) }} 条</strong>
                       </div>
                       <div class="score-track">
-                        <i
-                          class="score-track__ok"
-                          :style="{
-                            width: barWidth(
-                              item.ruleResults,
-                              maxProtocolRuleResults,
-                            ),
-                          }"
-                        />
+                        <i class="score-track__ok" />
                       </div>
                     </div>
                     <div class="protocol-meta">
@@ -1778,6 +1768,7 @@ function switchRule() {
 }
 
 .score-track__ok {
+  width: 100%;
   background: #20b977;
 }
 
