@@ -545,10 +545,10 @@ function switchRule() {
           <section v-if="activeSideNav === 'overview'" class="overview-shell">
             <header class="overview-hero">
               <div class="overview-hero-copy">
-                <h1>协议实现非合规漏洞检测与验证平台</h1>
+                <h1>LLM驱动的协议实现合规与安全分析平台</h1>
                 <p>
                   结合协议规则提取、LLM 引导静态分析、断言插桩和动态验证，
-                  自动化发现协议实现中的非合规漏洞并完成可验证确认。
+                  自动化发现协议实现中的不合规漏洞并完成可验证确认。
                 </p>
 
                 <div class="overview-hero-flow">
@@ -831,7 +831,7 @@ function switchRule() {
                   <span v-else>{{ s.index }}</span>
                 </div>
                 <div class="stepper-copy">
-                  <div class="stepper-title">{{ s.index }} {{ s.title }}</div>
+                  <div class="stepper-title">{{ s.title }}</div>
                   <div class="stepper-state">{{ stageStateLabel(s.key) }}</div>
                 </div>
                 <div v-if="idx < STAGE_LIST.length - 1" class="stepper-arrow">
