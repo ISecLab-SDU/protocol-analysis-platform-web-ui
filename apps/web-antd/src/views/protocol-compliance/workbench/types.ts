@@ -81,7 +81,7 @@ export const STAGE_LIST: Array<{ key: WorkbenchStage; index: number; title: stri
 ];
 
 export const PROTOCOL_IMPLEMENTATIONS: Record<ProtocolKind, AnyImplementation[]> = {
-  MQTT: ['Mosquitto', 'HiveMQ', 'VerneMQ', 'EMQX', 'FlashMQ', 'NanoMQ', 'SOL'],
+  MQTT: ['SOL', 'Mosquitto', 'HiveMQ', 'VerneMQ', 'EMQX', 'FlashMQ', 'NanoMQ'],
   SNMP: ['系统固件'],
 };
 
@@ -89,6 +89,35 @@ export const DEFAULT_TARGET: Record<ProtocolKind, { host: string; port: number }
   MQTT: { host: 'localhost', port: 1883 },
   SNMP: { host: 'localhost', port: 161 },
 };
+
+export function buildDefaultFuzzScript(
+  protocolType: ProtocolKind,
+  implementation: AnyImplementation,
+  targetHost: string,
+  targetPort: number,
+) {
+  if (protocolType === 'MQTT' && implementation === 'SOL') {
+    return `# AFL-NET MQTT/SOL fuzzing
+HOST=${targetHost}
+PORT=${targetPort}
+IMPLEMENTATION=${implementation}
+DURATION=0
+`;
+  }
+
+  if (protocolType === 'MQTT') {
+    return `# MBFuzzer MQTT broker fuzzing
+broker_host=${targetHost}
+broker_port=${targetPort}
+implementation=${implementation}
+`;
+  }
+
+  return `# SNMP fuzzing
+target_host=${targetHost}
+target_port=${targetPort}
+`;
+}
 
 export const BUILTIN_RULESET_INDEX: Array<{
   key: string;

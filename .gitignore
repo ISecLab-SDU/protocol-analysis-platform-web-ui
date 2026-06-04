@@ -61,3 +61,4 @@ vite.config.ts.*
 **/project_store/
 **/uploads/
 database/
+new_input/

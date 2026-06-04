@@ -5,7 +5,11 @@ import { Button, Card, Input, InputNumber, Select, SelectOption, Textarea, Uploa
 import { IconifyIcon } from '@vben/icons';
 
 import type { ProjectConfig } from '../types';
-import { DEFAULT_TARGET, PROTOCOL_IMPLEMENTATIONS } from '../types';
+import {
+  buildDefaultFuzzScript,
+  DEFAULT_TARGET,
+  PROTOCOL_IMPLEMENTATIONS,
+} from '../types';
 
 interface Props {
   config: ProjectConfig;
@@ -26,6 +30,22 @@ function onProtocolChange(val: 'MQTT' | 'SNMP') {
   props.config.implementation = PROTOCOL_IMPLEMENTATIONS[val][0]!;
   props.config.targetHost = DEFAULT_TARGET[val].host;
   props.config.targetPort = DEFAULT_TARGET[val].port;
+  props.config.fuzzScript = buildDefaultFuzzScript(
+    props.config.protocolType,
+    props.config.implementation,
+    props.config.targetHost,
+    props.config.targetPort,
+  );
+}
+
+function onImplementationChange(val: ProjectConfig['implementation']) {
+  props.config.implementation = val;
+  props.config.fuzzScript = buildDefaultFuzzScript(
+    props.config.protocolType,
+    props.config.implementation,
+    props.config.targetHost,
+    props.config.targetPort,
+  );
 }
 
 function beforeUpload(
@@ -67,7 +87,6 @@ const canCommit = computed(() => {
             选择文件
           </Button>
         </Upload>
-        <div class="setup-hint">支持 .tar.gz / .zip</div>
       </div>
 
       <div class="setup-section">
@@ -118,14 +137,13 @@ const canCommit = computed(() => {
             选择文件
           </Button>
         </Upload>
-        <div class="setup-hint">支持 rule.json / rules.json</div>
       </div>
 
       <div class="setup-section">
         <div class="setup-label">编译命令 *</div>
         <Input
           v-model:value="config.buildInstructions"
-          placeholder="例如: make"
+          placeholder="例如: make all"
           :disabled="disabled"
         />
       </div>
@@ -145,8 +163,9 @@ const canCommit = computed(() => {
       <div class="setup-section">
         <div class="setup-label">实现</div>
         <Select
-          v-model:value="config.implementation"
+          :value="config.implementation"
           :disabled="disabled"
+          @change="onImplementationChange"
         >
           <SelectOption
             v-for="impl in implementationOptions"
@@ -179,21 +198,11 @@ const canCommit = computed(() => {
       </div>
 
       <div class="setup-section setup-section--full">
-        <div class="setup-label">备注（可选）</div>
-        <Textarea
-          v-model:value="config.notes"
-          :rows="2"
-          placeholder="任务备注信息"
-          :disabled="disabled"
-        />
-      </div>
-
-      <div class="setup-section setup-section--full">
-        <div class="setup-label">Fuzz 脚本（可选，留空使用默认）</div>
+        <div class="setup-label">Fuzz 脚本</div>
         <Textarea
           v-model:value="config.fuzzScript"
           :rows="4"
-          placeholder="自定义 Fuzz 脚本内容"
+          placeholder="默认 Fuzz 脚本内容"
           :disabled="disabled"
         />
       </div>
@@ -240,11 +249,6 @@ const canCommit = computed(() => {
   font-size: 14px;
   font-weight: 500;
   color: var(--ant-text-color);
-}
-
-.setup-hint {
-  font-size: 12px;
-  color: var(--ant-text-color-secondary);
 }
 
 .setup-actions {

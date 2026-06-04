@@ -34,6 +34,7 @@ import {
   type CodeLocateEvidence,
   type CodeLocateFunctionSlice,
   type CodeLocateRow,
+  buildDefaultFuzzScript,
   DEFAULT_TARGET,
   type ProjectConfig,
   type StageStatus,
@@ -64,13 +65,18 @@ const projectConfig = reactive<ProjectConfig>({
   builder: null,
   config: null,
   rules: null,
-  buildInstructions: 'make',
+  buildInstructions: 'make all',
   protocolType: 'MQTT',
-  implementation: 'Mosquitto',
+  implementation: 'SOL',
   targetHost: DEFAULT_TARGET.MQTT.host,
   targetPort: DEFAULT_TARGET.MQTT.port,
   notes: '',
-  fuzzScript: '',
+  fuzzScript: buildDefaultFuzzScript(
+    'MQTT',
+    'SOL',
+    DEFAULT_TARGET.MQTT.host,
+    DEFAULT_TARGET.MQTT.port,
+  ),
 });
 
 const selectedRule = ref<null | ProtocolExtractRuleItem>(null);
@@ -1130,28 +1136,12 @@ function buildFuzzScript(): string {
   if (projectConfig.fuzzScript && projectConfig.fuzzScript.trim().length > 0) {
     return projectConfig.fuzzScript;
   }
-  const impl = projectConfig.implementation;
-  const host = projectConfig.targetHost;
-  const port = projectConfig.targetPort;
-  if (projectConfig.protocolType === 'MQTT' && impl === 'SOL') {
-    return `# AFL-NET MQTT/SOL fuzzing
-HOST=${host}
-PORT=${port}
-IMPLEMENTATION=${impl}
-DURATION=0
-`;
-  }
-  if (projectConfig.protocolType === 'MQTT') {
-    return `# MBFuzzer MQTT broker fuzzing
-broker_host=${host}
-broker_port=${port}
-implementation=${impl}
-`;
-  }
-  return `# SNMP fuzzing
-target_host=${host}
-target_port=${port}
-`;
+  return buildDefaultFuzzScript(
+    projectConfig.protocolType,
+    projectConfig.implementation,
+    projectConfig.targetHost,
+    projectConfig.targetPort,
+  );
 }
 
 async function ensureProjectReady(): Promise<boolean> {
