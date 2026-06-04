@@ -29,6 +29,8 @@ PROTOCOL_BY_IMPLEMENTATION = {
     "wolfssl": "TLS",
 }
 
+EXCLUDED_IMPLEMENTATIONS = {"dhcp"}
+
 
 def normalize_implementation(path: Path) -> str:
     name = path.stem
@@ -88,6 +90,9 @@ def build_stats() -> dict[str, Any]:
 
     for db_path in database_files:
         implementation = normalize_implementation(db_path)
+        if implementation.lower() in EXCLUDED_IMPLEMENTATIONS:
+            continue
+
         protocol = PROTOCOL_BY_IMPLEMENTATION.get(implementation.lower(), "Other")
         protocol_bucket = protocol_totals.setdefault(protocol, defaultdict(int))
 
@@ -189,8 +194,8 @@ def build_stats() -> dict[str, Any]:
         "generatedAt": datetime.now(timezone.utc).isoformat(),
         "sourceDirectory": "database",
         "summary": {
-            "databaseFiles": len(database_files),
-            "implementations": len(database_files),
+            "databaseFiles": len(implementations),
+            "implementations": len(implementations),
             **dict(summary),
         },
         "tableTotals": dict(sorted(table_totals.items())),

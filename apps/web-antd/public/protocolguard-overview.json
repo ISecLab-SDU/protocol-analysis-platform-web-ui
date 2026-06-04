@@ -1,10 +1,10 @@
 {
-  "generatedAt": "2026-06-04T05:18:36.970824+00:00",
+  "generatedAt": "2026-06-04T06:40:58.056999+00:00",
   "sourceDirectory": "database",
   "summary": {
-    "databaseFiles": 12,
-    "implementations": 12,
-    "analysisRecords": 44802,
+    "databaseFiles": 11,
+    "implementations": 11,
+    "analysisRecords": 44432,
     "ruleResults": 644,
     "violationRules": 198,
     "noViolationRules": 446,
@@ -14,11 +14,11 @@
   },
   "tableTotals": {
     "code_completion": 10728,
-    "field_analysis": 13397,
-    "function_analysis": 14249,
+    "field_analysis": 13396,
+    "function_analysis": 13926,
     "function_rule_relevant_analysis": 5074,
-    "other_analysis": 158,
-    "response_function_analysis": 552,
+    "other_analysis": 141,
+    "response_function_analysis": 523,
     "rule_code_snippet": 644
   },
   "protocols": [
@@ -35,14 +35,14 @@
     },
     {
       "name": "DHCPv6",
-      "analysisRecords": 9660,
+      "analysisRecords": 9290,
       "ruleResults": 119,
       "violationRules": 32,
       "noViolationRules": 87,
       "unknownRules": 0,
       "violationLocations": 38,
       "codeSnippets": 119,
-      "implementations": 3
+      "implementations": 2
     },
     {
       "name": "FTP",
@@ -210,18 +210,6 @@
       "unknownRules": 0,
       "violationLocations": 3,
       "codeSnippets": 30
-    },
-    {
-      "name": "dhcp",
-      "protocol": "DHCPv6",
-      "database": "sqlite_dhcp.db",
-      "analysisRecords": 370,
-      "ruleResults": 0,
-      "violationRules": 0,
-      "noViolationRules": 0,
-      "unknownRules": 0,
-      "violationLocations": 0,
-      "codeSnippets": 0
     }
   ],
   "topFindings": [

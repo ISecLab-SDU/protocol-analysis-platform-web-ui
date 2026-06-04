@@ -1275,7 +1275,7 @@ function switchRule() {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 16px;
-  align-items: start;
+  align-items: stretch;
   margin-bottom: 16px;
 }
 
@@ -1289,6 +1289,8 @@ function switchRule() {
 }
 
 .overview-card--ranking {
+  display: flex;
+  flex-direction: column;
   grid-column: span 4;
 }
 
@@ -1471,7 +1473,8 @@ function switchRule() {
 }
 
 .overview-card--ranking .implementation-table {
-  max-height: 368px;
+  flex: 1;
+  min-height: 0;
   overflow: auto;
 }
 
