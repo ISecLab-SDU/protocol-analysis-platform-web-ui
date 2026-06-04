@@ -872,8 +872,7 @@ async function handleLoadDemoConfig() {
                 title="自动上传 New-Input 中的演示文件"
                 @click="handleLoadDemoConfig"
               >
-                <template #icon><IconifyIcon icon="mdi:presentation-play" /></template>
-                演示模式
+                演示加载
               </Button>
             </section>
 
@@ -1238,13 +1237,13 @@ async function handleLoadDemoConfig() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  font-size: 16px;
+  width: 36px;
+  height: 36px;
+  font-size: 22px;
   color: #1677ff;
   background: #eef6ff;
   border: 1px solid #bfdbfe;
-  border-radius: 6px;
+  border-radius: 8px;
 }
 
 .avatar {

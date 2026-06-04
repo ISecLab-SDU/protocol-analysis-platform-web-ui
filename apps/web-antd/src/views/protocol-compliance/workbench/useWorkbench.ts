@@ -53,7 +53,9 @@ const stageStatus = reactive<Record<WorkbenchStage, StageStatus>>({
   fuzz: 'idle',
   done: 'idle',
 });
-const stageMessage = ref('请先在“项目设置”中上传所需文件');
+const stageMessage = ref(
+  '请先在“项目设置”中上传所需文件，或点击演示模式自动加载配置文件',
+);
 const elapsedSeconds = ref(0);
 const startedAt = ref<Date | null>(null);
 const isStopping = ref(false);
@@ -1815,7 +1817,8 @@ function resetWorkbench() {
   });
   fuzzSpeedSeries.value = [];
   errorMessage.value = null;
-  stageMessage.value = '请先在“项目设置”中上传所需文件';
+  stageMessage.value =
+    '请先在“项目设置”中上传所需文件，或点击演示模式自动加载配置文件';
 }
 
 export function useWorkbench() {
