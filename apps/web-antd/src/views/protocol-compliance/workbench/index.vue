@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -15,6 +15,54 @@ import StageSetup from './components/StageSetup.vue';
 import { STAGE_LIST } from './types';
 import { useWorkbench } from './useWorkbench';
 import { formatDuration, formatTime } from './utils';
+
+interface OverviewSummary {
+  analysisRecords: number;
+  codeSnippets: number;
+  databaseFiles: number;
+  implementations: number;
+  noViolationRules: number;
+  ruleResults: number;
+  unknownRules: number;
+  violationLocations: number;
+  violationRules: number;
+}
+
+interface OverviewProtocolStats {
+  analysisRecords: number;
+  codeSnippets: number;
+  implementations: number;
+  name: string;
+  noViolationRules: number;
+  ruleResults: number;
+  unknownRules: number;
+  violationLocations: number;
+  violationRules: number;
+}
+
+interface OverviewImplementationStats
+  extends Omit<OverviewProtocolStats, 'implementations' | 'name'> {
+  database: string;
+  name: string;
+  protocol: string;
+}
+
+interface OverviewFinding {
+  implementation: string;
+  protocol: string;
+  reason?: null | string;
+  rule?: null | string;
+}
+
+interface ProtocolGuardOverviewStats {
+  generatedAt: string;
+  implementations: OverviewImplementationStats[];
+  protocols: OverviewProtocolStats[];
+  sourceDirectory: string;
+  summary: OverviewSummary;
+  tableTotals: Record<string, number>;
+  topFindings: OverviewFinding[];
+}
 
 const {
   stage,
@@ -108,6 +156,126 @@ const activeSideNavLabel = computed(() => {
     sideNavItems.find((item) => item.key === activeSideNav.value)?.label ||
     '概览'
   );
+});
+
+const overviewStats = ref<null | ProtocolGuardOverviewStats>(null);
+const overviewLoadError = ref('');
+
+const projectIntroParagraphs = [
+  '网络协议实现应严格遵循其规范，以保障通信的可靠性与安全性。然而，自然语言规范固有的模糊性易导致开发者理解偏差，使实际实现偏离标准行为。此类协议不合规漏洞在现实世界的协议实现中普遍存在，可引发行为错误、互操作性故障乃至严重的安全漏洞。例如，MatrixSSL 中的高危漏洞 CVE-2022-46505 即源于其会话恢复处理对 RFC 的错误实现，该验证逻辑缺陷允许攻击者通过精心构造的会话 ID 强制重用空的主密钥，最终导致全球数万台设备的安全通信被完全解密。与内存损坏型漏洞不同，不合规漏洞常表现为静默的逻辑错误，缺乏崩溃等明显异常信号，因此难以被模糊测试等传统方法有效检测。现有检测方法通常依赖大量人工来验证发现和进行根因分析，严重制约了其在实际应用中的可扩展性。',
+  '为此，我们提出 ProtocolGuard，一种新颖的框架，通过将大语言模型引导的静态分析与基于模糊测试的动态验证相结合，系统化检测协议实现中的非合规性漏洞。ProtocolGuard 首先采用混合方法从协议规范中自动提取规范规则，并执行大语言模型引导的程序切片，精准抽取与每条规则相关的代码片段。随后，利用大语言模型识别这些规则与代码逻辑之间的语义不一致，并动态验证此类不一致是否可被实际触发。首先 ProtocolGuard 先借助大语言模型自动生成断言语句，并通过代码插桩将静默的不一致转化为可观测的断言失败；接着，利用大语言模型生成更可能触发漏洞的初始测试用例；最后，对插桩后的代码实施动态测试，以确认漏洞存在并生成概念验证测试用例。',
+  '当前成果统计以 database 目录下的 SQLite 结果库为准，覆盖 MQTT、TLS、DHCPv6、FTP 与 CoAP 等协议实现。平台会聚合规则分析、程序切片、代码片段、LLM 判定与违规定位等数据，形成面向甲方演示的总体成果视图。',
+];
+
+const fallbackSummary: OverviewSummary = {
+  analysisRecords: 0,
+  codeSnippets: 0,
+  databaseFiles: 0,
+  implementations: 0,
+  noViolationRules: 0,
+  ruleResults: 0,
+  unknownRules: 0,
+  violationLocations: 0,
+  violationRules: 0,
+};
+
+const overviewSummary = computed(() => {
+  return overviewStats.value?.summary || fallbackSummary;
+});
+
+const overviewMetrics = computed(() => [
+  {
+    accent: 'blue',
+    icon: 'mdi:database-search-outline',
+    label: '结果数据库',
+    suffix: '个',
+    value: overviewSummary.value.databaseFiles,
+  },
+  {
+    accent: 'cyan',
+    icon: 'mdi:chart-box-outline',
+    label: '分析记录',
+    suffix: '条',
+    value: overviewSummary.value.analysisRecords,
+  },
+  {
+    accent: 'green',
+    icon: 'mdi:clipboard-check-outline',
+    label: '规则级结果',
+    suffix: '条',
+    value: overviewSummary.value.ruleResults,
+  },
+  {
+    accent: 'red',
+    icon: 'mdi:alert-octagon-outline',
+    label: '违规判定',
+    suffix: '条',
+    value: overviewSummary.value.violationRules,
+  },
+  {
+    accent: 'orange',
+    icon: 'mdi:source-branch',
+    label: '违规定位',
+    suffix: '处',
+    value: overviewSummary.value.violationLocations,
+  },
+  {
+    accent: 'purple',
+    icon: 'mdi:code-braces',
+    label: '代码片段',
+    suffix: '段',
+    value: overviewSummary.value.codeSnippets,
+  },
+]);
+
+const protocolOverview = computed(() => overviewStats.value?.protocols || []);
+const implementationOverview = computed(
+  () => overviewStats.value?.implementations || [],
+);
+const topFindings = computed(() => overviewStats.value?.topFindings || []);
+const tableTotalEntries = computed(() => {
+  return Object.entries(overviewStats.value?.tableTotals || {}).sort(
+    (left, right) => right[1] - left[1],
+  );
+});
+
+const generatedAtDisplay = computed(() => {
+  if (!overviewStats.value?.generatedAt) return '等待生成';
+  return new Date(overviewStats.value.generatedAt).toLocaleString('zh-CN', {
+    hour12: false,
+  });
+});
+
+function formatNumber(value: number) {
+  return new Intl.NumberFormat('zh-CN').format(value);
+}
+
+function formatPercent(value: number, total: number) {
+  if (!total) return '0%';
+  return `${Math.round((value / total) * 100)}%`;
+}
+
+function barWidth(value: number, total: number) {
+  if (!total || value <= 0) return '0%';
+  return `${Math.max(4, Math.round((value / total) * 100))}%`;
+}
+
+onMounted(async () => {
+  try {
+    const response = await fetch(
+      `${import.meta.env.BASE_URL}protocolguard-overview.json`,
+      {
+        cache: 'no-store',
+      },
+    );
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    overviewStats.value = (await response.json()) as ProtocolGuardOverviewStats;
+  } catch (error) {
+    overviewLoadError.value =
+      error instanceof Error ? error.message : '统计数据读取失败';
+  }
 });
 
 function stageStateLabel(key: (typeof STAGE_LIST)[number]['key']) {
@@ -217,7 +385,223 @@ function switchRule() {
         </aside>
 
         <main class="guard-main">
-          <section v-if="activeSideNav === 'overview'" class="overview-blank" />
+          <section v-if="activeSideNav === 'overview'" class="overview-shell">
+            <header class="overview-hero">
+              <div class="overview-hero-copy">
+                <div class="overview-kicker">
+                  <IconifyIcon icon="mdi:shield-search" />
+                  <span>ProtocolGuard</span>
+                </div>
+                <h1>协议实现非合规漏洞检测与验证平台</h1>
+                <p>
+                  将规范规则提取、LLM 引导静态分析、断言插桩和动态验证串联为可复用流程，
+                  面向协议实现中的静默逻辑缺陷形成端到端证据链。
+                </p>
+              </div>
+              <div class="overview-hero-panel">
+                <span>数据来源</span>
+                <strong>{{ overviewStats?.sourceDirectory || 'database' }}</strong>
+                <small>更新时间: {{ generatedAtDisplay }}</small>
+              </div>
+            </header>
+
+            <section v-if="overviewLoadError" class="overview-error">
+              <IconifyIcon icon="mdi:alert-circle" />
+              <span>成果统计读取失败：{{ overviewLoadError }}</span>
+            </section>
+
+            <section class="overview-metrics">
+              <article
+                v-for="metric in overviewMetrics"
+                :key="metric.label"
+                class="overview-metric-card"
+                :class="`overview-metric-card--${metric.accent}`"
+              >
+                <div class="metric-icon">
+                  <IconifyIcon :icon="metric.icon" />
+                </div>
+                <div>
+                  <span>{{ metric.label }}</span>
+                  <strong>
+                    {{ formatNumber(metric.value) }}
+                    <small>{{ metric.suffix }}</small>
+                  </strong>
+                </div>
+              </article>
+            </section>
+
+            <section class="overview-grid">
+              <article class="overview-card overview-card--intro">
+                <header class="overview-card-head">
+                  <div>
+                    <h2>项目介绍</h2>
+                    <p>面向协议实现语义偏差的自动化分析框架</p>
+                  </div>
+                  <Tag color="blue">LLM + 静态分析 + Fuzz</Tag>
+                </header>
+                <div class="intro-copy">
+                  <p
+                    v-for="paragraph in projectIntroParagraphs"
+                    :key="paragraph"
+                  >
+                    {{ paragraph }}
+                  </p>
+                </div>
+              </article>
+
+              <article class="overview-card overview-card--pipeline">
+                <header class="overview-card-head">
+                  <div>
+                    <h2>分析链路</h2>
+                    <p>数据库中的多阶段分析记录</p>
+                  </div>
+                </header>
+                <div class="pipeline-records">
+                  <div
+                    v-for="[tableName, count] in tableTotalEntries"
+                    :key="tableName"
+                    class="pipeline-record"
+                  >
+                    <div>
+                      <strong>{{ tableName }}</strong>
+                      <span>{{ formatNumber(count) }} 条</span>
+                    </div>
+                    <div class="record-track">
+                      <i
+                        :style="{
+                          width: barWidth(
+                            count,
+                            overviewSummary.analysisRecords,
+                          ),
+                        }"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </article>
+            </section>
+
+            <section class="overview-card">
+              <header class="overview-card-head">
+                <div>
+                  <h2>成果展示</h2>
+                  <p>按协议族聚合的规则结果与违规定位情况</p>
+                </div>
+                <Tag color="red">
+                  违规占比
+                  {{
+                    formatPercent(
+                      overviewSummary.violationRules,
+                      overviewSummary.ruleResults,
+                    )
+                  }}
+                </Tag>
+              </header>
+
+              <div class="protocol-scoreboard">
+                <article
+                  v-for="item in protocolOverview"
+                  :key="item.name"
+                  class="protocol-card"
+                >
+                  <div class="protocol-card-head">
+                    <strong>{{ item.name }}</strong>
+                    <span>{{ item.implementations }} 个实现</span>
+                  </div>
+                  <div class="protocol-main-value">
+                    {{ formatNumber(item.violationRules) }}
+                    <small>条违规判定</small>
+                  </div>
+                  <div class="protocol-bars">
+                    <div>
+                      <span>规则覆盖</span>
+                      <strong>{{ formatNumber(item.ruleResults) }}</strong>
+                    </div>
+                    <div class="score-track">
+                      <i
+                        class="score-track__ok"
+                        :style="{
+                          width: barWidth(
+                            item.noViolationRules,
+                            item.ruleResults,
+                          ),
+                        }"
+                      />
+                      <i
+                        class="score-track__risk"
+                        :style="{
+                          width: barWidth(
+                            item.violationRules,
+                            item.ruleResults,
+                          ),
+                        }"
+                      />
+                    </div>
+                  </div>
+                  <div class="protocol-meta">
+                    <span>定位 {{ formatNumber(item.violationLocations) }} 处</span>
+                    <span>记录 {{ formatNumber(item.analysisRecords) }} 条</span>
+                  </div>
+                </article>
+              </div>
+            </section>
+
+            <section class="overview-grid overview-grid--results">
+              <article class="overview-card">
+                <header class="overview-card-head">
+                  <div>
+                    <h2>实现排名</h2>
+                    <p>按违规判定数量排序</p>
+                  </div>
+                </header>
+                <div class="implementation-table">
+                  <div class="implementation-row implementation-row--head">
+                    <span>实现</span>
+                    <span>协议</span>
+                    <span>规则</span>
+                    <span>违规</span>
+                    <span>定位</span>
+                  </div>
+                  <div
+                    v-for="item in implementationOverview"
+                    :key="item.database"
+                    class="implementation-row"
+                  >
+                    <strong>{{ item.name }}</strong>
+                    <span>{{ item.protocol }}</span>
+                    <span>{{ formatNumber(item.ruleResults) }}</span>
+                    <span class="risk-text">
+                      {{ formatNumber(item.violationRules) }}
+                    </span>
+                    <span>{{ formatNumber(item.violationLocations) }}</span>
+                  </div>
+                </div>
+              </article>
+
+              <article class="overview-card">
+                <header class="overview-card-head">
+                  <div>
+                    <h2>典型发现</h2>
+                    <p>来自规则结果库的代表性违规样例</p>
+                  </div>
+                </header>
+                <div class="finding-list">
+                  <article
+                    v-for="finding in topFindings"
+                    :key="`${finding.protocol}-${finding.implementation}-${finding.rule}`"
+                    class="finding-item"
+                  >
+                    <div class="finding-head">
+                      <Tag color="blue">{{ finding.protocol }}</Tag>
+                      <strong>{{ finding.implementation }}</strong>
+                    </div>
+                    <p>{{ finding.rule }}</p>
+                    <small>{{ finding.reason }}</small>
+                  </article>
+                </div>
+              </article>
+            </section>
+          </section>
 
           <section v-else-if="activeSideNav === 'workbench'" class="task-shell">
             <header class="task-header">
@@ -689,6 +1073,467 @@ function switchRule() {
   min-height: 100%;
 }
 
+.overview-shell {
+  min-height: 100%;
+  padding: 24px 28px 28px;
+}
+
+.overview-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 18px;
+  align-items: stretch;
+  margin-bottom: 16px;
+}
+
+.overview-hero-copy,
+.overview-hero-panel,
+.overview-card,
+.overview-metric-card,
+.overview-error {
+  background: #fff;
+  border: 1px solid #e7edf5;
+  border-radius: 8px;
+  box-shadow: 0 8px 22px rgb(15 23 42 / 4%);
+}
+
+.overview-hero-copy {
+  min-width: 0;
+  padding: 22px 24px;
+}
+
+.overview-kicker {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #1677ff;
+}
+
+.overview-kicker :first-child {
+  font-size: 18px;
+}
+
+.overview-hero h1 {
+  margin: 0;
+  font-size: 25px;
+  font-weight: 850;
+  line-height: 1.28;
+  color: #111827;
+  letter-spacing: 0;
+}
+
+.overview-hero p {
+  max-width: 920px;
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 1.75;
+  color: #475569;
+}
+
+.overview-hero-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  padding: 18px;
+  background: linear-gradient(135deg, #ffffff 0%, #f5f9ff 100%);
+}
+
+.overview-hero-panel span,
+.overview-hero-panel small {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.overview-hero-panel strong {
+  margin: 7px 0 8px;
+  overflow: hidden;
+  font-size: 28px;
+  font-weight: 850;
+  line-height: 1.1;
+  color: #1677ff;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overview-error {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 11px 14px;
+  font-size: 13px;
+  color: #dc2626;
+  background: #fff5f5;
+}
+
+.overview-metrics {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.overview-metric-card {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  padding: 14px;
+}
+
+.metric-icon {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  font-size: 22px;
+  border-radius: 8px;
+}
+
+.overview-metric-card span {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.overview-metric-card strong {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 22px;
+  font-weight: 850;
+  line-height: 1.15;
+  color: #172033;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overview-metric-card small {
+  margin-left: 3px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.overview-metric-card--blue .metric-icon {
+  color: #1677ff;
+  background: #edf5ff;
+}
+
+.overview-metric-card--cyan .metric-icon {
+  color: #0891b2;
+  background: #ecfeff;
+}
+
+.overview-metric-card--green .metric-icon {
+  color: #0f9f6e;
+  background: #ecfdf5;
+}
+
+.overview-metric-card--red .metric-icon {
+  color: #dc2626;
+  background: #fff1f2;
+}
+
+.overview-metric-card--orange .metric-icon {
+  color: #d97706;
+  background: #fff7ed;
+}
+
+.overview-metric-card--purple .metric-icon {
+  color: #7c3aed;
+  background: #f5f3ff;
+}
+
+.overview-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.overview-grid--results {
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  align-items: start;
+}
+
+.overview-card {
+  min-width: 0;
+  padding: 18px;
+}
+
+.overview-card-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.overview-card-head h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 850;
+  line-height: 1.25;
+  color: #172033;
+  letter-spacing: 0;
+}
+
+.overview-card-head p {
+  margin: 5px 0 0;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.intro-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.intro-copy p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.85;
+  color: #334155;
+  text-align: justify;
+}
+
+.pipeline-records {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pipeline-record {
+  min-width: 0;
+}
+
+.pipeline-record div:first-child {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.pipeline-record strong {
+  min-width: 0;
+  overflow: hidden;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    monospace;
+  font-size: 12px;
+  color: #172033;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pipeline-record span {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.record-track,
+.score-track {
+  position: relative;
+  height: 8px;
+  overflow: hidden;
+  background: #eef2f7;
+  border-radius: 999px;
+}
+
+.record-track i,
+.score-track i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  display: block;
+  border-radius: inherit;
+}
+
+.record-track i {
+  background: #1677ff;
+}
+
+.protocol-scoreboard {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.protocol-card {
+  min-width: 0;
+  padding: 14px;
+  background: #fbfdff;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+}
+
+.protocol-card-head,
+.protocol-meta,
+.protocol-bars div:first-child {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.protocol-card-head strong {
+  font-size: 15px;
+  color: #172033;
+}
+
+.protocol-card-head span,
+.protocol-meta span,
+.protocol-bars span {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.protocol-main-value {
+  margin: 14px 0 12px;
+  font-size: 26px;
+  font-weight: 850;
+  line-height: 1.1;
+  color: #dc2626;
+}
+
+.protocol-main-value small {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.protocol-bars strong {
+  font-size: 12px;
+  color: #172033;
+}
+
+.score-track {
+  display: flex;
+  margin: 7px 0 11px;
+}
+
+.score-track__ok {
+  background: #28a879;
+}
+
+.score-track__risk {
+  left: auto !important;
+  right: 0;
+  background: #ef4444;
+}
+
+.implementation-table {
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.implementation-row {
+  display: grid;
+  grid-template-columns: minmax(110px, 1.3fr) 80px repeat(3, minmax(52px, 0.6fr));
+  gap: 10px;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 12px;
+  font-size: 12px;
+  color: #334155;
+  border-top: 1px solid #eef2f7;
+}
+
+.implementation-row:first-child {
+  border-top: 0;
+}
+
+.implementation-row--head {
+  min-height: 34px;
+  font-weight: 800;
+  color: #64748b;
+  background: #f8fafc;
+}
+
+.implementation-row strong,
+.implementation-row span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.implementation-row strong {
+  color: #172033;
+}
+
+.risk-text {
+  font-weight: 800;
+  color: #dc2626 !important;
+}
+
+.finding-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.finding-item {
+  min-width: 0;
+  padding: 12px;
+  background: #fbfdff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.finding-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.finding-head strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  color: #172033;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.finding-item p {
+  display: -webkit-box;
+  min-height: 42px;
+  margin: 0 0 7px;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #172033;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.finding-item small {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #64748b;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
 .task-shell {
   min-height: 100%;
   padding: 24px 28px 28px;
@@ -1146,6 +1991,17 @@ function switchRule() {
     display: none;
   }
 
+  .overview-hero,
+  .overview-grid,
+  .overview-grid--results {
+    grid-template-columns: 1fr;
+  }
+
+  .overview-metrics,
+  .protocol-scoreboard {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .pipeline-stepper {
     grid-template-columns: 1fr;
   }
@@ -1180,6 +2036,38 @@ function switchRule() {
 
   .task-shell {
     padding: 18px 14px;
+  }
+
+  .overview-shell {
+    padding: 18px 14px;
+  }
+
+  .overview-hero-copy,
+  .overview-card,
+  .overview-hero-panel {
+    padding: 16px;
+  }
+
+  .overview-hero h1 {
+    font-size: 22px;
+  }
+
+  .overview-metrics,
+  .protocol-scoreboard,
+  .finding-list {
+    grid-template-columns: 1fr;
+  }
+
+  .overview-card-head {
+    flex-direction: column;
+  }
+
+  .implementation-table {
+    overflow-x: auto;
+  }
+
+  .implementation-row {
+    min-width: 540px;
   }
 
   .logs-shell {

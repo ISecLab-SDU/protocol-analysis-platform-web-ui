@@ -60,3 +60,4 @@ vite.config.ts.*
 **/assertion_history/
 **/project_store/
 **/uploads/
+database/

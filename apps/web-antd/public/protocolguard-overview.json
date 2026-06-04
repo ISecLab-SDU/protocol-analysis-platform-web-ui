@@ -1,0 +1,265 @@
+{
+  "generatedAt": "2026-06-04T05:18:36.970824+00:00",
+  "sourceDirectory": "database",
+  "summary": {
+    "databaseFiles": 12,
+    "implementations": 12,
+    "analysisRecords": 44802,
+    "ruleResults": 644,
+    "violationRules": 198,
+    "noViolationRules": 446,
+    "unknownRules": 0,
+    "violationLocations": 258,
+    "codeSnippets": 644
+  },
+  "tableTotals": {
+    "code_completion": 10728,
+    "field_analysis": 13397,
+    "function_analysis": 14249,
+    "function_rule_relevant_analysis": 5074,
+    "other_analysis": 158,
+    "response_function_analysis": 552,
+    "rule_code_snippet": 644
+  },
+  "protocols": [
+    {
+      "name": "CoAP",
+      "analysisRecords": 2103,
+      "ruleResults": 33,
+      "violationRules": 5,
+      "noViolationRules": 28,
+      "unknownRules": 0,
+      "violationLocations": 10,
+      "codeSnippets": 33,
+      "implementations": 2
+    },
+    {
+      "name": "DHCPv6",
+      "analysisRecords": 9660,
+      "ruleResults": 119,
+      "violationRules": 32,
+      "noViolationRules": 87,
+      "unknownRules": 0,
+      "violationLocations": 38,
+      "codeSnippets": 119,
+      "implementations": 3
+    },
+    {
+      "name": "FTP",
+      "analysisRecords": 4739,
+      "ruleResults": 91,
+      "violationRules": 35,
+      "noViolationRules": 56,
+      "unknownRules": 0,
+      "violationLocations": 42,
+      "codeSnippets": 91,
+      "implementations": 2
+    },
+    {
+      "name": "MQTT",
+      "analysisRecords": 14202,
+      "ruleResults": 284,
+      "violationRules": 89,
+      "noViolationRules": 195,
+      "unknownRules": 0,
+      "violationLocations": 117,
+      "codeSnippets": 284,
+      "implementations": 3
+    },
+    {
+      "name": "TLS",
+      "analysisRecords": 14098,
+      "ruleResults": 117,
+      "violationRules": 37,
+      "noViolationRules": 80,
+      "unknownRules": 0,
+      "violationLocations": 51,
+      "codeSnippets": 117,
+      "implementations": 2
+    }
+  ],
+  "implementations": [
+    {
+      "name": "sol",
+      "protocol": "MQTT",
+      "database": "sqlite_sol.db",
+      "analysisRecords": 3556,
+      "ruleResults": 83,
+      "violationRules": 40,
+      "noViolationRules": 43,
+      "unknownRules": 0,
+      "violationLocations": 56,
+      "codeSnippets": 83
+    },
+    {
+      "name": "tinymqtt",
+      "protocol": "MQTT",
+      "database": "sqlite_tinymqtt.db",
+      "analysisRecords": 3212,
+      "ruleResults": 83,
+      "violationRules": 32,
+      "noViolationRules": 51,
+      "unknownRules": 0,
+      "violationLocations": 42,
+      "codeSnippets": 83
+    },
+    {
+      "name": "tlse",
+      "protocol": "TLS",
+      "database": "sqlite_tlse.db",
+      "analysisRecords": 2327,
+      "ruleResults": 58,
+      "violationRules": 27,
+      "noViolationRules": 31,
+      "unknownRules": 0,
+      "violationLocations": 37,
+      "codeSnippets": 58
+    },
+    {
+      "name": "ndhs",
+      "protocol": "DHCPv6",
+      "database": "sqlite_ndhs.db",
+      "analysisRecords": 2759,
+      "ruleResults": 63,
+      "violationRules": 19,
+      "noViolationRules": 44,
+      "unknownRules": 0,
+      "violationLocations": 24,
+      "codeSnippets": 63
+    },
+    {
+      "name": "uFTPD",
+      "protocol": "FTP",
+      "database": "sqlite_uFTPD.db",
+      "analysisRecords": 2422,
+      "ruleResults": 40,
+      "violationRules": 18,
+      "noViolationRules": 22,
+      "unknownRules": 0,
+      "violationLocations": 23,
+      "codeSnippets": 40
+    },
+    {
+      "name": "mosquitto",
+      "protocol": "MQTT",
+      "database": "sqlite_mosquitto.db",
+      "analysisRecords": 7434,
+      "ruleResults": 118,
+      "violationRules": 17,
+      "noViolationRules": 101,
+      "unknownRules": 0,
+      "violationLocations": 19,
+      "codeSnippets": 118
+    },
+    {
+      "name": "pure-ftpd",
+      "protocol": "FTP",
+      "database": "sqlite_pure-ftpd.db",
+      "analysisRecords": 2317,
+      "ruleResults": 51,
+      "violationRules": 17,
+      "noViolationRules": 34,
+      "unknownRules": 0,
+      "violationLocations": 19,
+      "codeSnippets": 51
+    },
+    {
+      "name": "dnsmasq",
+      "protocol": "DHCPv6",
+      "database": "sqlite_dnsmasq.db",
+      "analysisRecords": 6531,
+      "ruleResults": 56,
+      "violationRules": 13,
+      "noViolationRules": 43,
+      "unknownRules": 0,
+      "violationLocations": 14,
+      "codeSnippets": 56
+    },
+    {
+      "name": "wolfssl",
+      "protocol": "TLS",
+      "database": "sqlite_wolfssl.db",
+      "analysisRecords": 11771,
+      "ruleResults": 59,
+      "violationRules": 10,
+      "noViolationRules": 49,
+      "unknownRules": 0,
+      "violationLocations": 14,
+      "codeSnippets": 59
+    },
+    {
+      "name": "libcoap",
+      "protocol": "CoAP",
+      "database": "sqlite_libcoap.db",
+      "analysisRecords": 354,
+      "ruleResults": 3,
+      "violationRules": 3,
+      "noViolationRules": 0,
+      "unknownRules": 0,
+      "violationLocations": 7,
+      "codeSnippets": 3
+    },
+    {
+      "name": "FreeCoAP",
+      "protocol": "CoAP",
+      "database": "sqlite_FreeCoAP.db",
+      "analysisRecords": 1749,
+      "ruleResults": 30,
+      "violationRules": 2,
+      "noViolationRules": 28,
+      "unknownRules": 0,
+      "violationLocations": 3,
+      "codeSnippets": 30
+    },
+    {
+      "name": "dhcp",
+      "protocol": "DHCPv6",
+      "database": "sqlite_dhcp.db",
+      "analysisRecords": 370,
+      "ruleResults": 0,
+      "violationRules": 0,
+      "noViolationRules": 0,
+      "unknownRules": 0,
+      "violationLocations": 0,
+      "codeSnippets": 0
+    }
+  ],
+  "topFindings": [
+    {
+      "implementation": "FreeCoAP",
+      "protocol": "CoAP",
+      "rule": "A request with an unrecognized or unsupported Method Code MUST generate a 4.05 (Method Not Allowed) piggybacked response.",
+      "reason": "The code does not generate a 4.05 (Method Not Allowed) piggybacked response for unrecognized/unsupported method codes. Invalid requests are rejected with -EBADMSG without sending a response, and application can return e…"
+    },
+    {
+      "implementation": "FreeCoAP",
+      "protocol": "CoAP",
+      "rule": "In case an option is not defined for a Method or Response Code, the option MUST NOT be included by a sender and MUST be treated like an unrecognized option by …",
+      "reason": "Both analyses confirm the recipient implementation fails to validate if options are defined for the specific Method or Response Code context. The critical option check (coap_msg_check_critical_ops) only verifies option …"
+    },
+    {
+      "implementation": "libcoap",
+      "protocol": "CoAP",
+      "rule": "(For example, in query filtering as described in [RFC6690 Link Format\"], a server should not respond to a multicast request if the filter does not match.",
+      "reason": "The server constructs and sends a response for multicast requests when no resources match the query filter (wkc_len==0). Specifically, it adds a Content-Format header to the response even when no resources are found, vi…"
+    },
+    {
+      "implementation": "libcoap",
+      "protocol": "CoAP",
+      "rule": "A GET request to a multicast group MUST NOT contain an ETag option.",
+      "reason": "The code lacks validation checks to prevent ETag options in multicast GET requests across multiple critical functions. Both server-side request handling (handle_request) and client-side sending functions (coap_send_lkd,…"
+    },
+    {
+      "implementation": "libcoap",
+      "protocol": "CoAP",
+      "rule": "An endpoint receiving an entity-tag MUST treat the entity-tag as opaque and make no assumptions about the entity-tag's content or structure.",
+      "reason": "The code violates the rule requiring entity-tags to be treated as opaque by decoding them as numeric values using coap_decode_var_bytes8(), thereby assuming structured content. This occurs in multiple functions where ET…"
+    },
+    {
+      "implementation": "dnsmasq",
+      "protocol": "DHCPv6",
+      "rule": "A server MUST discard any Solicit, Confirm, Rebind, or Information-request messages it receives with a Layer 3 unicast destination address.",
+      "reason": "The server fails to discard Solicit, Confirm, Rebind, and Information-request messages with a unicast destination address. The code processes these messages in the non-relay branch of dhcp6_packet without verifying the …"
+    }
+  ]
+}
