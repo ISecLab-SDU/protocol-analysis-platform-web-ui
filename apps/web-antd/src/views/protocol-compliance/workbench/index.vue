@@ -256,9 +256,14 @@ const historyProtocolOptions = computed(() => [
 
 const historyImplementationOptions = computed(() => {
   const seen = new Set<string>();
+  const protocolFilter = normalizeFilterValue(historyFilters.protocol);
   const options = implementationOverview.value
     .filter((item) => {
-      const key = item.name.toLowerCase();
+      if (!protocolFilter) return true;
+      return normalizeFilterValue(item.protocol) === protocolFilter;
+    })
+    .filter((item) => {
+      const key = normalizeFilterValue(item.name);
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -365,6 +370,20 @@ function handleSideNavClick(key: SideNavKey) {
 function handleHistoryFilterChange() {
   selectedViolationHistoryId.value = '';
   void loadViolationHistory(true);
+}
+
+function handleHistoryProtocolChange() {
+  const implementationStillAvailable = historyImplementationOptions.value.some(
+    (option) => option.value === historyFilters.implementation,
+  );
+  if (!implementationStillAvailable) {
+    historyFilters.implementation = '';
+  }
+  handleHistoryFilterChange();
+}
+
+function normalizeFilterValue(value: null | string | undefined) {
+  return String(value || '').trim().toLowerCase();
 }
 
 function formatOptionalTime(value?: null | string) {
@@ -929,7 +948,7 @@ function switchRule() {
                 v-model:value="historyFilters.protocol"
                 class="history-filter-select"
                 :options="historyProtocolOptions"
-                @change="handleHistoryFilterChange"
+                @change="handleHistoryProtocolChange"
               />
               <Select
                 v-model:value="historyFilters.implementation"
