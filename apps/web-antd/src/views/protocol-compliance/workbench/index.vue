@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -156,7 +156,6 @@ const violationHistoryGeneratedAt = ref('');
 const violationHistoryLoading = ref(false);
 const violationHistoryWarnings = ref<string[]>([]);
 const selectedViolationHistoryId = ref('');
-const historyDetailPanelRef = ref<HTMLElement | null>(null);
 
 const activeSideNavLabel = computed(() => {
   return (
@@ -279,14 +278,6 @@ const implementationRanking = computed(() => {
     .sort((left, right) => right.violationRules - left.violationRules);
 });
 
-const selectedViolationHistory = computed(() => {
-  return (
-    violationHistory.value.find(
-      (entry) => entry.id === selectedViolationHistoryId.value,
-    ) || null
-  );
-});
-
 const maxImplementationViolation = computed(() => {
   return Math.max(
     1,
@@ -370,14 +361,9 @@ function truncateText(value: null | string | undefined, maxLength: number) {
   return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text;
 }
 
-function showViolationHistoryDetail(entry: ProtocolViolationHistoryEntry) {
-  selectedViolationHistoryId.value = entry.id;
-  void nextTick(() => {
-    historyDetailPanelRef.value?.scrollIntoView({
-      behavior: 'smooth',
-      block: 'start',
-    });
-  });
+function toggleViolationHistoryDetail(entry: ProtocolViolationHistoryEntry) {
+  selectedViolationHistoryId.value =
+    selectedViolationHistoryId.value === entry.id ? '' : entry.id;
 }
 
 function formatViolationLocations(entry: ProtocolViolationHistoryEntry) {
@@ -964,82 +950,6 @@ function switchRule() {
               <span>{{ violationHistoryWarnings.join('；') }}</span>
             </section>
 
-            <section
-              v-if="selectedViolationHistory"
-              ref="historyDetailPanelRef"
-              class="history-detail-panel"
-            >
-              <header class="history-detail-head">
-                <div>
-                  <span>违规详情</span>
-                  <h2>
-                    {{ selectedViolationHistory.implementationName }}
-                    {{ selectedViolationHistory.protocolName }}
-                  </h2>
-                  <p>
-                    {{ sourceTypeLabel(selectedViolationHistory.sourceType) }} ·
-                    {{ selectedViolationHistory.databaseName }} ·
-                    {{
-                      formatOptionalTime(
-                        selectedViolationHistory.updatedAt ||
-                        selectedViolationHistory.extractedAt,
-                      )
-                    }}
-                  </p>
-                </div>
-                <Tag color="error">{{ selectedViolationHistory.resultLabel }}</Tag>
-              </header>
-
-              <section class="result-history-grid">
-                <div class="history-block history-block--wide">
-                  <span>违规规则</span>
-                  <p>{{ selectedViolationHistory.ruleDesc }}</p>
-                </div>
-                <div class="history-block history-block--wide">
-                  <span>违规原因</span>
-                  <p>
-                    {{ selectedViolationHistory.reason || '数据库未记录原因' }}
-                  </p>
-                </div>
-                <div class="history-block">
-                  <span>协议实现</span>
-                  <strong>{{ selectedViolationHistory.implementationName }}</strong>
-                  <small>{{ selectedViolationHistory.protocolName }}</small>
-                </div>
-                <div class="history-block">
-                  <span>来源</span>
-                  <strong>
-                    {{ sourceTypeLabel(selectedViolationHistory.sourceType) }}
-                  </strong>
-                  <small>
-                    {{ selectedViolationHistory.jobId || selectedViolationHistory.databaseName }}
-                  </small>
-                </div>
-                <div class="history-block history-block--wide">
-                  <span>定位信息</span>
-                  <p>{{ formatViolationLocations(selectedViolationHistory) }}</p>
-                </div>
-              </section>
-
-              <details
-                v-if="selectedViolationHistory.codeSnippet"
-                class="history-source"
-              >
-                <summary>查看数据库代码片段</summary>
-                <pre>{{ selectedViolationHistory.codeSnippet }}</pre>
-              </details>
-
-              <details v-if="selectedViolationHistory.callGraph" class="history-diff">
-                <summary>查看调用图</summary>
-                <pre>{{ selectedViolationHistory.callGraph }}</pre>
-              </details>
-
-              <details v-if="selectedViolationHistory.llmRaw" class="history-diff">
-                <summary>查看 LLM 原始结果</summary>
-                <pre>{{ formatLlmRaw(selectedViolationHistory.llmRaw) }}</pre>
-              </details>
-            </section>
-
             <div v-if="violationHistory.length > 0" class="result-history-list">
               <article
                 v-for="entry in violationHistory"
@@ -1080,14 +990,82 @@ function switchRule() {
                   <Button
                     size="small"
                     type="primary"
-                    @click="showViolationHistoryDetail(entry)"
+                    @click="toggleViolationHistoryDetail(entry)"
                   >
-                    查看详情
+                    {{
+                      entry.id === selectedViolationHistoryId
+                        ? '收起详情'
+                        : '查看详情'
+                    }}
                     <template #icon>
-                      <IconifyIcon icon="mdi:arrow-up-right" />
+                      <IconifyIcon
+                        :icon="
+                          entry.id === selectedViolationHistoryId
+                            ? 'mdi:chevron-up'
+                            : 'mdi:chevron-down'
+                        "
+                      />
                     </template>
                   </Button>
                 </footer>
+
+                <section
+                  v-if="entry.id === selectedViolationHistoryId"
+                  class="history-detail-panel"
+                >
+                  <header class="history-detail-head">
+                    <div>
+                      <span>违规详情</span>
+                      <h2>{{ entry.implementationName }} {{ entry.protocolName }}</h2>
+                      <p>
+                        {{ sourceTypeLabel(entry.sourceType) }} ·
+                        {{ entry.databaseName }} ·
+                        {{ formatOptionalTime(entry.updatedAt || entry.extractedAt) }}
+                      </p>
+                    </div>
+                    <Tag color="error">{{ entry.resultLabel }}</Tag>
+                  </header>
+
+                  <section class="result-history-grid">
+                    <div class="history-block history-block--wide">
+                      <span>违规规则</span>
+                      <p>{{ entry.ruleDesc }}</p>
+                    </div>
+                    <div class="history-block history-block--wide">
+                      <span>违规原因</span>
+                      <p>{{ entry.reason || '数据库未记录原因' }}</p>
+                    </div>
+                    <div class="history-block">
+                      <span>协议实现</span>
+                      <strong>{{ entry.implementationName }}</strong>
+                      <small>{{ entry.protocolName }}</small>
+                    </div>
+                    <div class="history-block">
+                      <span>来源</span>
+                      <strong>{{ sourceTypeLabel(entry.sourceType) }}</strong>
+                      <small>{{ entry.jobId || entry.databaseName }}</small>
+                    </div>
+                    <div class="history-block history-block--wide">
+                      <span>定位信息</span>
+                      <p>{{ formatViolationLocations(entry) }}</p>
+                    </div>
+                  </section>
+
+                  <details v-if="entry.codeSnippet" class="history-source">
+                    <summary>查看数据库代码片段</summary>
+                    <pre>{{ entry.codeSnippet }}</pre>
+                  </details>
+
+                  <details v-if="entry.callGraph" class="history-diff">
+                    <summary>查看调用图</summary>
+                    <pre>{{ entry.callGraph }}</pre>
+                  </details>
+
+                  <details v-if="entry.llmRaw" class="history-diff">
+                    <summary>查看 LLM 原始结果</summary>
+                    <pre>{{ formatLlmRaw(entry.llmRaw) }}</pre>
+                  </details>
+                </section>
               </article>
             </div>
 
@@ -2413,8 +2391,7 @@ function switchRule() {
 }
 
 .result-history-card,
-.result-history-empty,
-.history-detail-panel {
+.result-history-empty {
   background: #fff;
   border: 1px solid #e7edf5;
   border-radius: 8px;
@@ -2455,10 +2432,9 @@ function switchRule() {
 }
 
 .history-detail-panel {
-  margin-bottom: 14px;
-  padding: 18px;
-  border-color: #bfdbfe;
-  background: linear-gradient(180deg, #fff 0%, #f8fbff 100%);
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #dbeafe;
 }
 
 .history-detail-head {
