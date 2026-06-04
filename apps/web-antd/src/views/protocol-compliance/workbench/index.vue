@@ -265,16 +265,15 @@ const protocolCards = computed(() => {
   }));
 });
 
-const topRiskImplementations = computed(() => {
+const implementationRanking = computed(() => {
   return [...implementationOverview.value]
-    .sort((left, right) => right.violationRules - left.violationRules)
-    .slice(0, 7);
+    .sort((left, right) => right.violationRules - left.violationRules);
 });
 
 const maxImplementationViolation = computed(() => {
   return Math.max(
     1,
-    ...topRiskImplementations.value.map((item) => item.violationRules),
+    ...implementationRanking.value.map((item) => item.violationRules),
   );
 });
 
@@ -543,12 +542,15 @@ function switchRule() {
                 <header class="overview-card-head">
                   <div>
                     <h2>当前支持与覆盖</h2>
-                    <p>覆盖主流协议实现，提供高置信度的规则检测与定位能力。</p>
+                    <p>
+                      来自数据库汇总结果，共
+                      {{ formatNumber(protocolOverview.length) }} 类协议、
+                      {{ formatNumber(overviewSummary.implementations) }} 个实现。
+                    </p>
                   </div>
-                  <button class="card-link" type="button">
-                    查看全部协议
-                    <IconifyIcon icon="mdi:arrow-right" />
-                  </button>
+                  <span class="card-count">
+                    全部 {{ formatNumber(protocolOverview.length) }} 类
+                  </span>
                 </header>
 
                 <div class="protocol-scoreboard">
@@ -608,12 +610,14 @@ function switchRule() {
                 <header class="overview-card-head">
                   <div>
                     <h2>风险发现概览</h2>
-                    <p>按违规数排序</p>
+                    <p>
+                      按违规数排序，展示全部
+                      {{ formatNumber(implementationRanking.length) }} 个实现。
+                    </p>
                   </div>
-                  <button class="card-link" type="button">
-                    查看更多
-                    <IconifyIcon icon="mdi:arrow-right" />
-                  </button>
+                  <span class="card-count">
+                    全部 {{ formatNumber(implementationRanking.length) }} 条
+                  </span>
                 </header>
                 <div class="implementation-table">
                   <div class="implementation-row implementation-row--head">
@@ -624,7 +628,7 @@ function switchRule() {
                     <span>定位</span>
                   </div>
                   <div
-                    v-for="item in topRiskImplementations"
+                    v-for="item in implementationRanking"
                     :key="item.database"
                     class="implementation-row"
                   >
@@ -680,12 +684,15 @@ function switchRule() {
                 <header class="overview-card-head">
                   <div>
                     <h2>典型发现</h2>
-                    <p>来自规则结果库的代表性违规样例</p>
+                    <p>
+                      来自规则结果库的代表性违规样例，共
+                      {{ formatNumber(topFindings.length) }} 条。
+                    </p>
                   </div>
                 </header>
                 <div class="finding-list">
                   <article
-                    v-for="finding in topFindings.slice(0, 2)"
+                    v-for="finding in topFindings"
                     :key="`${finding.protocol}-${finding.implementation}-${finding.rule}`"
                     class="finding-item"
                   >
@@ -1674,17 +1681,19 @@ function switchRule() {
   color: #64748b;
 }
 
-.card-link {
+.card-count {
   display: flex;
   gap: 6px;
   align-items: center;
-  padding: 0;
+  flex: 0 0 auto;
+  min-height: 28px;
+  padding: 0 10px;
   font-size: 12px;
   font-weight: 800;
   color: #1677ff;
-  cursor: pointer;
-  background: transparent;
-  border: 0;
+  background: #eef6ff;
+  border: 1px solid #d7eaff;
+  border-radius: 8px;
 }
 
 .score-track {
