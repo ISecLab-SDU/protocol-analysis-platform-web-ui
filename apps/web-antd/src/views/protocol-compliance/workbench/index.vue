@@ -231,7 +231,7 @@ const overviewMetrics = computed(() => [
 ]);
 
 const heroPipelineSteps = [
-  { icon: 'mdi:file-document-filter-outline', label: '规则提取' },
+  { icon: 'mdi:filter-variant', label: '规则提取' },
   { icon: 'mdi:share-variant-outline', label: '静态分析' },
   { icon: 'mdi:code-json', label: '断言插桩' },
   { icon: 'mdi:check-circle-outline', label: '动态验证' },
@@ -1315,10 +1315,14 @@ function switchRule() {
   align-items: center;
   justify-content: flex-start;
   min-width: 0;
-  padding: 0 28px;
+  padding: 0 24px;
   font-size: 14px;
   font-weight: 800;
   color: #1d2b46;
+}
+
+.hero-flow-step:first-child {
+  padding-left: 20px;
 }
 
 .hero-flow-step > :first-child {
@@ -1421,13 +1425,13 @@ function switchRule() {
 .hero-art-document {
   position: absolute;
   right: 122px;
-  bottom: 42px;
+  bottom: 8px;
   display: flex;
   flex-direction: column;
   gap: 12px;
   width: 150px;
-  height: 186px;
-  padding: 82px 24px 0;
+  height: 166px;
+  padding: 72px 24px 0;
   background: linear-gradient(180deg, #fff 0%, #e7f0ff 100%);
   border: 1px solid #d5e3fb;
   box-shadow: 0 18px 26px rgb(40 89 174 / 17%);
@@ -1436,9 +1440,9 @@ function switchRule() {
 
 .hero-art-document :first-child {
   position: absolute;
-  top: -54px;
-  left: 30px;
-  font-size: 96px;
+  top: -34px;
+  left: 36px;
+  font-size: 78px;
   color: #4c8cff;
   filter: drop-shadow(0 14px 16px rgb(38 105 230 / 26%));
 }
