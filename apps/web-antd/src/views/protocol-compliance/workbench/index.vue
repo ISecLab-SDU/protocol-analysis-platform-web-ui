@@ -6,8 +6,15 @@ import { IconifyIcon } from '@vben/icons';
 
 import { Button, Tag } from 'ant-design-vue';
 
-import type { ProtocolViolationHistoryEntry } from '#/api/protocol-compliance';
-import { fetchProtocolViolationHistory } from '#/api/protocol-compliance';
+import type {
+  ProtocolDatabaseOverviewStats,
+  ProtocolDatabaseOverviewSummary,
+  ProtocolViolationHistoryEntry,
+} from '#/api/protocol-compliance';
+import {
+  fetchProtocolDatabaseOverview,
+  fetchProtocolViolationHistory,
+} from '#/api/protocol-compliance';
 
 import StageAssertGen from './components/StageAssertGen.vue';
 import StageCodeLocate from './components/StageCodeLocate.vue';
@@ -18,54 +25,6 @@ import StageSetup from './components/StageSetup.vue';
 import { STAGE_LIST } from './types';
 import { useWorkbench } from './useWorkbench';
 import { formatDuration, formatTime } from './utils';
-
-interface OverviewSummary {
-  analysisRecords: number;
-  codeSnippets: number;
-  databaseFiles: number;
-  implementations: number;
-  noViolationRules: number;
-  ruleResults: number;
-  unknownRules: number;
-  violationLocations: number;
-  violationRules: number;
-}
-
-interface OverviewProtocolStats {
-  analysisRecords: number;
-  codeSnippets: number;
-  implementations: number;
-  name: string;
-  noViolationRules: number;
-  ruleResults: number;
-  unknownRules: number;
-  violationLocations: number;
-  violationRules: number;
-}
-
-interface OverviewImplementationStats
-  extends Omit<OverviewProtocolStats, 'implementations' | 'name'> {
-  database: string;
-  name: string;
-  protocol: string;
-}
-
-interface OverviewFinding {
-  implementation: string;
-  protocol: string;
-  reason?: null | string;
-  rule?: null | string;
-}
-
-interface ProtocolGuardOverviewStats {
-  generatedAt: string;
-  implementations: OverviewImplementationStats[];
-  protocols: OverviewProtocolStats[];
-  sourceDirectory: string;
-  summary: OverviewSummary;
-  tableTotals: Record<string, number>;
-  topFindings: OverviewFinding[];
-}
 
 const {
   stage,
@@ -164,10 +123,10 @@ const activeSideNavLabel = computed(() => {
   );
 });
 
-const overviewStats = ref<null | ProtocolGuardOverviewStats>(null);
+const overviewStats = ref<null | ProtocolDatabaseOverviewStats>(null);
 const overviewLoadError = ref('');
 
-const fallbackSummary: OverviewSummary = {
+const fallbackSummary: ProtocolDatabaseOverviewSummary = {
   analysisRecords: 0,
   codeSnippets: 0,
   databaseFiles: 0,
@@ -321,6 +280,7 @@ async function loadViolationHistory(force = false) {
     violationHistory.value = response.items || [];
     violationHistoryWarnings.value = response.warnings || [];
     violationHistoryGeneratedAt.value = response.generatedAt || '';
+    void loadOverviewStats(true);
     if (
       selectedViolationHistoryId.value &&
       !violationHistory.value.some(
@@ -334,6 +294,17 @@ async function loadViolationHistory(force = false) {
       error instanceof Error ? error.message : '历史结果读取失败';
   } finally {
     violationHistoryLoading.value = false;
+  }
+}
+
+async function loadOverviewStats(force = false) {
+  if (!force && overviewStats.value) return;
+  overviewLoadError.value = '';
+  try {
+    overviewStats.value = await fetchProtocolDatabaseOverview();
+  } catch (error) {
+    overviewLoadError.value =
+      error instanceof Error ? error.message : '统计数据读取失败';
   }
 }
 
@@ -391,22 +362,8 @@ function formatLlmRaw(value: unknown) {
   }
 }
 
-onMounted(async () => {
-  try {
-    const response = await fetch(
-      `${import.meta.env.BASE_URL}protocolguard-overview.json`,
-      {
-        cache: 'no-store',
-      },
-    );
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    overviewStats.value = (await response.json()) as ProtocolGuardOverviewStats;
-  } catch (error) {
-    overviewLoadError.value =
-      error instanceof Error ? error.message : '统计数据读取失败';
-  }
+onMounted(() => {
+  void loadOverviewStats();
 });
 
 function stageStateLabel(key: (typeof STAGE_LIST)[number]['key']) {

@@ -14,6 +14,7 @@ import subprocess
 import threading
 import uuid
 import zipfile
+from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, cast
@@ -640,6 +641,61 @@ def _parse_violation_details(payload: Dict[str, Any]) -> Optional[List[Dict[str,
     return violations or None
 
 
+def _iter_static_analysis_database_sources(
+    job_limit: int,
+) -> tuple[List[Dict[str, Any]], List[str]]:
+    db_dir = Path(os.path.dirname(__file__)) / "databases"
+    sources: List[Dict[str, Any]] = []
+    warnings: List[str] = []
+    seen_database_paths: set[str] = set()
+
+    if db_dir.is_dir():
+        for db_path in sorted(db_dir.glob("sqlite_*.db")):
+            resolved = str(db_path.resolve())
+            seen_database_paths.add(resolved)
+            sources.append(
+                {
+                    "path": db_path,
+                    "sourceType": "builtin",
+                    "jobId": None,
+                    "protocolName": None,
+                    "createdAt": None,
+                    "updatedAt": None,
+                }
+            )
+    else:
+        warnings.append(f"数据库目录不存在：{db_dir}")
+
+    for entry in list_static_analysis_history(limit=job_limit):
+        if entry.get("status") != "completed":
+            continue
+        database_path_raw = entry.get("databasePath")
+        workspace_path_raw = entry.get("workspacePath")
+        resolved_path, resolve_warnings = _find_sqlite_file(
+            str(database_path_raw) if database_path_raw else None,
+            str(workspace_path_raw) if workspace_path_raw else None,
+        )
+        warnings.extend(resolve_warnings)
+        if not resolved_path:
+            continue
+        resolved = str(resolved_path.resolve())
+        if resolved in seen_database_paths:
+            continue
+        seen_database_paths.add(resolved)
+        sources.append(
+            {
+                "path": resolved_path,
+                "sourceType": "job",
+                "jobId": entry.get("jobId"),
+                "protocolName": entry.get("protocolName"),
+                "createdAt": entry.get("createdAt"),
+                "updatedAt": entry.get("updatedAt"),
+            }
+        )
+
+    return sources, warnings
+
+
 def _read_violation_history_from_database(
     db_path: Path,
     *,
@@ -729,6 +785,187 @@ def _read_violation_history_from_database(
     return items, warnings
 
 
+def _truncate_text(value: Any, limit: int) -> Optional[str]:
+    if not isinstance(value, str):
+        return None
+    text = " ".join(value.split())
+    if len(text) <= limit:
+        return text
+    return f"{text[:limit - 1]}…"
+
+
+def _read_overview_from_database(
+    db_path: Path,
+    *,
+    source_type: str,
+    job_id: Optional[str] = None,
+    protocol_name: Optional[str] = None,
+) -> tuple[Optional[Dict[str, Any]], List[Dict[str, Any]], Dict[str, int], List[str]]:
+    warnings: List[str] = []
+    table_counts: Dict[str, int] = {}
+    top_findings: List[Dict[str, Any]] = []
+
+    implementation_name = _normalize_implementation_from_db(db_path)
+    resolved_protocol = protocol_name or _protocol_for_implementation(implementation_name)
+
+    try:
+        conn = sqlite3.connect(db_path)
+    except sqlite3.Error as exc:
+        return None, top_findings, table_counts, [f"无法打开数据库 {db_path}: {exc}"]
+
+    conn.row_factory = sqlite3.Row
+    try:
+        tables = [
+            row["name"]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name"
+            )
+        ]
+        for table in tables:
+            quoted = '"' + table.replace('"', '""') + '"'
+            table_counts[table] = int(
+                conn.execute(f"SELECT COUNT(*) FROM {quoted}").fetchone()[0]
+            )
+    except sqlite3.Error as exc:
+        conn.close()
+        return None, top_findings, table_counts, [f"无法统计数据库 {db_path}: {exc}"]
+
+    if "rule_code_snippet" in tables:
+        try:
+            rule_rows = conn.execute(
+                "SELECT rule_desc, code_snippet, llm_response FROM rule_code_snippet"
+            ).fetchall()
+        except sqlite3.Error as exc:
+            conn.close()
+            return None, top_findings, table_counts, [
+                f"无法读取数据库 {db_path} 的 rule_code_snippet: {exc}"
+            ]
+    else:
+        rule_rows = []
+
+    result_counts: Dict[str, int] = defaultdict(int)
+    violation_locations = 0
+    code_snippets = 0
+    for row in rule_rows:
+        llm_payload = _parse_llm_response(row["llm_response"])
+        result_status, _ = _classify_rule_result(llm_payload)
+        result_counts[result_status] += 1
+
+        if row["code_snippet"]:
+            code_snippets += 1
+
+        violations = _parse_violation_details(llm_payload)
+        if violations:
+            violation_locations += len(violations)
+
+        if result_status == "violation_found":
+            top_findings.append(
+                {
+                    "implementation": implementation_name,
+                    "protocol": resolved_protocol,
+                    "rule": _truncate_text(row["rule_desc"], 160),
+                    "reason": _truncate_text(llm_payload.get("reason"), 220),
+                }
+            )
+
+    conn.close()
+
+    item = {
+        "name": implementation_name,
+        "protocol": resolved_protocol,
+        "database": db_path.name,
+        "sourceType": source_type,
+        "jobId": job_id,
+        "analysisRecords": sum(table_counts.values()),
+        "ruleResults": len(rule_rows),
+        "violationRules": result_counts["violation_found"],
+        "noViolationRules": result_counts["no_violation"],
+        "unknownRules": result_counts["unknown"],
+        "violationLocations": violation_locations,
+        "codeSnippets": code_snippets,
+    }
+    return item, top_findings, table_counts, warnings
+
+
+@bp.route("/static-analysis/database-overview", methods=["GET"])
+def static_analysis_database_overview():
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+
+    job_limit = _to_int(request.args.get("jobLimit"), 200)
+    sources, warnings = _iter_static_analysis_database_sources(job_limit)
+    summary: Dict[str, int] = defaultdict(int)
+    table_totals: Dict[str, int] = defaultdict(int)
+    protocol_totals: Dict[str, Dict[str, int]] = {}
+    implementations: List[Dict[str, Any]] = []
+    top_findings: List[Dict[str, Any]] = []
+
+    for source in sources:
+        db_path = cast(Path, source["path"])
+        item, findings, table_counts, db_warnings = _read_overview_from_database(
+            db_path,
+            source_type=cast(str, source["sourceType"]),
+            job_id=cast(Optional[str], source.get("jobId")),
+            protocol_name=cast(Optional[str], source.get("protocolName")),
+        )
+        warnings.extend(db_warnings)
+        if item is None:
+            continue
+
+        implementations.append(item)
+        top_findings.extend(findings)
+        for table, count in table_counts.items():
+            table_totals[table] += count
+
+        protocol = str(item["protocol"])
+        protocol_bucket = protocol_totals.setdefault(protocol, defaultdict(int))
+        for key in (
+            "analysisRecords",
+            "ruleResults",
+            "violationRules",
+            "noViolationRules",
+            "unknownRules",
+            "violationLocations",
+            "codeSnippets",
+        ):
+            value = int(item[key])
+            summary[key] += value
+            protocol_bucket[key] += value
+        protocol_bucket["implementations"] += 1
+
+    implementations.sort(key=lambda item: item["violationRules"], reverse=True)
+    top_findings = sorted(
+        top_findings,
+        key=lambda item: (
+            str(item.get("protocol") or ""),
+            str(item.get("implementation") or "").lower(),
+            str(item.get("rule") or ""),
+        ),
+    )[:6]
+    protocols = [
+        {"name": name, **dict(values)}
+        for name, values in sorted(protocol_totals.items())
+    ]
+
+    payload: Dict[str, Any] = {
+        "generatedAt": datetime.now(timezone.utc).isoformat(),
+        "sourceDirectory": "protocol_compliance/databases + static-analysis jobs",
+        "summary": {
+            "databaseFiles": len(implementations),
+            "implementations": len(implementations),
+            **dict(summary),
+        },
+        "tableTotals": dict(sorted(table_totals.items())),
+        "protocols": protocols,
+        "implementations": implementations,
+        "topFindings": top_findings,
+    }
+    if warnings:
+        payload["warnings"] = warnings
+    return success_response(payload)
+
+
 @bp.route("/static-analysis/violation-history", methods=["GET"])
 def static_analysis_violation_history():
     _, error = _ensure_authenticated()
@@ -736,47 +973,18 @@ def static_analysis_violation_history():
         return error
 
     job_limit = _to_int(request.args.get("jobLimit"), 200)
-    db_dir = Path(os.path.dirname(__file__)) / "databases"
+    sources, warnings = _iter_static_analysis_database_sources(job_limit)
     items: List[Dict[str, Any]] = []
-    warnings: List[str] = []
-    seen_database_paths: set[str] = set()
 
-    if db_dir.is_dir():
-        for db_path in sorted(db_dir.glob("sqlite_*.db")):
-            resolved = str(db_path.resolve())
-            seen_database_paths.add(resolved)
-            db_items, db_warnings = _read_violation_history_from_database(
-                db_path,
-                source_type="builtin",
-            )
-            items.extend(db_items)
-            warnings.extend(db_warnings)
-    else:
-        warnings.append(f"数据库目录不存在：{db_dir}")
-
-    for entry in list_static_analysis_history(limit=job_limit):
-        if entry.get("status") != "completed":
-            continue
-        database_path_raw = entry.get("databasePath")
-        workspace_path_raw = entry.get("workspacePath")
-        resolved_path, resolve_warnings = _find_sqlite_file(
-            str(database_path_raw) if database_path_raw else None,
-            str(workspace_path_raw) if workspace_path_raw else None,
-        )
-        warnings.extend(resolve_warnings)
-        if not resolved_path:
-            continue
-        resolved = str(resolved_path.resolve())
-        if resolved in seen_database_paths:
-            continue
-        seen_database_paths.add(resolved)
+    for source in sources:
+        db_path = cast(Path, source["path"])
         db_items, db_warnings = _read_violation_history_from_database(
-            resolved_path,
-            source_type="job",
-            job_id=cast(Optional[str], entry.get("jobId")),
-            protocol_name=cast(Optional[str], entry.get("protocolName")),
-            created_at=cast(Optional[str], entry.get("createdAt")),
-            updated_at=cast(Optional[str], entry.get("updatedAt")),
+            db_path,
+            source_type=cast(str, source["sourceType"]),
+            job_id=cast(Optional[str], source.get("jobId")),
+            protocol_name=cast(Optional[str], source.get("protocolName")),
+            created_at=cast(Optional[str], source.get("createdAt")),
+            updated_at=cast(Optional[str], source.get("updatedAt")),
         )
         items.extend(db_items)
         warnings.extend(db_warnings)

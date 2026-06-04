@@ -257,6 +257,57 @@ export interface FetchProtocolViolationHistoryResponse {
   warnings?: string[];
 }
 
+export interface ProtocolDatabaseOverviewSummary {
+  analysisRecords: number;
+  codeSnippets: number;
+  databaseFiles: number;
+  implementations: number;
+  noViolationRules: number;
+  ruleResults: number;
+  unknownRules: number;
+  violationLocations: number;
+  violationRules: number;
+}
+
+export interface ProtocolDatabaseOverviewProtocolStats {
+  analysisRecords: number;
+  codeSnippets: number;
+  implementations: number;
+  name: string;
+  noViolationRules: number;
+  ruleResults: number;
+  unknownRules: number;
+  violationLocations: number;
+  violationRules: number;
+}
+
+export interface ProtocolDatabaseOverviewImplementationStats
+  extends Omit<ProtocolDatabaseOverviewProtocolStats, 'implementations' | 'name'> {
+  database: string;
+  jobId?: string | null;
+  name: string;
+  protocol: string;
+  sourceType?: ProtocolViolationHistorySourceType;
+}
+
+export interface ProtocolDatabaseOverviewFinding {
+  implementation: string;
+  protocol: string;
+  reason?: null | string;
+  rule?: null | string;
+}
+
+export interface ProtocolDatabaseOverviewStats {
+  generatedAt: string;
+  implementations: ProtocolDatabaseOverviewImplementationStats[];
+  protocols: ProtocolDatabaseOverviewProtocolStats[];
+  sourceDirectory: string;
+  summary: ProtocolDatabaseOverviewSummary;
+  tableTotals: Record<string, number>;
+  topFindings: ProtocolDatabaseOverviewFinding[];
+  warnings?: string[];
+}
+
 const BASE_PATH = '/protocol-compliance/tasks';
 
 export function fetchProtocolComplianceTasks(
@@ -462,6 +513,15 @@ export function fetchProtocolViolationHistory(
 ) {
   return requestClient.get<FetchProtocolViolationHistoryResponse>(
     '/protocol-compliance/static-analysis/violation-history',
+    { params },
+  );
+}
+
+export function fetchProtocolDatabaseOverview(
+  params?: FetchProtocolViolationHistoryParams,
+) {
+  return requestClient.get<ProtocolDatabaseOverviewStats>(
+    '/protocol-compliance/static-analysis/database-overview',
     { params },
   );
 }
