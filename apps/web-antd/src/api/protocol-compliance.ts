@@ -284,10 +284,8 @@ export interface ProtocolDatabaseOverviewProtocolStats {
 export interface ProtocolDatabaseOverviewImplementationStats
   extends Omit<ProtocolDatabaseOverviewProtocolStats, 'implementations' | 'name'> {
   database: string;
-  jobId?: string | null;
   name: string;
   protocol: string;
-  sourceType?: ProtocolViolationHistorySourceType;
 }
 
 export interface ProtocolDatabaseOverviewFinding {

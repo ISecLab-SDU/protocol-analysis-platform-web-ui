@@ -93,6 +93,20 @@ PROTOCOL_BY_IMPLEMENTATION = {
     "wolfssl": "TLS",
 }
 
+PROTOCOL_ALIASES = {
+    "coap": "CoAP",
+    "dhcp": "DHCPv6",
+    "dhcpv6": "DHCPv6",
+    "ftp": "FTP",
+    "mqtt": "MQTT",
+    "mqttv3": "MQTT",
+    "mqttv5": "MQTT",
+    "snmp": "SNMP",
+    "ssl": "TLS",
+    "tls": "TLS",
+    "tlsv1.3": "TLS",
+}
+
 
 # Authentication -------------------------------------------------------------
 
@@ -611,6 +625,18 @@ def _protocol_for_implementation(implementation_name: str) -> str:
     return PROTOCOL_BY_IMPLEMENTATION.get(implementation_name.lower(), "Other")
 
 
+def _normalize_protocol_name(
+    protocol_name: Optional[str],
+    implementation_name: str,
+) -> str:
+    if isinstance(protocol_name, str) and protocol_name.strip():
+        key = re.sub(r"[\s_-]+", "", protocol_name.strip().lower())
+        for prefix, normalized in PROTOCOL_ALIASES.items():
+            if key.startswith(prefix.replace(".", "")):
+                return normalized
+    return _protocol_for_implementation(implementation_name)
+
+
 def _parse_violation_details(payload: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
     violations_payload = payload.get("violations")
     if not isinstance(violations_payload, list):
@@ -709,7 +735,7 @@ def _read_violation_history_from_database(
     items: List[Dict[str, Any]] = []
 
     implementation_name = _normalize_implementation_from_db(db_path)
-    resolved_protocol = protocol_name or _protocol_for_implementation(implementation_name)
+    resolved_protocol = _normalize_protocol_name(protocol_name, implementation_name)
     database_name = db_path.name
     try:
         extracted_at = datetime.fromtimestamp(
@@ -797,8 +823,6 @@ def _truncate_text(value: Any, limit: int) -> Optional[str]:
 def _read_overview_from_database(
     db_path: Path,
     *,
-    source_type: str,
-    job_id: Optional[str] = None,
     protocol_name: Optional[str] = None,
 ) -> tuple[Optional[Dict[str, Any]], List[Dict[str, Any]], Dict[str, int], List[str]]:
     warnings: List[str] = []
@@ -806,7 +830,7 @@ def _read_overview_from_database(
     top_findings: List[Dict[str, Any]] = []
 
     implementation_name = _normalize_implementation_from_db(db_path)
-    resolved_protocol = protocol_name or _protocol_for_implementation(implementation_name)
+    resolved_protocol = _normalize_protocol_name(protocol_name, implementation_name)
 
     try:
         conn = sqlite3.connect(db_path)
@@ -874,8 +898,6 @@ def _read_overview_from_database(
         "name": implementation_name,
         "protocol": resolved_protocol,
         "database": db_path.name,
-        "sourceType": source_type,
-        "jobId": job_id,
         "analysisRecords": sum(table_counts.values()),
         "ruleResults": len(rule_rows),
         "violationRules": result_counts["violation_found"],
@@ -898,25 +920,51 @@ def static_analysis_database_overview():
     summary: Dict[str, int] = defaultdict(int)
     table_totals: Dict[str, int] = defaultdict(int)
     protocol_totals: Dict[str, Dict[str, int]] = {}
-    implementations: List[Dict[str, Any]] = []
+    implementation_groups: Dict[tuple[str, str], Dict[str, Any]] = {}
     top_findings: List[Dict[str, Any]] = []
 
     for source in sources:
         db_path = cast(Path, source["path"])
         item, findings, table_counts, db_warnings = _read_overview_from_database(
             db_path,
-            source_type=cast(str, source["sourceType"]),
-            job_id=cast(Optional[str], source.get("jobId")),
             protocol_name=cast(Optional[str], source.get("protocolName")),
         )
         warnings.extend(db_warnings)
         if item is None:
             continue
 
-        implementations.append(item)
         top_findings.extend(findings)
         for table, count in table_counts.items():
             table_totals[table] += count
+
+        group_key = (str(item["name"]).lower(), str(item["protocol"]).lower())
+        grouped = implementation_groups.get(group_key)
+        if grouped is None:
+            grouped = {
+                **item,
+                "databaseNames": [item["database"]],
+            }
+            implementation_groups[group_key] = grouped
+        else:
+            databases = grouped.setdefault("databaseNames", [])
+            if item["database"] not in databases:
+                databases.append(item["database"])
+            for key in (
+                "analysisRecords",
+                "ruleResults",
+                "violationRules",
+                "noViolationRules",
+                "unknownRules",
+                "violationLocations",
+                "codeSnippets",
+            ):
+                grouped[key] = int(grouped.get(key) or 0) + int(item[key])
+
+    implementations = list(implementation_groups.values())
+    for item in implementations:
+        database_names = item.get("databaseNames")
+        if isinstance(database_names, list) and database_names:
+            item["database"] = ", ".join(str(name) for name in sorted(database_names))
 
         protocol = str(item["protocol"])
         protocol_bucket = protocol_totals.setdefault(protocol, defaultdict(int))
@@ -950,7 +998,7 @@ def static_analysis_database_overview():
 
     payload: Dict[str, Any] = {
         "generatedAt": datetime.now(timezone.utc).isoformat(),
-        "sourceDirectory": "protocol_compliance/databases + static-analysis jobs",
+        "sourceDirectory": "static-analysis databases",
         "summary": {
             "databaseFiles": len(implementations),
             "implementations": len(implementations),

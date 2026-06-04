@@ -318,10 +318,6 @@ function handleSideNavClick(key: SideNavKey) {
   if (key === 'logs') void loadViolationHistory();
 }
 
-function sourceTypeLabel(sourceType: ProtocolViolationHistoryEntry['sourceType']) {
-  return sourceType === 'job' ? '工作台运行' : '结果库';
-}
-
 function formatOptionalTime(value?: null | string) {
   return value ? formatTime(value) : '-';
 }
@@ -645,7 +641,7 @@ function switchRule() {
                   </div>
                   <div
                     v-for="item in implementationRanking"
-                    :key="item.database"
+                    :key="`${item.name}-${item.protocol}`"
                     class="implementation-row"
                   >
                     <strong>{{ item.name }}</strong>
@@ -923,7 +919,6 @@ function switchRule() {
                       {{ entry.implementationName }} {{ entry.protocolName }} 违规结果
                     </div>
                     <div class="result-history-meta">
-                      {{ sourceTypeLabel(entry.sourceType) }} ·
                       {{ entry.databaseName }} ·
                       {{ formatOptionalTime(entry.updatedAt || entry.extractedAt) }}
                     </div>
@@ -975,7 +970,6 @@ function switchRule() {
                       <span>违规详情</span>
                       <h2>{{ entry.implementationName }} {{ entry.protocolName }}</h2>
                       <p>
-                        {{ sourceTypeLabel(entry.sourceType) }} ·
                         {{ entry.databaseName }} ·
                         {{ formatOptionalTime(entry.updatedAt || entry.extractedAt) }}
                       </p>
@@ -998,9 +992,9 @@ function switchRule() {
                       <small>{{ entry.protocolName }}</small>
                     </div>
                     <div class="history-block">
-                      <span>来源</span>
-                      <strong>{{ sourceTypeLabel(entry.sourceType) }}</strong>
-                      <small>{{ entry.jobId || entry.databaseName }}</small>
+                      <span>数据库</span>
+                      <strong>{{ entry.databaseName }}</strong>
+                      <small>{{ entry.databasePath || '-' }}</small>
                     </div>
                     <div class="history-block history-block--wide">
                       <span>定位信息</span>
@@ -2520,6 +2514,7 @@ function switchRule() {
   margin-top: 5px;
   font-size: 12px;
   color: #64748b;
+  overflow-wrap: anywhere;
 }
 
 .history-block p {
