@@ -857,17 +857,13 @@ function switchRule() {
               <div>
                 <h1>历史结果</h1>
                 <p>
-                  数据库违规记录 · 共
-                  {{ formatNumber(violationHistory.length) }} 条
+                  数据库违规记录
                   <template v-if="violationHistoryGeneratedAt">
                     · 更新时间 {{ formatOptionalTime(violationHistoryGeneratedAt) }}
                   </template>
                 </p>
               </div>
               <div class="logs-header-actions">
-                <Tag :color="violationHistory.length > 0 ? 'blue' : 'default'">
-                  {{ violationHistory.length > 0 ? '已记录' : '暂无结果' }}
-                </Tag>
                 <Button
                   size="small"
                   :loading="violationHistoryLoading"
