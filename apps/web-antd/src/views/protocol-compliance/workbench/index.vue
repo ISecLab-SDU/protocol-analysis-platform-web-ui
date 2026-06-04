@@ -9,6 +9,7 @@ import { Button, message, Popconfirm, Select, Tag } from 'ant-design-vue';
 import type {
   ProtocolDatabaseOverviewStats,
   ProtocolDatabaseOverviewSummary,
+  ProtocolStaticAnalysisRuleResultStatus,
   ProtocolViolationHistoryEntry,
 } from '#/api/protocol-compliance';
 import {
@@ -124,10 +125,12 @@ const deletingViolationHistoryId = ref('');
 const historyFilters = reactive<{
   implementation: string;
   protocol: string;
+  result: '' | ProtocolStaticAnalysisRuleResultStatus;
   timeRange: '' | 'month' | 'week' | 'year';
 }>({
   implementation: '',
   protocol: '',
+  result: '',
   timeRange: '',
 });
 
@@ -288,6 +291,13 @@ const historyTimeRangeOptions = [
   { label: '近一年', value: 'year' },
 ] as const;
 
+const historyResultOptions = [
+  { label: '全部结果', value: '' },
+  { label: '发现违规', value: 'violation_found' },
+  { label: '合规', value: 'no_violation' },
+  { label: '未判定', value: 'unknown' },
+] as const;
+
 const maxImplementationViolation = computed(() => {
   return Math.max(
     1,
@@ -336,6 +346,7 @@ async function loadViolationHistory(
     const response = await fetchProtocolViolationHistory({
       implementation: historyFilters.implementation || undefined,
       protocol: historyFilters.protocol || undefined,
+      result: historyFilters.result || undefined,
       timeRange: historyFilters.timeRange || undefined,
     });
     violationHistoryError.value = '';
@@ -427,6 +438,30 @@ function toggleViolationHistoryDetail(entry: ProtocolViolationHistoryEntry) {
     selectedViolationHistoryId.value === entry.id ? '' : entry.id;
 }
 
+function historyResultTitle(entry: ProtocolViolationHistoryEntry) {
+  if (entry.result === 'violation_found') return '违规结果';
+  if (entry.result === 'no_violation') return '合规结果';
+  return '规则结果';
+}
+
+function historyResultTagColor(entry: ProtocolViolationHistoryEntry) {
+  if (entry.result === 'violation_found') return 'error';
+  if (entry.result === 'no_violation') return 'success';
+  return 'warning';
+}
+
+function historyReasonLabel(entry: ProtocolViolationHistoryEntry) {
+  if (entry.result === 'violation_found') return '违规原因';
+  if (entry.result === 'no_violation') return '合规说明';
+  return '判定说明';
+}
+
+function historyReasonFallback(entry: ProtocolViolationHistoryEntry) {
+  if (entry.result === 'violation_found') return '数据库未记录原因';
+  if (entry.result === 'no_violation') return '数据库未记录合规说明';
+  return '数据库未记录判定说明';
+}
+
 async function handleDeleteViolationHistory(entry: ProtocolViolationHistoryEntry) {
   if (deletingViolationHistoryId.value) return;
 
@@ -440,10 +475,10 @@ async function handleDeleteViolationHistory(entry: ProtocolViolationHistoryEntry
       selectedViolationHistoryId.value = '';
     }
     void loadOverviewStats(true);
-    message.success('违规记录已删除');
+    message.success('历史记录已删除');
   } catch (error) {
-    console.error('删除违规记录失败:', error);
-    message.error('删除违规记录失败');
+    console.error('删除历史记录失败:', error);
+    message.error('删除历史记录失败');
   } finally {
     deletingViolationHistoryId.value = '';
   }
@@ -451,7 +486,11 @@ async function handleDeleteViolationHistory(entry: ProtocolViolationHistoryEntry
 
 function formatViolationLocations(entry: ProtocolViolationHistoryEntry) {
   const violations = entry.violations || [];
-  if (violations.length === 0) return '数据库未记录具体位置';
+  if (violations.length === 0) {
+    return entry.result === 'violation_found'
+      ? '数据库未记录具体位置'
+      : '无违规定位';
+  }
   return violations
     .map((item) => {
       const file = item.filename || '未知文件';
@@ -997,7 +1036,7 @@ async function handleLoadDemoConfig() {
               <div>
                 <h1>历史结果</h1>
                 <p>
-                  数据库违规记录
+                  数据库规则判定记录
                   <template v-if="violationHistoryGeneratedAt">
                     · 更新时间 {{ formatOptionalTime(violationHistoryGeneratedAt) }}
                   </template>
@@ -1029,6 +1068,12 @@ async function handleLoadDemoConfig() {
                 @change="handleHistoryFilterChange"
               />
               <Select
+                v-model:value="historyFilters.result"
+                class="history-filter-select"
+                :options="historyResultOptions"
+                @change="handleHistoryFilterChange"
+              />
+              <Select
                 v-model:value="historyFilters.timeRange"
                 class="history-filter-select"
                 :options="historyTimeRangeOptions"
@@ -1053,7 +1098,7 @@ async function handleLoadDemoConfig() {
               class="result-history-empty"
             >
               <div>正在读取历史结果</div>
-              <p>系统正在从当前数据库文件中汇总违规记录。</p>
+              <p>系统正在从当前数据库文件中汇总规则判定记录。</p>
             </section>
 
             <section
@@ -1077,23 +1122,26 @@ async function handleLoadDemoConfig() {
                 <div class="result-history-head">
                   <div>
                     <div class="result-history-title">
-                      {{ entry.implementationName }} {{ entry.protocolName }} 违规结果
+                      {{ entry.implementationName }} {{ entry.protocolName }}
+                      {{ historyResultTitle(entry) }}
                     </div>
                     <div class="result-history-meta">
                       {{ entry.databaseName }} ·
                       {{ formatOptionalTime(entry.updatedAt || entry.extractedAt) }}
                     </div>
                   </div>
-                  <Tag color="error">{{ entry.resultLabel }}</Tag>
+                  <Tag :color="historyResultTagColor(entry)">
+                    {{ entry.resultLabel }}
+                  </Tag>
                 </div>
 
                 <section class="history-summary-body">
                   <div>
-                    <span>违规规则</span>
+                    <span>规则内容</span>
                     <p>{{ truncateText(entry.ruleDesc, 180) }}</p>
                   </div>
                   <div>
-                    <span>违规原因</span>
+                    <span>{{ historyReasonLabel(entry) }}</span>
                     <p>{{ truncateText(entry.reason, 180) }}</p>
                   </div>
                 </section>
@@ -1104,7 +1152,7 @@ async function handleLoadDemoConfig() {
                     <Popconfirm
                       cancel-text="取消"
                       ok-text="确定"
-                      title="确定删除这条违规记录吗？"
+                      title="确定删除这条历史记录吗？"
                       description="此操作会删除数据库中的对应记录，且不可撤销。"
                       @confirm="handleDeleteViolationHistory(entry)"
                     >
@@ -1139,24 +1187,26 @@ async function handleLoadDemoConfig() {
                 >
                   <header class="history-detail-head">
                     <div>
-                      <span>违规详情</span>
+                      <span>结果详情</span>
                       <h2>{{ entry.implementationName }} {{ entry.protocolName }}</h2>
                       <p>
                         {{ entry.databaseName }} ·
                         {{ formatOptionalTime(entry.updatedAt || entry.extractedAt) }}
                       </p>
                     </div>
-                    <Tag color="error">{{ entry.resultLabel }}</Tag>
+                    <Tag :color="historyResultTagColor(entry)">
+                      {{ entry.resultLabel }}
+                    </Tag>
                   </header>
 
                   <section class="result-history-grid">
                     <div class="history-block history-block--wide">
-                      <span>违规规则</span>
+                      <span>规则内容</span>
                       <p>{{ entry.ruleDesc }}</p>
                     </div>
                     <div class="history-block history-block--wide">
-                      <span>违规原因</span>
-                      <p>{{ entry.reason || '数据库未记录原因' }}</p>
+                      <span>{{ historyReasonLabel(entry) }}</span>
+                      <p>{{ entry.reason || historyReasonFallback(entry) }}</p>
                     </div>
                     <div class="history-block">
                       <span>协议实现</span>
@@ -1212,8 +1262,8 @@ async function handleLoadDemoConfig() {
               "
               class="result-history-empty"
             >
-              <div>暂无违规历史结果</div>
-              <p>当前数据库文件中没有读取到违规判定记录。</p>
+              <div>暂无历史结果</div>
+              <p>当前数据库文件中没有读取到规则判定记录。</p>
             </section>
           </section>
 

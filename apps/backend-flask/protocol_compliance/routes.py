@@ -804,8 +804,6 @@ def _read_violation_history_from_database(
         raw_llm_response = row["llm_response"]
         llm_payload = _parse_llm_response(raw_llm_response)
         result_status, result_label = _classify_rule_result(llm_payload)
-        if result_status != "violation_found":
-            continue
 
         reason = llm_payload.get("reason")
         if isinstance(reason, str):
@@ -893,11 +891,6 @@ def _delete_violation_history_from_database(
         return None, [f"无法读取数据库 {db_path} 的 rule_code_snippet: {exc}"]
 
     for index, row in enumerate(rows, start=1):
-        llm_payload = _parse_llm_response(row["llm_response"])
-        result_status, _ = _classify_rule_result(llm_payload)
-        if result_status != "violation_found":
-            continue
-
         current_id = _build_violation_history_item_id(
             db_path=db_path,
             job_id=job_id,
@@ -1199,6 +1192,7 @@ def static_analysis_violation_history():
     job_limit = _to_int(request.args.get("jobLimit"), 200)
     protocol_filter = _dedupe_key(request.args.get("protocol"))
     implementation_filter = _dedupe_key(request.args.get("implementation"))
+    result_filter = _dedupe_key(request.args.get("result"))
     time_range = _dedupe_key(request.args.get("timeRange"))
     sources, warnings = _iter_static_analysis_database_sources(job_limit)
     items: List[Dict[str, Any]] = []
@@ -1228,6 +1222,11 @@ def static_analysis_violation_history():
             item
             for item in items
             if _dedupe_key(item.get("implementationName")) == implementation_filter
+        ]
+
+    if result_filter:
+        items = [
+            item for item in items if _dedupe_key(item.get("result")) == result_filter
         ]
 
     range_days = {
@@ -1262,7 +1261,7 @@ def delete_static_analysis_violation_history(item_id: str):
         return error
 
     if not isinstance(item_id, str) or not item_id.strip():
-        return make_response(error_response("无效的违规记录 ID"), 400)
+        return make_response(error_response("无效的历史记录 ID"), 400)
 
     job_limit = _to_int(request.args.get("jobLimit"), 200)
     sources, warnings = _iter_static_analysis_database_sources(job_limit)
@@ -1289,7 +1288,7 @@ def delete_static_analysis_violation_history(item_id: str):
     detail: Dict[str, Any] = {"id": item_id}
     if warnings:
         detail["warnings"] = warnings
-    return make_response(error_response("违规记录不存在", detail), 404)
+    return make_response(error_response("历史记录不存在", detail), 404)
 
 
 @bp.route("/static-analysis/database-insights", methods=["POST"])

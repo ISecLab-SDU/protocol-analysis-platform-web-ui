@@ -250,6 +250,7 @@ export interface FetchProtocolViolationHistoryParams {
   implementation?: string;
   jobLimit?: number;
   protocol?: string;
+  result?: ProtocolStaticAnalysisRuleResultStatus;
   timeRange?: 'month' | 'week' | 'year';
 }
 
