@@ -438,17 +438,6 @@ function switchRule() {
               </div>
             </dl>
           </section>
-          <section v-else class="sidebar-footer">
-            <button class="sidebar-footer-item" type="button">
-              <IconifyIcon icon="mdi:cog-outline" />
-              <span>系统设置</span>
-            </button>
-            <button class="sidebar-footer-user" type="button">
-              <span class="sidebar-avatar">PG</span>
-              <span>研究员</span>
-              <IconifyIcon icon="mdi:chevron-down" />
-            </button>
-          </section>
         </aside>
 
         <main class="guard-main">
