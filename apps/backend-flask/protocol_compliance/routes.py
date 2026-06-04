@@ -676,13 +676,6 @@ def _violation_location_key(rule_key: str, violation: Dict[str, Any]) -> str:
     )
 
 
-def _violation_history_dedupe_key(item: Dict[str, Any]) -> tuple[str, str]:
-    return (
-        _dedupe_key(item.get("implementationName")),
-        _dedupe_key(item.get("ruleDesc")),
-    )
-
-
 def _parse_violation_details(payload: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
     violations_payload = payload.get("violations")
     if not isinstance(violations_payload, list):
@@ -1117,18 +1110,6 @@ def static_analysis_violation_history():
         )
         items.extend(db_items)
         warnings.extend(db_warnings)
-
-    deduped_items: Dict[tuple[str, str], Dict[str, Any]] = {}
-    for item in items:
-        dedupe_key = _violation_history_dedupe_key(item)
-        current = deduped_items.get(dedupe_key)
-        item_time = str(item.get("updatedAt") or item.get("extractedAt") or "")
-        current_time = str(
-            current.get("updatedAt") or current.get("extractedAt") or ""
-        ) if current else ""
-        if current is None or item_time > current_time:
-            deduped_items[dedupe_key] = item
-    items = list(deduped_items.values())
 
     items.sort(key=lambda item: str(item.get("updatedAt") or ""), reverse=True)
     payload: Dict[str, Any] = {
