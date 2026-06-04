@@ -676,20 +676,10 @@ def _violation_location_key(rule_key: str, violation: Dict[str, Any]) -> str:
     )
 
 
-def _violation_history_dedupe_key(item: Dict[str, Any]) -> tuple[str, str, str, str]:
-    rule_key = _dedupe_key(item.get("ruleDesc"))
-    violations = item.get("violations")
-    location_keys: List[str] = []
-    if isinstance(violations, list):
-        for violation in violations:
-            if isinstance(violation, dict):
-                location_keys.append(_violation_location_key(rule_key, violation))
-    location_key = ";".join(sorted(location_keys)) if location_keys else rule_key
+def _violation_history_dedupe_key(item: Dict[str, Any]) -> tuple[str, str]:
     return (
         _dedupe_key(item.get("implementationName")),
-        _dedupe_key(item.get("protocolName")),
-        rule_key,
-        location_key,
+        _dedupe_key(item.get("ruleDesc")),
     )
 
 
@@ -1067,11 +1057,10 @@ def static_analysis_database_overview():
         protocol_bucket["implementations"] += 1
 
     implementations.sort(key=lambda item: item["violationRules"], reverse=True)
-    unique_top_findings: Dict[tuple[str, str, str], Dict[str, Any]] = {}
+    unique_top_findings: Dict[tuple[str, str], Dict[str, Any]] = {}
     for finding in top_findings:
         finding_key = (
             _dedupe_key(finding.get("implementation")),
-            _dedupe_key(finding.get("protocol")),
             _dedupe_key(finding.get("rule")),
         )
         unique_top_findings.setdefault(finding_key, finding)
@@ -1129,7 +1118,7 @@ def static_analysis_violation_history():
         items.extend(db_items)
         warnings.extend(db_warnings)
 
-    deduped_items: Dict[tuple[str, str, str, str], Dict[str, Any]] = {}
+    deduped_items: Dict[tuple[str, str], Dict[str, Any]] = {}
     for item in items:
         dedupe_key = _violation_history_dedupe_key(item)
         current = deduped_items.get(dedupe_key)
