@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, nextTick, onMounted, reactive, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -433,9 +433,16 @@ function truncateText(value: null | string | undefined, maxLength: number) {
   return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text;
 }
 
-function toggleViolationHistoryDetail(entry: ProtocolViolationHistoryEntry) {
-  selectedViolationHistoryId.value =
-    selectedViolationHistoryId.value === entry.id ? '' : entry.id;
+async function toggleViolationHistoryDetail(entry: ProtocolViolationHistoryEntry) {
+  const shouldCollapse = selectedViolationHistoryId.value === entry.id;
+  selectedViolationHistoryId.value = shouldCollapse ? '' : entry.id;
+
+  if (!shouldCollapse) return;
+
+  await nextTick();
+  document
+    .querySelector(`[data-history-entry-id="${entry.id}"]`)
+    ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function historyResultTitle(entry: ProtocolViolationHistoryEntry) {
@@ -1118,6 +1125,7 @@ async function handleLoadDemoConfig() {
                   'result-history-card--selected':
                     entry.id === selectedViolationHistoryId,
                 }"
+                :data-history-entry-id="entry.id"
               >
                 <div class="result-history-head">
                   <div>
