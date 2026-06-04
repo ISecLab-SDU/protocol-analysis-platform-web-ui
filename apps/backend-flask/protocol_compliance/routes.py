@@ -107,6 +107,12 @@ PROTOCOL_ALIASES = {
     "tlsv1.3": "TLS",
 }
 
+RULE_RESULT_PRIORITY = {
+    "unknown": 0,
+    "no_violation": 1,
+    "violation_found": 2,
+}
+
 
 # Authentication -------------------------------------------------------------
 
@@ -637,6 +643,56 @@ def _normalize_protocol_name(
     return _protocol_for_implementation(implementation_name)
 
 
+def _dedupe_key(value: Any) -> str:
+    return " ".join(str(value or "").split()).lower()
+
+
+def _merge_rule_status(
+    status_by_rule: Dict[str, str],
+    rule_key: str,
+    result_status: str,
+) -> None:
+    current = status_by_rule.get(rule_key)
+    if current is None or (
+        RULE_RESULT_PRIORITY.get(result_status, 0)
+        > RULE_RESULT_PRIORITY.get(current, 0)
+    ):
+        status_by_rule[rule_key] = result_status
+
+
+def _violation_location_key(rule_key: str, violation: Dict[str, Any]) -> str:
+    code_lines = violation.get("codeLines")
+    if isinstance(code_lines, list):
+        lines = ",".join(str(item) for item in code_lines)
+    else:
+        lines = ""
+    return "|".join(
+        [
+            rule_key,
+            _dedupe_key(violation.get("filename")),
+            _dedupe_key(violation.get("functionName")),
+            lines,
+        ]
+    )
+
+
+def _violation_history_dedupe_key(item: Dict[str, Any]) -> tuple[str, str, str, str]:
+    rule_key = _dedupe_key(item.get("ruleDesc"))
+    violations = item.get("violations")
+    location_keys: List[str] = []
+    if isinstance(violations, list):
+        for violation in violations:
+            if isinstance(violation, dict):
+                location_keys.append(_violation_location_key(rule_key, violation))
+    location_key = ";".join(sorted(location_keys)) if location_keys else rule_key
+    return (
+        _dedupe_key(item.get("implementationName")),
+        _dedupe_key(item.get("protocolName")),
+        rule_key,
+        location_key,
+    )
+
+
 def _parse_violation_details(payload: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
     violations_payload = payload.get("violations")
     if not isinstance(violations_payload, list):
@@ -867,20 +923,24 @@ def _read_overview_from_database(
     else:
         rule_rows = []
 
-    result_counts: Dict[str, int] = defaultdict(int)
-    violation_locations = 0
-    code_snippets = 0
+    rule_status_by_key: Dict[str, str] = {}
+    code_snippet_rule_keys: set[str] = set()
+    violation_location_keys: set[str] = set()
     for row in rule_rows:
+        rule_key = _dedupe_key(row["rule_desc"])
         llm_payload = _parse_llm_response(row["llm_response"])
         result_status, _ = _classify_rule_result(llm_payload)
-        result_counts[result_status] += 1
+        _merge_rule_status(rule_status_by_key, rule_key, result_status)
 
         if row["code_snippet"]:
-            code_snippets += 1
+            code_snippet_rule_keys.add(rule_key)
 
         violations = _parse_violation_details(llm_payload)
-        if violations:
-            violation_locations += len(violations)
+        if result_status == "violation_found" and violations:
+            for violation in violations:
+                violation_location_keys.add(
+                    _violation_location_key(rule_key, violation)
+                )
 
         if result_status == "violation_found":
             top_findings.append(
@@ -898,13 +958,16 @@ def _read_overview_from_database(
         "name": implementation_name,
         "protocol": resolved_protocol,
         "database": db_path.name,
-        "analysisRecords": sum(table_counts.values()),
-        "ruleResults": len(rule_rows),
-        "violationRules": result_counts["violation_found"],
-        "noViolationRules": result_counts["no_violation"],
-        "unknownRules": result_counts["unknown"],
-        "violationLocations": violation_locations,
-        "codeSnippets": code_snippets,
+        "analysisRecords": len(rule_status_by_key),
+        "ruleResults": len(rule_status_by_key),
+        "violationRules": list(rule_status_by_key.values()).count("violation_found"),
+        "noViolationRules": list(rule_status_by_key.values()).count("no_violation"),
+        "unknownRules": list(rule_status_by_key.values()).count("unknown"),
+        "violationLocations": len(violation_location_keys),
+        "codeSnippets": len(code_snippet_rule_keys),
+        "_ruleStatusByKey": rule_status_by_key,
+        "_codeSnippetRuleKeys": code_snippet_rule_keys,
+        "_violationLocationKeys": violation_location_keys,
     }
     return item, top_findings, table_counts, warnings
 
@@ -949,22 +1012,43 @@ def static_analysis_database_overview():
             databases = grouped.setdefault("databaseNames", [])
             if item["database"] not in databases:
                 databases.append(item["database"])
-            for key in (
-                "analysisRecords",
-                "ruleResults",
-                "violationRules",
-                "noViolationRules",
-                "unknownRules",
-                "violationLocations",
-                "codeSnippets",
-            ):
-                grouped[key] = int(grouped.get(key) or 0) + int(item[key])
+            for rule_key, result_status in cast(
+                Dict[str, str],
+                item.get("_ruleStatusByKey") or {},
+            ).items():
+                _merge_rule_status(
+                    cast(Dict[str, str], grouped["_ruleStatusByKey"]),
+                    rule_key,
+                    result_status,
+                )
+            cast(set[str], grouped["_codeSnippetRuleKeys"]).update(
+                cast(set[str], item.get("_codeSnippetRuleKeys") or set())
+            )
+            cast(set[str], grouped["_violationLocationKeys"]).update(
+                cast(set[str], item.get("_violationLocationKeys") or set())
+            )
 
     implementations = list(implementation_groups.values())
     for item in implementations:
         database_names = item.get("databaseNames")
         if isinstance(database_names, list) and database_names:
             item["database"] = ", ".join(str(name) for name in sorted(database_names))
+        item.pop("databaseNames", None)
+
+        rule_status_by_key = cast(Dict[str, str], item.pop("_ruleStatusByKey", {}))
+        code_snippet_rule_keys = cast(set[str], item.pop("_codeSnippetRuleKeys", set()))
+        violation_location_keys = cast(
+            set[str],
+            item.pop("_violationLocationKeys", set()),
+        )
+        result_values = list(rule_status_by_key.values())
+        item["analysisRecords"] = len(rule_status_by_key)
+        item["ruleResults"] = len(rule_status_by_key)
+        item["violationRules"] = result_values.count("violation_found")
+        item["noViolationRules"] = result_values.count("no_violation")
+        item["unknownRules"] = result_values.count("unknown")
+        item["violationLocations"] = len(violation_location_keys)
+        item["codeSnippets"] = len(code_snippet_rule_keys)
 
         protocol = str(item["protocol"])
         protocol_bucket = protocol_totals.setdefault(protocol, defaultdict(int))
@@ -983,8 +1067,16 @@ def static_analysis_database_overview():
         protocol_bucket["implementations"] += 1
 
     implementations.sort(key=lambda item: item["violationRules"], reverse=True)
+    unique_top_findings: Dict[tuple[str, str, str], Dict[str, Any]] = {}
+    for finding in top_findings:
+        finding_key = (
+            _dedupe_key(finding.get("implementation")),
+            _dedupe_key(finding.get("protocol")),
+            _dedupe_key(finding.get("rule")),
+        )
+        unique_top_findings.setdefault(finding_key, finding)
     top_findings = sorted(
-        top_findings,
+        unique_top_findings.values(),
         key=lambda item: (
             str(item.get("protocol") or ""),
             str(item.get("implementation") or "").lower(),
@@ -1036,6 +1128,18 @@ def static_analysis_violation_history():
         )
         items.extend(db_items)
         warnings.extend(db_warnings)
+
+    deduped_items: Dict[tuple[str, str, str, str], Dict[str, Any]] = {}
+    for item in items:
+        dedupe_key = _violation_history_dedupe_key(item)
+        current = deduped_items.get(dedupe_key)
+        item_time = str(item.get("updatedAt") or item.get("extractedAt") or "")
+        current_time = str(
+            current.get("updatedAt") or current.get("extractedAt") or ""
+        ) if current else ""
+        if current is None or item_time > current_time:
+            deduped_items[dedupe_key] = item
+    items = list(deduped_items.values())
 
     items.sort(key=lambda item: str(item.get("updatedAt") or ""), reverse=True)
     payload: Dict[str, Any] = {
