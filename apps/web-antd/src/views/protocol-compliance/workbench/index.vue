@@ -865,6 +865,7 @@ async function handleLoadDemoConfig() {
               <IconifyIcon icon="mdi:information-outline" />
               <span>{{ stageMessage }}</span>
               <Button
+                v-if="activeStageView === 'setup'"
                 class="demo-mode-button"
                 size="small"
                 type="primary"
