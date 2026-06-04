@@ -497,6 +497,7 @@ async function handleLoadDemoConfig() {
             title="当前为演示模式"
           >
             <IconifyIcon icon="mdi:presentation-play" />
+            <span>演示模式</span>
           </div>
           <div class="runtime-clock">{{ elapsedDisplay }}</div>
           <Button
@@ -872,7 +873,7 @@ async function handleLoadDemoConfig() {
                 title="自动上传 New-Input 中的演示文件"
                 @click="handleLoadDemoConfig"
               >
-                演示加载
+                演示模式
               </Button>
             </section>
 
@@ -1235,15 +1236,23 @@ async function handleLoadDemoConfig() {
 
 .demo-mode-indicator {
   display: inline-flex;
+  gap: 6px;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  font-size: 22px;
+  height: 32px;
+  padding: 0 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1f2937;
+  white-space: nowrap;
+  background: #fff;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+}
+
+.demo-mode-indicator svg {
+  font-size: 16px;
   color: #1677ff;
-  background: #eef6ff;
-  border: 1px solid #bfdbfe;
-  border-radius: 8px;
 }
 
 .avatar {
