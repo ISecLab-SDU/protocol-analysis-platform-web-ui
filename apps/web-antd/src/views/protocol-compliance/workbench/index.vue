@@ -35,6 +35,7 @@ const {
   startedAt,
   isStopping,
   isTransitioning,
+  demoModeActive,
   errorMessage,
   projectConfig,
   selectedRule,
@@ -490,15 +491,14 @@ async function handleLoadDemoConfig() {
             <span class="status-dot" />
             <span>{{ isRunning ? '运行中' : '空闲' }}</span>
           </div>
-          <div class="runtime-clock">{{ elapsedDisplay }}</div>
-          <Button
-            :disabled="isRunning"
-            :loading="demoConfigLoading"
-            @click="handleLoadDemoConfig"
+          <div
+            v-if="demoModeActive"
+            class="demo-mode-indicator"
+            title="当前为演示模式"
           >
-            <template #icon><IconifyIcon icon="mdi:presentation-play" /></template>
-            演示模式
-          </Button>
+            <IconifyIcon icon="mdi:presentation-play" />
+          </div>
+          <div class="runtime-clock">{{ elapsedDisplay }}</div>
           <Button
             v-if="isRunning"
             danger
@@ -863,6 +863,18 @@ async function handleLoadDemoConfig() {
             <section v-if="stageMessage" class="workbench-banner">
               <IconifyIcon icon="mdi:information-outline" />
               <span>{{ stageMessage }}</span>
+              <Button
+                class="demo-mode-button"
+                size="small"
+                type="primary"
+                :disabled="isRunning"
+                :loading="demoConfigLoading"
+                title="自动上传 New-Input 中的演示文件"
+                @click="handleLoadDemoConfig"
+              >
+                <template #icon><IconifyIcon icon="mdi:presentation-play" /></template>
+                演示模式
+              </Button>
             </section>
 
             <section v-if="errorMessage" class="workbench-error">
@@ -1220,6 +1232,19 @@ async function handleLoadDemoConfig() {
     monospace;
   font-weight: 700;
   text-align: right;
+}
+
+.demo-mode-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  font-size: 16px;
+  color: #1677ff;
+  background: #eef6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
 }
 
 .avatar {
@@ -2375,6 +2400,10 @@ async function handleLoadDemoConfig() {
   color: #0b5cad;
   background: #eef6ff;
   border: 1px solid #d7eaff;
+}
+
+.demo-mode-button {
+  flex: none;
 }
 
 .workbench-error {

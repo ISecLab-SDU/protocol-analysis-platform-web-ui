@@ -58,6 +58,7 @@ const elapsedSeconds = ref(0);
 const startedAt = ref<Date | null>(null);
 const isStopping = ref(false);
 const isTransitioning = ref(false);
+const demoModeActive = ref(false);
 const errorMessage = ref<null | string>(null);
 
 const projectConfig = reactive<ProjectConfig>({
@@ -1260,6 +1261,7 @@ async function loadDemoConfig() {
     );
     projectConfig.notes = 'Demo mode: loaded from local New-Input folder';
 
+    demoModeActive.value = true;
     stageStatus.setup = 'done';
     stage.value = 'rule_confirm';
     activeStageView.value = 'rule_confirm';
@@ -1770,6 +1772,7 @@ function resetWorkbench() {
   activeStageView.value = 'setup';
   startedAt.value = null;
   isTransitioning.value = false;
+  demoModeActive.value = false;
   elapsedSeconds.value = 0;
   selectedRule.value = null;
   staticJobId.value = null;
@@ -1826,6 +1829,7 @@ export function useWorkbench() {
     startedAt,
     isStopping,
     isTransitioning,
+    demoModeActive,
     errorMessage,
     projectConfig,
     selectedRule,
