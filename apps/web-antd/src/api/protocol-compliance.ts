@@ -223,6 +223,40 @@ export interface FetchProtocolStaticAnalysisDatabaseInsightsPayload {
   workspacePath?: string;
 }
 
+export type ProtocolViolationHistorySourceType = 'builtin' | 'job';
+
+export interface ProtocolViolationHistoryEntry {
+  callGraph?: string | null;
+  codeSnippet?: string | null;
+  createdAt?: string | null;
+  databaseName: string;
+  databasePath?: string | null;
+  extractedAt?: string | null;
+  id: string;
+  implementationName: string;
+  jobId?: string | null;
+  llmRaw?: unknown;
+  protocolName: string;
+  reason?: string | null;
+  result: ProtocolStaticAnalysisRuleResultStatus;
+  resultLabel: string;
+  ruleDesc: string;
+  sourceType: ProtocolViolationHistorySourceType;
+  updatedAt?: string | null;
+  violations?: ProtocolStaticAnalysisRuleViolationDetail[] | null;
+}
+
+export interface FetchProtocolViolationHistoryParams {
+  jobLimit?: number;
+}
+
+export interface FetchProtocolViolationHistoryResponse {
+  count: number;
+  generatedAt: string;
+  items: ProtocolViolationHistoryEntry[];
+  warnings?: string[];
+}
+
 const BASE_PATH = '/protocol-compliance/tasks';
 
 export function fetchProtocolComplianceTasks(
@@ -420,6 +454,15 @@ export function fetchProtocolStaticAnalysisDatabaseInsights(
   return requestClient.post<ProtocolStaticAnalysisDatabaseInsights>(
     '/protocol-compliance/static-analysis/database-insights',
     payload,
+  );
+}
+
+export function fetchProtocolViolationHistory(
+  params?: FetchProtocolViolationHistoryParams,
+) {
+  return requestClient.get<FetchProtocolViolationHistoryResponse>(
+    '/protocol-compliance/static-analysis/violation-history',
+    { params },
   );
 }
 

@@ -6,6 +6,9 @@ import { IconifyIcon } from '@vben/icons';
 
 import { Button, Tag } from 'ant-design-vue';
 
+import type { ProtocolViolationHistoryEntry } from '#/api/protocol-compliance';
+import { fetchProtocolViolationHistory } from '#/api/protocol-compliance';
+
 import StageAssertGen from './components/StageAssertGen.vue';
 import StageCodeLocate from './components/StageCodeLocate.vue';
 import StageFuzz from './components/StageFuzz.vue';
@@ -85,17 +88,14 @@ const {
   assertResult,
   fuzzLogs,
   aflNetPocPath,
-  resultHistory,
   fuzzStats,
   fuzzSpeedSeries,
-  downloadingPocArtifactId,
   commitSetup,
   backToSetup,
   selectStageView,
   startPipeline,
   stopPipeline,
   resetWorkbench,
-  downloadHistoryPocArtifact,
 } = useWorkbench();
 
 const isRunning = computed(() => {
@@ -150,6 +150,11 @@ const sideNavItems = [
 type SideNavKey = (typeof sideNavItems)[number]['key'];
 
 const activeSideNav = ref<SideNavKey>('overview');
+const violationHistory = ref<ProtocolViolationHistoryEntry[]>([]);
+const violationHistoryError = ref('');
+const violationHistoryGeneratedAt = ref('');
+const violationHistoryLoading = ref(false);
+const violationHistoryWarnings = ref<string[]>([]);
 
 const activeSideNavLabel = computed(() => {
   return (
@@ -304,6 +309,68 @@ function protocolAccent(name: string) {
   return 'coap';
 }
 
+async function loadViolationHistory(force = false) {
+  if (violationHistoryLoading.value) return;
+  if (!force && violationHistory.value.length > 0) return;
+
+  violationHistoryLoading.value = true;
+  violationHistoryError.value = '';
+  try {
+    const response = await fetchProtocolViolationHistory();
+    violationHistory.value = response.items || [];
+    violationHistoryWarnings.value = response.warnings || [];
+    violationHistoryGeneratedAt.value = response.generatedAt || '';
+  } catch (error) {
+    violationHistoryError.value =
+      error instanceof Error ? error.message : '历史结果读取失败';
+  } finally {
+    violationHistoryLoading.value = false;
+  }
+}
+
+function openViolationHistory() {
+  activeSideNav.value = 'logs';
+  void loadViolationHistory();
+}
+
+function handleSideNavClick(key: SideNavKey) {
+  activeSideNav.value = key;
+  if (key === 'logs') void loadViolationHistory();
+}
+
+function sourceTypeLabel(sourceType: ProtocolViolationHistoryEntry['sourceType']) {
+  return sourceType === 'job' ? '工作台运行' : '结果库';
+}
+
+function formatOptionalTime(value?: null | string) {
+  return value ? formatTime(value) : '-';
+}
+
+function formatViolationLocations(entry: ProtocolViolationHistoryEntry) {
+  const violations = entry.violations || [];
+  if (violations.length === 0) return '数据库未记录具体位置';
+  return violations
+    .map((item) => {
+      const file = item.filename || '未知文件';
+      const fn = item.functionName ? ` · ${item.functionName}` : '';
+      const lines = item.codeLines?.length
+        ? `:${item.codeLines.join(',')}`
+        : '';
+      return `${file}${lines}${fn}`;
+    })
+    .join('；');
+}
+
+function formatLlmRaw(value: unknown) {
+  if (typeof value === 'string') return value;
+  if (value === null || value === undefined) return '';
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
 onMounted(async () => {
   try {
     const response = await fetch(
@@ -409,7 +476,7 @@ function switchRule() {
                 class="nav-item"
                 :class="{ 'nav-item--active': item.key === activeSideNav }"
                 type="button"
-                @click="activeSideNav = item.key"
+                @click="handleSideNavClick(item.key)"
               >
                 <IconifyIcon :icon="item.icon" />
                 <span>{{ item.label }}</span>
@@ -584,9 +651,12 @@ function switchRule() {
                       {{ formatNumber(implementationRanking.length) }} 个实现。
                     </p>
                   </div>
-                  <span class="card-count">
-                    全部 {{ formatNumber(implementationRanking.length) }} 条
-                  </span>
+                  <Button size="small" type="primary" @click="openViolationHistory">
+                    查看详情
+                    <template #icon>
+                      <IconifyIcon icon="mdi:arrow-right" />
+                    </template>
+                  </Button>
                 </header>
                 <div class="implementation-table">
                   <div class="implementation-row implementation-row--head">
@@ -813,133 +883,121 @@ function switchRule() {
             <header class="logs-header">
               <div>
                 <h1>历史结果</h1>
-                <p>历史运行结果 · 共 {{ resultHistory.length }} 条</p>
+                <p>
+                  数据库违规记录 · 共
+                  {{ formatNumber(violationHistory.length) }} 条
+                  <template v-if="violationHistoryGeneratedAt">
+                    · 更新时间 {{ formatOptionalTime(violationHistoryGeneratedAt) }}
+                  </template>
+                </p>
               </div>
-              <Tag :color="resultHistory.length > 0 ? 'blue' : 'default'">
-                {{ resultHistory.length > 0 ? '已记录' : '暂无结果' }}
-              </Tag>
+              <div class="logs-header-actions">
+                <Tag :color="violationHistory.length > 0 ? 'blue' : 'default'">
+                  {{ violationHistory.length > 0 ? '已记录' : '暂无结果' }}
+                </Tag>
+                <Button
+                  size="small"
+                  :loading="violationHistoryLoading"
+                  @click="loadViolationHistory(true)"
+                >
+                  <template #icon><IconifyIcon icon="mdi:refresh" /></template>
+                  刷新
+                </Button>
+              </div>
             </header>
 
-            <div v-if="resultHistory.length > 0" class="result-history-list">
+            <section
+              v-if="violationHistoryError"
+              class="result-history-empty result-history-empty--error"
+            >
+              <div>历史结果读取失败</div>
+              <p>{{ violationHistoryError }}</p>
+            </section>
+
+            <section
+              v-else-if="violationHistoryLoading && violationHistory.length === 0"
+              class="result-history-empty"
+            >
+              <div>正在读取历史结果</div>
+              <p>系统正在从当前数据库文件中汇总违规记录。</p>
+            </section>
+
+            <section
+              v-if="violationHistoryWarnings.length > 0"
+              class="history-warning"
+            >
+              <IconifyIcon icon="mdi:alert-outline" />
+              <span>{{ violationHistoryWarnings.join('；') }}</span>
+            </section>
+
+            <div v-if="violationHistory.length > 0" class="result-history-list">
               <article
-                v-for="entry in resultHistory"
+                v-for="entry in violationHistory"
                 :key="entry.id"
                 class="result-history-card"
               >
                 <div class="result-history-head">
                   <div>
                     <div class="result-history-title">
-                      {{ entry.implementation }} {{ entry.protocolType }} 分析结果
+                      {{ entry.implementationName }} {{ entry.protocolName }} 违规结果
                     </div>
                     <div class="result-history-meta">
-                      {{ formatTime(entry.finishedAt) }} · {{ entry.conclusion }}
+                      {{ sourceTypeLabel(entry.sourceType) }} ·
+                      {{ entry.databaseName }} ·
+                      {{ formatOptionalTime(entry.updatedAt || entry.extractedAt) }}
                     </div>
                   </div>
-                  <Tag :color="entry.stats.crashes > 0 ? 'error' : 'default'">
-                    {{ entry.stats.crashes > 0 ? '发现崩溃' : '已停止' }}
-                  </Tag>
+                  <Tag color="error">{{ entry.resultLabel }}</Tag>
                 </div>
 
                 <section class="result-history-grid">
                   <div class="history-block history-block--wide">
-                    <span>触发规则</span>
-                    <p>{{ entry.ruleText }}</p>
+                    <span>违规规则</span>
+                    <p>{{ entry.ruleDesc }}</p>
                   </div>
                   <div class="history-block history-block--wide">
-                    <span>定位结论</span>
-                    <p>{{ entry.violationReason }}</p>
+                    <span>违规原因</span>
+                    <p>{{ entry.reason || '数据库未记录原因' }}</p>
                   </div>
                   <div class="history-block">
-                    <span>代码定位</span>
-                    <strong>{{ entry.targetFile }}:{{ entry.targetLine }}</strong>
-                    <small>{{ entry.functionCount }} 个相关函数 · {{ entry.codeLocateSource }}</small>
+                    <span>协议实现</span>
+                    <strong>{{ entry.implementationName }}</strong>
+                    <small>{{ entry.protocolName }}</small>
                   </div>
                   <div class="history-block">
-                    <span>断言生成</span>
-                    <strong>{{ entry.assertionSummary }}</strong>
-                    <small>{{ entry.changedFileCount }} 个文件变更</small>
+                    <span>来源</span>
+                    <strong>{{ sourceTypeLabel(entry.sourceType) }}</strong>
+                    <small>{{ entry.jobId || entry.databaseName }}</small>
                   </div>
-                  <div class="history-block">
-                    <span>Fuzz 结果</span>
-                    <strong>
-                      崩溃 {{ entry.stats.crashes }} · 挂起 {{ entry.stats.hangs }}
-                    </strong>
-                    <small>
-                      路径 {{ entry.stats.currentPath }}/{{ entry.stats.pathsTotal }} ·
-                      覆盖率 {{ entry.stats.coverage.toFixed(2) }}%
-                    </small>
-                  </div>
-                  <div class="history-block">
-                    <span>POC 输出</span>
-                    <strong>
-                      {{
-                        entry.stats.crashes <= 0
-                          ? '未生成 POC 包'
-                          : entry.pocSnapshotStatus === 'ready'
-                            ? 'POC 包已归档'
-                            : entry.pocSnapshotStatus === 'failed'
-                              ? 'POC 归档失败'
-                              : entry.pocSnapshotStatus === 'saving'
-                                ? '正在归档 POC 包'
-                                : '未归档 POC 包'
-                      }}
-                    </strong>
-                    <small>
-                      速度 {{ entry.stats.speed.toFixed(2) }} exec/sec
-                    </small>
-                    <Button
-                      v-if="entry.pocSnapshotStatus !== 'idle'"
-                      class="history-poc-download"
-                      size="small"
-                      type="link"
-                      :disabled="entry.pocSnapshotStatus !== 'ready'"
-                      :loading="
-                        entry.pocSnapshotStatus === 'saving' ||
-                        downloadingPocArtifactId === entry.id
-                      "
-                      @click="downloadHistoryPocArtifact(entry.id)"
-                    >
-                      <template #icon><IconifyIcon icon="mdi:download" /></template>
-                      下载 POC
-                    </Button>
+                  <div class="history-block history-block--wide">
+                    <span>定位信息</span>
+                    <p>{{ formatViolationLocations(entry) }}</p>
                   </div>
                 </section>
 
-                <details v-if="entry.codeFunctions.length > 0" class="history-source">
-                  <summary>查看相关函数源码</summary>
-                  <section
-                    v-for="fn in entry.codeFunctions"
-                    :key="`${entry.id}-${fn.name}`"
-                    class="history-source-section"
-                  >
-                    <div class="history-source-head">
-                      <strong>{{ fn.name }}</strong>
-                      <code>{{ fn.path || entry.targetFile }}:{{ fn.targetLine || '-' }}</code>
-                    </div>
-                    <div class="history-source-code">
-                      <div
-                        v-for="(row, idx) in fn.codeRows"
-                        :key="`${entry.id}-${fn.name}-${row.line}-${idx}`"
-                        class="history-code-row"
-                        :class="{ 'history-code-row--emphasis': row.emphasis }"
-                      >
-                        <span>{{ row.line }}</span>
-                        <code>{{ row.text }}</code>
-                      </div>
-                    </div>
-                  </section>
+                <details v-if="entry.codeSnippet" class="history-source">
+                  <summary>查看数据库代码片段</summary>
+                  <pre>{{ entry.codeSnippet }}</pre>
                 </details>
 
-                <details v-if="entry.diffContent" class="history-diff">
-                  <summary>查看插桩代码差异</summary>
-                  <pre>{{ entry.diffContent }}</pre>
+                <details v-if="entry.callGraph" class="history-diff">
+                  <summary>查看调用图</summary>
+                  <pre>{{ entry.callGraph }}</pre>
+                </details>
+
+                <details v-if="entry.llmRaw" class="history-diff">
+                  <summary>查看 LLM 原始结果</summary>
+                  <pre>{{ formatLlmRaw(entry.llmRaw) }}</pre>
                 </details>
               </article>
             </div>
 
-            <section v-else class="result-history-empty">
-              <div>暂无历史运行结果</div>
-              <p>流水线进入结果验证或手动停止后，会在这里记录一条结果快照。</p>
+            <section
+              v-else-if="!violationHistoryLoading && !violationHistoryError"
+              class="result-history-empty"
+            >
+              <div>暂无违规历史结果</div>
+              <p>当前数据库文件中没有读取到违规判定记录。</p>
             </section>
           </section>
 
@@ -2243,6 +2301,12 @@ function switchRule() {
   color: #64748b;
 }
 
+.logs-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .result-history-list {
   display: flex;
   flex-direction: column;
@@ -2347,6 +2411,20 @@ function switchRule() {
   border-radius: 8px;
 }
 
+.history-warning {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #92400e;
+  background: rgb(245 158 11 / 8%);
+  border: 1px solid rgb(245 158 11 / 24%);
+  border-radius: 8px;
+}
+
 .history-source summary,
 .history-diff summary {
   padding: 10px 12px;
@@ -2443,9 +2521,31 @@ function switchRule() {
   border-top: 1px solid #e2e8f0;
 }
 
+.history-source pre {
+  max-height: 360px;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #334155;
+  white-space: pre-wrap;
+  background: #fbfdff;
+  border-top: 1px solid #e2e8f0;
+}
+
 .result-history-empty {
   padding: 56px 20px;
   text-align: center;
+}
+
+.result-history-empty--error {
+  color: #991b1b;
+  background: #fff7f7;
+  border-color: #fecaca;
 }
 
 .result-history-empty div {

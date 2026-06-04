@@ -546,7 +546,7 @@ function appendResultHistoryRecord(reason: 'crash' | 'stopped') {
   const functionCount =
     evidence?.functions?.length ?? evidence?.candidateFunctionCount ?? 0;
   const hasCrash = reason === 'crash' || fuzzStats.crashes > 0;
-  const shouldSnapshotPoc = hasCrash && isSolAflNetFuzzing.value;
+  const shouldSnapshotPoc = false;
   const conclusion =
     hasCrash
       ? `发现 ${fuzzStats.crashes || 1} 个崩溃，已进入结果验证`
