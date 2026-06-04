@@ -1086,7 +1086,10 @@ function switchRule() {
 }
 
 .overview-shell {
+  width: 100%;
+  max-width: 1680px;
   min-height: 100%;
+  margin: 0 auto;
   padding: 24px 28px 28px;
 }
 
@@ -1188,7 +1191,7 @@ function switchRule() {
 
 .overview-metrics {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 12px;
   margin-bottom: 16px;
 }
@@ -1270,14 +1273,14 @@ function switchRule() {
 
 .overview-grid {
   display: grid;
-  grid-template-columns: minmax(420px, 0.52fr) minmax(460px, 0.48fr);
+  grid-template-columns: minmax(0, 0.58fr) minmax(430px, 0.42fr);
   gap: 16px;
   align-items: start;
   margin-bottom: 16px;
 }
 
 .overview-grid--results {
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  grid-template-columns: minmax(0, 0.68fr) minmax(420px, 0.32fr);
   align-items: start;
 }
 
@@ -1384,7 +1387,7 @@ function switchRule() {
 
 .protocol-scoreboard {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 12px;
 }
 
@@ -1460,7 +1463,7 @@ function switchRule() {
 }
 
 .overview-card--ranking .implementation-table {
-  max-height: 420px;
+  max-height: 368px;
   overflow: auto;
 }
 
@@ -1506,7 +1509,7 @@ function switchRule() {
 
 .finding-list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 12px;
 }
 
