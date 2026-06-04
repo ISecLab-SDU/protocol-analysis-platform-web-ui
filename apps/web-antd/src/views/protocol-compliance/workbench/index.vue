@@ -387,7 +387,6 @@ function switchRule() {
           <section v-if="activeSideNav === 'overview'" class="overview-shell">
             <header class="overview-hero">
               <div class="overview-hero-copy">
-                <div class="overview-hero-glow" />
                 <div class="overview-kicker">
                   <IconifyIcon icon="mdi:shield-search" />
                   <span>ProtocolGuard</span>
@@ -893,12 +892,9 @@ function switchRule() {
 .guard-shell {
   min-height: calc(100vh - 92px);
   overflow: hidden;
-  color: #102033;
-  background:
-    radial-gradient(circle at 18% 18%, rgb(20 184 166 / 18%), transparent 28%),
-    radial-gradient(circle at 86% 12%, rgb(244 63 94 / 14%), transparent 24%),
-    linear-gradient(135deg, #eef5ff 0%, #f8fafc 44%, #fff7ed 100%);
-  border: 1px solid rgb(148 163 184 / 24%);
+  color: #111827;
+  background: #f6f8fb;
+  border: 1px solid var(--ant-color-border-secondary);
   border-radius: 8px;
 }
 
@@ -909,11 +905,8 @@ function switchRule() {
   justify-content: space-between;
   height: 64px;
   padding: 0 18px;
-  color: #e5f6ff;
-  background:
-    linear-gradient(120deg, rgb(10 18 32 / 96%) 0%, rgb(13 35 58 / 96%) 56%, rgb(69 14 32 / 94%) 100%);
-  border-bottom: 1px solid rgb(125 211 252 / 18%);
-  box-shadow: 0 18px 42px rgb(15 23 42 / 12%);
+  background: #fff;
+  border-bottom: 1px solid #e7edf5;
 }
 
 .topbar-left,
@@ -930,11 +923,9 @@ function switchRule() {
   width: 34px;
   height: 34px;
   font-size: 24px;
-  color: #67e8f9;
-  background: rgb(8 145 178 / 14%);
-  border: 1px solid rgb(103 232 249 / 36%);
+  color: #1677ff;
+  border: 1px solid #cfe3ff;
   border-radius: 8px;
-  box-shadow: 0 0 22px rgb(34 211 238 / 24%);
 }
 
 .brand-name {
@@ -946,7 +937,7 @@ function switchRule() {
 .topbar-divider {
   width: 1px;
   height: 26px;
-  background: rgb(226 232 240 / 22%);
+  background: #e2e8f0;
 }
 
 .topbar-section {
@@ -1007,9 +998,8 @@ function switchRule() {
   flex-direction: column;
   justify-content: space-between;
   padding: 18px 14px;
-  background: rgb(255 255 255 / 72%);
-  border-right: 1px solid rgb(148 163 184 / 24%);
-  backdrop-filter: blur(18px);
+  background: #fff;
+  border-right: 1px solid #e7edf5;
 }
 
 .sidebar-nav {
@@ -1027,7 +1017,7 @@ function switchRule() {
   padding: 0 14px;
   font-size: 14px;
   font-weight: 700;
-  color: #1d2b42;
+  color: #24324b;
   text-align: left;
   cursor: pointer;
   background: transparent;
@@ -1040,9 +1030,8 @@ function switchRule() {
 }
 
 .nav-item--active {
-  color: #0369a1;
-  background: linear-gradient(135deg, rgb(224 242 254 / 94%), rgb(204 251 241 / 68%));
-  box-shadow: inset 3px 0 0 #06b6d4;
+  color: #1677ff;
+  background: #edf5ff;
 }
 
 .current-task {
@@ -1110,70 +1099,25 @@ function switchRule() {
 .overview-card,
 .overview-metric-card,
 .overview-error {
-  background: rgb(255 255 255 / 88%);
-  border: 1px solid rgb(148 163 184 / 24%);
+  background: #fff;
+  border: 1px solid #e7edf5;
   border-radius: 8px;
-  box-shadow: 0 18px 45px rgb(15 23 42 / 8%);
-  backdrop-filter: blur(18px);
+  box-shadow: 0 8px 22px rgb(15 23 42 / 4%);
 }
 
 .overview-hero-copy {
-  position: relative;
   min-width: 0;
-  padding: 30px 32px 28px;
-  overflow: hidden;
-  color: #ecfeff;
-  background:
-    linear-gradient(110deg, rgb(7 16 31 / 96%) 0%, rgb(10 37 52 / 95%) 52%, rgb(82 18 37 / 94%) 100%);
-  border-color: rgb(103 232 249 / 28%);
-  box-shadow:
-    0 24px 70px rgb(8 47 73 / 22%),
-    inset 0 1px 0 rgb(255 255 255 / 10%);
-}
-
-.overview-hero-copy::before {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  content: '';
-  background-image:
-    linear-gradient(rgb(125 211 252 / 7%) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(125 211 252 / 7%) 1px, transparent 1px);
-  background-size: 36px 36px;
-  mask-image: linear-gradient(90deg, #000 0%, transparent 78%);
-}
-
-.overview-hero-glow {
-  position: absolute;
-  right: 34px;
-  bottom: -72px;
-  width: 280px;
-  height: 280px;
-  pointer-events: none;
-  background:
-    radial-gradient(circle, rgb(34 211 238 / 38%) 0 2px, transparent 3px),
-    radial-gradient(
-      circle,
-      transparent 42%,
-      rgb(34 211 238 / 16%) 43% 44%,
-      transparent 45% 56%,
-      rgb(244 63 94 / 18%) 57% 58%,
-      transparent 59%
-    );
-  background-size: 22px 22px, 100% 100%;
-  border-radius: 50%;
-  opacity: 0.86;
+  padding: 22px 24px;
 }
 
 .overview-kicker {
-  position: relative;
   display: inline-flex;
   gap: 8px;
   align-items: center;
   margin-bottom: 10px;
   font-size: 13px;
   font-weight: 800;
-  color: #67e8f9;
+  color: #1677ff;
 }
 
 .overview-kicker :first-child {
@@ -1181,31 +1125,28 @@ function switchRule() {
 }
 
 .overview-hero h1 {
-  position: relative;
   max-width: 980px;
   margin: 0;
-  font-size: 31px;
+  font-size: 25px;
   font-weight: 850;
   line-height: 1.28;
-  color: #f8fafc;
+  color: #111827;
   letter-spacing: 0;
 }
 
 .overview-hero p {
-  position: relative;
   max-width: 920px;
-  margin: 12px 0 0;
+  margin: 10px 0 0;
   font-size: 14px;
   line-height: 1.75;
-  color: #b8d5e5;
+  color: #475569;
 }
 
 .overview-hero-signals {
-  position: relative;
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin-top: 20px;
+  margin-top: 14px;
 }
 
 .hero-signal {
@@ -1217,9 +1158,9 @@ function switchRule() {
   padding: 0 12px;
   font-size: 12px;
   font-weight: 800;
-  color: #cffafe;
-  background: rgb(8 145 178 / 16%);
-  border: 1px solid rgb(103 232 249 / 26%);
+  color: #0b5cad;
+  background: #eef6ff;
+  border: 1px solid #d7eaff;
   border-radius: 8px;
 }
 
@@ -1229,9 +1170,9 @@ function switchRule() {
 }
 
 .hero-signal--risk {
-  color: #ffe4e6;
-  background: rgb(244 63 94 / 16%);
-  border-color: rgb(251 113 133 / 30%);
+  color: #b91c1c;
+  background: #fff5f5;
+  border-color: #ffd6d6;
 }
 
 .overview-error {
@@ -1253,36 +1194,11 @@ function switchRule() {
 }
 
 .overview-metric-card {
-  position: relative;
   display: flex;
   gap: 12px;
   align-items: center;
   min-width: 0;
   padding: 14px;
-  overflow: hidden;
-  transition:
-    transform 0.18s ease,
-    box-shadow 0.18s ease,
-    border-color 0.18s ease;
-}
-
-.overview-metric-card::after {
-  position: absolute;
-  right: -34px;
-  bottom: -42px;
-  width: 98px;
-  height: 98px;
-  pointer-events: none;
-  content: '';
-  background: currentcolor;
-  border-radius: 50%;
-  opacity: 0.08;
-}
-
-.overview-metric-card:hover {
-  border-color: rgb(14 165 233 / 32%);
-  box-shadow: 0 22px 52px rgb(14 116 144 / 14%);
-  transform: translateY(-2px);
 }
 
 .metric-icon {
@@ -1294,7 +1210,6 @@ function switchRule() {
   height: 38px;
   font-size: 22px;
   border-radius: 8px;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 55%);
 }
 
 .overview-metric-card span {
@@ -1324,39 +1239,40 @@ function switchRule() {
 }
 
 .overview-metric-card--blue .metric-icon {
-  color: #0284c7;
-  background: linear-gradient(135deg, #e0f2fe, #cffafe);
+  color: #1677ff;
+  background: #edf5ff;
 }
 
 .overview-metric-card--cyan .metric-icon {
   color: #0891b2;
-  background: linear-gradient(135deg, #ecfeff, #ccfbf1);
+  background: #ecfeff;
 }
 
 .overview-metric-card--green .metric-icon {
   color: #0f9f6e;
-  background: linear-gradient(135deg, #ecfdf5, #dcfce7);
+  background: #ecfdf5;
 }
 
 .overview-metric-card--red .metric-icon {
   color: #dc2626;
-  background: linear-gradient(135deg, #fff1f2, #ffe4e6);
+  background: #fff1f2;
 }
 
 .overview-metric-card--orange .metric-icon {
   color: #d97706;
-  background: linear-gradient(135deg, #fff7ed, #ffedd5);
+  background: #fff7ed;
 }
 
 .overview-metric-card--purple .metric-icon {
-  color: #9333ea;
-  background: linear-gradient(135deg, #faf5ff, #f0abfc);
+  color: #7c3aed;
+  background: #f5f3ff;
 }
 
 .overview-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.18fr) minmax(390px, 0.82fr);
+  grid-template-columns: minmax(420px, 0.52fr) minmax(460px, 0.48fr);
   gap: 16px;
+  align-items: start;
   margin-bottom: 16px;
 }
 
@@ -1366,35 +1282,11 @@ function switchRule() {
 }
 
 .overview-card {
-  position: relative;
   min-width: 0;
   padding: 18px;
-  overflow: hidden;
-}
-
-.overview-card::before {
-  position: absolute;
-  inset: 0 0 auto;
-  height: 3px;
-  pointer-events: none;
-  content: '';
-  background: linear-gradient(90deg, #06b6d4, #22c55e, #f43f5e);
-  opacity: 0.86;
-}
-
-.overview-card--intro {
-  background:
-    linear-gradient(135deg, rgb(255 255 255 / 92%) 0%, rgb(240 253 250 / 88%) 52%, rgb(255 247 237 / 88%) 100%);
-}
-
-.overview-card--ranking {
-  background:
-    radial-gradient(circle at 100% 0%, rgb(244 63 94 / 16%), transparent 38%),
-    linear-gradient(135deg, rgb(255 255 255 / 94%), rgb(248 250 252 / 90%));
 }
 
 .overview-card-head {
-  position: relative;
   display: flex;
   gap: 12px;
   align-items: flex-start;
@@ -1427,7 +1319,7 @@ function switchRule() {
   margin: 0;
   font-size: 14px;
   line-height: 1.85;
-  color: #21324a;
+  color: #334155;
   text-align: justify;
 }
 
@@ -1439,10 +1331,6 @@ function switchRule() {
 
 .pipeline-record {
   min-width: 0;
-  padding: 10px 11px;
-  background: linear-gradient(135deg, rgb(248 250 252 / 94%), rgb(240 249 255 / 88%));
-  border: 1px solid rgb(226 232 240 / 88%);
-  border-radius: 8px;
 }
 
 .pipeline-record div:first-child {
@@ -1491,8 +1379,7 @@ function switchRule() {
 }
 
 .record-track i {
-  background: linear-gradient(90deg, #06b6d4, #22c55e);
-  box-shadow: 0 0 16px rgb(6 182 212 / 45%);
+  background: #1677ff;
 }
 
 .protocol-scoreboard {
@@ -1502,29 +1389,11 @@ function switchRule() {
 }
 
 .protocol-card {
-  position: relative;
   min-width: 0;
   padding: 14px;
-  overflow: hidden;
-  background:
-    radial-gradient(circle at 100% 0%, rgb(14 165 233 / 13%), transparent 42%),
-    #fbfdff;
-  border: 1px solid rgb(186 230 253 / 72%);
+  background: #fbfdff;
+  border: 1px solid #dbeafe;
   border-radius: 8px;
-  box-shadow: 0 12px 28px rgb(15 23 42 / 6%);
-}
-
-.protocol-card::after {
-  position: absolute;
-  right: 12px;
-  bottom: 12px;
-  width: 36px;
-  height: 36px;
-  pointer-events: none;
-  content: '';
-  border: 1px solid rgb(6 182 212 / 26%);
-  border-radius: 50%;
-  box-shadow: 0 0 0 9px rgb(6 182 212 / 6%);
 }
 
 .protocol-card-head,
@@ -1553,8 +1422,7 @@ function switchRule() {
   font-size: 26px;
   font-weight: 850;
   line-height: 1.1;
-  color: #e11d48;
-  text-shadow: 0 8px 22px rgb(225 29 72 / 18%);
+  color: #dc2626;
 }
 
 .protocol-main-value small {
@@ -1576,22 +1444,19 @@ function switchRule() {
 }
 
 .score-track__ok {
-  background: linear-gradient(90deg, #10b981, #22c55e);
-  box-shadow: 0 0 14px rgb(34 197 94 / 40%);
+  background: #28a879;
 }
 
 .score-track__risk {
   left: auto !important;
   right: 0;
-  background: linear-gradient(90deg, #fb7185, #ef4444);
-  box-shadow: 0 0 14px rgb(239 68 68 / 40%);
+  background: #ef4444;
 }
 
 .implementation-table {
   overflow: hidden;
-  border: 1px solid rgb(226 232 240 / 90%);
+  border: 1px solid #e2e8f0;
   border-radius: 8px;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 64%);
 }
 
 .overview-card--ranking .implementation-table {
@@ -1608,8 +1473,7 @@ function switchRule() {
   padding: 0 12px;
   font-size: 12px;
   color: #334155;
-  background: rgb(255 255 255 / 72%);
-  border-top: 1px solid rgb(226 232 240 / 78%);
+  border-top: 1px solid #eef2f7;
 }
 
 .implementation-row:first-child {
@@ -1619,12 +1483,8 @@ function switchRule() {
 .implementation-row--head {
   min-height: 34px;
   font-weight: 800;
-  color: #475569;
-  background: linear-gradient(90deg, #f8fafc, #ecfeff);
-}
-
-.implementation-row:not(.implementation-row--head):hover {
-  background: linear-gradient(90deg, rgb(255 241 242 / 82%), rgb(240 249 255 / 86%));
+  color: #64748b;
+  background: #f8fafc;
 }
 
 .implementation-row strong,
@@ -1641,7 +1501,7 @@ function switchRule() {
 
 .risk-text {
   font-weight: 800;
-  color: #e11d48 !important;
+  color: #dc2626 !important;
 }
 
 .finding-list {
@@ -1651,22 +1511,11 @@ function switchRule() {
 }
 
 .finding-item {
-  position: relative;
   min-width: 0;
   padding: 12px;
-  overflow: hidden;
-  background:
-    linear-gradient(135deg, rgb(255 255 255 / 88%), rgb(248 250 252 / 94%));
-  border: 1px solid rgb(226 232 240 / 88%);
+  background: #fbfdff;
+  border: 1px solid #e2e8f0;
   border-radius: 8px;
-}
-
-.finding-item::before {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 3px;
-  content: '';
-  background: linear-gradient(180deg, #06b6d4, #f43f5e);
 }
 
 .finding-head {
@@ -2222,11 +2071,6 @@ function switchRule() {
 
   .overview-hero h1 {
     font-size: 24px;
-  }
-
-  .overview-hero-glow {
-    right: -110px;
-    bottom: -120px;
   }
 
   .overview-metrics,
