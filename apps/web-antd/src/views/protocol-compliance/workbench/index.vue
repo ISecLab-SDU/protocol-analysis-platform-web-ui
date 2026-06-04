@@ -1285,18 +1285,21 @@ function switchRule() {
 }
 
 .overview-hero p {
-  max-width: 760px;
+  max-width: 980px;
   margin: 14px 0 0;
   font-size: 15px;
   line-height: 1.8;
   color: #5b6b83;
+  white-space: nowrap;
 }
 
 .overview-hero-flow {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(124px, 1fr));
-  max-width: 830px;
-  min-height: 66px;
+  display: inline-grid;
+  grid-template-columns: repeat(4, max-content);
+  column-gap: 20px;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 58px;
   margin-top: 22px;
   overflow: hidden;
   background: rgb(255 255 255 / 86%);
@@ -1310,9 +1313,9 @@ function switchRule() {
   display: flex;
   gap: 12px;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   min-width: 0;
-  padding: 0 16px;
+  padding: 0 28px;
   font-size: 14px;
   font-weight: 800;
   color: #1d2b46;
@@ -1345,7 +1348,7 @@ function switchRule() {
 
 .hero-flow-arrow {
   position: absolute;
-  right: -12px;
+  right: -22px;
   z-index: 1;
   font-size: 24px !important;
   color: #9aaac0 !important;
@@ -2483,6 +2486,10 @@ function switchRule() {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .overview-hero p {
+    white-space: normal;
+  }
+
   .overview-metrics,
   .protocol-scoreboard {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2543,6 +2550,11 @@ function switchRule() {
 
   .overview-hero h1 {
     font-size: 24px;
+  }
+
+  .overview-hero-flow {
+    display: grid;
+    width: 100%;
   }
 
   .overview-metrics,
