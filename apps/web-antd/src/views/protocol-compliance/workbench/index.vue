@@ -116,6 +116,7 @@ const demoConfigLoading = ref(false);
 const violationHistory = ref<ProtocolViolationHistoryEntry[]>([]);
 const violationHistoryError = ref('');
 const violationHistoryGeneratedAt = ref('');
+const violationHistoryLoaded = ref(false);
 const violationHistoryLoading = ref(false);
 const violationHistoryWarnings = ref<string[]>([]);
 const selectedViolationHistoryId = ref('');
@@ -319,22 +320,32 @@ function protocolAccent(name: string) {
   return 'coap';
 }
 
-async function loadViolationHistory(force = false) {
+async function loadViolationHistory(
+  force = false,
+  refreshOverview = true,
+  silent = false,
+) {
   if (violationHistoryLoading.value) return;
-  if (!force && violationHistory.value.length > 0) return;
+  if (!force && violationHistoryLoaded.value) return;
 
   violationHistoryLoading.value = true;
-  violationHistoryError.value = '';
+  if (!silent) {
+    violationHistoryError.value = '';
+  }
   try {
     const response = await fetchProtocolViolationHistory({
       implementation: historyFilters.implementation || undefined,
       protocol: historyFilters.protocol || undefined,
       timeRange: historyFilters.timeRange || undefined,
     });
+    violationHistoryError.value = '';
     violationHistory.value = response.items || [];
     violationHistoryWarnings.value = response.warnings || [];
     violationHistoryGeneratedAt.value = response.generatedAt || '';
-    void loadOverviewStats(true);
+    violationHistoryLoaded.value = true;
+    if (refreshOverview) {
+      void loadOverviewStats(true);
+    }
     if (
       selectedViolationHistoryId.value &&
       !violationHistory.value.some(
@@ -344,8 +355,10 @@ async function loadViolationHistory(force = false) {
       selectedViolationHistoryId.value = '';
     }
   } catch (error) {
-    violationHistoryError.value =
-      error instanceof Error ? error.message : '历史结果读取失败';
+    if (!silent || !violationHistoryLoaded.value) {
+      violationHistoryError.value =
+        error instanceof Error ? error.message : '历史结果读取失败';
+    }
   } finally {
     violationHistoryLoading.value = false;
   }
@@ -364,12 +377,20 @@ async function loadOverviewStats(force = false) {
 
 function openViolationHistory() {
   activeSideNav.value = 'logs';
-  void loadViolationHistory();
+  void refreshViolationHistoryOnEnter();
 }
 
 function handleSideNavClick(key: SideNavKey) {
   activeSideNav.value = key;
-  if (key === 'logs') void loadViolationHistory();
+  if (key === 'logs') void refreshViolationHistoryOnEnter();
+}
+
+function refreshViolationHistoryOnEnter() {
+  if (violationHistoryLoaded.value) {
+    void loadViolationHistory(true, true, true);
+    return;
+  }
+  void loadViolationHistory();
 }
 
 function handleHistoryFilterChange() {
@@ -455,6 +476,7 @@ function formatLlmRaw(value: unknown) {
 
 onMounted(() => {
   void loadOverviewStats();
+  void loadViolationHistory(false, false);
 });
 
 function stageStateLabel(key: (typeof STAGE_LIST)[number]['key']) {
@@ -1023,7 +1045,11 @@ async function handleLoadDemoConfig() {
             </section>
 
             <section
-              v-else-if="violationHistoryLoading && violationHistory.length === 0"
+              v-else-if="
+                violationHistoryLoading &&
+                violationHistory.length === 0 &&
+                !violationHistoryLoaded
+              "
               class="result-history-empty"
             >
               <div>正在读取历史结果</div>
@@ -1094,23 +1120,14 @@ async function handleLoadDemoConfig() {
                       </Button>
                     </Popconfirm>
                     <Button
+                      v-if="entry.id !== selectedViolationHistoryId"
                       size="small"
                       type="primary"
                       @click="toggleViolationHistoryDetail(entry)"
                     >
-                      {{
-                        entry.id === selectedViolationHistoryId
-                          ? '收起详情'
-                          : '查看详情'
-                      }}
+                      查看详情
                       <template #icon>
-                        <IconifyIcon
-                          :icon="
-                            entry.id === selectedViolationHistoryId
-                              ? 'mdi:chevron-up'
-                              : 'mdi:chevron-down'
-                          "
-                        />
+                        <IconifyIcon icon="mdi:chevron-down" />
                       </template>
                     </Button>
                   </div>
@@ -1171,12 +1188,28 @@ async function handleLoadDemoConfig() {
                     <summary>查看 LLM 原始结果</summary>
                     <pre>{{ formatLlmRaw(entry.llmRaw) }}</pre>
                   </details>
+
+                  <footer class="history-detail-actions">
+                    <Button
+                      size="small"
+                      type="primary"
+                      @click="toggleViolationHistoryDetail(entry)"
+                    >
+                      收起详情
+                      <template #icon>
+                        <IconifyIcon icon="mdi:chevron-up" />
+                      </template>
+                    </Button>
+                  </footer>
                 </section>
               </article>
             </div>
 
             <section
-              v-else-if="!violationHistoryLoading && !violationHistoryError"
+              v-else-if="
+                (!violationHistoryLoading || violationHistoryLoaded) &&
+                !violationHistoryError
+              "
               class="result-history-empty"
             >
               <div>暂无违规历史结果</div>
@@ -2655,6 +2688,14 @@ async function handleLoadDemoConfig() {
   flex: 0 0 auto;
   gap: 8px;
   align-items: center;
+}
+
+.history-detail-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #e2e8f0;
 }
 
 .result-history-grid {
