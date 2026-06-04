@@ -1191,7 +1191,7 @@ function switchRule() {
 
 .overview-metrics {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 16px;
 }
@@ -1273,15 +1273,23 @@ function switchRule() {
 
 .overview-grid {
   display: grid;
-  grid-template-columns: minmax(0, 0.58fr) minmax(430px, 0.42fr);
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 16px;
   align-items: start;
   margin-bottom: 16px;
 }
 
 .overview-grid--results {
-  grid-template-columns: minmax(0, 0.68fr) minmax(420px, 0.32fr);
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
   align-items: start;
+}
+
+.overview-card--intro {
+  grid-column: span 2;
+}
+
+.overview-card--ranking {
+  grid-column: span 4;
 }
 
 .overview-card {
@@ -1509,7 +1517,7 @@ function switchRule() {
 
 .finding-list {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -2020,6 +2028,11 @@ function switchRule() {
   .overview-grid,
   .overview-grid--results {
     grid-template-columns: 1fr;
+  }
+
+  .overview-card--intro,
+  .overview-card--ranking {
+    grid-column: auto;
   }
 
   .overview-metrics,
