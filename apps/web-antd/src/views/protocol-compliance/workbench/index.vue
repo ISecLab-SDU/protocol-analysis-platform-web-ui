@@ -84,7 +84,7 @@ const currentRuleText = computed(() => {
   return (
     selectedRule.value?.rule ||
     selectedRule.value?.description ||
-    '请选择规则后启动自动化流水线'
+    '请选择规则后启动自动化分析流程'
   );
 });
 

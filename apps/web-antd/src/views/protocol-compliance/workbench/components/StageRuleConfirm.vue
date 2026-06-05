@@ -187,7 +187,7 @@ watch(
         @click="onStart"
       >
         <template #icon><IconifyIcon icon="mdi:play" /></template>
-        确认并启动流水线
+        确认并启动自动化分析流程
       </Button>
     </div>
   </Card>
