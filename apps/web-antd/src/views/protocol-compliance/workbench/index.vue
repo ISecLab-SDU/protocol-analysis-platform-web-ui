@@ -135,6 +135,7 @@ const selectedViolationHistoryId = ref('');
 const deletingViolationHistoryId = ref('');
 const historyVisibleCount = ref(HISTORY_PAGE_SIZE);
 const bannerProgress = ref(0);
+let bannerProgressStageKey = '';
 let bannerProgressTimer: null | ReturnType<typeof setTimeout> = null;
 const historyFilters = reactive<{
   implementation: string;
@@ -166,6 +167,8 @@ const shouldShowBannerProgress = computed(() => {
   if (activeStageView.value === 'done' || stageStatus.done === 'done') return false;
   return (
     isRunning.value ||
+    stageStatus.code_locate === 'done' ||
+    stageStatus.assert_gen === 'done' ||
     stageStatus.fuzz === 'done' ||
     stageStatus.fuzz === 'running'
   );
@@ -174,6 +177,18 @@ const shouldShowBannerProgress = computed(() => {
 const bannerProgressText = computed(() =>
   `${Math.round(bannerProgress.value)}%`,
 );
+
+const activeWorkbenchStageStatus = computed(() => {
+  return stageStatus[activeStageView.value];
+});
+
+const shouldCompleteBannerProgress = computed(() => {
+  return (
+    activeSideNav.value === 'workbench' &&
+    activeStageView.value !== 'done' &&
+    activeWorkbenchStageStatus.value === 'done'
+  );
+});
 
 const visibleViolationHistory = computed(() =>
   violationHistory.value.slice(0, historyVisibleCount.value),
@@ -367,26 +382,48 @@ function clearBannerProgressTimer() {
 
 function scheduleBannerProgressTick() {
   clearBannerProgressTimer();
-  if (!shouldShowBannerProgress.value || stageStatus.done === 'done') return;
+  if (
+    !shouldShowBannerProgress.value ||
+    shouldCompleteBannerProgress.value ||
+    stageStatus.done === 'done'
+  ) return;
 
   const current = bannerProgress.value;
+  const isAssertStage = activeStageView.value === 'assert_gen';
   const delay =
-    current < 70
-      ? 950 + Math.random() * 650
-      : current < 90
-        ? 1600 + Math.random() * 900
-        : 1400 + Math.random() * 1300;
+    isAssertStage
+      ? current < 70
+        ? 1900 + Math.random() * 1200
+        : current < 90
+          ? 3000 + Math.random() * 1800
+          : 3400 + Math.random() * 2000
+      : current < 70
+        ? 950 + Math.random() * 650
+        : current < 90
+          ? 1600 + Math.random() * 900
+          : 1400 + Math.random() * 1300;
 
   bannerProgressTimer = setTimeout(() => {
-    if (!shouldShowBannerProgress.value || stageStatus.done === 'done') return;
+    if (
+      !shouldShowBannerProgress.value ||
+      shouldCompleteBannerProgress.value ||
+      stageStatus.done === 'done'
+    ) return;
 
     const value = bannerProgress.value;
+    const isCurrentAssertStage = activeStageView.value === 'assert_gen';
     const increment =
-      value < 70
-        ? 2 + Math.random() * 2.8
-        : value < 90
+      isCurrentAssertStage
+        ? value < 70
           ? 0.7 + Math.random() * 1.2
-          : 0.3 + Math.random() * 0.9;
+          : value < 90
+            ? 0.22 + Math.random() * 0.55
+            : 0.1 + Math.random() * 0.25
+        : value < 70
+          ? 2 + Math.random() * 2.8
+          : value < 90
+            ? 0.7 + Math.random() * 1.2
+            : 0.3 + Math.random() * 0.9;
     const cap = value < 90 ? 90 : 98;
     bannerProgress.value = Math.min(cap, value + increment);
     scheduleBannerProgressTick();
@@ -397,10 +434,18 @@ function syncBannerProgress() {
   if (!shouldShowBannerProgress.value) {
     clearBannerProgressTimer();
     bannerProgress.value = 0;
+    bannerProgressStageKey = '';
     return;
   }
 
-  if (stageStatus.done === 'done') {
+  const nextStageKey = `${activeSideNav.value}:${activeStageView.value}`;
+  if (bannerProgressStageKey !== nextStageKey) {
+    clearBannerProgressTimer();
+    bannerProgress.value = 0;
+    bannerProgressStageKey = nextStageKey;
+  }
+
+  if (shouldCompleteBannerProgress.value || stageStatus.done === 'done') {
     clearBannerProgressTimer();
     bannerProgress.value = 100;
     return;
@@ -661,6 +706,7 @@ function handleViolationHistoryUpdated() {
 watch(
   () => [
     activeSideNav.value,
+    activeStageView.value,
     isRunning.value,
     isTransitioning.value,
     stageStatus.code_locate,
