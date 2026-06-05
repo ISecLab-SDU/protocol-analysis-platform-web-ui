@@ -457,12 +457,7 @@ function formatAflNetStatsForLog(stats: ParsedAflNetStats) {
 function normalizeFuzzLogLine(line: string, fallbackLevel: FuzzLogLevel) {
   const plain = stripFuzzLogPrefix(line);
   if (/^#?\s*unix_time\s*,\s*cycles_done\s*,\s*cur_path/i.test(plain)) {
-    return {
-      level: 'INFO' as FuzzLogLevel,
-      text: withLogTimestamp(
-        'AFLNet 状态字段已接入：轮次、路径进度、待处理队列、覆盖率、异常数、执行速度、状态机拓扑。',
-      ),
-    };
+    return null;
   }
 
   const stats = parseAflNetStatsCsv(line);
@@ -941,6 +936,7 @@ async function cleanupBeforeFuzzStart(runId: number) {
   });
   if (!isCurrentPipelineRun(runId)) return;
   appendFuzzLog(formatCleanupSummary(cleanupResult), 'INFO');
+  appendFuzzLog('AFLNet已接入，模糊测试已启动', 'INFO');
 }
 
 function isCurrentFuzzContainerRunning(statusData: any) {
@@ -1722,6 +1718,7 @@ async function readFuzzLogs(
         else if (isCrashDiscoveryLine(line) || lower.includes('error')) level = 'ERROR';
         else if (lower.includes('warn')) level = 'WARN';
         const normalized = normalizeFuzzLogLine(line, level);
+        if (!normalized) continue;
         appendFuzzLog(normalized.text, normalized.level);
         if (isCrashDiscoveryLine(line)) {
           fuzzStats.crashes = Math.max(fuzzStats.crashes, 1);

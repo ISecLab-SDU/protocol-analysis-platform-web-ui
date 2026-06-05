@@ -574,15 +574,15 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
 .panel-kicker {
   display: block;
   margin-bottom: 4px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   color: #64748b;
 }
 
 .stage-card :deep(.ant-tag) {
   padding: 1px 8px;
-  font-size: 13px;
-  line-height: 22px;
+  font-size: 14px;
+  line-height: 24px;
   border-radius: 6px;
 }
 
@@ -605,18 +605,18 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
 }
 
 .log-progress-title span {
-  font-size: 13px;
+  font-size: 14px;
   color: #64748b;
 }
 
 .log-progress-title strong {
-  font-size: 15px;
+  font-size: 16px;
   color: #0b5cad;
 }
 
 .log-progress p {
   margin: 4px 0 0;
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.5;
   color: #334155;
   overflow-wrap: anywhere;
@@ -627,8 +627,8 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
   padding: 10px 0;
   overflow: auto;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: 15px;
+  line-height: 1.7;
   color: #334155;
   background: #fbfdff;
   border: 1px solid #e2e8f0;
@@ -637,10 +637,10 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
 
 .log-line {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   align-items: flex-start;
-  min-height: 26px;
-  padding: 3px 12px;
+  min-height: 30px;
+  padding: 4px 14px;
   color: #334155;
 }
 
@@ -670,16 +670,18 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
 }
 
 .log-time {
-  flex: 0 0 70px;
+  flex: 0 0 82px;
   color: #64748b;
   user-select: none;
 }
 
 .log-chip {
   flex: 0 0 auto;
-  max-width: 130px;
-  padding: 0 6px;
+  max-width: 160px;
+  padding: 1px 8px;
   overflow: hidden;
+  font-size: 14px;
+  line-height: 22px;
   color: #475569;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -688,7 +690,7 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
 }
 
 .log-chip--phase {
-  max-width: 180px;
+  max-width: 210px;
   font-weight: 700;
   color: #0b5cad;
   background: #e8f2ff;
@@ -707,6 +709,7 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
 
 .log-empty {
   padding: 14px;
+  font-size: 15px;
   color: #64748b;
 }
 

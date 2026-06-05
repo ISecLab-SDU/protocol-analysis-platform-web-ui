@@ -169,17 +169,17 @@ onMounted(scrollToBottom);
   padding: 12px;
   overflow-y: auto;
   font-family: var(--font-family);
-  font-size: 15px;
-  line-height: 1.55;
+  font-size: 16px;
+  line-height: 1.6;
   background: #fff;
 }
 
 .log-row {
   display: grid;
-  grid-template-columns: 98px 64px minmax(0, 1fr);
-  gap: 10px;
+  grid-template-columns: 110px 78px minmax(0, 1fr);
+  gap: 12px;
   align-items: start;
-  padding: 6px 8px;
+  padding: 8px 10px;
   color: #334155;
   border-bottom: 1px solid #f1f5f9;
   border-radius: 0;
@@ -248,9 +248,9 @@ onMounted(scrollToBottom);
   display: inline-flex;
   gap: 5px;
   align-items: center;
-  min-height: 24px;
-  padding: 2px 8px;
-  font-size: 14px;
+  min-height: 26px;
+  padding: 3px 9px;
+  font-size: 15px;
   color: #475569;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
@@ -309,7 +309,7 @@ onMounted(scrollToBottom);
   align-items: center;
   justify-content: center;
   min-height: 220px;
-  font-size: 14px;
+  font-size: 15px;
   color: #94a3b8;
 }
 

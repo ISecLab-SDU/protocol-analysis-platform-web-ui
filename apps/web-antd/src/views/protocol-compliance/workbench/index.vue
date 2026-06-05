@@ -2645,7 +2645,7 @@ async function handleLoadDemoConfig() {
 
 .task-title-line h1 {
   margin: 0;
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 800;
   line-height: 1.25;
   letter-spacing: 0;
@@ -2657,18 +2657,20 @@ async function handleLoadDemoConfig() {
   gap: 8px;
   align-items: center;
   margin-top: 7px;
-  font-size: 13px;
+  font-size: 15px;
   color: #475569;
 }
 
 .task-rule strong {
+  font-size: 15px;
   color: #172033;
 }
 
 .task-rule code {
   max-width: min(860px, 100%);
-  padding: 2px 6px;
+  padding: 3px 8px;
   overflow: hidden;
+  font-size: 15px;
   color: #172033;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2739,7 +2741,7 @@ async function handleLoadDemoConfig() {
 
 .stepper-title {
   overflow: hidden;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 800;
   color: #111827;
   text-overflow: ellipsis;
@@ -2748,7 +2750,7 @@ async function handleLoadDemoConfig() {
 
 .stepper-state {
   margin-top: 4px;
-  font-size: 12px;
+  font-size: 14px;
   color: #64748b;
 }
 
@@ -2803,7 +2805,7 @@ async function handleLoadDemoConfig() {
   align-items: center;
   margin-bottom: 14px;
   padding: 11px 14px;
-  font-size: 13px;
+  font-size: 15px;
   border-radius: 8px;
 }
 
@@ -2861,7 +2863,7 @@ async function handleLoadDemoConfig() {
 .workbench-banner-percent {
   flex: none;
   margin-left: auto;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   color: #075da8;
