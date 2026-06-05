@@ -250,6 +250,7 @@ onMounted(scrollToBottom);
   align-items: center;
   min-height: 24px;
   padding: 2px 8px;
+  font-size: 14px;
   color: #475569;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
@@ -308,6 +309,7 @@ onMounted(scrollToBottom);
   align-items: center;
   justify-content: center;
   min-height: 220px;
+  font-size: 14px;
   color: #94a3b8;
 }
 

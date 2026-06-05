@@ -208,8 +208,27 @@ watch(
 }
 
 .rule-count {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--ant-text-color-secondary);
+}
+
+.stage-card :deep(.ant-card-head-title) {
+  font-size: 18px;
+}
+
+.stage-card :deep(.ant-tag) {
+  padding: 1px 8px;
+  font-size: 13px;
+  line-height: 22px;
+  border-radius: 6px;
+}
+
+.stage-card :deep(.ant-table) {
+  font-size: 14px;
+}
+
+.stage-card :deep(.ant-empty-description) {
+  font-size: 14px;
 }
 
 .rule-actions {

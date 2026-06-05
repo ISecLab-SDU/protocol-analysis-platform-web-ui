@@ -241,7 +241,7 @@ function formatRate(value: number) {
   display: flex;
   gap: 8px;
   align-items: center;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 700;
 }
 
@@ -250,7 +250,7 @@ function formatRate(value: number) {
 }
 
 .stage-title small {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--ant-color-text-secondary);
 }
@@ -283,15 +283,22 @@ function formatRate(value: number) {
 
 .panel-header h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 800;
   color: #172033;
 }
 
 .panel-header p {
   margin: 6px 0 0;
-  font-size: 12px;
+  font-size: 13px;
   color: #64748b;
+}
+
+.stage-card :deep(.ant-tag) {
+  padding: 1px 8px;
+  font-size: 13px;
+  line-height: 22px;
+  border-radius: 6px;
 }
 
 .panel--logs :deep(.log-scroll) {
@@ -343,7 +350,7 @@ function formatRate(value: number) {
 .runtime-tile span {
   display: block;
   margin-top: 8px;
-  font-size: 13px;
+  font-size: 14px;
   color: #475569;
 }
 
@@ -352,7 +359,7 @@ function formatRate(value: number) {
 .runtime-tile small {
   display: block;
   margin-top: 4px;
-  font-size: 12px;
+  font-size: 13px;
   color: #64748b;
 }
 
@@ -473,7 +480,7 @@ function formatRate(value: number) {
 }
 
 .topology-title {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
   color: #475569;
   text-align: center;
@@ -515,7 +522,7 @@ function formatRate(value: number) {
 
 .topology-caption {
   margin-top: 8px;
-  font-size: 12px;
+  font-size: 13px;
   color: #2563eb;
   text-align: center;
 }
@@ -543,7 +550,7 @@ function formatRate(value: number) {
 .topology-footer span {
   display: block;
   margin-top: 4px;
-  font-size: 12px;
+  font-size: 13px;
   color: #64748b;
 }
 
@@ -554,7 +561,7 @@ function formatRate(value: number) {
 
 .progress-copy {
   margin-bottom: 10px;
-  font-size: 13px;
+  font-size: 14px;
   color: #64748b;
 }
 

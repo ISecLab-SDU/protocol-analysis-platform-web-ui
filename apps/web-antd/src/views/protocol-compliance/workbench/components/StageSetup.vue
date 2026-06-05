@@ -246,9 +246,22 @@ const canCommit = computed(() => {
 }
 
 .setup-label {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 15px;
+  font-weight: 600;
   color: var(--ant-text-color);
+}
+
+.stage-card :deep(.ant-card-head-title) {
+  font-size: 18px;
+}
+
+.stage-card :deep(.ant-btn),
+.stage-card :deep(.ant-input),
+.stage-card :deep(.ant-input-number-input),
+.stage-card :deep(.ant-select-selector),
+.stage-card :deep(.ant-upload-list-item-name),
+.stage-card :deep(textarea.ant-input) {
+  font-size: 14px;
 }
 
 .setup-actions {

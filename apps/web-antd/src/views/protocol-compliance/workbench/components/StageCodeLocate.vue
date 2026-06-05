@@ -511,7 +511,7 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
   display: flex;
   gap: 8px;
   align-items: center;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 700;
 }
 
@@ -520,7 +520,7 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
 }
 
 .stage-title small {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--ant-color-text-secondary);
 }
@@ -541,7 +541,7 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
 }
 
 .finding-label {
-  font-size: 12px;
+  font-size: 13px;
   color: #64748b;
 }
 
@@ -590,7 +590,7 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
 
 .finding-block p {
   margin: 0;
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.65;
   color: #253044;
   overflow-wrap: anywhere;
@@ -599,7 +599,8 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
 .panel-kicker {
   display: block;
   margin-bottom: 4px;
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 700;
   color: #64748b;
 }
 
@@ -612,7 +613,7 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
 .live-log-panel,
 .discovery-panel {
   min-width: 0;
-  padding: 16px;
+  padding: 18px;
   background: #fff;
   border: 1px solid var(--ant-color-border-secondary);
   border-radius: 8px;
@@ -628,9 +629,20 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
 
 .panel-head h3 {
   margin: 0;
-  font-size: 16px;
-  font-weight: 700;
+  font-size: 17px;
+  font-weight: 800;
   color: #111827;
+}
+
+.stage-card :deep(.ant-tag) {
+  padding: 1px 8px;
+  font-size: 13px;
+  line-height: 22px;
+  border-radius: 6px;
+}
+
+.stage-card :deep(.ant-empty-description) {
+  font-size: 14px;
 }
 
 .log-progress {
@@ -653,7 +665,7 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
 }
 
 .log-progress-title span {
-  font-size: 12px;
+  font-size: 13px;
   color: #64748b;
 }
 
@@ -664,7 +676,7 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
 
 .log-progress p {
   margin: 4px 0 0;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.5;
   color: #334155;
   overflow-wrap: anywhere;
@@ -677,7 +689,7 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
   font-family:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
     monospace;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.6;
   background: #fbfdff;
   border: 1px solid #e2e8f0;
@@ -773,7 +785,7 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
   font-family:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
     monospace;
-  font-size: 12px;
+  font-size: 13px;
   background: #f8fafc;
   border-bottom: 1px solid #e2e8f0;
 }
@@ -800,8 +812,8 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
   font-family:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
     monospace;
-  font-size: 13px;
-  line-height: 1.65;
+  font-size: 14px;
+  line-height: 1.7;
   color: #334155;
   background: #fff;
 }
