@@ -169,14 +169,14 @@ onMounted(scrollToBottom);
   padding: 12px;
   overflow-y: auto;
   font-family: var(--font-family);
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.55;
   background: #fff;
 }
 
 .log-row {
   display: grid;
-  grid-template-columns: 92px 60px minmax(0, 1fr);
+  grid-template-columns: 98px 64px minmax(0, 1fr);
   gap: 10px;
   align-items: start;
   padding: 6px 8px;

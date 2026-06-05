@@ -3300,6 +3300,72 @@ async function handleLoadDemoConfig() {
   color: #64748b;
 }
 
+.guard-shell {
+  font-size: 17px;
+}
+
+.overview-card-head p,
+.card-count,
+.current-task dt,
+.current-task dd,
+.protocol-card-head span,
+.protocol-meta span,
+.protocol-bars span,
+.protocol-bars strong,
+.workflow-index,
+.stepper-state,
+.workbench-banner-percent,
+.history-load-more,
+.result-history-meta,
+.history-detail-head span,
+.history-detail-head p,
+.history-summary-body span,
+.history-summary-footer span,
+.history-block span,
+.history-block small,
+.history-source-head,
+.history-code-row span,
+.result-history-empty p {
+  font-size: 14px;
+}
+
+.runtime-status,
+.overview-error,
+.overview-metric-card span,
+.overview-metric-card small,
+.implementation-row,
+.workflow-step p,
+.finding-head strong,
+.finding-item p,
+.finding-item small,
+.workbench-banner,
+.logs-header p,
+.history-summary-body p,
+.history-block strong,
+.history-block p,
+.history-warning,
+.history-source summary,
+.history-diff summary {
+  font-size: 15px;
+}
+
+.protocol-card-head strong,
+.workflow-step strong,
+.stepper-title,
+.result-history-title {
+  font-size: 16px;
+}
+
+.protocol-badge {
+  font-size: 13px;
+}
+
+.history-source-code,
+.history-diff pre,
+.history-source pre {
+  font-size: 15px;
+}
+
 @media (max-width: 1180px) {
   .guard-layout {
     grid-template-columns: 1fr;

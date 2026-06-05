@@ -461,7 +461,7 @@ $namespace: vben;
   --menu-item-collapse-margin-x: 0px;
   --menu-item-radius: 0px;
   --menu-item-indent: 16px;
-  --menu-font-size: 17px;
+  --menu-font-size: 18px;
 
   &.is-dark {
     --menu-background-color: hsl(var(--menu));
