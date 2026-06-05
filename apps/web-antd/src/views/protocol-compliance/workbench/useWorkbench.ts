@@ -714,7 +714,7 @@ function appendResultHistoryRecord(reason: 'crash' | 'stopped') {
   const conclusion =
     hasCrash
       ? `发现 ${fuzzStats.crashes || 1} 个崩溃，已进入结果验证`
-      : '流水线已停止，当前结果已汇总';
+      : '分析流程已停止，当前结果已汇总';
   const changedFileCount =
     (assertDiffContent.value.match(/^diff --git\s+/gm) ?? []).length;
   const codeFunctions =
@@ -1336,7 +1336,7 @@ function commitSetup() {
   stageStatus.setup = 'done';
   stage.value = 'rule_confirm';
   activeStageView.value = 'rule_confirm';
-  stageMessage.value = '请选择一条规则后启动自动化流水线';
+  stageMessage.value = '请选择一条规则后启动自动化分析流程';
 }
 
 async function loadDemoConfig() {
@@ -1346,7 +1346,7 @@ async function loadDemoConfig() {
     stageStatus.fuzz === 'running' ||
     isTransitioning.value
   ) {
-    message.warning('请先停止当前流水线');
+    message.warning('请先停止当前分析流程');
     return false;
   }
 
@@ -1381,7 +1381,7 @@ async function loadDemoConfig() {
     stageStatus.setup = 'done';
     stage.value = 'rule_confirm';
     activeStageView.value = 'rule_confirm';
-    stageMessage.value = '演示模式已加载，请选择一条规则后启动自动化流水线';
+    stageMessage.value = '演示模式已加载，请选择一条规则后启动自动化分析流程';
     message.success('演示模式配置已加载');
     return true;
   } catch (err: any) {
@@ -1392,13 +1392,13 @@ async function loadDemoConfig() {
 
 function backToSetup() {
   if (stageStatus.code_locate === 'running' || stageStatus.assert_gen === 'running' || stageStatus.fuzz === 'running') {
-    message.warning('请先停止当前流水线');
+    message.warning('请先停止当前分析流程');
     return;
   }
   stage.value = 'setup';
   activeStageView.value = 'setup';
   stageStatus.setup = 'idle';
-  stageMessage.value = '调整项目设置后重新进入流水线';
+  stageMessage.value = '调整项目设置后重新进入分析流程';
 }
 
 async function pollStaticAnalysis(jobId: string, runId: number) {
@@ -1896,7 +1896,7 @@ async function stopPipeline() {
     stageStatus.done = 'done';
     appendResultHistoryRecord('stopped');
     clearTimer('elapsed');
-    stageMessage.value = '流水线已停止';
+    stageMessage.value = '分析流程已停止';
   } finally {
     isStopping.value = false;
   }

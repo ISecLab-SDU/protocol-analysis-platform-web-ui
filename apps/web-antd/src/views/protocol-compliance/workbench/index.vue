@@ -759,7 +759,7 @@ function switchRule() {
   stageStatus.setup = 'done';
   stage.value = 'rule_confirm';
   activeStageView.value = 'rule_confirm';
-  stageMessage.value = '请选择一条规则后启动自动化流水线';
+  stageMessage.value = '请选择一条规则后启动自动化分析流程';
 }
 
 async function handleLoadDemoConfig() {
