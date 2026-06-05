@@ -6,6 +6,7 @@ import {
   onMounted,
   reactive,
   ref,
+  watch,
 } from 'vue';
 
 import { Page } from '@vben/common-ui';
@@ -133,6 +134,8 @@ const violationHistoryWarnings = ref<string[]>([]);
 const selectedViolationHistoryId = ref('');
 const deletingViolationHistoryId = ref('');
 const historyVisibleCount = ref(HISTORY_PAGE_SIZE);
+const bannerProgress = ref(0);
+let bannerProgressTimer: null | ReturnType<typeof setTimeout> = null;
 const historyFilters = reactive<{
   implementation: string;
   protocol: string;
@@ -156,6 +159,20 @@ const violationHistoryRefreshing = computed(
   () =>
     violationHistoryLoading.value &&
     (violationHistoryLoaded.value || violationHistory.value.length > 0),
+);
+
+const shouldShowBannerProgress = computed(() => {
+  if (activeSideNav.value !== 'workbench') return false;
+  return (
+    isRunning.value ||
+    stageStatus.done === 'done' ||
+    stageStatus.fuzz === 'done' ||
+    stageStatus.fuzz === 'running'
+  );
+});
+
+const bannerProgressText = computed(() =>
+  `${Math.round(bannerProgress.value)}%`,
 );
 
 const visibleViolationHistory = computed(() =>
@@ -340,6 +357,59 @@ function formatNumber(value: number) {
 function barWidth(value: number, total: number) {
   if (!total || value <= 0) return '0%';
   return `${Math.max(4, Math.round((value / total) * 100))}%`;
+}
+
+function clearBannerProgressTimer() {
+  if (!bannerProgressTimer) return;
+  clearTimeout(bannerProgressTimer);
+  bannerProgressTimer = null;
+}
+
+function scheduleBannerProgressTick() {
+  clearBannerProgressTimer();
+  if (!shouldShowBannerProgress.value || stageStatus.done === 'done') return;
+
+  const current = bannerProgress.value;
+  const delay =
+    current < 70
+      ? 220 + Math.random() * 220
+      : current < 90
+        ? 420 + Math.random() * 420
+        : 1400 + Math.random() * 1300;
+
+  bannerProgressTimer = setTimeout(() => {
+    if (!shouldShowBannerProgress.value || stageStatus.done === 'done') return;
+
+    const value = bannerProgress.value;
+    const increment =
+      value < 70
+        ? 7 + Math.random() * 9
+        : value < 90
+          ? 2 + Math.random() * 4
+          : 0.3 + Math.random() * 0.9;
+    const cap = value < 90 ? 90 : 98;
+    bannerProgress.value = Math.min(cap, value + increment);
+    scheduleBannerProgressTick();
+  }, delay);
+}
+
+function syncBannerProgress() {
+  if (!shouldShowBannerProgress.value) {
+    clearBannerProgressTimer();
+    bannerProgress.value = 0;
+    return;
+  }
+
+  if (stageStatus.done === 'done') {
+    clearBannerProgressTimer();
+    bannerProgress.value = 100;
+    return;
+  }
+
+  if (bannerProgress.value <= 0 || bannerProgress.value >= 100) {
+    bannerProgress.value = Math.max(8, Math.min(bannerProgress.value, 88));
+  }
+  scheduleBannerProgressTick();
 }
 
 function protocolAccent(name: string) {
@@ -588,6 +658,21 @@ function handleViolationHistoryUpdated() {
   void loadViolationHistory(true, true, true);
 }
 
+watch(
+  () => [
+    activeSideNav.value,
+    isRunning.value,
+    isTransitioning.value,
+    stageStatus.code_locate,
+    stageStatus.assert_gen,
+    stageStatus.fuzz,
+    stageStatus.done,
+    stageMessage.value,
+  ],
+  syncBannerProgress,
+  { immediate: true },
+);
+
 onMounted(() => {
   window.addEventListener(
     'protocol-violation-history-updated',
@@ -598,6 +683,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  clearBannerProgressTimer();
   window.removeEventListener(
     'protocol-violation-history-updated',
     handleViolationHistoryUpdated,
@@ -683,10 +769,6 @@ async function handleLoadDemoConfig() {
           <Button v-else @click="resetWorkbench">
             <template #icon><IconifyIcon icon="mdi:refresh" /></template>
             重置
-          </Button>
-          <Button disabled>
-            <template #icon><IconifyIcon icon="mdi:download" /></template>
-            导出报告
           </Button>
           <div class="avatar">PG</div>
         </div>
@@ -1032,9 +1114,29 @@ async function handleLoadDemoConfig() {
               </button>
             </section>
 
-            <section v-if="stageMessage" class="workbench-banner">
-              <IconifyIcon icon="mdi:information-outline" />
-              <span>{{ stageMessage }}</span>
+            <section
+              v-if="stageMessage"
+              class="workbench-banner"
+              :class="{
+                'workbench-banner--progress': shouldShowBannerProgress,
+              }"
+              :style="{
+                '--banner-progress': `${bannerProgress}%`,
+              }"
+            >
+              <span
+                v-if="shouldShowBannerProgress"
+                class="workbench-banner-fill"
+                aria-hidden="true"
+              />
+              <IconifyIcon
+                class="workbench-banner-icon"
+                icon="mdi:information-outline"
+              />
+              <span class="workbench-banner-text">{{ stageMessage }}</span>
+              <span v-if="shouldShowBannerProgress" class="workbench-banner-percent">
+                {{ bannerProgressText }}
+              </span>
               <Button
                 v-if="activeStageView === 'setup'"
                 class="demo-mode-button"
@@ -2653,9 +2755,73 @@ async function handleLoadDemoConfig() {
 }
 
 .workbench-banner {
+  position: relative;
+  overflow: hidden;
   color: #0b5cad;
   background: #eef6ff;
   border: 1px solid #d7eaff;
+}
+
+.workbench-banner-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--banner-progress, 0%);
+  pointer-events: none;
+  background: linear-gradient(90deg, #cfe7ff 0%, #b9dcff 58%, #d8ecff 100%);
+  border-radius: inherit;
+  transition: width 520ms ease;
+}
+
+.workbench-banner--progress::after {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--banner-progress, 0%);
+  pointer-events: none;
+  content: '';
+  background: linear-gradient(
+    110deg,
+    transparent 0%,
+    rgb(255 255 255 / 0%) 36%,
+    rgb(255 255 255 / 52%) 50%,
+    rgb(255 255 255 / 0%) 64%,
+    transparent 100%
+  );
+  transform: translateX(-30%);
+  animation: banner-progress-shine 1.8s ease-in-out infinite;
+}
+
+.workbench-banner-icon,
+.workbench-banner-text,
+.workbench-banner-percent,
+.workbench-banner .ant-btn {
+  position: relative;
+  z-index: 1;
+}
+
+.workbench-banner-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbench-banner-percent {
+  flex: none;
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #075da8;
+}
+
+@keyframes banner-progress-shine {
+  0% {
+    transform: translateX(-45%);
+  }
+
+  100% {
+    transform: translateX(120%);
+  }
 }
 
 .demo-mode-button {
