@@ -163,9 +163,9 @@ const violationHistoryRefreshing = computed(
 
 const shouldShowBannerProgress = computed(() => {
   if (activeSideNav.value !== 'workbench') return false;
+  if (activeStageView.value === 'done' || stageStatus.done === 'done') return false;
   return (
     isRunning.value ||
-    stageStatus.done === 'done' ||
     stageStatus.fuzz === 'done' ||
     stageStatus.fuzz === 'running'
   );
@@ -372,9 +372,9 @@ function scheduleBannerProgressTick() {
   const current = bannerProgress.value;
   const delay =
     current < 70
-      ? 520 + Math.random() * 460
+      ? 950 + Math.random() * 650
       : current < 90
-        ? 900 + Math.random() * 650
+        ? 1600 + Math.random() * 900
         : 1400 + Math.random() * 1300;
 
   bannerProgressTimer = setTimeout(() => {
@@ -383,9 +383,9 @@ function scheduleBannerProgressTick() {
     const value = bannerProgress.value;
     const increment =
       value < 70
-        ? 3.5 + Math.random() * 4.5
+        ? 2 + Math.random() * 2.8
         : value < 90
-          ? 1.2 + Math.random() * 2.2
+          ? 0.7 + Math.random() * 1.2
           : 0.3 + Math.random() * 0.9;
     const cap = value < 90 ? 90 : 98;
     bannerProgress.value = Math.min(cap, value + increment);
