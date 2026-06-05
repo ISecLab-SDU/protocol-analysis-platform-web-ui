@@ -348,7 +348,7 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
   display: flex;
   gap: 8px;
   align-items: center;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 700;
 }
 
@@ -357,7 +357,7 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
 }
 
 .stage-title small {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--ant-color-text-secondary);
 }
@@ -376,7 +376,7 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
 
 .panel {
   min-width: 0;
-  padding: 16px;
+  padding: 18px;
   background: #fff;
   border: 1px solid #dbeafe;
   border-radius: 8px;
@@ -403,7 +403,7 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
 
 .panel-head h3 {
   margin: 0;
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 800;
   color: #172033;
 }
@@ -411,17 +411,29 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
 .panel-kicker {
   display: block;
   margin-bottom: 4px;
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 700;
   color: #64748b;
 }
 
 .rule-text,
 .reason-text {
   margin: 0;
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.7;
   color: #334155;
   overflow-wrap: anywhere;
+}
+
+.result-stage :deep(.ant-tag) {
+  padding: 1px 8px;
+  font-size: 13px;
+  line-height: 22px;
+  border-radius: 6px;
+}
+
+.result-stage :deep(.ant-empty-description) {
+  font-size: 14px;
 }
 
 .function-source-frame {
@@ -447,7 +459,7 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
   font-family:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
     monospace;
-  font-size: 12px;
+  font-size: 13px;
   background: #f8fafc;
   border-bottom: 1px solid #e2e8f0;
 }
@@ -474,8 +486,8 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
   font-family:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
     monospace;
-  font-size: 13px;
-  line-height: 1.65;
+  font-size: 14px;
+  line-height: 1.7;
   color: #334155;
   background: #fff;
 }
@@ -509,8 +521,8 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
   padding: 8px 0;
   overflow: auto;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 12px;
-  line-height: 1.55;
+  font-size: 13px;
+  line-height: 1.6;
   color: #334155;
   background: #fbfdff;
   border: 1px solid var(--ant-color-border);
@@ -590,7 +602,8 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
 }
 
 .poc-body span {
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 700;
   color: #64748b;
 }
 
@@ -599,7 +612,7 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
   margin-top: 4px;
   overflow: hidden;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 13px;
+  font-size: 14px;
   color: #172033;
   text-overflow: ellipsis;
   white-space: nowrap;
