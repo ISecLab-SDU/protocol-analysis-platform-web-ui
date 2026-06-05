@@ -2410,6 +2410,7 @@ def read_log():
 
     protocol = data.get("protocol", "UNKNOWN")
     last_position = data.get("lastPosition", 0)
+    max_lines = _to_int(str(data.get("maxLines")), 0) if data.get("maxLines") is not None else 0
 
     # 根据协议获取配置
     protocol_implementations = data.get("protocolImplementations", [])
@@ -2480,7 +2481,16 @@ def read_log():
             f.seek(last_position)
 
             # 读取新内容
-            new_content = f.read()
+            if max_lines > 0:
+                content_parts = []
+                for _ in range(max_lines):
+                    line = f.readline()
+                    if not line:
+                        break
+                    content_parts.append(line)
+                new_content = ''.join(content_parts)
+            else:
+                new_content = f.read()
 
             # 获取当前位置
             current_position = f.tell()
@@ -2496,6 +2506,7 @@ def read_log():
             "position": current_position,
             "protocol": protocol,
             "file_size": file_size,
+            "is_eof": current_position >= file_size,
             "message": f"成功读取{len(new_content)}字符，文件大小{file_size}字节",
         }
         if is_sol_aflnet:

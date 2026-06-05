@@ -870,6 +870,7 @@ export function executeCommand(data: { protocol: string; protocolImplementations
 // 读取日志
 export function readLog(data: {
   lastPosition: number;
+  maxLines?: number;
   outputSource?: 'fallback' | 'primary';
   protocol: string;
   protocolImplementations?: string[];

@@ -171,6 +171,7 @@ let elapsedTimer: null | ReturnType<typeof setInterval> = null;
 let staticPollTimer: null | ReturnType<typeof setInterval> = null;
 let assertPollTimer: null | ReturnType<typeof setInterval> = null;
 let fuzzPollTimer: null | ReturnType<typeof setInterval> = null;
+let fallbackReplayTimer: null | ReturnType<typeof setTimeout> = null;
 let transitionTimer: null | ReturnType<typeof setTimeout> = null;
 let transitionResolver: null | ((shouldContinue: boolean) => void) = null;
 let fuzzLogIdSeq = 0;
@@ -185,6 +186,7 @@ let pendingPocSnapshotPromise: null | Promise<void> = null;
 const TEMP_ASSERTION_DATABASE_PATH =
   '/home/lab426_system/protocol-web-ui/violations.db';
 const STAGE_TRANSITION_DELAY_MS = 2000;
+const AFLNET_FALLBACK_REPLAY_LINES_PER_TICK = 2;
 const SOL_AFLNET_STALE_LOG_FALLBACK_MS = 25_000;
 type WorkbenchPipelineProfile = 'full' | 'fuzz-only';
 const WORKBENCH_PIPELINE_PROFILE: WorkbenchPipelineProfile = 'full';
@@ -230,6 +232,10 @@ function clearTimer(holder: 'static' | 'assert' | 'fuzz' | 'elapsed') {
     clearInterval(fuzzPollTimer);
     fuzzPollTimer = null;
   }
+  if (holder === 'fuzz' && fallbackReplayTimer) {
+    clearTimeout(fallbackReplayTimer);
+    fallbackReplayTimer = null;
+  }
   if (holder === 'elapsed' && elapsedTimer) {
     clearInterval(elapsedTimer);
     elapsedTimer = null;
@@ -240,6 +246,36 @@ function buildDemoInputUrl(fileName: string) {
   const appBase = import.meta.env.BASE_URL || '/';
   const normalizedBase = appBase.endsWith('/') ? appBase : `${appBase}/`;
   return `${normalizedBase}New-Input/${encodeURIComponent(fileName)}`;
+}
+
+function randomIntInclusive(min: number, max: number) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function scheduleFallbackReplay(runId: number) {
+  if (!isCurrentPipelineRun(runId) || stageStatus.fuzz !== 'running' || activeAflNetOutputSource !== 'fallback') {
+    return;
+  }
+
+  const delay = randomIntInclusive(700, 1500);
+  fallbackReplayTimer = setTimeout(async () => {
+    if (
+      !isCurrentPipelineRun(runId) ||
+      stageStatus.fuzz !== 'running' ||
+      activeAflNetOutputSource !== 'fallback'
+    ) {
+      return;
+    }
+
+    await readFuzzLogs({ replayFallback: true, runId });
+    if (
+      isCurrentPipelineRun(runId) &&
+      stageStatus.fuzz === 'running' &&
+      activeAflNetOutputSource === 'fallback'
+    ) {
+      scheduleFallbackReplay(runId);
+    }
+  }, delay);
 }
 
 async function fetchDemoInputFile(fileName: string, mimeType: string) {
@@ -327,21 +363,22 @@ function parseFiniteNumber(value: string) {
 function parseAflNetStatsCsv(line: string): ParsedAflNetStats | null {
   const source = stripFuzzLogPrefix(line).replace(/^#\s*/, '');
   const values = source.split(',').map((item) => item.trim());
-  if (values.length < 13) return null;
+  if (values.length < 10) return null;
   if (!values.every((item) => /^-?\d+(?:\.\d+)?%?$/.test(item))) return null;
 
   const cyclesDone = values[1];
   const curPath = values[2];
   const pathsTotal = values[3];
   const pendingTotal = values[4];
-  const pendingFavs = values[5];
-  const mapSize = values[6];
-  const uniqueCrashes = values[7];
-  const uniqueHangs = values[8];
-  const maxDepth = values[9];
-  const execsPerSec = values[10];
-  const nodeCount = values[11];
-  const edgeCount = values[12];
+  const hasExtendedTopologyColumns = values.length >= 13;
+  const pendingFavs = hasExtendedTopologyColumns ? values[5] : '0';
+  const mapSize = hasExtendedTopologyColumns ? values[6] : values[5];
+  const uniqueCrashes = hasExtendedTopologyColumns ? values[7] : values[6];
+  const uniqueHangs = hasExtendedTopologyColumns ? values[8] : values[7];
+  const maxDepth = hasExtendedTopologyColumns ? values[9] : values[8];
+  const execsPerSec = hasExtendedTopologyColumns ? values[10] : values[9];
+  const nodeCount = hasExtendedTopologyColumns ? values[11] : values[2];
+  const edgeCount = hasExtendedTopologyColumns ? values[12] : values[3];
   if (
     !cyclesDone ||
     !curPath ||
@@ -858,6 +895,7 @@ function finishFuzzFromCurrentOutput(reason: 'fallback' | 'stopped') {
 async function switchToFallbackFuzzOutput(runId: number, reason: string) {
   if (!isCurrentPipelineRun(runId) || switchingToFallbackOutput) return;
   switchingToFallbackOutput = true;
+  clearTimer('fuzz');
   activeAflNetOutputSource = 'fallback';
   fuzzLogReadPosition.value = 0;
   fuzzPid.value = null;
@@ -865,13 +903,8 @@ async function switchToFallbackFuzzOutput(runId: number, reason: string) {
   stageMessage.value = '首次启动失败，正在读取仓库 fuzz-output 备份数据…';
   appendFuzzLog(`${reason}，不再重启 Docker，切换到仓库 fuzz-output 备份数据`, 'WARN');
 
-  try {
-    await readFuzzLogs({ finalizeAfterRead: true, runId });
-  } catch (err: any) {
-    if (!isCurrentPipelineRun(runId)) return;
-    appendFuzzLog(`读取仓库 fuzz-output 备份数据失败: ${err?.message || err}`, 'ERROR');
-    finishFuzzFromCurrentOutput('fallback');
-  }
+  switchingToFallbackOutput = false;
+  scheduleFallbackReplay(runId);
 }
 
 async function checkAndFallbackStaleSolAflNetFuzzer(data: any) {
@@ -1579,13 +1612,16 @@ function parseStatsLine(line: string) {
 }
 
 async function readFuzzLogs(
-  options: { finalizeAfterRead?: boolean; runId?: number } = {},
+  options: { replayFallback?: boolean; runId?: number } = {},
 ) {
-  if (!options.finalizeAfterRead && !fuzzPollTimer && stage.value !== 'fuzz') return;
+  if (!options.replayFallback && !fuzzPollTimer && stage.value !== 'fuzz') return;
   try {
     const response: any = await readLog({
       protocol: protocolKindForApi.value,
       lastPosition: fuzzLogReadPosition.value,
+      maxLines: options.replayFallback
+        ? AFLNET_FALLBACK_REPLAY_LINES_PER_TICK
+        : undefined,
       protocolImplementations: protocolImplementationsKey.value,
       outputSource: activeAflNetOutputSource,
     } as any);
@@ -1618,9 +1654,15 @@ async function readFuzzLogs(
         }
       }
     }
-    if (await enterResultVerificationAfterCrash()) return;
-    if (options.finalizeAfterRead) {
-      if (!options.runId || isCurrentPipelineRun(options.runId)) {
+    if (!options.replayFallback && (await enterResultVerificationAfterCrash())) return;
+    if (options.replayFallback) {
+      const isEof =
+        data?.is_eof === true ||
+        (
+          typeof data?.file_size === 'number' &&
+          fuzzLogReadPosition.value >= data.file_size
+        );
+      if (isEof && (!options.runId || isCurrentPipelineRun(options.runId))) {
         finishFuzzFromCurrentOutput('fallback');
       }
       return;
@@ -1629,7 +1671,10 @@ async function readFuzzLogs(
   } catch (err: any) {
     // Non-fatal: keep polling until user stops
     console.warn('[workbench] readLog error', err?.message || err);
-    if (options.finalizeAfterRead) throw err;
+    if (options.replayFallback && (!options.runId || isCurrentPipelineRun(options.runId))) {
+      appendFuzzLog(`读取仓库 fuzz-output 备份数据失败: ${err?.message || err}`, 'ERROR');
+      finishFuzzFromCurrentOutput('fallback');
+    }
   }
 }
 
