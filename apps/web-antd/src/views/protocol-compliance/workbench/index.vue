@@ -119,6 +119,8 @@ const violationHistoryError = ref('');
 const violationHistoryGeneratedAt = ref('');
 const violationHistoryLoaded = ref(false);
 const violationHistoryLoading = ref(false);
+const violationHistoryRefreshQueued = ref(false);
+const violationHistoryQueuedRefreshOverview = ref(false);
 const violationHistoryWarnings = ref<string[]>([]);
 const selectedViolationHistoryId = ref('');
 const deletingViolationHistoryId = ref('');
@@ -140,6 +142,12 @@ const activeSideNavLabel = computed(() => {
     '概览'
   );
 });
+
+const violationHistoryRefreshing = computed(
+  () =>
+    violationHistoryLoading.value &&
+    (violationHistoryLoaded.value || violationHistory.value.length > 0),
+);
 
 const overviewStats = ref<null | ProtocolDatabaseOverviewStats>(null);
 const overviewLoadError = ref('');
@@ -328,7 +336,14 @@ async function loadViolationHistory(
   refreshOverview = true,
   silent = false,
 ) {
-  if (violationHistoryLoading.value) return;
+  if (violationHistoryLoading.value) {
+    if (force) {
+      violationHistoryRefreshQueued.value = true;
+      violationHistoryQueuedRefreshOverview.value =
+        violationHistoryQueuedRefreshOverview.value || refreshOverview;
+    }
+    return;
+  }
   if (!force && violationHistoryLoaded.value) return;
 
   violationHistoryLoading.value = true;
@@ -365,6 +380,17 @@ async function loadViolationHistory(
     }
   } finally {
     violationHistoryLoading.value = false;
+    const shouldRefreshQueued = violationHistoryRefreshQueued.value;
+    const shouldRefreshOverview = violationHistoryQueuedRefreshOverview.value;
+    violationHistoryRefreshQueued.value = false;
+    violationHistoryQueuedRefreshOverview.value = false;
+    if (shouldRefreshQueued) {
+      void loadViolationHistory(
+        true,
+        shouldRefreshOverview,
+        violationHistoryLoaded.value || violationHistory.value.length > 0,
+      );
+    }
   }
 }
 
@@ -390,11 +416,10 @@ function handleSideNavClick(key: SideNavKey) {
 }
 
 function refreshViolationHistoryOnEnter() {
-  if (violationHistoryLoaded.value) {
-    void loadViolationHistory(true, true, true);
-    return;
-  }
-  void loadViolationHistory();
+  void nextTick(() => {
+    if (activeSideNav.value !== 'logs') return;
+    void loadViolationHistory(true, true, violationHistoryLoaded.value);
+  });
 }
 
 function handleHistoryFilterChange() {
@@ -1039,6 +1064,9 @@ async function handleLoadDemoConfig() {
                   数据库规则判定记录
                   <template v-if="violationHistoryGeneratedAt">
                     · 更新时间 {{ formatOptionalTime(violationHistoryGeneratedAt) }}
+                  </template>
+                  <template v-if="violationHistoryRefreshing">
+                    · 正在同步最新数据
                   </template>
                 </p>
               </div>
