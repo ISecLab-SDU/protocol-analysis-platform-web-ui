@@ -1673,13 +1673,13 @@ async function handleLoadDemoConfig() {
 
 .nav-item {
   display: flex;
-  gap: 14px;
+  gap: 13px;
   align-items: center;
   width: 100%;
-  height: 64px;
+  height: 58px;
   padding: 0 16px;
-  font-size: 24px;
-  font-weight: 850;
+  font-size: 21px;
+  font-weight: 800;
   line-height: 1.25;
   color: #101b36;
   text-align: left;
@@ -1690,12 +1690,12 @@ async function handleLoadDemoConfig() {
 }
 
 .nav-item :first-child {
-  font-size: 26px;
+  font-size: 24px;
 }
 
 .nav-item--active {
   position: relative;
-  font-weight: 850;
+  font-weight: 800;
   color: #1677ff;
   background: linear-gradient(90deg, #eaf3ff 0%, #f3f8ff 100%);
 }
