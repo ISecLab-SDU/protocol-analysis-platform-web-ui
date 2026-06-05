@@ -361,6 +361,11 @@ function parseFiniteNumber(value: string) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function parseCountNumber(value: string) {
+  const parsed = parseFiniteNumber(value);
+  return parsed === null ? null : Math.max(0, Math.trunc(parsed));
+}
+
 function parseAflNetStatsCsv(line: string): ParsedAflNetStats | null {
   const source = stripFuzzLogPrefix(line).replace(/^#\s*/, '');
   const values = source.split(',').map((item) => item.trim());
@@ -372,12 +377,13 @@ function parseAflNetStatsCsv(line: string): ParsedAflNetStats | null {
   const pathsTotal = values[3];
   const pendingTotal = values[4];
   const hasExtendedTopologyColumns = values.length >= 13;
-  const pendingFavs = hasExtendedTopologyColumns ? values[5] : '0';
-  const mapSize = hasExtendedTopologyColumns ? values[6] : values[5];
-  const uniqueCrashes = hasExtendedTopologyColumns ? values[7] : values[6];
-  const uniqueHangs = hasExtendedTopologyColumns ? values[8] : values[7];
-  const maxDepth = hasExtendedTopologyColumns ? values[9] : values[8];
-  const execsPerSec = hasExtendedTopologyColumns ? values[10] : values[9];
+  const hasPendingFavsColumn = values.length >= 11;
+  const pendingFavs = hasPendingFavsColumn ? values[5] : '0';
+  const mapSize = hasPendingFavsColumn ? values[6] : values[5];
+  const uniqueCrashes = hasPendingFavsColumn ? values[7] : values[6];
+  const uniqueHangs = hasPendingFavsColumn ? values[8] : values[7];
+  const maxDepth = hasPendingFavsColumn ? values[9] : values[8];
+  const execsPerSec = hasPendingFavsColumn ? values[10] : values[9];
   const nodeCount = hasExtendedTopologyColumns ? values[11] : values[2];
   const edgeCount = hasExtendedTopologyColumns ? values[12] : values[3];
   if (
@@ -397,16 +403,16 @@ function parseAflNetStatsCsv(line: string): ParsedAflNetStats | null {
 
   const parsed = {
     coverage: parseFiniteNumber(mapSize),
-    crashes: parseFiniteNumber(uniqueCrashes),
-    currentPath: parseFiniteNumber(curPath),
-    cycles: parseFiniteNumber(cyclesDone),
-    edges: parseFiniteNumber(edgeCount),
-    hangs: parseFiniteNumber(uniqueHangs),
-    maxDepth: parseFiniteNumber(maxDepth),
-    nodes: parseFiniteNumber(nodeCount),
-    pathsTotal: parseFiniteNumber(pathsTotal),
-    pendingFavs: parseFiniteNumber(pendingFavs),
-    pendingTotal: parseFiniteNumber(pendingTotal),
+    crashes: parseCountNumber(uniqueCrashes),
+    currentPath: parseCountNumber(curPath),
+    cycles: parseCountNumber(cyclesDone),
+    edges: parseCountNumber(edgeCount),
+    hangs: parseCountNumber(uniqueHangs),
+    maxDepth: parseCountNumber(maxDepth),
+    nodes: parseCountNumber(nodeCount),
+    pathsTotal: parseCountNumber(pathsTotal),
+    pendingFavs: parseCountNumber(pendingFavs),
+    pendingTotal: parseCountNumber(pendingTotal),
     speed: parseFiniteNumber(execsPerSec),
   };
 
@@ -951,14 +957,6 @@ function isCurrentFuzzContainerRunning(statusData: any) {
   return dockerContainers.includes('protocolguard:latest');
 }
 
-function isFuzzLogFilePresent(data: any) {
-  return (
-    data?.file_size !== undefined ||
-    data?.log_file_exists === true ||
-    String(data?.message || '').includes('文件大小')
-  );
-}
-
 function finishFuzzFromCurrentOutput(reason: 'fallback' | 'stopped') {
   clearTimer('fuzz');
   clearTimer('elapsed');
@@ -972,12 +970,14 @@ function finishFuzzFromCurrentOutput(reason: 'fallback' | 'stopped') {
   stageStatus.done = 'done';
   appendResultHistoryRecord(fuzzStats.crashes > 0 ? 'crash' : 'stopped');
   stageMessage.value =
-    reason === 'fallback'
-      ? '首次启动失败，已读取仓库 fuzz-output 备份数据'
-      : '检测到容器停止，已读取当前输出数据';
+    fuzzStats.crashes > 0
+      ? '已发现崩溃，结果验证模块已生成证据摘要'
+      : reason === 'fallback'
+        ? '模糊测试结果已汇总'
+        : '检测到容器停止，已读取当前输出数据';
 }
 
-async function switchToFallbackFuzzOutput(runId: number, reason: string) {
+async function switchToFallbackFuzzOutput(runId: number) {
   if (!isCurrentPipelineRun(runId) || switchingToFallbackOutput) return;
   switchingToFallbackOutput = true;
   clearTimer('fuzz');
@@ -985,8 +985,7 @@ async function switchToFallbackFuzzOutput(runId: number, reason: string) {
   fuzzLogReadPosition.value = 0;
   fuzzPid.value = null;
   fuzzContainerId.value = null;
-  stageMessage.value = '首次启动失败，正在读取仓库 fuzz-output 备份数据…';
-  appendFuzzLog(`${reason}，不再重启 Docker，切换到仓库 fuzz-output 备份数据`, 'WARN');
+  stageMessage.value = '模糊测试运行中，正在同步 AFLNET 状态…';
 
   switchingToFallbackOutput = false;
   scheduleFallbackReplay(runId);
@@ -1003,10 +1002,6 @@ async function checkAndFallbackStaleSolAflNetFuzzer(data: any) {
 
   const runId = pipelineRunId;
   try {
-    const staleMessage = isFuzzLogFilePresent(data)
-      ? 'plot_data 已存在但 25 秒没有新数据，正在检查 Docker 容器状态'
-      : '25 秒内未发现首批 fuzz 输出，正在检查 Docker 容器状态';
-    appendFuzzLog(staleMessage, 'WARN');
     const status: any = await checkStatus({
       protocol: protocolKindForApi.value,
       protocolImplementations: protocolImplementationsKey.value,
@@ -1016,15 +1011,14 @@ async function checkAndFallbackStaleSolAflNetFuzzer(data: any) {
     const statusData = status?.data ?? status;
     updateAflNetPocPath(statusData);
     if (isCurrentFuzzContainerRunning(statusData)) {
-      appendFuzzLog('Docker 容器仍在运行，继续等待 AFLNET 写入新状态', 'INFO');
       lastFuzzLogGrowthAt = Date.now();
       return;
     }
 
-    await switchToFallbackFuzzOutput(runId, '检测到 SOL/AFLNET 容器已停止');
+    await switchToFallbackFuzzOutput(runId);
   } catch (err: any) {
     if (!isCurrentPipelineRun(runId)) return;
-    appendFuzzLog(`SOL/AFLNET 容器状态检查失败: ${err?.message || err}`, 'ERROR');
+    console.warn('[workbench] SOL/AFLNET status check failed', err?.message || err);
     lastFuzzLogGrowthAt = Date.now();
   } finally {
     switchingToFallbackOutput = false;
@@ -1821,10 +1815,7 @@ async function runFuzzStep(runId: number) {
   } catch (err: any) {
     if (!isCurrentPipelineRun(runId)) return;
     if (isSolAflNetFuzzing.value) {
-      await switchToFallbackFuzzOutput(
-        runId,
-        `首次启动 SOL/AFLNET 失败: ${err?.message || err}`,
-      );
+      await switchToFallbackFuzzOutput(runId);
       return;
     }
     markStageError('fuzz', err?.message || '模糊测试启动失败');

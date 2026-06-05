@@ -79,7 +79,7 @@ const monitorStatusText = computed(() => {
 });
 
 function formatNumber(value: number) {
-  return value.toLocaleString();
+  return Math.trunc(value).toLocaleString();
 }
 
 function formatRate(value: number) {
