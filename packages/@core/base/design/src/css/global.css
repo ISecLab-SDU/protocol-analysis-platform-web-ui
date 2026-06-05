@@ -14,8 +14,9 @@
   }
 
   html {
-    @apply text-foreground bg-background font-sans text-[100%];
+    @apply text-foreground bg-background font-sans;
 
+    font-size: var(--font-size-base);
     font-variation-settings: normal;
     line-height: 1.15;
     text-size-adjust: 100%;
@@ -149,6 +150,34 @@
   .card-box {
     @apply bg-card text-card-foreground border-border rounded-xl border;
   }
+}
+
+pre,
+code,
+kbd,
+samp {
+  font-size: 0.95rem;
+}
+
+.live-log,
+.log-scroll,
+.logs-shell pre,
+.history-diff pre,
+.history-source pre,
+.history-source-code,
+.function-source-code,
+.diff-wrapper {
+  font-size: 14px !important;
+}
+
+.live-log code,
+.logs-shell code,
+.history-diff code,
+.history-source code,
+.history-source-code code,
+.function-source-code code,
+.diff-wrapper code {
+  font-size: inherit;
 }
 
 html.invert-mode {
