@@ -40,6 +40,7 @@ interface LocateProgressStep {
 const props = defineProps<Props>();
 
 const logBodyRef = ref<HTMLElement | null>(null);
+const fallbackLogTimes = new Map<string, string>();
 
 const verdicts = computed(() => props.result?.modelResponse?.verdicts ?? []);
 const summary = computed(() => props.result?.modelResponse?.summary ?? null);
@@ -342,6 +343,21 @@ function parseLogLine(raw: string, index: number): LogLine {
   };
 }
 
+function formatCurrentTime() {
+  const now = new Date();
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+}
+
+function getDisplayLogTime(line: LogLine) {
+  if (line.time) return line.time;
+  const cachedTime = fallbackLogTimes.get(line.id);
+  if (cachedTime) return cachedTime;
+  const nextTime = formatCurrentTime();
+  fallbackLogTimes.set(line.id, nextTime);
+  return nextTime;
+}
+
 function classifyLogLine(text: string): LogLine['kind'] {
   if (/Extracted\s+\d+\s+functions/i.test(text)) return 'summary';
   if (/^func:/i.test(text)) return 'function';
@@ -439,7 +455,7 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
               class="log-line"
               :class="`log-line--${line.kind}`"
             >
-              <span class="log-time">{{ line.time || '--:--:--' }}</span>
+              <span class="log-time">{{ getDisplayLogTime(line) }}</span>
               <span class="log-chip log-chip--phase">{{ line.phase }}</span>
               <span v-if="line.stage" class="log-chip">{{ line.stage }}</span>
               <span v-if="line.source" class="log-chip log-chip--source">{{ line.source }}</span>
