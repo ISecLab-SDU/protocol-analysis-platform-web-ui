@@ -27,6 +27,7 @@ import {
   snapshotAflNetPoc,
   stopAndCleanup,
   stopProcess,
+  upsertProtocolViolationHistory,
   writeScript,
 } from '#/api/protocol-compliance';
 
@@ -618,6 +619,88 @@ async function downloadHistoryPocArtifact(historyId: string) {
   }
 }
 
+function parseHistoryTargetLines(targetLine?: number | string) {
+  const text = String(targetLine || '').trim();
+  if (!text || text === '-') return undefined;
+  const lines = new Set<number>();
+  for (const part of text.split(',')) {
+    const rangeMatch = part.trim().match(/^(\d+)(?:-(\d+))?$/);
+    if (!rangeMatch?.[1]) continue;
+    const start = Number(rangeMatch[1]);
+    const end = Number(rangeMatch[2] || rangeMatch[1]);
+    if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
+    const cappedEnd = Math.min(end, start + 50);
+    for (let line = start; line <= cappedEnd; line += 1) lines.add(line);
+  }
+  return lines.size > 0 ? [...lines] : undefined;
+}
+
+function buildHistoryCodeSnippet() {
+  const evidence = codeLocateEvidence.value;
+  const functions = evidence?.functions ?? [];
+  const slices = functions.length > 0
+    ? functions
+    : evidence?.codeRows?.length
+      ? [{ codeRows: evidence.codeRows, name: evidence.targetFile || '代码片段' }]
+      : [];
+
+  return slices
+    .map((slice) => {
+      const rows = slice.codeRows
+        .map((row) => `${String(row.line).padStart(5, ' ')} ${row.text}`)
+        .join('\n');
+      return `Function: ${slice.name}\n${rows}`;
+    })
+    .join('\n\n');
+}
+
+async function persistViolationHistoryFromWorkbench(
+  historyEntry: (typeof resultHistory.value)[number],
+) {
+  if (historyEntry.stats.crashes <= 0) return;
+
+  const databasePath = staticResult.value?.artifacts?.database;
+  const workspacePath = staticResult.value?.artifacts?.workspace;
+  if (!databasePath && !workspacePath) {
+    appendFuzzLog('未找到当前静态分析数据库路径，违规历史未写入', 'WARN');
+    return;
+  }
+
+  const firstFunction = historyEntry.codeFunctions[0];
+  const targetFile =
+    firstFunction?.path ||
+    (historyEntry.targetFile === '未生成代码定位结果'
+      ? undefined
+      : historyEntry.targetFile);
+
+  try {
+    await upsertProtocolViolationHistory({
+      codeSnippet: buildHistoryCodeSnippet(),
+      databasePath: databasePath || undefined,
+      jobId: staticJobId.value || undefined,
+      reason: historyEntry.violationReason || historyEntry.conclusion,
+      result: 'violation_found',
+      ruleDesc: historyEntry.ruleText,
+      violations: targetFile
+        ? [
+            {
+              codeLines: parseHistoryTargetLines(
+                firstFunction?.targetLine || historyEntry.targetLine,
+              ),
+              filename: targetFile,
+              functionName: firstFunction?.name,
+            },
+          ]
+        : undefined,
+      workspacePath: workspacePath || undefined,
+    });
+    appendFuzzLog('已将当前结果验证结论写入违规历史数据库', 'INFO');
+    window.dispatchEvent(new CustomEvent('protocol-violation-history-updated'));
+  } catch (err: any) {
+    appendFuzzLog(`写入违规历史失败: ${err?.message || err}`, 'WARN');
+  }
+}
+
 function appendResultHistoryRecord(reason: 'crash' | 'stopped') {
   if (resultHistoryAppended) return;
   resultHistoryAppended = true;
@@ -688,6 +771,8 @@ function appendResultHistoryRecord(reason: 'crash' | 'stopped') {
   };
 
   resultHistory.value.unshift(historyEntry);
+
+  if (hasCrash) void persistViolationHistoryFromWorkbench(historyEntry);
 
   if (resultHistory.value.length > 20) {
     resultHistory.value.splice(20);

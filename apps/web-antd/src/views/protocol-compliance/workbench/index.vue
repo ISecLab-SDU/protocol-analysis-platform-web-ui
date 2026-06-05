@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, reactive, ref } from 'vue';
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  reactive,
+  ref,
+} from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -577,9 +584,24 @@ function formatLlmRaw(value: unknown) {
   }
 }
 
+function handleViolationHistoryUpdated() {
+  void loadViolationHistory(true, true, true);
+}
+
 onMounted(() => {
+  window.addEventListener(
+    'protocol-violation-history-updated',
+    handleViolationHistoryUpdated,
+  );
   void loadOverviewStats();
   void loadViolationHistory(false, false);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener(
+    'protocol-violation-history-updated',
+    handleViolationHistoryUpdated,
+  );
 });
 
 function stageStateLabel(key: (typeof STAGE_LIST)[number]['key']) {

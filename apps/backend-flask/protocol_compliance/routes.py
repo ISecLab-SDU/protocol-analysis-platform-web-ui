@@ -613,12 +613,23 @@ def _parse_llm_response(payload: Any) -> Dict[str, Any]:
     return {}
 
 
+def _has_structured_violation_payload(llm_payload: Dict[str, Any]) -> bool:
+    violations = llm_payload.get("violations")
+    if not isinstance(violations, list):
+        return False
+    return any(isinstance(item, dict) for item in violations)
+
+
 def _classify_rule_result(llm_payload: Dict[str, Any]) -> tuple[str, str]:
-    result_text = str(llm_payload.get("result") or "").lower()
-    if "violation" in result_text and "no violation" not in result_text:
+    if _has_structured_violation_payload(llm_payload):
         return "violation_found", "发现违规"
-    if "no violation" in result_text:
+
+    result_text = str(llm_payload.get("result") or "").lower()
+    normalized_result = re.sub(r"[\s_-]+", " ", result_text)
+    if "no violation" in normalized_result:
         return "no_violation", "未发现违规"
+    if "violation" in normalized_result:
+        return "violation_found", "发现违规"
     return "unknown", "未判定"
 
 
@@ -923,6 +934,26 @@ def _delete_violation_history_from_database(
 
     conn.close()
     return None, warnings
+
+
+def _find_matching_rule_row(
+    rows: list[sqlite3.Row],
+    rule_desc: str,
+) -> Optional[sqlite3.Row]:
+    rule_key = _dedupe_key(rule_desc)
+    if not rule_key:
+        return rows[0] if rows else None
+
+    for row in rows:
+        if _dedupe_key(row["rule_desc"]) == rule_key:
+            return row
+
+    for row in rows:
+        row_key = _dedupe_key(row["rule_desc"])
+        if rule_key in row_key or row_key in rule_key:
+            return row
+
+    return None
 
 
 def _truncate_text(value: Any, limit: int) -> Optional[str]:
@@ -1289,6 +1320,141 @@ def delete_static_analysis_violation_history(item_id: str):
     if warnings:
         detail["warnings"] = warnings
     return make_response(error_response("历史记录不存在", detail), 404)
+
+
+@bp.route("/static-analysis/violation-history", methods=["POST"])
+def upsert_static_analysis_violation_history():
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return make_response(error_response("请求体必须为 JSON 对象"), 400)
+
+    database_path_raw = cast(Optional[str], payload.get("databasePath"))
+    workspace_path_raw = cast(Optional[str], payload.get("workspacePath"))
+    job_id = cast(Optional[str], payload.get("jobId"))
+    rule_desc = str(payload.get("ruleDesc") or "").strip()
+    reason = str(payload.get("reason") or "工作台结果验证发现违规证据").strip()
+    code_snippet = payload.get("codeSnippet")
+    call_graph = payload.get("callGraph")
+    violations_payload = payload.get("violations")
+
+    resolved_path, warnings = _find_sqlite_file(database_path_raw, workspace_path_raw)
+    if not resolved_path:
+        return make_response(
+            error_response(
+                "未找到可写入的静态分析结果数据库",
+                {
+                    "databasePath": database_path_raw,
+                    "jobId": job_id,
+                    "warnings": warnings or None,
+                    "workspacePath": workspace_path_raw,
+                },
+            ),
+            404,
+        )
+
+    try:
+        conn = sqlite3.connect(resolved_path)
+    except sqlite3.Error as exc:
+        return make_response(error_response(f"无法打开静态分析结果数据库：{exc}"), 500)
+
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            "SELECT rowid AS __rowid, rule_desc, code_snippet, call_graph, llm_response "
+            "FROM rule_code_snippet"
+        ).fetchall()
+    except sqlite3.Error as exc:
+        conn.close()
+        return make_response(error_response(f"读取静态分析规则结果失败：{exc}"), 500)
+
+    matched = _find_matching_rule_row(rows, rule_desc)
+    if matched is None:
+        conn.close()
+        return make_response(
+            error_response(
+                "未找到匹配的规则记录，无法写入违规历史",
+                {"databasePath": str(resolved_path), "ruleDesc": rule_desc},
+            ),
+            404,
+        )
+    matched_index = next(
+        (
+            index
+            for index, row in enumerate(rows, start=1)
+            if row["__rowid"] == matched["__rowid"]
+        ),
+        1,
+    )
+
+    llm_payload = _parse_llm_response(matched["llm_response"])
+    if not isinstance(llm_payload, dict):
+        llm_payload = {}
+    llm_payload.update(
+        {
+            "reason": reason,
+            "result": "violation_found",
+            "updated_by": "workbench_result_verification",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+    )
+    if isinstance(violations_payload, list) and violations_payload:
+        llm_payload["violations"] = violations_payload
+
+    next_code_snippet = (
+        code_snippet
+        if isinstance(code_snippet, str) and code_snippet.strip()
+        else matched["code_snippet"]
+    )
+    next_call_graph = (
+        call_graph
+        if isinstance(call_graph, str) and call_graph.strip()
+        else matched["call_graph"]
+    )
+
+    try:
+        conn.execute(
+            "UPDATE rule_code_snippet "
+            "SET code_snippet = ?, call_graph = ?, llm_response = ? "
+            "WHERE rowid = ?",
+            (
+                next_code_snippet,
+                next_call_graph,
+                json.dumps(llm_payload, ensure_ascii=False),
+                matched["__rowid"],
+            ),
+        )
+        conn.commit()
+    except sqlite3.Error as exc:
+        conn.close()
+        return make_response(error_response(f"写入违规历史失败：{exc}"), 500)
+
+    item_id = _build_violation_history_item_id(
+        db_path=resolved_path,
+        job_id=job_id,
+        row_index=matched_index,
+        rule_desc=matched["rule_desc"],
+        source_type="job" if job_id else "builtin",
+    )
+    conn.close()
+
+    return make_response(
+        success_response(
+            {
+                "databasePath": str(resolved_path),
+                "id": item_id,
+                "result": "violation_found",
+                "resultLabel": "发现违规",
+                "ruleDesc": matched["rule_desc"],
+                "updated": True,
+                "warnings": warnings,
+            }
+        ),
+        200,
+    )
 
 
 @bp.route("/static-analysis/database-insights", methods=["POST"])
