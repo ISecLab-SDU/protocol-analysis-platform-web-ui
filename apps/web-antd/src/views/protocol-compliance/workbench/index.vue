@@ -204,13 +204,6 @@ const overviewMetrics = computed(() => [
     suffix: '条',
     value: overviewSummary.value.violationRules,
   },
-  {
-    accent: 'red',
-    icon: 'mdi:target',
-    label: '违规位置',
-    suffix: '处',
-    value: overviewSummary.value.violationLocations,
-  },
 ]);
 
 const heroPipelineSteps = [
