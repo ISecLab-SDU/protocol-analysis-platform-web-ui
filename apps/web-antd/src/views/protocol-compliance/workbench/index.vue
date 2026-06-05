@@ -372,9 +372,9 @@ function scheduleBannerProgressTick() {
   const current = bannerProgress.value;
   const delay =
     current < 70
-      ? 220 + Math.random() * 220
+      ? 520 + Math.random() * 460
       : current < 90
-        ? 420 + Math.random() * 420
+        ? 900 + Math.random() * 650
         : 1400 + Math.random() * 1300;
 
   bannerProgressTimer = setTimeout(() => {
@@ -383,9 +383,9 @@ function scheduleBannerProgressTick() {
     const value = bannerProgress.value;
     const increment =
       value < 70
-        ? 7 + Math.random() * 9
+        ? 3.5 + Math.random() * 4.5
         : value < 90
-          ? 2 + Math.random() * 4
+          ? 1.2 + Math.random() * 2.2
           : 0.3 + Math.random() * 0.9;
     const cap = value < 90 ? 90 : 98;
     bannerProgress.value = Math.min(cap, value + increment);
