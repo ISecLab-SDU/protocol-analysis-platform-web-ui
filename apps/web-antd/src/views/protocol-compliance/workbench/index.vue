@@ -1678,9 +1678,9 @@ async function handleLoadDemoConfig() {
   width: 100%;
   height: 50px;
   padding: 0 16px;
-  font-size: 15px;
-  font-weight: 700;
-  color: #24324b;
+  font-size: 17px;
+  font-weight: 800;
+  color: #111827;
   text-align: left;
   cursor: pointer;
   background: transparent;
@@ -1689,11 +1689,12 @@ async function handleLoadDemoConfig() {
 }
 
 .nav-item :first-child {
-  font-size: 19px;
+  font-size: 22px;
 }
 
 .nav-item--active {
   position: relative;
+  font-weight: 800;
   color: #1677ff;
   background: linear-gradient(90deg, #eaf3ff 0%, #f3f8ff 100%);
 }
