@@ -1898,6 +1898,50 @@ def _aflnet_output_root() -> Path:
     return Path(os.environ.get("AFLNET_OUTPUT_ROOT") or os.path.dirname(RTSP_CONFIG["log_file_path"]))
 
 
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[3]
+
+
+def _aflnet_fallback_output_root() -> Path:
+    configured = os.environ.get("AFLNET_FALLBACK_OUTPUT_ROOT")
+    if configured:
+        return Path(configured).expanduser()
+    return _repo_root() / "fuzz-output"
+
+
+def _aflnet_output_root_for_source(source: str = "primary") -> Path:
+    if source == "fallback":
+        return _aflnet_fallback_output_root()
+    return _aflnet_output_root()
+
+
+def _aflnet_log_file_for_source(source: str = "primary") -> Path:
+    if source == "fallback":
+        filename = os.environ.get("AFLNET_FALLBACK_LOG_FILE_NAME", "plot_data")
+        return _aflnet_fallback_output_root() / filename
+    return Path(RTSP_CONFIG["log_file_path"]).expanduser()
+
+
+def _resolve_aflnet_output_source(data: Optional[Dict[str, Any]] = None) -> str:
+    requested = (data or {}).get("outputSource") or (data or {}).get("output_source")
+    if requested == "fallback" or (data or {}).get("useFallbackOutput"):
+        return "fallback"
+    return "primary"
+
+
+def _resolve_aflnet_archive_source(
+    requested_path: Optional[str],
+    requested_source: Optional[str],
+) -> str:
+    if requested_source == "fallback":
+        return "fallback"
+    if requested_path:
+        path = Path(requested_path).expanduser()
+        if path.exists() and _is_path_inside(path, [_aflnet_fallback_output_root()]):
+            return "fallback"
+    return "primary"
+
+
 def _aflnet_artifact_root() -> Path:
     configured = os.environ.get("AFLNET_ARTIFACT_ROOT")
     if configured:
@@ -1906,9 +1950,9 @@ def _aflnet_artifact_root() -> Path:
     return pg_output_root.parent / "fuzz-artifacts"
 
 
-def _aflnet_result_path_info() -> Dict[str, str]:
-    output_root = _aflnet_output_root().expanduser()
-    log_file = Path(RTSP_CONFIG["log_file_path"]).expanduser()
+def _aflnet_result_path_info(source: str = "primary") -> Dict[str, Any]:
+    output_root = _aflnet_output_root_for_source(source).expanduser()
+    log_file = _aflnet_log_file_for_source(source).expanduser()
     poc_path = output_root
     for name in ("replayable-crashes", "crashes", "crash", "crash_logs", "queue"):
         candidate = output_root / name
@@ -1916,7 +1960,9 @@ def _aflnet_result_path_info() -> Dict[str, str]:
             poc_path = candidate
             break
     return {
+        "isFallbackOutput": source == "fallback",
         "logFilePath": str(log_file),
+        "outputSource": source,
         "outputRoot": str(output_root),
         "pocPath": str(poc_path),
     }
@@ -2023,8 +2069,12 @@ def download_aflnet_result():
     protocol = request.args.get("protocol") or "MQTT"
     implementation = request.args.get("implementation") or "SOL"
     crash_log_path = request.args.get("crashLogPath")
+    output_source = _resolve_aflnet_archive_source(
+        crash_log_path,
+        request.args.get("outputSource"),
+    )
 
-    output_root = _aflnet_output_root().expanduser()
+    output_root = _aflnet_output_root_for_source(output_source).expanduser()
     if not output_root.exists() or not output_root.is_dir():
         return make_response(
             error_response(f"AFLNET 输出目录不存在：{output_root}"),
@@ -2067,8 +2117,12 @@ def snapshot_aflnet_result():
     protocol = data.get("protocol") or "MQTT"
     implementation = data.get("implementation") or "SOL"
     crash_log_path = data.get("crashLogPath")
+    output_source = _resolve_aflnet_archive_source(
+        crash_log_path,
+        data.get("outputSource") or data.get("output_source"),
+    )
 
-    output_root = _aflnet_output_root().expanduser()
+    output_root = _aflnet_output_root_for_source(output_source).expanduser()
     if not output_root.exists() or not output_root.is_dir():
         return make_response(
             error_response(f"AFLNET 输出目录不存在：{output_root}"),
@@ -2281,7 +2335,13 @@ def execute_command():
                             print(f"[DEBUG] 返回成功响应: {response_data}")
                             return success_response(response_data)
                         else:
-                            return make_response(error_response(f"容器启动后立即停止，请检查Docker镜像和配置"), 500)
+                            return make_response(
+                                error_response(
+                                    "容器启动后立即停止，已切换到备份 fuzz-output 数据源",
+                                    _aflnet_result_path_info("fallback"),
+                                ),
+                                500,
+                            )
                     else:
                         error_msg = result.stderr.strip() if result.stderr.strip() else "无法获取有效的容器ID"
                         print(f"[DEBUG] ProtocolGuard启动失败: {error_msg}")
@@ -2353,6 +2413,7 @@ def read_log():
 
     # 根据协议获取配置
     protocol_implementations = data.get("protocolImplementations", [])
+    output_source = _resolve_aflnet_output_source(data)
     is_sol_aflnet = (
         protocol == "MQTT"
         and protocol_implementations
@@ -2363,8 +2424,8 @@ def read_log():
         # MQTT协议支持双引擎配置
         if protocol_implementations and "SOL" in protocol_implementations:
             # SOL使用AFLNET引擎日志路径 (原RTSP配置)
-            file_path = RTSP_CONFIG["log_file_path"]
-            print(f"[DEBUG] MQTT协议使用SOL实现，读取AFLNET日志: {file_path}")
+            file_path = str(_aflnet_log_file_for_source(output_source))
+            print(f"[DEBUG] MQTT协议使用SOL实现，读取AFLNET日志({output_source}): {file_path}")
         else:
             # 传统MQTT broker使用MBFuzzer引擎日志路径
             file_path = MQTT_CONFIG["log_file_path"]
@@ -2388,7 +2449,7 @@ def read_log():
                 "message": f"日志目录不存在: {log_dir}",
             }
             if is_sol_aflnet:
-                response_data.update(_aflnet_result_path_info())
+                response_data.update(_aflnet_result_path_info(output_source))
             return success_response(response_data)
         
         # 列出目录中的文件
@@ -2406,7 +2467,7 @@ def read_log():
                 "message": f"日志文件尚未创建: {file_path}",
             }
             if is_sol_aflnet:
-                response_data.update(_aflnet_result_path_info())
+                response_data.update(_aflnet_result_path_info(output_source))
             return success_response(response_data)
         
         # 获取文件信息
@@ -2438,7 +2499,7 @@ def read_log():
             "message": f"成功读取{len(new_content)}字符，文件大小{file_size}字节",
         }
         if is_sol_aflnet:
-            response_data.update(_aflnet_result_path_info())
+            response_data.update(_aflnet_result_path_info(output_source))
         return success_response(response_data)
 
     except Exception as e:
@@ -2471,10 +2532,17 @@ def check_status():
             
             if protocol_implementations and "SOL" in protocol_implementations:
                 # 检查SOL相关状态 (使用AFLNET引擎)
-                log_file_path = RTSP_CONFIG["log_file_path"]
+                log_file_path = str(_aflnet_log_file_for_source())
                 status_info["engine"] = "AFLNET"
                 status_info["implementation"] = "SOL"
                 status_info.update(_aflnet_result_path_info())
+                fallback_info = _aflnet_result_path_info("fallback")
+                fallback_log_path = fallback_info["logFilePath"]
+                fallback_info.update({
+                    "logDirExists": os.path.exists(os.path.dirname(fallback_log_path)),
+                    "logFileExists": os.path.exists(fallback_log_path),
+                })
+                status_info["fallbackOutput"] = fallback_info
             else:
                 # 检查传统MQTT broker状态 (使用MBFuzzer引擎)
                 log_file_path = MQTT_CONFIG["log_file_path"]
@@ -2662,10 +2730,14 @@ def pre_start_cleanup():
         # 2. 清理输出文件夹
         if protocol == "RTSP" or protocol == "MQTT":
             output_dir = os.path.dirname(RTSP_CONFIG["log_file_path"])
+            fallback_output_dir = str(_aflnet_fallback_output_root().resolve())
             
             # Linux安全检查：防止删除系统重要目录
             dangerous_paths = ['/', '/home', '/usr', '/var', '/etc', '/bin', '/sbin', '/lib', '/opt']
-            if output_dir in dangerous_paths or len(output_dir.strip()) < 5:
+            if str(Path(output_dir).resolve()) == fallback_output_dir:
+                cleanup_results["errors"].append(f"拒绝清理备份输出目录: {output_dir}")
+                print(f"[DEBUG] 安全检查失败，拒绝清理备份输出目录: {output_dir}")
+            elif output_dir in dangerous_paths or len(output_dir.strip()) < 5:
                 cleanup_results["errors"].append(f"拒绝清理危险路径: {output_dir}")
                 print(f"[DEBUG] 安全检查失败，拒绝清理: {output_dir}")
             else:

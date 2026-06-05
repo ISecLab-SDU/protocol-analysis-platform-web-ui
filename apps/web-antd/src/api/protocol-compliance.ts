@@ -868,7 +868,13 @@ export function executeCommand(data: { protocol: string; protocolImplementations
 }
 
 // 读取日志
-export function readLog(data: { protocol: string; lastPosition: number; protocolImplementations?: string[] }) {
+export function readLog(data: {
+  lastPosition: number;
+  outputSource?: 'fallback' | 'primary';
+  protocol: string;
+  protocolImplementations?: string[];
+  useFallbackOutput?: boolean;
+}) {
   return requestClient.post('/protocol-compliance/read-log', data);
 }
 
