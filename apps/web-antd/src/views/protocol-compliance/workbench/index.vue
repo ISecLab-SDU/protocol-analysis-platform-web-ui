@@ -114,6 +114,7 @@ type SideNavKey = (typeof sideNavItems)[number]['key'];
 
 const activeSideNav = ref<SideNavKey>('overview');
 const demoConfigLoading = ref(false);
+const HISTORY_PAGE_SIZE = 24;
 const violationHistory = ref<ProtocolViolationHistoryEntry[]>([]);
 const violationHistoryError = ref('');
 const violationHistoryGeneratedAt = ref('');
@@ -124,6 +125,7 @@ const violationHistoryQueuedRefreshOverview = ref(false);
 const violationHistoryWarnings = ref<string[]>([]);
 const selectedViolationHistoryId = ref('');
 const deletingViolationHistoryId = ref('');
+const historyVisibleCount = ref(HISTORY_PAGE_SIZE);
 const historyFilters = reactive<{
   implementation: string;
   protocol: string;
@@ -147,6 +149,17 @@ const violationHistoryRefreshing = computed(
   () =>
     violationHistoryLoading.value &&
     (violationHistoryLoaded.value || violationHistory.value.length > 0),
+);
+
+const visibleViolationHistory = computed(() =>
+  violationHistory.value.slice(0, historyVisibleCount.value),
+);
+
+const hiddenViolationHistoryCount = computed(() =>
+  Math.max(
+    violationHistory.value.length - visibleViolationHistory.value.length,
+    0,
+  ),
 );
 
 const overviewStats = ref<null | ProtocolDatabaseOverviewStats>(null);
@@ -331,6 +344,28 @@ function protocolAccent(name: string) {
   return 'coap';
 }
 
+function resetHistoryVisibleCount(preserveCurrent = false) {
+  const baseCount = preserveCurrent
+    ? Math.max(historyVisibleCount.value, HISTORY_PAGE_SIZE)
+    : HISTORY_PAGE_SIZE;
+
+  if (!selectedViolationHistoryId.value) {
+    historyVisibleCount.value = baseCount;
+    return;
+  }
+
+  const selectedIndex = violationHistory.value.findIndex(
+    (entry) => entry.id === selectedViolationHistoryId.value,
+  );
+  const minimumCount = selectedIndex >= 0 ? selectedIndex + 1 : baseCount;
+  historyVisibleCount.value =
+    Math.ceil(minimumCount / HISTORY_PAGE_SIZE) * HISTORY_PAGE_SIZE;
+}
+
+function loadMoreViolationHistory() {
+  historyVisibleCount.value += HISTORY_PAGE_SIZE;
+}
+
 async function loadViolationHistory(
   force = false,
   refreshOverview = true,
@@ -350,6 +385,8 @@ async function loadViolationHistory(
   if (!silent) {
     violationHistoryError.value = '';
   }
+  const shouldPreserveVisibleCount =
+    violationHistoryLoaded.value || violationHistory.value.length > 0;
   try {
     const response = await fetchProtocolViolationHistory({
       implementation: historyFilters.implementation || undefined,
@@ -373,6 +410,7 @@ async function loadViolationHistory(
     ) {
       selectedViolationHistoryId.value = '';
     }
+    resetHistoryVisibleCount(shouldPreserveVisibleCount);
   } catch (error) {
     if (!silent || !violationHistoryLoaded.value) {
       violationHistoryError.value =
@@ -424,6 +462,7 @@ function refreshViolationHistoryOnEnter() {
 
 function handleHistoryFilterChange() {
   selectedViolationHistoryId.value = '';
+  historyVisibleCount.value = HISTORY_PAGE_SIZE;
   void loadViolationHistory(true);
 }
 
@@ -1139,7 +1178,7 @@ async function handleLoadDemoConfig() {
 
             <div v-if="violationHistory.length > 0" class="result-history-list">
               <article
-                v-for="entry in violationHistory"
+                v-for="entry in visibleViolationHistory"
                 :key="entry.id"
                 class="result-history-card result-history-card--summary"
                 :class="{
@@ -1282,6 +1321,18 @@ async function handleLoadDemoConfig() {
                   </footer>
                 </section>
               </article>
+              <footer
+                v-if="hiddenViolationHistoryCount > 0"
+                class="history-load-more"
+              >
+                <span>还有 {{ formatNumber(hiddenViolationHistoryCount) }} 条结果</span>
+                <Button size="small" @click="loadMoreViolationHistory">
+                  加载更多
+                  <template #icon>
+                    <IconifyIcon icon="mdi:chevron-down" />
+                  </template>
+                </Button>
+              </footer>
             </div>
 
             <section
@@ -1601,6 +1652,24 @@ async function handleLoadDemoConfig() {
   width: 100%;
   min-height: 100%;
   padding: 28px 28px 24px;
+}
+
+.overview-shell,
+.task-shell,
+.logs-shell {
+  animation: guard-view-enter 140ms ease-out;
+}
+
+@keyframes guard-view-enter {
+  from {
+    opacity: 0.72;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .overview-hero {
@@ -2651,6 +2720,16 @@ async function handleLoadDemoConfig() {
 .result-history-card--selected {
   border-color: #91caff;
   box-shadow: 0 10px 28px rgb(22 119 255 / 10%);
+}
+
+.history-load-more {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 0 2px;
+  font-size: 12px;
+  color: #64748b;
 }
 
 .result-history-head {
