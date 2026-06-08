@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -32,7 +33,7 @@ class PipelineResultNotFoundError(RuntimeError):
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-PIPELINE_ROOT = (REPO_ROOT / "protocolProject-1").resolve()
+PIPELINE_ROOT = (Path(__file__).resolve().parents[1] / "protocol_extract").resolve()
 STORAGE_ROOT = PIPELINE_ROOT / "project_store"
 UPLOAD_ROOT = PIPELINE_ROOT / "uploads"
 
@@ -184,8 +185,6 @@ def _build_command(
     command = [
         sys.executable,
         "main.py",
-        "--apikey",
-        api_key,
         "--protocol",
         protocol,
         "--version",
@@ -218,7 +217,9 @@ def run_protocol_pipeline(
         raise ValueError("version 不能为空")
     api_key = api_key.strip()
     if not api_key:
-        raise ValueError("API 密钥不能为空")
+        api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+        if not api_key:
+            raise ValueError("API 密钥不能为空")
 
     saved_path = _save_upload(html_upload)
 

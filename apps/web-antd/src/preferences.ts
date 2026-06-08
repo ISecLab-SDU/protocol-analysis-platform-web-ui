@@ -9,10 +9,13 @@ export const overridesPreferences = defineOverridesPreferences({
   // overrides
   app: {
     name: import.meta.env.VITE_APP_TITLE,
-    defaultHomePath: '/protocol-compliance/extract',
+    defaultHomePath: '/protocol-compliance/workbench',
   },
   logo: {
     enable: true,
     fit: 'none',
+  },
+  sidebar: {
+    enable: false,
   },
 });

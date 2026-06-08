@@ -60,3 +60,8 @@ vite.config.ts.*
 **/assertion_history/
 .antigravitycli
 reference/
+**/project_store/
+**/uploads/
+database/
+New-Input/
+fuzz-output/

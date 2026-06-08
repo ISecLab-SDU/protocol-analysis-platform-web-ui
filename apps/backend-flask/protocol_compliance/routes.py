@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
+import io
 import json
 import logging
 import os
@@ -10,7 +12,9 @@ import re
 import sqlite3
 import subprocess
 import uuid
-from datetime import datetime, timezone
+import zipfile
+from collections import defaultdict
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, cast
 
@@ -18,14 +22,24 @@ import toml
 from flask import Blueprint, make_response, request, send_file
 from werkzeug.datastructures import FileStorage
 
-from utils.auth import verify_access_token
-from utils.responses import (
-    error_response,
-    make_error_payload,
-    paginate,
-    success_response,
-    unauthorized,
-)
+try:
+    from ..utils.auth import verify_access_token
+    from ..utils.responses import (
+        error_response,
+        make_error_payload,
+        paginate,
+        success_response,
+        unauthorized,
+    )
+except ImportError:
+    from utils.auth import verify_access_token
+    from utils.responses import (
+        error_response,
+        make_error_payload,
+        paginate,
+        success_response,
+        unauthorized,
+    )
 from .analysis import (
     delete_static_analysis_job,
     extract_protocol_version,
@@ -58,6 +72,47 @@ from .pipeline_runner import (
 LOGGER = logging.getLogger(__name__)
 
 bp = Blueprint("protocol_compliance", __name__, url_prefix="/api/protocol-compliance")
+
+TEMP_ASSERTION_DATABASE_PATH = Path(
+    "/home/lab426_system/protocol-web-ui/violations.db"
+)
+
+PROTOCOL_BY_IMPLEMENTATION = {
+    "freecoap": "CoAP",
+    "libcoap": "CoAP",
+    "dhcp": "DHCPv6",
+    "dnsmasq": "DHCPv6",
+    "ndhs": "DHCPv6",
+    "mosquitto": "MQTT",
+    "sol": "MQTT",
+    "tinymqtt": "MQTT",
+    "pure-ftpd": "FTP",
+    "uftpd": "FTP",
+    "tlse": "TLS",
+    "wolfssl": "TLS",
+}
+
+PROTOCOL_ALIASES = {
+    "coap": "CoAP",
+    "dhcp": "DHCPv6",
+    "dhcpv6": "DHCPv6",
+    "ftp": "FTP",
+    "mqtt": "MQTT",
+    "mqttv3": "MQTT",
+    "mqttv5": "MQTT",
+    "snmp": "SNMP",
+    "ssl": "TLS",
+    "tls": "TLS",
+    "tlsv1.3": "TLS",
+}
+
+RULE_RESULT_PRIORITY = {
+    "unknown": 0,
+    "no_violation": 1,
+    "violation_found": 2,
+}
+
+VISIBLE_VIOLATION_HISTORY_LIMIT = 5
 
 
 # Authentication -------------------------------------------------------------
@@ -561,13 +616,861 @@ def _parse_llm_response(payload: Any) -> Dict[str, Any]:
     return {}
 
 
+def _has_structured_violation_payload(llm_payload: Dict[str, Any]) -> bool:
+    violations = llm_payload.get("violations")
+    if not isinstance(violations, list):
+        return False
+    return any(isinstance(item, dict) for item in violations)
+
+
 def _classify_rule_result(llm_payload: Dict[str, Any]) -> tuple[str, str]:
-    result_text = str(llm_payload.get("result") or "").lower()
-    if "violation" in result_text and "no violation" not in result_text:
+    if _has_structured_violation_payload(llm_payload):
         return "violation_found", "发现违规"
-    if "no violation" in result_text:
+
+    result_text = str(llm_payload.get("result") or "").lower()
+    normalized_result = re.sub(r"[\s_-]+", " ", result_text)
+    if "no violation" in normalized_result:
         return "no_violation", "未发现违规"
+    if "violation" in normalized_result:
+        return "violation_found", "发现违规"
     return "unknown", "未判定"
+
+
+def _normalize_implementation_from_db(path: Path) -> str:
+    name = path.stem
+    return name[7:] if name.startswith("sqlite_") else name
+
+
+def _protocol_for_implementation(implementation_name: str) -> str:
+    return PROTOCOL_BY_IMPLEMENTATION.get(implementation_name.lower(), "Other")
+
+
+def _normalize_protocol_name(
+    protocol_name: Optional[str],
+    implementation_name: str,
+) -> str:
+    if isinstance(protocol_name, str) and protocol_name.strip():
+        key = re.sub(r"[\s_-]+", "", protocol_name.strip().lower())
+        for prefix, normalized in PROTOCOL_ALIASES.items():
+            if key.startswith(prefix.replace(".", "")):
+                return normalized
+    return _protocol_for_implementation(implementation_name)
+
+
+def _dedupe_key(value: Any) -> str:
+    return " ".join(str(value or "").split()).lower()
+
+
+def _merge_rule_status(
+    status_by_rule: Dict[str, str],
+    rule_key: str,
+    result_status: str,
+) -> None:
+    current = status_by_rule.get(rule_key)
+    if current is None or (
+        RULE_RESULT_PRIORITY.get(result_status, 0)
+        > RULE_RESULT_PRIORITY.get(current, 0)
+    ):
+        status_by_rule[rule_key] = result_status
+
+
+def _violation_location_key(rule_key: str, violation: Dict[str, Any]) -> str:
+    code_lines = violation.get("codeLines")
+    if isinstance(code_lines, list):
+        lines = ",".join(str(item) for item in code_lines)
+    else:
+        lines = ""
+    return "|".join(
+        [
+            rule_key,
+            _dedupe_key(violation.get("filename")),
+            _dedupe_key(violation.get("functionName")),
+            lines,
+        ]
+    )
+
+
+def _parse_violation_details(payload: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
+    violations_payload = payload.get("violations")
+    if not isinstance(violations_payload, list):
+        return None
+
+    violations: List[Dict[str, Any]] = []
+    for entry in violations_payload:
+        if not isinstance(entry, dict):
+            continue
+        code_lines = entry.get("code_lines") or entry.get("codeLines")
+        if isinstance(code_lines, list):
+            lines = []
+            for item in code_lines:
+                try:
+                    lines.append(int(item))
+                except (TypeError, ValueError):
+                    continue
+            code_lines = lines or None
+        else:
+            code_lines = None
+        violations.append(
+            {
+                "filename": entry.get("filename"),
+                "functionName": entry.get("function_name") or entry.get("functionName"),
+                "codeLines": code_lines,
+            }
+        )
+    return violations or None
+
+
+def _iter_static_analysis_database_sources(
+    job_limit: int,
+) -> tuple[List[Dict[str, Any]], List[str]]:
+    db_dir = Path(os.path.dirname(__file__)) / "databases"
+    sources: List[Dict[str, Any]] = []
+    warnings: List[str] = []
+    seen_database_paths: set[str] = set()
+
+    if db_dir.is_dir():
+        for db_path in sorted(db_dir.glob("sqlite_*.db")):
+            resolved = str(db_path.resolve())
+            seen_database_paths.add(resolved)
+            sources.append(
+                {
+                    "path": db_path,
+                    "sourceType": "builtin",
+                    "jobId": None,
+                    "protocolName": None,
+                    "createdAt": None,
+                    "updatedAt": None,
+                }
+            )
+    else:
+        warnings.append(f"数据库目录不存在：{db_dir}")
+
+    for entry in list_static_analysis_history(limit=job_limit):
+        if entry.get("status") != "completed":
+            continue
+        database_path_raw = entry.get("databasePath")
+        workspace_path_raw = entry.get("workspacePath")
+        resolved_path, resolve_warnings = _find_sqlite_file(
+            str(database_path_raw) if database_path_raw else None,
+            str(workspace_path_raw) if workspace_path_raw else None,
+        )
+        warnings.extend(resolve_warnings)
+        if not resolved_path:
+            continue
+        resolved = str(resolved_path.resolve())
+        if resolved in seen_database_paths:
+            continue
+        seen_database_paths.add(resolved)
+        sources.append(
+            {
+                "path": resolved_path,
+                "sourceType": "job",
+                "jobId": entry.get("jobId"),
+                "protocolName": entry.get("protocolName"),
+                "createdAt": entry.get("createdAt"),
+                "updatedAt": entry.get("updatedAt"),
+            }
+        )
+
+    return sources, warnings
+
+
+def _read_violation_history_from_database(
+    db_path: Path,
+    *,
+    source_type: str,
+    job_id: Optional[str] = None,
+    protocol_name: Optional[str] = None,
+    created_at: Optional[str] = None,
+    updated_at: Optional[str] = None,
+) -> tuple[List[Dict[str, Any]], List[str]]:
+    warnings: List[str] = []
+    items: List[Dict[str, Any]] = []
+
+    implementation_name = _normalize_implementation_from_db(db_path)
+    resolved_protocol = _normalize_protocol_name(protocol_name, implementation_name)
+    database_name = db_path.name
+    try:
+        extracted_at = datetime.fromtimestamp(
+            db_path.stat().st_mtime,
+            timezone.utc,
+        ).isoformat()
+    except OSError:
+        extracted_at = datetime.now(timezone.utc).isoformat()
+
+    try:
+        conn = sqlite3.connect(db_path)
+    except sqlite3.Error as exc:
+        return items, [f"无法打开数据库 {db_path}: {exc}"]
+
+    conn.row_factory = sqlite3.Row
+    query = (
+        "SELECT rowid AS __rowid, rule_desc, code_snippet, call_graph, llm_response "
+        "FROM rule_code_snippet"
+    )
+    try:
+        rows = conn.execute(query).fetchall()
+    except sqlite3.Error as exc:
+        conn.close()
+        return items, [f"无法读取数据库 {db_path} 的 rule_code_snippet: {exc}"]
+
+    for index, row in enumerate(rows, start=1):
+        raw_llm_response = row["llm_response"]
+        llm_payload = _parse_llm_response(raw_llm_response)
+        result_status, result_label = _classify_rule_result(llm_payload)
+
+        reason = llm_payload.get("reason")
+        if isinstance(reason, str):
+            reason = reason.strip()
+        elif reason is not None:
+            reason = json.dumps(reason, ensure_ascii=False)
+
+        item_id = _build_violation_history_item_id(
+            db_path=db_path,
+            job_id=job_id,
+            row_id=row["__rowid"],
+            row_index=index,
+            rule_desc=row["rule_desc"],
+            source_type=source_type,
+        )
+        items.append(
+            {
+                "id": item_id,
+                "sourceType": source_type,
+                "jobId": job_id,
+                "implementationName": implementation_name,
+                "protocolName": resolved_protocol,
+                "databaseName": database_name,
+                "databasePath": str(db_path),
+                "ruleDesc": row["rule_desc"],
+                "result": result_status,
+                "resultLabel": result_label,
+                "reason": reason,
+                "codeSnippet": row["code_snippet"],
+                "callGraph": row["call_graph"],
+                "llmRaw": raw_llm_response,
+                "violations": _parse_violation_details(llm_payload),
+                "createdAt": created_at or extracted_at,
+                "updatedAt": updated_at or extracted_at,
+                "extractedAt": extracted_at,
+            }
+        )
+
+    conn.close()
+    return items, warnings
+
+
+def _build_violation_history_item_id(
+    *,
+    db_path: Path,
+    job_id: Optional[str],
+    row_id: Optional[int] = None,
+    row_index: int,
+    rule_desc: Any,
+    source_type: str,
+) -> str:
+    row_key = f"rowid:{row_id}" if row_id is not None else str(row_index)
+    stable_key = "|".join(
+        [
+            source_type,
+            job_id or "",
+            str(db_path),
+            str(rule_desc),
+            row_key,
+        ]
+    )
+    return hashlib.sha1(stable_key.encode("utf-8")).hexdigest()
+
+
+def _delete_violation_history_from_database(
+    db_path: Path,
+    *,
+    item_id: str,
+    job_id: Optional[str] = None,
+    source_type: str,
+) -> tuple[Optional[Dict[str, Any]], List[str]]:
+    warnings: List[str] = []
+
+    try:
+        conn = sqlite3.connect(db_path)
+    except sqlite3.Error as exc:
+        return None, [f"无法打开数据库 {db_path}: {exc}"]
+
+    conn.row_factory = sqlite3.Row
+    query = (
+        "SELECT rowid AS __rowid, rule_desc, llm_response "
+        "FROM rule_code_snippet"
+    )
+    try:
+        rows = conn.execute(query).fetchall()
+    except sqlite3.Error as exc:
+        conn.close()
+        return None, [f"无法读取数据库 {db_path} 的 rule_code_snippet: {exc}"]
+
+    for index, row in enumerate(rows, start=1):
+        current_id = _build_violation_history_item_id(
+            db_path=db_path,
+            job_id=job_id,
+            row_id=row["__rowid"],
+            row_index=index,
+            rule_desc=row["rule_desc"],
+            source_type=source_type,
+        )
+        legacy_id = _build_violation_history_item_id(
+            db_path=db_path,
+            job_id=job_id,
+            row_index=index,
+            rule_desc=row["rule_desc"],
+            source_type=source_type,
+        )
+        if item_id not in {current_id, legacy_id}:
+            continue
+
+        try:
+            conn.execute(
+                "DELETE FROM rule_code_snippet WHERE rowid = ?",
+                (row["__rowid"],),
+            )
+            conn.commit()
+        except sqlite3.Error as exc:
+            conn.close()
+            raise RuntimeError(f"删除数据库记录失败：{exc}") from exc
+
+        conn.close()
+        return (
+            {
+                "databaseName": db_path.name,
+                "databasePath": str(db_path),
+                "id": item_id,
+            },
+            warnings,
+        )
+
+    conn.close()
+    return None, warnings
+
+
+def _find_matching_rule_row(
+    rows: list[sqlite3.Row],
+    rule_desc: str,
+) -> Optional[sqlite3.Row]:
+    rule_key = _dedupe_key(rule_desc)
+    if not rule_key:
+        return rows[0] if rows else None
+
+    for row in rows:
+        if _dedupe_key(row["rule_desc"]) == rule_key:
+            return row
+
+    for row in rows:
+        row_key = _dedupe_key(row["rule_desc"])
+        if rule_key in row_key or row_key in rule_key:
+            return row
+
+    return None
+
+
+def _truncate_text(value: Any, limit: int) -> Optional[str]:
+    if not isinstance(value, str):
+        return None
+    text = " ".join(value.split())
+    if len(text) <= limit:
+        return text
+    return f"{text[:limit - 1]}…"
+
+
+def _parse_history_datetime(value: Any) -> Optional[datetime]:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _history_item_datetime(item: Dict[str, Any]) -> Optional[datetime]:
+    return (
+        _parse_history_datetime(item.get("updatedAt"))
+        or _parse_history_datetime(item.get("extractedAt"))
+        or _parse_history_datetime(item.get("createdAt"))
+    )
+
+
+def _read_overview_from_database(
+    db_path: Path,
+    *,
+    protocol_name: Optional[str] = None,
+) -> tuple[Optional[Dict[str, Any]], List[Dict[str, Any]], Dict[str, int], List[str]]:
+    warnings: List[str] = []
+    table_counts: Dict[str, int] = {}
+    top_findings: List[Dict[str, Any]] = []
+
+    implementation_name = _normalize_implementation_from_db(db_path)
+    resolved_protocol = _normalize_protocol_name(protocol_name, implementation_name)
+
+    try:
+        conn = sqlite3.connect(db_path)
+    except sqlite3.Error as exc:
+        return None, top_findings, table_counts, [f"无法打开数据库 {db_path}: {exc}"]
+
+    conn.row_factory = sqlite3.Row
+    try:
+        tables = [
+            row["name"]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name"
+            )
+        ]
+        for table in tables:
+            quoted = '"' + table.replace('"', '""') + '"'
+            table_counts[table] = int(
+                conn.execute(f"SELECT COUNT(*) FROM {quoted}").fetchone()[0]
+            )
+    except sqlite3.Error as exc:
+        conn.close()
+        return None, top_findings, table_counts, [f"无法统计数据库 {db_path}: {exc}"]
+
+    if "rule_code_snippet" in tables:
+        try:
+            rule_rows = conn.execute(
+                "SELECT rule_desc, code_snippet, llm_response FROM rule_code_snippet"
+            ).fetchall()
+        except sqlite3.Error as exc:
+            conn.close()
+            return None, top_findings, table_counts, [
+                f"无法读取数据库 {db_path} 的 rule_code_snippet: {exc}"
+            ]
+    else:
+        rule_rows = []
+
+    rule_status_by_key: Dict[str, str] = {}
+    code_snippet_rule_keys: set[str] = set()
+    violation_location_keys: set[str] = set()
+    for row in rule_rows:
+        rule_key = _dedupe_key(row["rule_desc"])
+        llm_payload = _parse_llm_response(row["llm_response"])
+        result_status, _ = _classify_rule_result(llm_payload)
+        _merge_rule_status(rule_status_by_key, rule_key, result_status)
+
+        if row["code_snippet"]:
+            code_snippet_rule_keys.add(rule_key)
+
+        violations = _parse_violation_details(llm_payload)
+        if result_status == "violation_found" and violations:
+            for violation in violations:
+                violation_location_keys.add(
+                    _violation_location_key(rule_key, violation)
+                )
+
+        if result_status == "violation_found":
+            top_findings.append(
+                {
+                    "implementation": implementation_name,
+                    "protocol": resolved_protocol,
+                    "rule": _truncate_text(row["rule_desc"], 160),
+                    "reason": _truncate_text(llm_payload.get("reason"), 220),
+                }
+            )
+
+    conn.close()
+
+    item = {
+        "name": implementation_name,
+        "protocol": resolved_protocol,
+        "database": db_path.name,
+        "analysisRecords": len(rule_status_by_key),
+        "ruleResults": len(rule_status_by_key),
+        "violationRules": list(rule_status_by_key.values()).count("violation_found"),
+        "noViolationRules": list(rule_status_by_key.values()).count("no_violation"),
+        "unknownRules": list(rule_status_by_key.values()).count("unknown"),
+        "violationLocations": len(violation_location_keys),
+        "codeSnippets": len(code_snippet_rule_keys),
+        "_ruleStatusByKey": rule_status_by_key,
+        "_codeSnippetRuleKeys": code_snippet_rule_keys,
+        "_violationLocationKeys": violation_location_keys,
+    }
+    return item, top_findings, table_counts, warnings
+
+
+@bp.route("/static-analysis/database-overview", methods=["GET"])
+def static_analysis_database_overview():
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+
+    job_limit = _to_int(request.args.get("jobLimit"), 200)
+    sources, warnings = _iter_static_analysis_database_sources(job_limit)
+    summary: Dict[str, int] = defaultdict(int)
+    table_totals: Dict[str, int] = defaultdict(int)
+    protocol_totals: Dict[str, Dict[str, int]] = {}
+    implementation_groups: Dict[tuple[str, str], Dict[str, Any]] = {}
+    top_findings: List[Dict[str, Any]] = []
+
+    for source in sources:
+        db_path = cast(Path, source["path"])
+        item, findings, table_counts, db_warnings = _read_overview_from_database(
+            db_path,
+            protocol_name=cast(Optional[str], source.get("protocolName")),
+        )
+        warnings.extend(db_warnings)
+        if item is None:
+            continue
+
+        top_findings.extend(findings)
+        for table, count in table_counts.items():
+            table_totals[table] += count
+
+        group_key = (str(item["name"]).lower(), str(item["protocol"]).lower())
+        grouped = implementation_groups.get(group_key)
+        if grouped is None:
+            grouped = {
+                **item,
+                "databaseNames": [item["database"]],
+            }
+            implementation_groups[group_key] = grouped
+        else:
+            databases = grouped.setdefault("databaseNames", [])
+            if item["database"] not in databases:
+                databases.append(item["database"])
+            for rule_key, result_status in cast(
+                Dict[str, str],
+                item.get("_ruleStatusByKey") or {},
+            ).items():
+                _merge_rule_status(
+                    cast(Dict[str, str], grouped["_ruleStatusByKey"]),
+                    rule_key,
+                    result_status,
+                )
+            cast(set[str], grouped["_codeSnippetRuleKeys"]).update(
+                cast(set[str], item.get("_codeSnippetRuleKeys") or set())
+            )
+            cast(set[str], grouped["_violationLocationKeys"]).update(
+                cast(set[str], item.get("_violationLocationKeys") or set())
+            )
+
+    implementations = list(implementation_groups.values())
+    for item in implementations:
+        database_names = item.get("databaseNames")
+        if isinstance(database_names, list) and database_names:
+            item["database"] = ", ".join(str(name) for name in sorted(database_names))
+        item.pop("databaseNames", None)
+
+        rule_status_by_key = cast(Dict[str, str], item.pop("_ruleStatusByKey", {}))
+        code_snippet_rule_keys = cast(set[str], item.pop("_codeSnippetRuleKeys", set()))
+        violation_location_keys = cast(
+            set[str],
+            item.pop("_violationLocationKeys", set()),
+        )
+        result_values = list(rule_status_by_key.values())
+        item["analysisRecords"] = len(rule_status_by_key)
+        item["ruleResults"] = len(rule_status_by_key)
+        item["violationRules"] = result_values.count("violation_found")
+        item["noViolationRules"] = result_values.count("no_violation")
+        item["unknownRules"] = result_values.count("unknown")
+        item["violationLocations"] = len(violation_location_keys)
+        item["codeSnippets"] = len(code_snippet_rule_keys)
+
+        protocol = str(item["protocol"])
+        protocol_bucket = protocol_totals.setdefault(protocol, defaultdict(int))
+        for key in (
+            "analysisRecords",
+            "ruleResults",
+            "violationRules",
+            "noViolationRules",
+            "unknownRules",
+            "violationLocations",
+            "codeSnippets",
+        ):
+            value = int(item[key])
+            summary[key] += value
+            protocol_bucket[key] += value
+        protocol_bucket["implementations"] += 1
+
+    implementations.sort(key=lambda item: item["violationRules"], reverse=True)
+    unique_top_findings: Dict[tuple[str, str], Dict[str, Any]] = {}
+    for finding in top_findings:
+        finding_key = (
+            _dedupe_key(finding.get("implementation")),
+            _dedupe_key(finding.get("rule")),
+        )
+        unique_top_findings.setdefault(finding_key, finding)
+    top_findings = sorted(
+        unique_top_findings.values(),
+        key=lambda item: (
+            str(item.get("protocol") or ""),
+            str(item.get("implementation") or "").lower(),
+            str(item.get("rule") or ""),
+        ),
+    )[:6]
+    protocols = [
+        {"name": name, **dict(values)}
+        for name, values in sorted(protocol_totals.items())
+    ]
+
+    payload: Dict[str, Any] = {
+        "generatedAt": datetime.now(timezone.utc).isoformat(),
+        "sourceDirectory": "static-analysis databases",
+        "summary": {
+            "databaseFiles": len(implementations),
+            "implementations": len(implementations),
+            **dict(summary),
+        },
+        "tableTotals": dict(sorted(table_totals.items())),
+        "protocols": protocols,
+        "implementations": implementations,
+        "topFindings": top_findings,
+    }
+    if warnings:
+        payload["warnings"] = warnings
+    return success_response(payload)
+
+
+@bp.route("/static-analysis/violation-history", methods=["GET"])
+def static_analysis_violation_history():
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+
+    job_limit = _to_int(request.args.get("jobLimit"), 200)
+    protocol_filter = _dedupe_key(request.args.get("protocol"))
+    implementation_filter = _dedupe_key(request.args.get("implementation"))
+    result_filter = _dedupe_key(request.args.get("result"))
+    time_range = _dedupe_key(request.args.get("timeRange"))
+    sources, warnings = _iter_static_analysis_database_sources(job_limit)
+    items: List[Dict[str, Any]] = []
+
+    for source in sources:
+        db_path = cast(Path, source["path"])
+        db_items, db_warnings = _read_violation_history_from_database(
+            db_path,
+            source_type=cast(str, source["sourceType"]),
+            job_id=cast(Optional[str], source.get("jobId")),
+            protocol_name=cast(Optional[str], source.get("protocolName")),
+            created_at=cast(Optional[str], source.get("createdAt")),
+            updated_at=cast(Optional[str], source.get("updatedAt")),
+        )
+        items.extend(db_items)
+        warnings.extend(db_warnings)
+
+    if protocol_filter:
+        items = [
+            item
+            for item in items
+            if _dedupe_key(item.get("protocolName")) == protocol_filter
+        ]
+
+    if implementation_filter:
+        items = [
+            item
+            for item in items
+            if _dedupe_key(item.get("implementationName")) == implementation_filter
+        ]
+
+    if result_filter:
+        items = [
+            item for item in items if _dedupe_key(item.get("result")) == result_filter
+        ]
+
+    range_days = {
+        "week": 7,
+        "month": 30,
+        "year": 365,
+    }.get(time_range)
+    if range_days:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=range_days)
+        items = [
+            item
+            for item in items
+            if (item_time := _history_item_datetime(item)) is not None
+            and item_time >= cutoff
+        ]
+
+    items.sort(key=lambda item: str(item.get("updatedAt") or ""), reverse=True)
+    visible_items = items[:VISIBLE_VIOLATION_HISTORY_LIMIT]
+    payload: Dict[str, Any] = {
+        "items": visible_items,
+        "count": len(visible_items),
+        "generatedAt": datetime.now(timezone.utc).isoformat(),
+    }
+    if warnings:
+        payload["warnings"] = warnings
+    return success_response(payload)
+
+
+@bp.route("/static-analysis/violation-history/<item_id>", methods=["DELETE"])
+def delete_static_analysis_violation_history(item_id: str):
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+
+    if not isinstance(item_id, str) or not item_id.strip():
+        return make_response(error_response("无效的历史记录 ID"), 400)
+
+    job_limit = _to_int(request.args.get("jobLimit"), 200)
+    sources, warnings = _iter_static_analysis_database_sources(job_limit)
+
+    try:
+        for source in sources:
+            db_path = cast(Path, source["path"])
+            deleted, db_warnings = _delete_violation_history_from_database(
+                db_path,
+                item_id=item_id,
+                job_id=cast(Optional[str], source.get("jobId")),
+                source_type=cast(str, source["sourceType"]),
+            )
+            warnings.extend(db_warnings)
+            if deleted:
+                payload: Dict[str, Any] = {**deleted, "deleted": True}
+                if warnings:
+                    payload["warnings"] = warnings
+                return make_response(success_response(payload), 200)
+    except RuntimeError as exc:
+        LOGGER.error("Failed to delete violation history item %s: %s", item_id, exc)
+        return make_response(error_response(str(exc)), 500)
+
+    detail: Dict[str, Any] = {"id": item_id}
+    if warnings:
+        detail["warnings"] = warnings
+    return make_response(error_response("历史记录不存在", detail), 404)
+
+
+@bp.route("/static-analysis/violation-history", methods=["POST"])
+def upsert_static_analysis_violation_history():
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return make_response(error_response("请求体必须为 JSON 对象"), 400)
+
+    database_path_raw = cast(Optional[str], payload.get("databasePath"))
+    workspace_path_raw = cast(Optional[str], payload.get("workspacePath"))
+    job_id = cast(Optional[str], payload.get("jobId"))
+    rule_desc = str(payload.get("ruleDesc") or "").strip()
+    reason = str(payload.get("reason") or "工作台结果验证发现违规证据").strip()
+    code_snippet = payload.get("codeSnippet")
+    call_graph = payload.get("callGraph")
+    violations_payload = payload.get("violations")
+
+    resolved_path, warnings = _find_sqlite_file(database_path_raw, workspace_path_raw)
+    if not resolved_path:
+        return make_response(
+            error_response(
+                "未找到可写入的静态分析结果数据库",
+                {
+                    "databasePath": database_path_raw,
+                    "jobId": job_id,
+                    "warnings": warnings or None,
+                    "workspacePath": workspace_path_raw,
+                },
+            ),
+            404,
+        )
+
+    try:
+        conn = sqlite3.connect(resolved_path)
+    except sqlite3.Error as exc:
+        return make_response(error_response(f"无法打开静态分析结果数据库：{exc}"), 500)
+
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            "SELECT rowid AS __rowid, rule_desc, code_snippet, call_graph, llm_response "
+            "FROM rule_code_snippet"
+        ).fetchall()
+    except sqlite3.Error as exc:
+        conn.close()
+        return make_response(error_response(f"读取静态分析规则结果失败：{exc}"), 500)
+
+    matched = _find_matching_rule_row(rows, rule_desc)
+    if matched is None:
+        conn.close()
+        return make_response(
+            error_response(
+                "未找到匹配的规则记录，无法写入违规历史",
+                {"databasePath": str(resolved_path), "ruleDesc": rule_desc},
+            ),
+            404,
+        )
+    matched_index = next(
+        (
+            index
+            for index, row in enumerate(rows, start=1)
+            if row["__rowid"] == matched["__rowid"]
+        ),
+        1,
+    )
+
+    llm_payload = _parse_llm_response(matched["llm_response"])
+    if not isinstance(llm_payload, dict):
+        llm_payload = {}
+    llm_payload.update(
+        {
+            "reason": reason,
+            "result": "violation_found",
+            "updated_by": "workbench_result_verification",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+    )
+    if isinstance(violations_payload, list) and violations_payload:
+        llm_payload["violations"] = violations_payload
+
+    next_code_snippet = (
+        code_snippet
+        if isinstance(code_snippet, str) and code_snippet.strip()
+        else matched["code_snippet"]
+    )
+    next_call_graph = (
+        call_graph
+        if isinstance(call_graph, str) and call_graph.strip()
+        else matched["call_graph"]
+    )
+
+    try:
+        conn.execute(
+            "UPDATE rule_code_snippet "
+            "SET code_snippet = ?, call_graph = ?, llm_response = ? "
+            "WHERE rowid = ?",
+            (
+                next_code_snippet,
+                next_call_graph,
+                json.dumps(llm_payload, ensure_ascii=False),
+                matched["__rowid"],
+            ),
+        )
+        conn.commit()
+    except sqlite3.Error as exc:
+        conn.close()
+        return make_response(error_response(f"写入违规历史失败：{exc}"), 500)
+
+    item_id = _build_violation_history_item_id(
+        db_path=resolved_path,
+        job_id=job_id,
+        row_id=matched["__rowid"],
+        row_index=matched_index,
+        rule_desc=matched["rule_desc"],
+        source_type="job" if job_id else "builtin",
+    )
+    conn.close()
+
+    return make_response(
+        success_response(
+            {
+                "databasePath": str(resolved_path),
+                "id": item_id,
+                "result": "violation_found",
+                "resultLabel": "发现违规",
+                "ruleDesc": matched["rule_desc"],
+                "updated": True,
+                "warnings": warnings,
+            }
+        ),
+        200,
+    )
 
 
 @bp.route("/static-analysis/database-insights", methods=["POST"])
@@ -803,6 +1706,80 @@ def static_analysis_result(job_id: str):
     return make_response(success_response(result), 200)
 
 
+@bp.route("/static-analysis/<job_id>/artifact/database", methods=["GET"])
+def download_static_analysis_database(job_id: str):
+    LOGGER.info(f"[下载数据库] 请求下载任务 {job_id} 的数据库文件")
+    _, error = _ensure_authenticated()
+    if error:
+        LOGGER.warning(f"[下载数据库] 任务 {job_id} 认证失败")
+        return error
+
+    snapshot = get_static_analysis_job(job_id)
+    if not snapshot:
+        LOGGER.error(f"[下载数据库] 任务 {job_id} 未找到")
+        return make_response(error_response("未找到静态分析任务"), 404)
+
+    LOGGER.info(f"[下载数据库] 任务 {job_id} 找到，状态: {snapshot.get('status')}")
+
+    # 优先使用存储的database_path
+    database_path = snapshot.get("database_path")
+    LOGGER.info(f"[下载数据库] 任务 {job_id} 的 database_path: {database_path}")
+
+    if database_path:
+        db_file = Path(database_path)
+        if db_file.exists():
+            LOGGER.info(f"[下载数据库] 使用存储的路径: {db_file}")
+            return send_file(
+                db_file,
+                as_attachment=True,
+                download_name=f"analysis-{job_id}.db",
+                mimetype="application/octet-stream",
+            )
+
+    # 如果database_path为空或文件不存在，尝试从output_path动态查找
+    LOGGER.warning(f"[下载数据库] database_path 无效，尝试从 output_path 查找")
+    output_path = snapshot.get("output_path")
+    if output_path:
+        output_dir = Path(output_path)
+        database_dir = output_dir / "database"
+        LOGGER.info(f"[下载数据库] 在 {database_dir} 目录查找数据库文件")
+
+        if database_dir.exists():
+            candidates = list(database_dir.glob("*.db"))
+            LOGGER.info(f"[下载数据库] 找到 {len(candidates)} 个 .db 文件: {candidates}")
+            if candidates:
+                db_file = candidates[0]
+                LOGGER.info(f"[下载数据库] 使用 output_path 找到的文件: {db_file}")
+                return send_file(
+                    db_file,
+                    as_attachment=True,
+                    download_name=f"analysis-{job_id}.db",
+                    mimetype="application/octet-stream",
+                )
+
+    # 最后尝试：直接从环境变量配置的output_root构造路径
+    LOGGER.warning(f"[下载数据库] output_path 也无效，尝试从环境变量构造路径")
+    output_root = os.environ.get("PG_OUTPUT_ROOT", "/tmp/protocolguard/outputs")
+    constructed_path = Path(output_root) / job_id / "database"
+    LOGGER.info(f"[下载数据库] 尝试构造的路径: {constructed_path}")
+
+    if constructed_path.exists():
+        candidates = list(constructed_path.glob("*.db"))
+        LOGGER.info(f"[下载数据库] 在构造路径找到 {len(candidates)} 个 .db 文件: {candidates}")
+        if candidates:
+            db_file = candidates[0]
+            LOGGER.info(f"[下载数据库] 使用构造路径找到的文件: {db_file}")
+            return send_file(
+                db_file,
+                as_attachment=True,
+                download_name=f"analysis-{job_id}.db",
+                mimetype="application/octet-stream",
+            )
+
+    LOGGER.error(f"[下载数据库] 所有方法都失败，无法找到数据库文件")
+    return make_response(error_response("数据库文件不存在"), 404)
+
+
 @bp.route("/assertion-generation", methods=["POST"])
 def assertion_generation():
     _, error = _ensure_authenticated()
@@ -810,27 +1787,37 @@ def assertion_generation():
         return error
 
     if not request.files:
-        return make_response(error_response("请上传源码压缩包和违规数据库"), 400)
+        return make_response(error_response("请上传源码压缩包"), 400)
 
-    uploads_map = {
-        "codeArchive": request.files.get("codeArchive"),
-        "database": request.files.get("database"),
-    }
+    code_upload_raw = request.files.get("codeArchive")
+    if not isinstance(code_upload_raw, FileStorage):
+        return make_response(error_response("请上传完整文件：源码压缩包"), 400)
 
-    missing = [key for key, value in uploads_map.items() if not isinstance(value, FileStorage)]
-    if missing:
-        labels = {
-            "codeArchive": "源码压缩包",
-            "database": "违规数据库文件",
-        }
-        readable = "、".join(labels.get(item, item) for item in missing)
-        return make_response(error_response(f"请上传完整文件：{readable}"), 400)
-
-    code_upload = cast(FileStorage, uploads_map["codeArchive"])
-    database_upload = cast(FileStorage, uploads_map["database"])
-
+    code_upload = cast(FileStorage, code_upload_raw)
     code_name, code_data = _read_upload(code_upload)
-    database_name, database_data = _read_upload(database_upload)
+
+    database_path_requested = request.form.get("databasePath")
+    database_source = "upload"
+    if database_path_requested:
+        database_path = TEMP_ASSERTION_DATABASE_PATH
+        if not database_path.is_file():
+            return make_response(
+                error_response(f"固定违规数据库不存在：{database_path}"),
+                400,
+            )
+        try:
+            database_data = database_path.read_bytes()
+        except OSError as exc:
+            LOGGER.exception("Failed to read fixed assertion database: %s", database_path)
+            return make_response(error_response(f"读取固定违规数据库失败：{exc}"), 500)
+        database_name = database_path.name
+        database_source = str(database_path)
+    else:
+        database_upload_raw = request.files.get("database")
+        if not isinstance(database_upload_raw, FileStorage):
+            return make_response(error_response("请上传完整文件：违规数据库文件"), 400)
+        database_upload = cast(FileStorage, database_upload_raw)
+        database_name, database_data = _read_upload(database_upload)
 
     if not code_data or not database_data:
         return make_response(error_response("上传的文件内容为空，请重新上传"), 400)
@@ -843,6 +1830,7 @@ def assertion_generation():
         extra={
             "codeArchive": code_name,
             "database": database_name,
+            "databaseSource": database_source,
             "hasBuildInstructions": bool(build_instructions_raw.strip()),
             "notesLength": len(notes.strip()) if isinstance(notes, str) else 0,
         },
@@ -1074,6 +2062,310 @@ SNMP_CONFIG = {
     "output_dir": os.path.join(os.path.dirname(__file__), "snmpfuzzer_logs")  # SNMP Fuzzer输出目录
 }
 
+
+def _is_path_inside(path: Path, allowed_roots: list[Path]) -> bool:
+    try:
+        resolved = path.expanduser().resolve()
+    except (OSError, RuntimeError, ValueError):
+        return False
+
+    for root in allowed_roots:
+        try:
+            resolved.relative_to(root.expanduser().resolve())
+            return True
+        except (OSError, RuntimeError, ValueError):
+            continue
+    return False
+
+
+def _aflnet_output_root() -> Path:
+    return Path(os.environ.get("AFLNET_OUTPUT_ROOT") or os.path.dirname(RTSP_CONFIG["log_file_path"]))
+
+
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[3]
+
+
+def _aflnet_fallback_output_root() -> Path:
+    configured = os.environ.get("AFLNET_FALLBACK_OUTPUT_ROOT")
+    if configured:
+        return Path(configured).expanduser()
+    return _repo_root() / "fuzz-output"
+
+
+def _aflnet_output_root_for_source(source: str = "primary") -> Path:
+    if source == "fallback":
+        return _aflnet_fallback_output_root()
+    return _aflnet_output_root()
+
+
+def _aflnet_log_file_for_source(source: str = "primary") -> Path:
+    if source == "fallback":
+        filename = os.environ.get("AFLNET_FALLBACK_LOG_FILE_NAME", "plot_data")
+        return _aflnet_fallback_output_root() / filename
+    return Path(RTSP_CONFIG["log_file_path"]).expanduser()
+
+
+def _resolve_aflnet_output_source(data: Optional[Dict[str, Any]] = None) -> str:
+    requested = (data or {}).get("outputSource") or (data or {}).get("output_source")
+    if requested == "fallback" or (data or {}).get("useFallbackOutput"):
+        return "fallback"
+    return "primary"
+
+
+def _resolve_aflnet_archive_source(
+    requested_path: Optional[str],
+    requested_source: Optional[str],
+) -> str:
+    if requested_source == "fallback":
+        return "fallback"
+    if requested_path:
+        path = Path(requested_path).expanduser()
+        if path.exists() and _is_path_inside(path, [_aflnet_fallback_output_root()]):
+            return "fallback"
+    return "primary"
+
+
+def _aflnet_artifact_root() -> Path:
+    configured = os.environ.get("AFLNET_ARTIFACT_ROOT")
+    if configured:
+        return Path(configured).expanduser()
+    pg_output_root = Path(os.environ.get("PG_OUTPUT_ROOT", "/tmp/protocolguard/outputs")).expanduser()
+    return pg_output_root.parent / "fuzz-artifacts"
+
+
+def _aflnet_result_path_info(source: str = "primary") -> Dict[str, Any]:
+    output_root = _aflnet_output_root_for_source(source).expanduser()
+    log_file = _aflnet_log_file_for_source(source).expanduser()
+    poc_path = output_root
+    for name in ("replayable-crashes", "crashes", "crash", "crash_logs", "queue"):
+        candidate = output_root / name
+        if candidate.exists():
+            poc_path = candidate
+            break
+    return {
+        "isFallbackOutput": source == "fallback",
+        "logFilePath": str(log_file),
+        "outputSource": source,
+        "outputRoot": str(output_root),
+        "pocPath": str(poc_path),
+    }
+
+
+def _poc_artifact_candidates(output_root: Path, requested_path: Optional[str]) -> list[Path]:
+    allowed_roots = [output_root]
+    candidates: list[Path] = []
+
+    if requested_path:
+        requested = Path(requested_path).expanduser()
+        if requested.exists() and _is_path_inside(requested, allowed_roots):
+            candidates.append(requested)
+
+    for name in (
+        "replayable-crashes",
+        "crashes",
+        "crash",
+        "crash_logs",
+        "queue",
+        "hangs",
+        "fuzzer_stats",
+        "plot_data",
+    ):
+        candidate = output_root / name
+        if candidate.exists():
+            candidates.append(candidate)
+
+    if not candidates and output_root.exists():
+        candidates.append(output_root)
+
+    deduped: list[Path] = []
+    seen: set[Path] = set()
+    for candidate in candidates:
+        try:
+            resolved = candidate.resolve()
+        except (OSError, RuntimeError):
+            continue
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        deduped.append(candidate)
+    return deduped
+
+
+def _add_path_to_zip(archive: zipfile.ZipFile, path: Path, output_root: Path) -> int:
+    if not path.exists() or not _is_path_inside(path, [output_root]):
+        return 0
+
+    added = 0
+    if path.is_file():
+        archive.write(path, path.relative_to(output_root).as_posix())
+        return 1
+
+    for child in sorted(path.rglob("*")):
+        if not child.is_file() or child.is_symlink():
+            continue
+        if not _is_path_inside(child, [output_root]):
+            continue
+        archive.write(child, child.relative_to(output_root).as_posix())
+        added += 1
+    return added
+
+
+def _write_aflnet_poc_archive(
+    target: Any,
+    *,
+    artifact_id: Optional[str],
+    crash_log_path: Optional[str],
+    implementation: str,
+    output_root: Path,
+    protocol: str,
+) -> int:
+    candidates = _poc_artifact_candidates(output_root, crash_log_path)
+    if not candidates:
+        return 0
+
+    manifest = {
+        "artifactId": artifact_id,
+        "protocol": protocol,
+        "implementation": implementation,
+        "outputRoot": str(output_root),
+        "requestedCrashLogPath": crash_log_path,
+        "generatedAt": datetime.now(timezone.utc).isoformat(),
+    }
+    added = 0
+
+    with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
+        added += 1
+        for candidate in candidates:
+            added += _add_path_to_zip(archive, candidate, output_root)
+
+    return added
+
+
+@bp.route("/fuzzing/aflnet-result/download", methods=["GET"])
+def download_aflnet_result():
+    """Download AFLNET crash/queue artefacts as a zip bundle."""
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+
+    protocol = request.args.get("protocol") or "MQTT"
+    implementation = request.args.get("implementation") or "SOL"
+    crash_log_path = request.args.get("crashLogPath")
+    output_source = _resolve_aflnet_archive_source(
+        crash_log_path,
+        request.args.get("outputSource"),
+    )
+
+    output_root = _aflnet_output_root_for_source(output_source).expanduser()
+    if not output_root.exists() or not output_root.is_dir():
+        return make_response(
+            error_response(f"AFLNET 输出目录不存在：{output_root}"),
+            404,
+        )
+
+    buffer = io.BytesIO()
+    added = _write_aflnet_poc_archive(
+        buffer,
+        artifact_id=None,
+        crash_log_path=crash_log_path,
+        implementation=implementation,
+        output_root=output_root,
+        protocol=protocol,
+    )
+
+    if added <= 1:
+        return make_response(error_response("AFLNET 输出目录中没有可打包的 POC 文件"), 404)
+
+    buffer.seek(0)
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    safe_impl = re.sub(r"[^A-Za-z0-9_.-]+", "-", implementation).strip("-") or "aflnet"
+    return send_file(
+        buffer,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=f"{safe_impl}-aflnet-poc-{timestamp}.zip",
+        max_age=0,
+    )
+
+
+@bp.route("/fuzzing/aflnet-result/snapshot", methods=["POST"])
+def snapshot_aflnet_result():
+    """Persist the current AFLNET POC bundle for history downloads."""
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+
+    data = request.get_json(silent=True) or {}
+    protocol = data.get("protocol") or "MQTT"
+    implementation = data.get("implementation") or "SOL"
+    crash_log_path = data.get("crashLogPath")
+    output_source = _resolve_aflnet_archive_source(
+        crash_log_path,
+        data.get("outputSource") or data.get("output_source"),
+    )
+
+    output_root = _aflnet_output_root_for_source(output_source).expanduser()
+    if not output_root.exists() or not output_root.is_dir():
+        return make_response(
+            error_response(f"AFLNET 输出目录不存在：{output_root}"),
+            404,
+        )
+
+    artifact_id = f"aflnet-{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:8]}"
+    artifact_dir = (_aflnet_artifact_root() / artifact_id).resolve()
+    artifact_dir.mkdir(parents=True, exist_ok=False)
+    zip_path = artifact_dir / "poc.zip"
+
+    added = _write_aflnet_poc_archive(
+        zip_path,
+        artifact_id=artifact_id,
+        crash_log_path=crash_log_path,
+        implementation=implementation,
+        output_root=output_root,
+        protocol=protocol,
+    )
+
+    if added <= 1:
+        with contextlib.suppress(OSError):
+            zip_path.unlink()
+        with contextlib.suppress(OSError):
+            artifact_dir.rmdir()
+        return make_response(error_response("AFLNET 输出目录中没有可归档的 POC 文件"), 404)
+
+    file_size = zip_path.stat().st_size
+    return success_response({
+        "artifactId": artifact_id,
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+        "downloadUrl": f"/protocol-compliance/fuzzing/aflnet-result/artifacts/{artifact_id}/download",
+        "fileSize": file_size,
+    })
+
+
+@bp.route("/fuzzing/aflnet-result/artifacts/<artifact_id>/download", methods=["GET"])
+def download_aflnet_result_artifact(artifact_id: str):
+    """Download a persisted AFLNET POC artifact."""
+    _, error = _ensure_authenticated()
+    if error:
+        return error
+
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", artifact_id):
+        return make_response(error_response("POC artifact id 非法"), 400)
+
+    artifact_root = _aflnet_artifact_root().resolve()
+    zip_path = (artifact_root / artifact_id / "poc.zip").resolve()
+    if not _is_path_inside(zip_path, [artifact_root]) or not zip_path.is_file():
+        return make_response(error_response("POC artifact 不存在或已过期"), 404)
+
+    return send_file(
+        zip_path,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=f"{artifact_id}.zip",
+        max_age=0,
+    )
+
 @bp.route("/write-script", methods=["POST"])
 def write_script():
     """写入脚本文件到指定路径"""
@@ -1199,12 +2491,19 @@ def execute_command():
                                 "message": f"{protocol_name} ProtocolGuard启动成功，正在后台运行fuzzing任务",
                                 "command": command,
                                 "pid": None,  # Docker容器没有直接的PID
-                                "container_id": container_id
+                                "container_id": container_id,
+                                **_aflnet_result_path_info(),
                             }
                             print(f"[DEBUG] 返回成功响应: {response_data}")
                             return success_response(response_data)
                         else:
-                            return make_response(error_response("容器启动后立即停止，请检查Docker镜像和配置"), 500)
+                            return make_response(
+                                error_response(
+                                    "容器启动后立即停止，已切换到备份 fuzz-output 数据源",
+                                    _aflnet_result_path_info("fallback"),
+                                ),
+                                500,
+                            )
                     else:
                         error_msg = result.stderr.strip() if result.stderr.strip() else "无法获取有效的容器ID"
                         print(f"[DEBUG] ProtocolGuard启动失败: {error_msg}")
@@ -1273,16 +2572,23 @@ def read_log():
 
     protocol = data.get("protocol", "UNKNOWN")
     last_position = data.get("lastPosition", 0)
+    max_lines = _to_int(str(data.get("maxLines")), 0) if data.get("maxLines") is not None else 0
 
     # 根据协议获取配置
     protocol_implementations = data.get("protocolImplementations", [])
+    output_source = _resolve_aflnet_output_source(data)
+    is_sol_aflnet = (
+        protocol == "MQTT"
+        and protocol_implementations
+        and "SOL" in protocol_implementations
+    )
     
     if protocol == "MQTT":
         # MQTT协议支持双引擎配置
         if protocol_implementations and "SOL" in protocol_implementations:
             # SOL使用AFLNET引擎日志路径 (原RTSP配置)
-            file_path = cast(str, RTSP_CONFIG["log_file_path"])
-            print(f"[DEBUG] MQTT协议使用SOL实现，读取AFLNET日志: {file_path}")
+            file_path = str(_aflnet_log_file_for_source(output_source))
+            print(f"[DEBUG] MQTT协议使用SOL实现，读取AFLNET日志({output_source}): {file_path}")
         else:
             # 传统MQTT broker使用MBFuzzer引擎日志路径
             file_path = MQTT_CONFIG["log_file_path"]
@@ -1300,11 +2606,14 @@ def read_log():
         log_dir = os.path.dirname(file_path)
         if not os.path.exists(log_dir):
             print(f"[DEBUG] 日志目录不存在: {log_dir}")
-            return success_response({
+            response_data = {
                 "content": "",
                 "position": last_position,
-                "message": f"日志目录不存在: {log_dir}"
-            })
+                "message": f"日志目录不存在: {log_dir}",
+            }
+            if is_sol_aflnet:
+                response_data.update(_aflnet_result_path_info(output_source))
+            return success_response(response_data)
         
         # 列出目录中的文件
         try:
@@ -1315,11 +2624,14 @@ def read_log():
         
         if not os.path.exists(file_path):
             print(f"[DEBUG] 日志文件不存在: {file_path}")
-            return success_response({
+            response_data = {
                 "content": "",
                 "position": last_position,
-                "message": f"日志文件尚未创建: {file_path}"
-            })
+                "message": f"日志文件尚未创建: {file_path}",
+            }
+            if is_sol_aflnet:
+                response_data.update(_aflnet_result_path_info(output_source))
+            return success_response(response_data)
         
         # 获取文件信息
         file_stat = os.stat(file_path)
@@ -1331,7 +2643,16 @@ def read_log():
             f.seek(last_position)
 
             # 读取新内容
-            new_content = f.read()
+            if max_lines > 0:
+                content_parts = []
+                for _ in range(max_lines):
+                    line = f.readline()
+                    if not line:
+                        break
+                    content_parts.append(line)
+                new_content = ''.join(content_parts)
+            else:
+                new_content = f.read()
 
             # 获取当前位置
             current_position = f.tell()
@@ -1342,13 +2663,17 @@ def read_log():
         if new_content:
             print(f"[DEBUG] 新内容预览: {new_content[:200]}...")
         
-        return success_response({
+        response_data = {
             "content": new_content,
             "position": current_position,
             "protocol": protocol,
             "file_size": file_size,
-            "message": f"成功读取{len(new_content)}字符，文件大小{file_size}字节"
-        })
+            "is_eof": current_position >= file_size,
+            "message": f"成功读取{len(new_content)}字符，文件大小{file_size}字节",
+        }
+        if is_sol_aflnet:
+            response_data.update(_aflnet_result_path_info(output_source))
+        return success_response(response_data)
 
     except Exception as e:
         print(f"[DEBUG] 读取日志文件异常: {e}")
@@ -1380,9 +2705,17 @@ def check_status():
             
             if protocol_implementations and "SOL" in protocol_implementations:
                 # 检查SOL相关状态 (使用AFLNET引擎)
-                log_file_path = cast(str, RTSP_CONFIG["log_file_path"])
+                log_file_path = str(_aflnet_log_file_for_source())
                 status_info["engine"] = "AFLNET"
                 status_info["implementation"] = "SOL"
+                status_info.update(_aflnet_result_path_info())
+                fallback_info = _aflnet_result_path_info("fallback")
+                fallback_log_path = fallback_info["logFilePath"]
+                fallback_info.update({
+                    "logDirExists": os.path.exists(os.path.dirname(fallback_log_path)),
+                    "logFileExists": os.path.exists(fallback_log_path),
+                })
+                status_info["fallbackOutput"] = fallback_info
             else:
                 # 检查传统MQTT broker状态 (使用MBFuzzer引擎)
                 log_file_path = MQTT_CONFIG["log_file_path"]
@@ -1569,11 +2902,15 @@ def pre_start_cleanup():
         
         # 2. 清理输出文件夹
         if protocol == "RTSP" or protocol == "MQTT":
-            output_dir = os.path.dirname(cast(str, RTSP_CONFIG["log_file_path"]))
+            output_dir = os.path.dirname(RTSP_CONFIG["log_file_path"])
+            fallback_output_dir = str(_aflnet_fallback_output_root().resolve())
             
             # Linux安全检查：防止删除系统重要目录
             dangerous_paths = ['/', '/home', '/usr', '/var', '/etc', '/bin', '/sbin', '/lib', '/opt']
-            if output_dir in dangerous_paths or len(output_dir.strip()) < 5:
+            if str(Path(output_dir).resolve()) == fallback_output_dir:
+                cleanup_results["errors"].append(f"拒绝清理备份输出目录: {output_dir}")
+                print(f"[DEBUG] 安全检查失败，拒绝清理备份输出目录: {output_dir}")
+            elif output_dir in dangerous_paths or len(output_dir.strip()) < 5:
                 cleanup_results["errors"].append(f"拒绝清理危险路径: {output_dir}")
                 print(f"[DEBUG] 安全检查失败，拒绝清理: {output_dir}")
             else:

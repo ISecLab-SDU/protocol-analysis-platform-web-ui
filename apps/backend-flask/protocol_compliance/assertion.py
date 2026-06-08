@@ -221,10 +221,10 @@ INSTRUMENTATION_DIFF_MAX_PREVIEW_BYTES = 512 * 1024  # 512 KiB safety cap
 
 
 def _ensure_env_passthrough_for_instrumentation() -> None:
-    """Ensure ANTHROPIC_* vars are forwarded into analysis containers.
+    """Ensure LLM provider vars are forwarded into analysis containers.
 
     The Docker runner forwards variables listed in PG_ENV_VARS. Update it to
-    include the required ANTHROPIC_* keys before settings are materialized.
+    include the required provider keys before settings are materialized.
     """
     existing = os.environ.get("PG_ENV_VARS", "")
     parts = [p.strip() for p in existing.split(",") if p.strip()]
@@ -238,7 +238,7 @@ def _ensure_env_passthrough_for_instrumentation() -> None:
 
 
 def _assert_required_instrumentation_env() -> None:
-    """Validate ANTHROPIC envs exist; raise if missing.
+    """Validate LLM provider envs exist; raise if missing.
 
     This check protects the instrumentation step. We do not eagerly exit the
     whole service on import; instead, fail fast when instrumentation runs.
@@ -436,10 +436,7 @@ def _run_instrumentation_container(
                 LOGGER.debug("Progress callback failed during instrumentation for job %s", job_id, exc_info=True)
 
     # Build environment forwarded to the container
-    env = {
-        "ANTHROPIC_API_KEY": os.environ.get("ANTHROPIC_API_KEY", ""),
-        "ANTHROPIC_BASE_URL": os.environ.get("ANTHROPIC_BASE_URL", ""),
-    }
+    env = {name: os.environ.get(name, "") for name in REQUIRED_INSTRUMENTATION_ENVS}
 
     # Prefer Docker SDK; fall back to CLI if unavailable
     try:
@@ -488,15 +485,17 @@ def _run_instrumentation_container(
             "docker",
             "run",
             "--rm",
-            "-e",
-            f"ANTHROPIC_API_KEY={env['ANTHROPIC_API_KEY']}",
-            "-e",
-            f"ANTHROPIC_BASE_URL={env['ANTHROPIC_BASE_URL']}",
-            "-v",
-            f"{str(workspace.resolve())}:/workspace",
-            "-v",
-            f"{str(output.resolve())}:/out",
         ]
+        for name, value in env.items():
+            cli_cmd.extend(["-e", f"{name}={value}"])
+        cli_cmd.extend(
+            [
+                "-v",
+                f"{str(workspace.resolve())}:/workspace",
+                "-v",
+                f"{str(output.resolve())}:/out",
+            ]
+        )
         if network:
             cli_cmd.extend(["--network", network])
         cli_cmd.append(image)

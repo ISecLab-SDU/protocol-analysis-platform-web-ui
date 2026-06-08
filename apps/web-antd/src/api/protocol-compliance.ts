@@ -90,9 +90,19 @@ export interface ProtocolStaticAnalysisModelResponse {
 
 export interface ProtocolStaticAnalysisResult {
   analysisId: string;
+  artifacts?: {
+    config?: string | null;
+    database?: string | null;
+    logs?: string | null;
+    output?: string | null;
+    workspace?: string | null;
+    workspaceSnapshots?: Array<{ path?: string; stage?: string }>;
+  };
   durationMs: number;
   inputs: {
+    builderDockerfileName?: string;
     codeFileName: string;
+    configFileName?: string;
     notes: null | string;
     protocolName: string;
     rulesFileName: string;
@@ -213,6 +223,123 @@ export interface FetchProtocolStaticAnalysisDatabaseInsightsPayload {
   workspacePath?: string;
 }
 
+export type ProtocolViolationHistorySourceType = 'builtin' | 'job';
+
+export interface ProtocolViolationHistoryEntry {
+  callGraph?: string | null;
+  codeSnippet?: string | null;
+  createdAt?: string | null;
+  databaseName: string;
+  databasePath?: string | null;
+  extractedAt?: string | null;
+  id: string;
+  implementationName: string;
+  jobId?: string | null;
+  llmRaw?: unknown;
+  protocolName: string;
+  reason?: string | null;
+  result: ProtocolStaticAnalysisRuleResultStatus;
+  resultLabel: string;
+  ruleDesc: string;
+  sourceType: ProtocolViolationHistorySourceType;
+  updatedAt?: string | null;
+  violations?: ProtocolStaticAnalysisRuleViolationDetail[] | null;
+}
+
+export interface FetchProtocolViolationHistoryParams {
+  implementation?: string;
+  jobLimit?: number;
+  protocol?: string;
+  result?: ProtocolStaticAnalysisRuleResultStatus;
+  timeRange?: 'month' | 'week' | 'year';
+}
+
+export interface FetchProtocolViolationHistoryResponse {
+  count: number;
+  generatedAt: string;
+  items: ProtocolViolationHistoryEntry[];
+  warnings?: string[];
+}
+
+export interface DeleteProtocolViolationHistoryResponse {
+  databaseName: string;
+  databasePath?: string;
+  deleted: boolean;
+  id: string;
+  warnings?: string[];
+}
+
+export interface UpsertProtocolViolationHistoryPayload {
+  callGraph?: string;
+  codeSnippet?: string;
+  databasePath?: string;
+  jobId?: string;
+  reason: string;
+  result: 'violation_found';
+  ruleDesc: string;
+  violations?: ProtocolStaticAnalysisRuleViolationDetail[];
+  workspacePath?: string;
+}
+
+export interface UpsertProtocolViolationHistoryResponse {
+  databasePath: string;
+  id: string;
+  result: ProtocolStaticAnalysisRuleResultStatus;
+  resultLabel: string;
+  ruleDesc: string;
+  updated: boolean;
+  warnings?: string[];
+}
+
+export interface ProtocolDatabaseOverviewSummary {
+  analysisRecords: number;
+  codeSnippets: number;
+  databaseFiles: number;
+  implementations: number;
+  noViolationRules: number;
+  ruleResults: number;
+  unknownRules: number;
+  violationLocations: number;
+  violationRules: number;
+}
+
+export interface ProtocolDatabaseOverviewProtocolStats {
+  analysisRecords: number;
+  codeSnippets: number;
+  implementations: number;
+  name: string;
+  noViolationRules: number;
+  ruleResults: number;
+  unknownRules: number;
+  violationLocations: number;
+  violationRules: number;
+}
+
+export interface ProtocolDatabaseOverviewImplementationStats
+  extends Omit<ProtocolDatabaseOverviewProtocolStats, 'implementations' | 'name'> {
+  database: string;
+  name: string;
+  protocol: string;
+}
+
+export interface ProtocolDatabaseOverviewFinding {
+  implementation: string;
+  protocol: string;
+  reason?: null | string;
+  rule?: null | string;
+}
+
+export interface ProtocolDatabaseOverviewStats {
+  generatedAt: string;
+  implementations: ProtocolDatabaseOverviewImplementationStats[];
+  protocols: ProtocolDatabaseOverviewProtocolStats[];
+  sourceDirectory: string;
+  summary: ProtocolDatabaseOverviewSummary;
+  tableTotals: Record<string, number>;
+  topFindings: ProtocolDatabaseOverviewFinding[];
+  warnings?: string[];
+}
+
 const BASE_PATH = '/protocol-compliance/tasks';
 
 export function fetchProtocolComplianceTasks(
@@ -289,7 +416,7 @@ export function runProtocolStaticAnalysis(
 
 export function fetchProtocolStaticAnalysisProgress(
   jobId: string,
-  fromEventId: number,
+  fromEventId?: number,
 ) {
   return requestClient.get<ProtocolStaticAnalysisJob>(
     `/protocol-compliance/static-analysis/${jobId}/progress`,
@@ -303,6 +430,96 @@ export function fetchProtocolStaticAnalysisResult(jobId: string) {
   return requestClient.get<ProtocolStaticAnalysisResult>(
     `/protocol-compliance/static-analysis/${jobId}/result`,
   );
+}
+
+export async function downloadStaticAnalysisDatabase(jobId: string) {
+  const accessStore = useAccessStore();
+  const token = accessStore.accessToken;
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = (await baseRequestClient.request(
+    `/protocol-compliance/static-analysis/${jobId}/artifact/database`,
+    {
+      headers,
+      method: 'GET',
+      responseType: 'blob',
+    },
+  )) as { data: Blob };
+
+  return response.data;
+}
+
+export interface DownloadAflNetPocParams {
+  crashLogPath?: string;
+  implementation: string;
+  protocol: string;
+}
+
+export interface SnapshotAflNetPocParams extends DownloadAflNetPocParams {}
+
+export interface SnapshotAflNetPocResponse {
+  artifactId: string;
+  createdAt: string;
+  downloadUrl: string;
+  fileSize: number;
+}
+
+export async function downloadAflNetPoc(params: DownloadAflNetPocParams) {
+  const accessStore = useAccessStore();
+  const token = accessStore.accessToken;
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const query = new URLSearchParams({
+    implementation: params.implementation,
+    protocol: params.protocol,
+  });
+  if (params.crashLogPath) {
+    query.set('crashLogPath', params.crashLogPath);
+  }
+
+  const response = (await baseRequestClient.request(
+    `/protocol-compliance/fuzzing/aflnet-result/download?${query.toString()}`,
+    {
+      headers,
+      method: 'GET',
+      responseType: 'blob',
+    },
+  )) as { data: Blob };
+
+  return response.data;
+}
+
+export function snapshotAflNetPoc(params: SnapshotAflNetPocParams) {
+  return requestClient.post<SnapshotAflNetPocResponse>(
+    '/protocol-compliance/fuzzing/aflnet-result/snapshot',
+    params,
+  );
+}
+
+export async function downloadAflNetPocArtifact(artifactId: string) {
+  const accessStore = useAccessStore();
+  const token = accessStore.accessToken;
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = (await baseRequestClient.request(
+    `/protocol-compliance/fuzzing/aflnet-result/artifacts/${artifactId}/download`,
+    {
+      headers,
+      method: 'GET',
+      responseType: 'blob',
+    },
+  )) as { data: Blob };
+
+  return response.data;
 }
 
 export function fetchProtocolStaticAnalysisHistory(
@@ -320,6 +537,39 @@ export function fetchProtocolStaticAnalysisDatabaseInsights(
   return requestClient.post<ProtocolStaticAnalysisDatabaseInsights>(
     '/protocol-compliance/static-analysis/database-insights',
     payload,
+  );
+}
+
+export function fetchProtocolViolationHistory(
+  params?: FetchProtocolViolationHistoryParams,
+) {
+  return requestClient.get<FetchProtocolViolationHistoryResponse>(
+    '/protocol-compliance/static-analysis/violation-history',
+    { params },
+  );
+}
+
+export function deleteProtocolViolationHistory(itemId: string) {
+  return requestClient.delete<DeleteProtocolViolationHistoryResponse>(
+    `/protocol-compliance/static-analysis/violation-history/${itemId}`,
+  );
+}
+
+export function upsertProtocolViolationHistory(
+  payload: UpsertProtocolViolationHistoryPayload,
+) {
+  return requestClient.post<UpsertProtocolViolationHistoryResponse>(
+    '/protocol-compliance/static-analysis/violation-history',
+    payload,
+  );
+}
+
+export function fetchProtocolDatabaseOverview(
+  params?: FetchProtocolViolationHistoryParams,
+) {
+  return requestClient.get<ProtocolDatabaseOverviewStats>(
+    '/protocol-compliance/static-analysis/database-overview',
+    { params },
   );
 }
 
@@ -346,6 +596,7 @@ export interface ProtocolAssertGenerationInputInfo {
   buildInstructions?: null | string;
   codeFileName?: string;
   databaseFileName?: string;
+  databasePath?: null | string;
   notes?: null | string;
 }
 
@@ -418,17 +669,22 @@ export interface ProtocolAssertGenerationJob {
 export interface RunProtocolAssertGenerationPayload {
   buildInstructions: string;
   codeArchive: File;
-  database: File;
+  database?: File;
+  databasePath?: string;
   notes?: string;
 }
 
 export function runProtocolAssertGeneration(
   payload: RunProtocolAssertGenerationPayload,
 ) {
-  const { buildInstructions, codeArchive, database, notes } = payload;
+  const { buildInstructions, codeArchive, database, databasePath, notes } = payload;
   const formData = new FormData();
   formData.append('codeArchive', codeArchive);
-  formData.append('database', database);
+  if (databasePath?.trim()) {
+    formData.append('databasePath', databasePath.trim());
+  } else if (database) {
+    formData.append('database', database);
+  }
   formData.append('buildInstructions', buildInstructions.trim());
   if (notes?.trim()) {
     formData.append('notes', notes.trim());
@@ -627,6 +883,11 @@ export function stopAndCleanup(data: { container_id: string; protocol: string })
   return requestClient.post('/protocol-compliance/stop-and-cleanup', data);
 }
 
+// 启动前清理残留容器和输出文件
+export function preStartCleanup(data: { protocol: string }) {
+  return requestClient.post('/protocol-compliance/pre-start-cleanup', data);
+}
+
 // 写入脚本文件
 export function writeScript(data: { content: string; protocol: string; protocolImplementations?: string[] }) {
   return requestClient.post('/protocol-compliance/write-script', data);
@@ -638,12 +899,19 @@ export function executeCommand(data: { protocol: string; protocolImplementations
 }
 
 // 读取日志
-export function readLog(data: { protocol: string; lastPosition: number }) {
+export function readLog(data: {
+  lastPosition: number;
+  maxLines?: number;
+  outputSource?: 'fallback' | 'primary';
+  protocol: string;
+  protocolImplementations?: string[];
+  useFallbackOutput?: boolean;
+}) {
   return requestClient.post('/protocol-compliance/read-log', data);
 }
 
 // 检查状态
-export function checkStatus(data: { protocol: string }) {
+export function checkStatus(data: { protocol: string; protocolImplementations?: string[] }) {
   return requestClient.post('/protocol-compliance/check-status', data);
 }
 
@@ -656,11 +924,12 @@ export interface RunProtocolExtractPayload {
 }
 
 export interface ProtocolExtractRuleItem {
+  description?: string;
   group?: string | null;
   req_fields: string[];
-  req_type: string[];
+  req_type: string | string[];
   res_fields: string[];
-  res_type: string[];
+  res_type: string | string[];
   rule: string;
 }
 

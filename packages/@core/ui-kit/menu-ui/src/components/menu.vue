@@ -461,7 +461,7 @@ $namespace: vben;
   --menu-item-collapse-margin-x: 0px;
   --menu-item-radius: 0px;
   --menu-item-indent: 16px;
-  --menu-font-size: 16px;
+  --menu-font-size: 18px;
 
   &.is-dark {
     --menu-background-color: hsl(var(--menu));
@@ -764,7 +764,7 @@ $namespace: vben;
       display: inline-flex;
       margin-top: 8px;
       margin-bottom: 0;
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 400;
       line-height: normal;
       transition: all 0.25s ease;
@@ -850,7 +850,7 @@ $namespace: vben;
       flex-shrink: 0;
       margin-top: 8px;
       margin-bottom: 0;
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 400;
       line-height: normal;
       transition: all 0.25s ease;
