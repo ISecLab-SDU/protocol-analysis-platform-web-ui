@@ -7,7 +7,6 @@ import hashlib
 import hmac
 import json
 import time
-from copy import deepcopy
 from typing import Any, Dict, Optional
 
 from .data import MOCK_USERS

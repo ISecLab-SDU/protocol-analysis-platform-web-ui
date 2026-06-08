@@ -1,7 +1,6 @@
 import html2text
 from lxml import html
 import re
-import os
 import json
 
 

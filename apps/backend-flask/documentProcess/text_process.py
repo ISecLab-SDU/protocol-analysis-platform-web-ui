@@ -1,6 +1,5 @@
 import re
 import json
-import os
 
 
 def remove_links(text):

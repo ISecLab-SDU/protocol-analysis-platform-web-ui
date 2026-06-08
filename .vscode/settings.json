@@ -256,5 +256,12 @@
     "titleBar.inactiveBackground": "#c4ead999",
     "titleBar.inactiveForeground": "#15202b99"
   },
-  "peacock.remoteColor": "#c4ead9"
+  "peacock.remoteColor": "#c4ead9",
+  "editor.inlayHints.enabled": "on",
+  "python.analysis.inlayHints.variableTypes": true,
+  "python.analysis.inlayHints.functionReturnTypes": true,
+  "python.analysis.inlayHints.callArgumentNames": "all",
+  "python.analysis.inlayHints.pytestParameters": true,
+  "workspaceKeybindings.localCopy.enabled": true,
+
 }

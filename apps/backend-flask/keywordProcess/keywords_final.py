@@ -1,7 +1,7 @@
 import json
 import re
 from pathlib import Path
-from typing import List, Dict, Set
+from typing import List, Dict
 from openai import OpenAI
 import toml
 import argparse

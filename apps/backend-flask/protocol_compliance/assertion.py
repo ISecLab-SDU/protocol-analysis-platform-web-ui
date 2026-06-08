@@ -237,14 +237,6 @@ def _ensure_env_passthrough_for_instrumentation() -> None:
         os.environ["PG_ENV_VARS"] = ",".join(parts)
 
 
-def _ensure_keep_artifacts_enabled() -> None:
-    """Keep artefacts so the follow-up instrumentation can reuse /workspace.
-
-    Assert emits state under /workspace which instrumentation consumes.
-    """
-    os.environ.setdefault("PG_KEEP_ARTIFACTS", "1")
-
-
 def _assert_required_instrumentation_env() -> None:
     """Validate ANTHROPIC envs exist; raise if missing.
 
@@ -260,7 +252,6 @@ def _assert_required_instrumentation_env() -> None:
 
 # Apply environment adjustments before docker settings are cached
 _ensure_env_passthrough_for_instrumentation()
-_ensure_keep_artifacts_enabled()
 
 
 @lru_cache(maxsize=1)
@@ -344,6 +335,9 @@ def run_assert_generation(
                 code_filename=code_file_name,
                 database_filename=database_file_name,
                 instrumentation_details=instr_details,
+            )
+            runner.cleanup_assertion_intermediates(
+                job_id=job_identifier,
             )
             if progress_callback:
                 progress_callback(job_identifier, "instrumentation", "Instrumentation completed successfully")

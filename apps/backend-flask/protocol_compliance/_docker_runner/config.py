@@ -211,6 +211,11 @@ class ProtocolGuardDockerSettings:
     builder_command: Optional[Tuple[str, ...]]
     keep_builder_images: bool
     keep_artifacts: bool
+    workspace_snapshots_enabled: bool
+    runtime_cleanup_enabled: bool
+    runtime_retention_days: int
+    runtime_retention_max_jobs: int
+    assert_keep_full_artifacts: bool
     analysis_timeout: Optional[int]
     network: Optional[str]
     project_name: str
@@ -251,6 +256,16 @@ class ProtocolGuardDockerSettings:
         artifacts = ArtifactLayout.from_env()
         keep_artifacts = _env_bool("PG_KEEP_ARTIFACTS", default=False)
         keep_builder_images = _env_bool("PG_KEEP_BUILDER_IMAGES", default=False)
+        workspace_snapshots_enabled = _env_bool("PG_WORKSPACE_SNAPSHOTS_ENABLED", default=False)
+        runtime_cleanup_enabled = _env_bool("PG_RUNTIME_CLEANUP_ENABLED", default=True)
+        runtime_retention_days_raw = _env_int("PG_RUNTIME_RETENTION_DAYS", 7)
+        runtime_retention_days = max(0, 7 if runtime_retention_days_raw is None else runtime_retention_days_raw)
+        runtime_retention_max_jobs_raw = _env_int("PG_RUNTIME_RETENTION_MAX_JOBS", 20)
+        runtime_retention_max_jobs = max(
+            0,
+            20 if runtime_retention_max_jobs_raw is None else runtime_retention_max_jobs_raw,
+        )
+        assert_keep_full_artifacts = _env_bool("PG_ASSERT_KEEP_FULL_ARTIFACTS", default=False)
         analysis_timeout = _env_int("PG_ANALYSIS_TIMEOUT_SECONDS", None)
         network = os.environ.get("PG_DOCKER_NETWORK") or None
 
@@ -279,6 +294,11 @@ class ProtocolGuardDockerSettings:
             builder_command=builder_command,
             keep_builder_images=keep_builder_images,
             keep_artifacts=keep_artifacts,
+            workspace_snapshots_enabled=workspace_snapshots_enabled,
+            runtime_cleanup_enabled=runtime_cleanup_enabled,
+            runtime_retention_days=runtime_retention_days,
+            runtime_retention_max_jobs=runtime_retention_max_jobs,
+            assert_keep_full_artifacts=assert_keep_full_artifacts,
             analysis_timeout=analysis_timeout,
             network=network,
             project_name=project_name,

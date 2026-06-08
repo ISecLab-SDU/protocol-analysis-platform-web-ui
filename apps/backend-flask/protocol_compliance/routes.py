@@ -9,7 +9,6 @@ import os
 import re
 import sqlite3
 import subprocess
-import threading
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -1103,7 +1102,7 @@ def write_script():
     if protocol == "RTSP":
         # SOL使用ProtocolGuard，不需要脚本文件，直接返回成功
         return success_response({
-            "message": f"SOL不需要脚本文件，直接启动docker即可生成日志",
+            "message": "SOL不需要脚本文件，直接启动docker即可生成日志",
             "filePath": "N/A",
             "size": 0
         })
@@ -1142,7 +1141,7 @@ def write_script():
 @bp.route("/execute-command", methods=["POST"])
 def execute_command():
     """执行shell命令启动程序"""
-    print(f"[DEBUG] ========== execute-command API被调用 ==========")
+    print("[DEBUG] ========== execute-command API被调用 ==========")
     
     _, error = _ensure_authenticated()
     if error:
@@ -1153,7 +1152,7 @@ def execute_command():
     print(f"[DEBUG] 接收到的请求数据: {data}")
     
     if not data:
-        print(f"[DEBUG] 请求数据为空")
+        print("[DEBUG] 请求数据为空")
         return make_response(error_response("请求数据不能为空"), 400)
 
     protocol = data.get("protocol", "UNKNOWN")
@@ -1233,7 +1232,7 @@ def execute_command():
                             print(f"[DEBUG] 返回成功响应: {response_data}")
                             return success_response(response_data)
                         else:
-                            return make_response(error_response(f"容器启动后立即停止，请检查Docker镜像和配置"), 500)
+                            return make_response(error_response("容器启动后立即停止，请检查Docker镜像和配置"), 500)
                     else:
                         error_msg = result.stderr.strip() if result.stderr.strip() else "无法获取有效的容器ID"
                         print(f"[DEBUG] ProtocolGuard启动失败: {error_msg}")
@@ -1263,7 +1262,7 @@ def execute_command():
 
             if result.returncode == 0:
                 # 命令执行成功
-                print(f"[DEBUG] 命令执行成功")
+                print("[DEBUG] 命令执行成功")
                 print(f"[DEBUG] stdout: {result.stdout}")
 
                 # 对于docker run -d，成功的话stdout通常包含容器ID
@@ -1282,7 +1281,7 @@ def execute_command():
                 return make_response(error_response(f"命令执行失败: {error_msg}"), 500)
 
     except subprocess.TimeoutExpired:
-        print(f"[DEBUG] 命令执行超时")
+        print("[DEBUG] 命令执行超时")
         return make_response(error_response("命令执行超时"), 500)
     except Exception as e:
         print(f"[DEBUG] 异常: {str(e)}")  # 调试日志
@@ -1509,7 +1508,7 @@ def stop_process():
 @bp.route("/pre-start-cleanup", methods=["POST"])
 def pre_start_cleanup():
     """启动前清理：停止现有容器并清理输出文件"""
-    print(f"[DEBUG] ========== 启动前清理API被调用 ==========")
+    print("[DEBUG] ========== 启动前清理API被调用 ==========")
     
     _, error = _ensure_authenticated()
     if error:
@@ -1520,7 +1519,7 @@ def pre_start_cleanup():
     print(f"[DEBUG] 接收到的请求数据: {data}")
     
     if not data:
-        print(f"[DEBUG] 请求数据为空")
+        print("[DEBUG] 请求数据为空")
         return make_response(error_response("请求数据不能为空"), 400)
     
     protocol = data.get("protocol", "UNKNOWN")
@@ -1594,7 +1593,7 @@ def pre_start_cleanup():
                         except Exception as e:
                             cleanup_results["errors"].append(f"操作容器异常 {container_id}: {str(e)}")
             else:
-                print(f"[DEBUG] 没有找到运行中的protocolguard容器")
+                print("[DEBUG] 没有找到运行中的protocolguard容器")
         
         # 2. 清理输出文件夹
         if protocol == "RTSP" or protocol == "MQTT":
@@ -1642,7 +1641,7 @@ def pre_start_cleanup():
         print(f"[DEBUG] 启动前清理完成: {cleanup_results}")
         
         return success_response({
-            "message": f"启动前清理完成",
+            "message": "启动前清理完成",
             "cleanup_results": cleanup_results
         })
         
@@ -1651,7 +1650,7 @@ def pre_start_cleanup():
         cleanup_results["errors"].append(f"清理过程异常: {str(e)}")
         
         return success_response({
-            "message": f"启动前清理部分完成",
+            "message": "启动前清理部分完成",
             "cleanup_results": cleanup_results
         })
 
@@ -1659,7 +1658,7 @@ def pre_start_cleanup():
 @bp.route("/stop-and-cleanup", methods=["POST"])
 def stop_and_cleanup():
     """停止Docker容器并清理输出文件"""
-    print(f"[DEBUG] ========== 停止和清理API被调用 ==========")
+    print("[DEBUG] ========== 停止和清理API被调用 ==========")
     
     _, error = _ensure_authenticated()
     if error:
@@ -1670,7 +1669,7 @@ def stop_and_cleanup():
     print(f"[DEBUG] 接收到的请求数据: {data}")
     
     if not data:
-        print(f"[DEBUG] 请求数据为空")
+        print("[DEBUG] 请求数据为空")
         return make_response(error_response("请求数据不能为空"), 400)
     
     container_id = data.get("container_id")
@@ -1679,7 +1678,7 @@ def stop_and_cleanup():
     print(f"[DEBUG] 解析参数 - 容器ID: {container_id}, 协议: {protocol}")
     
     if not container_id:
-        print(f"[DEBUG] 容器ID为空")
+        print("[DEBUG] 容器ID为空")
         return make_response(error_response("容器ID不能为空"), 400)
     
     stop_results = {
@@ -1718,7 +1717,7 @@ def stop_and_cleanup():
         if running_check.returncode == 0 and running_check.stdout.strip():
             print(f"[DEBUG] 容器正在运行，需要停止: {running_check.stdout.strip()}")
         else:
-            print(f"[DEBUG] 容器未在运行或已停止")
+            print("[DEBUG] 容器未在运行或已停止")
         
         # 1. 停止Docker容器（使用更短的超时时间）
         try:
@@ -1741,7 +1740,7 @@ def stop_and_cleanup():
                 
         except subprocess.TimeoutExpired:
             stop_results["errors"].append("停止容器超时")
-            print(f"[DEBUG] 停止容器超时")
+            print("[DEBUG] 停止容器超时")
         except Exception as e:
             stop_results["errors"].append(f"停止容器异常: {str(e)}")
             print(f"[DEBUG] 停止容器异常: {e}")
@@ -1767,7 +1766,7 @@ def stop_and_cleanup():
                 
         except subprocess.TimeoutExpired:
             stop_results["errors"].append("删除容器超时")
-            print(f"[DEBUG] 删除容器超时")
+            print("[DEBUG] 删除容器超时")
         except Exception as e:
             stop_results["errors"].append(f"删除容器异常: {str(e)}")
             print(f"[DEBUG] 删除容器异常: {e}")

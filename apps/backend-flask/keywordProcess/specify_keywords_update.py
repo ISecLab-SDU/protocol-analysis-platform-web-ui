@@ -1,8 +1,7 @@
-import re
 import json
 import argparse
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from openai import OpenAI
 from tqdm import tqdm

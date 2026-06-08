@@ -1,7 +1,6 @@
 import json
 import argparse
 from pathlib import Path
-from typing import Dict, List
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from openai import OpenAI
 from tqdm import tqdm
@@ -53,7 +52,7 @@ def process_item(item: tuple, apikey: str) -> tuple:
 
     except json.JSONDecodeError:
         return heading, {"warning": "JSON parsed but format unexpected", "data": clean_json_str}
-    except Exception as e:
+    except Exception:
         return heading, {"warning": "JSON parsed but format unexpected", "data": clean_json_str}
 
 

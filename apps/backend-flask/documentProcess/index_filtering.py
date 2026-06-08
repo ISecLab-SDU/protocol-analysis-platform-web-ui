@@ -2,7 +2,6 @@ import re
 import json
 from openai import OpenAI
 from collections import defaultdict
-import os
 
 
 def filter_headings(config):

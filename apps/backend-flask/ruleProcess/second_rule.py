@@ -201,7 +201,7 @@ def run_second_rule(api_key, protocol, version, config):
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(prompts, f, ensure_ascii=False, indent=2)
 
-    print(f"处理完成，结果已写回 Excel")
+    print("处理完成，结果已写回 Excel")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="生成提示词并调用大模型（多线程版）")

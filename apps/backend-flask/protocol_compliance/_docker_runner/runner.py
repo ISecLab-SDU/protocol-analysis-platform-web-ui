@@ -6,7 +6,6 @@ import contextlib
 import json
 import logging
 import os
-import shlex
 import shutil
 import socket
 import subprocess
@@ -17,7 +16,7 @@ import time
 import uuid
 import zipfile
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import BinaryIO, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
@@ -216,6 +215,7 @@ class ProtocolGuardDockerRunner:
             if not self._settings.keep_artifacts:
                 self._log_step(job_paths, "cleanup", "Cleaning up workspace artefacts")
                 self._cleanup_job(job_paths)
+            self._rotate_runtime_artifacts(active_job_id=job_paths.job_id)
 
     def run_assert_generation(
         self,
@@ -355,9 +355,7 @@ class ProtocolGuardDockerRunner:
         finally:
             self._progress_callback = None
             self._current_workspace_snapshots = []
-            if not self._settings.keep_artifacts:
-                self._log_step(job_paths, "cleanup", "Cleaning up workspace artefacts")
-                self._cleanup_job(job_paths)
+            self._rotate_runtime_artifacts(active_job_id=job_paths.job_id)
 
     # Workspace preparation ------------------------------------------------------
 
@@ -734,6 +732,14 @@ class ProtocolGuardDockerRunner:
         return env
 
     def _snapshot_workspace(self, job_paths: JobPaths, *, stage: str) -> Optional[Path]:
+        if not self._settings.workspace_snapshots_enabled:
+            self._log_step(
+                job_paths,
+                "workspace-snapshot",
+                f"Workspace snapshot for stage {stage} skipped; snapshots are disabled",
+            )
+            return None
+
         slug = f"{stage}-{uuid.uuid4().hex[:8]}"
         snapshot_root = _ensure_directory(
             (self._settings.output_root / "_workspace_snapshots" / job_paths.job_id).resolve()
@@ -1306,3 +1312,109 @@ class ProtocolGuardDockerRunner:
         for path in (job_paths.workspace, job_paths.output, job_paths.config_dir):
             with contextlib.suppress(Exception):
                 shutil.rmtree(path)
+
+    def cleanup_assertion_intermediates(
+        self,
+        *,
+        job_id: Optional[str] = None,
+    ) -> None:
+        """Rotate old runtime artefacts.  Intermediate files are no longer deleted."""
+        self._rotate_runtime_artifacts(active_job_id=job_id)
+
+    def _rotate_runtime_artifacts(self, *, active_job_id: Optional[str] = None) -> None:
+        if not self._settings.runtime_cleanup_enabled:
+            return
+        try:
+            self._rotate_runtime_artifacts_once(active_job_id=active_job_id)
+        except Exception as exc:  # pragma: no cover - defensive cleanup guard
+            LOGGER.warning("ProtocolGuard runtime cleanup failed: %s", exc, exc_info=True)
+
+    def _rotate_runtime_artifacts_once(self, *, active_job_id: Optional[str] = None) -> None:
+        job_paths = self._collect_runtime_job_paths()
+        if active_job_id:
+            job_paths.pop(active_job_id, None)
+        if not job_paths:
+            return
+
+        now = datetime.now(timezone.utc)
+        cutoff = now - timedelta(days=self._settings.runtime_retention_days)
+        ordered_job_ids = sorted(
+            job_paths,
+            key=lambda job_id: self._latest_mtime(job_paths[job_id]),
+            reverse=True,
+        )
+        retained_by_count = set(ordered_job_ids[: self._settings.runtime_retention_max_jobs])
+
+        for job_id, paths in job_paths.items():
+            older_than_retention = all(self._path_mtime(path) < cutoff for path in paths)
+            beyond_count = job_id not in retained_by_count
+            if not older_than_retention and not beyond_count:
+                continue
+            self._delete_runtime_paths(job_id, paths)
+
+        self._remove_empty_snapshot_root()
+
+    def _collect_runtime_job_paths(self) -> Dict[str, List[Path]]:
+        roots = (
+            self._settings.workspace_root,
+            self._settings.output_root,
+            self._settings.config_root,
+            self._settings.output_root / "_workspace_snapshots",
+        )
+        jobs: Dict[str, List[Path]] = {}
+        for root in roots:
+            root_resolved = root.expanduser().resolve(strict=False)
+            if not root_resolved.exists() or not root_resolved.is_dir() or root_resolved.is_symlink():
+                continue
+            for child in root_resolved.iterdir():
+                if child.name == "_workspace_snapshots":
+                    continue
+                if not child.is_dir() or child.is_symlink():
+                    continue
+                if not self._is_managed_runtime_path(child):
+                    continue
+                jobs.setdefault(child.name, []).append(child)
+        return jobs
+
+    def _is_managed_runtime_path(self, path: Path) -> bool:
+        managed_roots = (
+            self._settings.workspace_root,
+            self._settings.output_root,
+            self._settings.config_root,
+            self._settings.output_root / "_workspace_snapshots",
+        )
+        resolved = path.resolve(strict=False)
+        for root in managed_roots:
+            root_resolved = root.expanduser().resolve(strict=False)
+            try:
+                resolved.relative_to(root_resolved)
+            except ValueError:
+                continue
+            return True
+        return False
+
+    def _delete_runtime_paths(self, job_id: str, paths: Sequence[Path]) -> None:
+        for path in paths:
+            if not self._is_managed_runtime_path(path):
+                LOGGER.warning("Skipping unmanaged ProtocolGuard cleanup path for job %s: %s", job_id, path)
+                continue
+            if path.is_symlink() or not path.exists() or not path.is_dir():
+                continue
+            try:
+                shutil.rmtree(path)
+                LOGGER.info("Deleted ProtocolGuard runtime artefacts for job %s: %s", job_id, path)
+            except Exception as exc:  # pragma: no cover - defensive cleanup guard
+                LOGGER.warning("Failed to delete ProtocolGuard runtime path %s for job %s: %s", path, job_id, exc)
+
+    def _remove_empty_snapshot_root(self) -> None:
+        snapshot_root = (self._settings.output_root / "_workspace_snapshots").expanduser().resolve(strict=False)
+        if not snapshot_root.exists() or not snapshot_root.is_dir() or snapshot_root.is_symlink():
+            return
+        with contextlib.suppress(Exception):
+            snapshot_root.rmdir()
+
+    def _latest_mtime(self, paths: Sequence[Path]) -> datetime:
+        return max(self._path_mtime(path) for path in paths)
+
+    def _path_mtime(self, path: Path) -> datetime:
+        return datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
