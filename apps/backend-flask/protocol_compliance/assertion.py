@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
-from typing import BinaryIO, Callable, Dict, List, Optional, Tuple
+from typing import Any, BinaryIO, Callable, Dict, List, Optional, Tuple, cast
 
 from .assertion_history_repository import ASSERTION_HISTORY_REPOSITORY
 from .docker_runner import (
@@ -306,8 +306,11 @@ def run_assert_generation(
 
             # Resolve workspace and output mounts from assertion result
             artifacts = base_result.get("artifacts") if isinstance(base_result, dict) else None
-            workspace_dir = Path(artifacts.get("workspace")) if isinstance(artifacts, dict) else None
-            output_dir = Path(artifacts.get("output")) if isinstance(artifacts, dict) else None
+            artifact_data = cast(Dict[str, object], artifacts) if isinstance(artifacts, dict) else None
+            workspace = artifact_data.get("workspace") if artifact_data else None
+            output = artifact_data.get("output") if artifact_data else None
+            workspace_dir = Path(workspace) if isinstance(workspace, str) else None
+            output_dir = Path(output) if isinstance(output, str) else None
 
             if not workspace_dir or not output_dir:
                 raise AssertGenerationError("Assertion step did not return workspace/output artefacts")
@@ -654,7 +657,7 @@ def get_assert_generation_result(job_id: str) -> Optional[Dict[str, object]]:
         return None
     result = snapshot.get("result")
     if isinstance(result, dict):
-        return result
+        return cast(Dict[str, object], result)
     return None
 
 
@@ -665,11 +668,13 @@ def get_assert_generation_zip_path(job_id: str) -> Optional[Path]:
     result = snapshot.get("result")
     if not isinstance(result, dict):
         return None
-    artifacts = result.get("artifacts")
+    result_data = cast(Dict[str, object], result)
+    artifacts = result_data.get("artifacts")
     if not isinstance(artifacts, dict):
         return None
-    raw_zip = artifacts.get("zipPath")
-    if not raw_zip:
+    artifact_data = cast(Dict[str, object], artifacts)
+    raw_zip = artifact_data.get("zipPath")
+    if not isinstance(raw_zip, str) or not raw_zip:
         return None
     zip_path = Path(raw_zip)
     if not zip_path.exists():
@@ -687,10 +692,12 @@ def _record_assertion_history_entry(
     artifacts = instrumentation_details.get("artifacts") if isinstance(instrumentation_details, dict) else None
     if not isinstance(artifacts, dict):
         return
-    diff_output = artifacts.get("diffOutput")
+    artifact_data = cast(Dict[str, object], artifacts)
+    diff_output = artifact_data.get("diffOutput")
     if not isinstance(diff_output, dict):
         return
-    raw_path = diff_output.get("path")
+    diff_output_data = cast(Dict[str, object], diff_output)
+    raw_path = diff_output_data.get("path")
     if not isinstance(raw_path, str) or not raw_path:
         return
     diff_path = Path(raw_path)
@@ -709,11 +716,11 @@ def _record_assertion_history_entry(
 
 
 def list_assertion_history(limit: int = 50) -> List[Dict[str, object]]:
-    return ASSERTION_HISTORY_REPOSITORY.list_history(limit=limit)
+    return cast(List[Dict[str, object]], ASSERTION_HISTORY_REPOSITORY.list_history(limit=limit))
 
 
 def get_assertion_history_entry(job_id: str) -> Optional[Dict[str, object]]:
-    return ASSERTION_HISTORY_REPOSITORY.get_entry(job_id)
+    return cast(Optional[Dict[str, object]], ASSERTION_HISTORY_REPOSITORY.get_entry(job_id))
 
 
 def get_assertion_history_diff_path(job_id: str) -> Optional[Path]:
@@ -1246,9 +1253,9 @@ def parse_unified_diff(patch_content: str) -> Dict[str, object]:
     Parse a unified diff patch file into structured format.
     Returns a dictionary with 'diffContent', 'files', and 'summary'.
     """
-    files = []
-    current_file = None
-    current_hunk = None
+    files: List[Dict[str, Any]] = []
+    current_file: Optional[Dict[str, Any]] = None
+    current_hunk: Optional[Dict[str, Any]] = None
     
     lines = patch_content.split('\n')
     i = 0
@@ -1298,7 +1305,7 @@ def parse_unified_diff(patch_content: str) -> Dict[str, object]:
         # Match hunk header: @@ -old_start,old_lines +new_start,new_lines @@
         elif line.startswith('@@'):
             # Save previous hunk if exists
-            if current_hunk:
+            if current_file and current_hunk:
                 current_file["hunks"].append(current_hunk)
             
             match = re.search(r'@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@', line)
@@ -1389,11 +1396,12 @@ def load_patch_from_database_name(database_filename: str) -> Optional[Dict[str, 
         
         # Parse the patch file
         parsed_diff = parse_unified_diff(patch_content)
+        summary = cast(Dict[str, object], parsed_diff["summary"])
         LOGGER.info(
             "Parsed patch: %d files, %d insertions, %d deletions",
-            parsed_diff["summary"]["filesChanged"],
-            parsed_diff["summary"]["insertions"],
-            parsed_diff["summary"]["deletions"],
+            summary["filesChanged"],
+            summary["insertions"],
+            summary["deletions"],
         )
         
         return parsed_diff
@@ -1421,9 +1429,13 @@ def submit_diff_parsing_job(parent_job_id: str) -> Dict[str, object]:
             if parent_snapshot:
                 result = parent_snapshot.get("result")
                 if isinstance(result, dict):
-                    inputs = result.get("inputs")
+                    result_data = cast(Dict[str, object], result)
+                    inputs = result_data.get("inputs")
                     if isinstance(inputs, dict):
-                        database_filename = inputs.get("databaseFileName")
+                        input_data = cast(Dict[str, object], inputs)
+                        raw_database_filename = input_data.get("databaseFileName")
+                        if isinstance(raw_database_filename, str):
+                            database_filename = raw_database_filename
             
             if not database_filename:
                 LOGGER.warning(
@@ -1503,5 +1515,5 @@ def get_diff_parsing_result(job_id: str) -> Optional[Dict[str, object]]:
         return None
     result = snapshot.get("result")
     if isinstance(result, dict):
-        return result
+        return cast(Dict[str, object], result)
     return None

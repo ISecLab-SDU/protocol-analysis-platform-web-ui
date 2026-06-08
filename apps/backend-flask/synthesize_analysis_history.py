@@ -8,7 +8,7 @@ import sys
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, cast
 
 # Make the protocol_compliance package importable when executed as a script.
 BACKEND_DIR = Path(__file__).resolve().parent
@@ -82,13 +82,18 @@ def synthesize_job(
         notes=notes,
         rules_summary=rules_summary,
     )
-    if isinstance(result, dict):
-        inputs = result.setdefault("inputs", {})
-        if isinstance(inputs, dict):
-            inputs["codeFileName"] = code_file_name
-    metadata = result.get("modelResponse", {}).get("metadata")
+    inputs = result.get("inputs")
+    if not isinstance(inputs, dict):
+        inputs = {}
+        result["inputs"] = inputs
+    input_data = cast(dict[str, object], inputs)
+    input_data["codeFileName"] = code_file_name
+    model_response = result.get("modelResponse")
+    response_data = cast(dict[str, object], model_response) if isinstance(model_response, dict) else None
+    metadata = response_data.get("metadata") if response_data else None
     if isinstance(metadata, dict) and protocol_version:
-        metadata.setdefault("protocolVersion", protocol_version)
+        metadata_data = cast(dict[str, object], metadata)
+        metadata_data.setdefault("protocolVersion", protocol_version)
     artifacts = _build_artifacts(job_id, database_path, builder_file, config_file)
     if artifacts:
         result["artifacts"] = artifacts
