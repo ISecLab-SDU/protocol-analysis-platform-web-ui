@@ -30,9 +30,9 @@ try:  # pragma: no cover - optional dependency
     import docker
     from docker.errors import DockerException, ImageNotFound
 except ModuleNotFoundError:  # pragma: no cover - optional dependency
-    docker = None  # type: ignore
-    DockerException = RuntimeError  # type: ignore
-    ImageNotFound = RuntimeError  # type: ignore
+    docker = None
+    DockerException = RuntimeError
+    ImageNotFound = RuntimeError
 
 LOGGER = logging.getLogger(__name__)
 

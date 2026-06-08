@@ -27,7 +27,7 @@ except Exception:  # pragma: no cover - fallback for direct execution
     PACKAGE_ROOT = CURRENT_DIR.parent
     if str(PACKAGE_ROOT) not in sys.path:
         sys.path.insert(0, str(PACKAGE_ROOT))
-    from protocol_compliance.assertion_history_repository import (  # type: ignore
+    from protocol_compliance.assertion_history_repository import (
         AssertionHistoryRepository,
         ASSERTION_HISTORY_REPOSITORY,
     )

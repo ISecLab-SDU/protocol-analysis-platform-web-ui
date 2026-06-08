@@ -4,12 +4,8 @@ from __future__ import annotations
 
 from flask import Blueprint, make_response, request
 
-try:
-    from ..utils.auth import verify_access_token
-    from ..utils.responses import unauthorized
-except ImportError:
-    from utils.auth import verify_access_token
-    from utils.responses import unauthorized
+from utils.auth import verify_access_token
+from utils.responses import unauthorized
 
 bp = Blueprint("demo", __name__, url_prefix="/api/demo")
 

@@ -4,10 +4,7 @@ from __future__ import annotations
 
 from flask import Blueprint, make_response, request
 
-try:
-    from ..utils.responses import error_response
-except ImportError:
-    from utils.responses import error_response
+from utils.responses import error_response
 
 bp = Blueprint("misc", __name__)
 

@@ -18,24 +18,14 @@ import toml
 from flask import Blueprint, make_response, request, send_file
 from werkzeug.datastructures import FileStorage
 
-try:
-    from ..utils.auth import verify_access_token
-    from ..utils.responses import (
-        error_response,
-        make_error_payload,
-        paginate,
-        success_response,
-        unauthorized,
-    )
-except ImportError:
-    from utils.auth import verify_access_token
-    from utils.responses import (
-        error_response,
-        make_error_payload,
-        paginate,
-        success_response,
-        unauthorized,
-    )
+from utils.auth import verify_access_token
+from utils.responses import (
+    error_response,
+    make_error_payload,
+    paginate,
+    success_response,
+    unauthorized,
+)
 from .analysis import (
     delete_static_analysis_job,
     extract_protocol_version,

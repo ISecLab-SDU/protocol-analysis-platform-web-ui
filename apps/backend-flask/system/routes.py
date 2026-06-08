@@ -10,14 +10,9 @@ from typing import Any, Dict, List, Optional
 from faker import Faker
 from flask import Blueprint, request
 
-try:
-    from ..utils.auth import verify_access_token
-    from ..utils.data import MOCK_MENU_LIST, get_menu_ids
-    from ..utils.responses import paginate, sleep, success_response, unauthorized
-except ImportError:
-    from utils.auth import verify_access_token
-    from utils.data import MOCK_MENU_LIST, get_menu_ids
-    from utils.responses import paginate, sleep, success_response, unauthorized
+from utils.auth import verify_access_token
+from utils.data import MOCK_MENU_LIST, get_menu_ids
+from utils.responses import paginate, sleep, success_response, unauthorized
 
 bp = Blueprint("system", __name__, url_prefix="/api/system")
 

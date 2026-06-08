@@ -6,10 +6,7 @@ from pathlib import Path
 
 from flask import Blueprint
 
-try:
-    from ..utils.responses import success_response
-except ImportError:
-    from utils.responses import success_response
+from utils.responses import success_response
 
 bp = Blueprint("custom", __name__, url_prefix="/api/custom")
 

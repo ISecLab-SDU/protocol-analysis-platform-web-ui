@@ -8,11 +8,7 @@ import subprocess
 import tempfile
 from flask import Blueprint, request, current_app, send_file
 
-# 导入工具函数
-try:
-    from ..utils.responses import success_response, error_response
-except ImportError:
-    from utils.responses import success_response, error_response
+from utils.responses import success_response, error_response
 
 # 创建蓝图
 bp = Blueprint("firmware", __name__)

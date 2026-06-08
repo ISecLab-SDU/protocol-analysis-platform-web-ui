@@ -6,10 +6,7 @@ from typing import Any
 
 
 def create_app(*args: Any, **kwargs: Any) -> Any:
-    try:
-        from .app import create_app as factory
-    except ImportError:
-        from app import create_app as factory
+    from app import create_app as factory
 
     return factory(*args, **kwargs)
 

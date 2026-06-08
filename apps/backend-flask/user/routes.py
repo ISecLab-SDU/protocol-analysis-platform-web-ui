@@ -6,12 +6,8 @@ from copy import deepcopy
 
 from flask import Blueprint, request
 
-try:
-    from ..utils.auth import verify_access_token
-    from ..utils.responses import success_response, unauthorized
-except ImportError:
-    from utils.auth import verify_access_token
-    from utils.responses import success_response, unauthorized
+from utils.auth import verify_access_token
+from utils.responses import success_response, unauthorized
 
 bp = Blueprint("user", __name__, url_prefix="/api/user")
 

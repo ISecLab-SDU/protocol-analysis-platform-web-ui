@@ -7,36 +7,20 @@ from typing import Optional
 
 from flask import Blueprint, make_response, request
 
-try:
-    from ..utils import cookies
-    from ..utils.auth import (
-        generate_access_token,
-        generate_refresh_token,
-        verify_access_token,
-        verify_refresh_token,
-    )
-    from ..utils.data import MOCK_CODES, MOCK_USERS
-    from ..utils.responses import (
-        error_response,
-        forbidden,
-        success_response,
-        unauthorized,
-    )
-except ImportError:
-    from utils import cookies
-    from utils.auth import (
-        generate_access_token,
-        generate_refresh_token,
-        verify_access_token,
-        verify_refresh_token,
-    )
-    from utils.data import MOCK_CODES, MOCK_USERS
-    from utils.responses import (
-        error_response,
-        forbidden,
-        success_response,
-        unauthorized,
-    )
+from utils import cookies
+from utils.auth import (
+    generate_access_token,
+    generate_refresh_token,
+    verify_access_token,
+    verify_refresh_token,
+)
+from utils.data import MOCK_CODES, MOCK_USERS
+from utils.responses import (
+    error_response,
+    forbidden,
+    success_response,
+    unauthorized,
+)
 
 bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 

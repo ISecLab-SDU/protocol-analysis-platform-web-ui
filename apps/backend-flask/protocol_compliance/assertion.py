@@ -440,7 +440,7 @@ def _run_instrumentation_container(
 
     # Prefer Docker SDK; fall back to CLI if unavailable
     try:
-        import docker  # type: ignore
+        import docker
 
         client = docker.from_env()
         _emit("instrumentation", f"Starting instrumentation container (image={image}, command={' '.join(command)})")

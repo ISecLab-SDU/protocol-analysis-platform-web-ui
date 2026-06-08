@@ -10,12 +10,8 @@ from typing import Any, Dict, List, Tuple
 from faker import Faker
 from flask import Blueprint, request
 
-try:
-    from ..utils.auth import verify_access_token
-    from ..utils.responses import paginate, sleep, success_response, unauthorized
-except ImportError:
-    from utils.auth import verify_access_token
-    from utils.responses import paginate, sleep, success_response, unauthorized
+from utils.auth import verify_access_token
+from utils.responses import paginate, sleep, success_response, unauthorized
 
 bp = Blueprint("table", __name__, url_prefix="/api/table")
 

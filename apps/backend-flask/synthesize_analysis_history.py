@@ -15,8 +15,8 @@ BACKEND_DIR = Path(__file__).resolve().parent
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from protocol_compliance import analysis  # type: ignore  # noqa: E402
-from protocol_compliance.state_repository import (  # type: ignore  # noqa: E402
+from protocol_compliance import analysis  # noqa: E402
+from protocol_compliance.state_repository import (  # noqa: E402
     AnalysisStateRepository,
     analysis_state_repository,
 )
