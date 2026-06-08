@@ -37,7 +37,10 @@ def process_item(item: tuple, apikey: str, protocol: str, version: str) -> tuple
         )
 
         # 验证响应格式
-        result = json.loads(response.choices[0].message.content)
+        content = response.choices[0].message.content
+        if content is None:
+            raise ValueError("Empty comparative keyword response")
+        result = json.loads(content)
         if not all(isinstance(v, list) for v in result.values()):
             raise ValueError("无效的响应格式")
 

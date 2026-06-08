@@ -1,7 +1,7 @@
 import json
 import re
 from pathlib import Path
-from typing import List, Dict
+from typing import Any, Dict, List
 from openai import OpenAI
 import toml
 import argparse
@@ -38,7 +38,7 @@ def load_processed_data(config: Dict, data_type: str) -> Dict:
 
 def extract_keywords(data: Dict) -> List[str]:
     """从处理结果中提取关键词（不过滤）"""
-    keywords = []
+    keywords: list[str] = []
 
     for section, content in data.items():
         try:
@@ -54,12 +54,12 @@ def extract_keywords(data: Dict) -> List[str]:
             if isinstance(content, dict):
                 for key, values in content.items():
                     if isinstance(values, list):
-                        keywords.extend(values)
+                        keywords.extend(str(value) for value in values)
                     elif isinstance(values, dict):
                         keywords.extend(values.keys())
                         for v in values.values():
                             if isinstance(v, list):
-                                keywords.extend(v)
+                                keywords.extend(str(value) for value in v)
                             elif isinstance(v, str):
                                 keywords.append(v)
 
@@ -117,13 +117,16 @@ def classify_keywords_with_llm(keywords_by_type: Dict[str, List[str]], apikey: s
             )
             
             response_content = response.choices[0].message.content
+            if response_content is None:
+                raise ValueError(f"Empty {cat} keyword classification response")
             print(f"[DEBUG] {cat} 响应长度: {len(response_content)} 字符")
             
             # 尝试解析JSON
             try:
                 parsed_response = json.loads(response_content)
-                if cat in parsed_response:
-                    result[cat] = parsed_response[cat]
+                if isinstance(parsed_response, dict) and cat in parsed_response:
+                    values = parsed_response[cat]
+                    result[cat] = [str(value) for value in values] if isinstance(values, list) else []
                 else:
                     print(f"[WARNING] 响应中缺少 '{cat}' 键，使用空列表")
                     result[cat] = []
@@ -139,8 +142,9 @@ def classify_keywords_with_llm(keywords_by_type: Dict[str, List[str]], apikey: s
                     # 尝试修复未转义的引号
                     cleaned_content = re.sub(r'(?<!\\)"(?=\w)', '\\"', cleaned_content)
                     parsed_response = json.loads(cleaned_content)
-                    if cat in parsed_response:
-                        result[cat] = parsed_response[cat]
+                    if isinstance(parsed_response, dict) and cat in parsed_response:
+                        values = parsed_response[cat]
+                        result[cat] = [str(value) for value in values] if isinstance(values, list) else []
                         print(f"[INFO] {cat} JSON修复成功")
                     else:
                         result[cat] = []

@@ -1,7 +1,7 @@
 import json
 import re
 from pathlib import Path
-from typing import Dict, List
+from typing import Any, Dict, List, cast
 import argparse
 
 
@@ -123,10 +123,16 @@ def reconstruct_paragraphs(config: Dict) -> None:
                     #item.get('调整后', item.get('原句', str(item)))
                     #for item in sentences
                 #)
-                paragraph = ' '.join(
-                    item["Original"] if item.get("Adjusted") == "No change" else item.get("Adjusted",item.get("Original", str(item)))
-                    for item in sentences
-                )
+                paragraph_parts = []
+                for item in sentences:
+                    if isinstance(item, dict):
+                        item_dict = cast(dict[str, Any], item)
+                        original = item_dict.get("Original", str(item_dict))
+                        adjusted = item_dict.get("Adjusted")
+                        paragraph_parts.append(str(original if adjusted == "No change" else item_dict.get("Adjusted", original)))
+                    else:
+                        paragraph_parts.append(str(item))
+                paragraph = ' '.join(paragraph_parts)
                 results[heading] = re.sub(r'\s+', ' ', paragraph).strip()
 
             except Exception as e:

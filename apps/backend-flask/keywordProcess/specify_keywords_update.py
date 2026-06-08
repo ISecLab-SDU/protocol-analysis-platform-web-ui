@@ -40,7 +40,10 @@ def process_item(item: tuple, apikey: str, config: Dict, protocol: str, version:
         )
 
         # 验证响应有效性
-        result = json.loads(response.choices[0].message.content)
+        content = response.choices[0].message.content
+        if content is None:
+            raise ValueError("Empty specify keyword response")
+        result = json.loads(content)
         #print(result)
         if not isinstance(result, dict):
             raise ValueError("Invalid response format")

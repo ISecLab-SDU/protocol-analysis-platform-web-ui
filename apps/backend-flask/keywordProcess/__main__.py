@@ -3,6 +3,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Optional
 
 def create_default_config(store_dir: Path) -> dict:
     """生成默认配置，并返回 dict"""
@@ -33,7 +34,7 @@ def create_default_config(store_dir: Path) -> dict:
     print(f"✅ 已生成默认配置文件: {config_file}")
     return config
 
-def run_subprocess(script_name: str, config_file:json, protocol: str, version: str, apikey: str = None):
+def run_subprocess(script_name: str, config_file: Path, protocol: str, version: str, apikey: Optional[str] = None) -> None:
     """执行子脚本"""
     script_path = Path(__file__).parent / f"{script_name}.py"
     if not script_path.exists():
@@ -45,7 +46,7 @@ def run_subprocess(script_name: str, config_file:json, protocol: str, version: s
         str(script_path),
         "--protocol", protocol,
         "--version", version,
-        "--config", config_file
+        "--config", str(config_file)
     ]
     if apikey:
         cmd += ["--apikey", apikey]
@@ -57,9 +58,10 @@ def run_subprocess(script_name: str, config_file:json, protocol: str, version: s
 
         # 按行实时输出
         output_lines = []
-        for line in proc.stdout:
-            print(line, end='')   # 直接输出到控制台
-            output_lines.append(line)
+        if proc.stdout is not None:
+            for line in proc.stdout:
+                print(line, end='')   # 直接输出到控制台
+                output_lines.append(line)
 
         proc.wait()
         if proc.returncode != 0:

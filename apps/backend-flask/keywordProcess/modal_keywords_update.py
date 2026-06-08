@@ -22,6 +22,7 @@ this_temperature = toml_config["llm"]["temperature"]
 def process_item(item: tuple, apikey: str) -> tuple:
     """处理单个章节的线程安全函数"""
     heading, content = item
+    clean_json_str = ""
     client = OpenAI(
         api_key=apikey,
         base_url=this_url
@@ -38,6 +39,8 @@ def process_item(item: tuple, apikey: str) -> tuple:
             response_format={"type": "json_object"},
         )
         raw_content = response.choices[0].message.content
+        if raw_content is None:
+            raise ValueError("Empty modal keyword response")
         match = re.search(r"\{[\s\S]*\}", raw_content)
         if not match:
             return heading, {"warning": "JSON parsed but format unexpected", "data": raw_content}
