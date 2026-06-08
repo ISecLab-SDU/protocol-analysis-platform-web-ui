@@ -20,15 +20,3 @@ dependencies = [
     "tqdm>=4.68.1",
     "pytest>=9.0.3",
 ]
-
-[tool.ty.rules]
-invalid-argument-type = "ignore"
-no-matching-overload = "ignore"
-invalid-type-form = "ignore"
-invalid-parameter-default = "ignore"
-not-iterable = "ignore"
-not-subscriptable = "ignore"
-unresolved-attribute = "ignore"
-invalid-return-type = "ignore"
-invalid-assignment = "ignore"
-unsupported-operator = "ignore"
