@@ -3,6 +3,7 @@ import re
 import pandas as pd
 from pathlib import Path
 import argparse
+from typing import Any
 
 def main():
     try:
@@ -36,8 +37,7 @@ def main():
         text_output = []
 
 
-        # 创建一个空的 DataFrame，用于存储句子和匹配结果
-        df = pd.DataFrame(columns=["Heading", "Sentence", "Is_Matched"])
+        df_data: list[list[Any]] = []
 
         for heading, sentences in chapter_sentence_dict.items():
             matched_sentences = []
@@ -61,13 +61,7 @@ def main():
                     text_output.append(f"Matched comparativeKeywords: {', '.join(comparative_matches)}\n")
                     text_output.append("-" * 50 + "\n")
 
-                # 将结果添加到 DataFrame
-                new_row = pd.DataFrame({
-                        "Heading": [heading],
-                        "Sentence": [sentence],
-                        "Is_Matched": [is_matched]
-                })
-                df = pd.concat([df, new_row], ignore_index=True)
+                df_data.append([heading, sentence, is_matched])
 
             if matched_sentences:
                 filtered_sentences[heading] = matched_sentences
@@ -79,6 +73,8 @@ def main():
         with open(txt_path, "w", encoding="utf-8") as txt_file:
             txt_file.writelines(text_output)
         excel_path=config["paths"]["excel_sentences"]
+        df = pd.DataFrame(df_data)
+        df.columns = ["Heading", "Sentence", "Is_Matched"]
         df.to_excel(excel_path, index=False, engine='openpyxl')
         print(f"总句子数：{count}")
         print(f"匹配句子数：{cnt}")

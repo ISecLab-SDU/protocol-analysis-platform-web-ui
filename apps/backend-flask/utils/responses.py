@@ -56,16 +56,15 @@ def paginate(
 def unauthorized() -> Tuple[Response, int]:
     """Flask-compatible unauthorized response."""
     payload = error_response("Unauthorized Exception", "Unauthorized Exception")
-    return make_response(payload, 401)
+    return make_response(payload), 401
 
 
 def forbidden(message: str = "Forbidden Exception") -> Tuple[Response, int]:
     """Flask-compatible forbidden response."""
     payload = error_response(message, message)
-    return make_response(payload, 403)
+    return make_response(payload), 403
 
 
 def sleep(ms: int) -> None:
     """Pause execution for the specified milliseconds."""
     time.sleep(max(ms, 0) / 1000.0)
-

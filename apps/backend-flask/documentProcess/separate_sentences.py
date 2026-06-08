@@ -4,6 +4,7 @@ import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 from openai import OpenAI
 import concurrent.futures
+from typing import Any
 
 from tqdm import tqdm
 import toml
@@ -50,7 +51,7 @@ def process_sentences(config):
 
     client = OpenAI(api_key=config["api_key"], base_url=this_url)
     results = {}
-    df_data = []
+    df_data: list[list[Any]] = []
 
     # 使用tqdm进度条
     with tqdm(total=len(selected), desc="处理章节") as pbar:
@@ -95,8 +96,9 @@ def process_sentences(config):
                     pbar.update(1)
 
     # 保存结果
-    pd.DataFrame(df_data, columns=["章节", "原句", "修正"]).to_excel(
-        config["paths"]["output_excel"], index=False)
+    df = pd.DataFrame(df_data)
+    df.columns = ["章节", "原句", "修正"]
+    df.to_excel(config["paths"]["output_excel"], index=False)
 
     with open(config["paths"]["output_json"], "w", encoding='utf-8') as f:
         json.dump(results, f, ensure_ascii=False, indent=2)

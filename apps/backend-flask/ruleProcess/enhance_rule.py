@@ -81,7 +81,8 @@ def load_blocks(md_path: Path):
                         elif s.startswith("流程图"):
                             ttype = "flowchart"
                     number = num
-                    title = (f"{ttype.capitalize()} {number}: {tail}" if number else f"{ttype.capitalize()}: {tail}") 
+                    block_type = ttype or "section"
+                    title = (f"{block_type.capitalize()} {number}: {tail}" if number else f"{block_type.capitalize()}: {tail}") 
                     break
             blocks.append({"type": ttype, "number": number, "title": title, "content": content})
         if blocks:
@@ -156,7 +157,10 @@ def run_enhance_rule(config, api_key, protocol, version):
                     temperature=this_temperature,
                     stream=False
                 )
-                enhanced_text = response.choices[0].message.content.strip()
+                content = response.choices[0].message.content
+                if content is None:
+                    raise ValueError("Empty enhanced rule response")
+                enhanced_text = content.strip()
                 if "Enhanced Rule:" in enhanced_text:
                     enhanced_rule = enhanced_text.split("Enhanced Rule:", 1)[1].strip()
                 else:

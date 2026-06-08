@@ -59,7 +59,10 @@ def run_third_rule(api_key, protocol, version, config):
                     stream=False
                 )
 
-                model_output = response.choices[0].message.content.strip()
+                content = response.choices[0].message.content
+                if content is None:
+                    raise ValueError("Empty third rule response")
+                model_output = content.strip()
                 return json.loads(model_output)
 
             except Exception as e:

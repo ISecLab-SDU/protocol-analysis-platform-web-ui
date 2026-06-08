@@ -47,7 +47,8 @@ def upload_file():
         file = request.files['file']
         
         # 检查文件名是否为空
-        if file.filename == '':
+        filename = file.filename
+        if not filename:
             return jsonify({
                 'code': 1,
                 'success': False,
@@ -55,7 +56,7 @@ def upload_file():
             }), 400
         
         # 检查文件类型
-        if not allowed_file(file.filename):
+        if not allowed_file(filename):
             return jsonify({
                 'code': 1,
                 'success': False,
@@ -69,7 +70,7 @@ def upload_file():
         file_id = str(uuid.uuid4())
         
         # 获取安全的文件名
-        original_filename = secure_filename(file.filename)
+        original_filename = secure_filename(filename)
         
         # 创建该文件的专属文件夹
         file_folder = os.path.join(UPLOAD_FOLDER, file_id)

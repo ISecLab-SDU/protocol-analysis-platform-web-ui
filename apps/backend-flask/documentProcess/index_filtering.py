@@ -55,7 +55,10 @@ def filter_headings(config):
                 {"role": "user", "content": prompt}
             ]
         )
-        selected = eval(response.choices[0].message.content)
+        content = response.choices[0].message.content
+        if content is None:
+            raise ValueError("Empty heading selection response")
+        selected = eval(content)
         with open(config["paths"]["headings"], "w") as f:
             json.dump(selected, f)
         print(f"✅ Selected {len(selected)} headings")

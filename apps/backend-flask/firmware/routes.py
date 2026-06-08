@@ -156,13 +156,14 @@ def analyze_firmware():
         file = request.files['file']
         
         # 检查文件是否为空
-        if file.filename == '':
+        filename = file.filename
+        if not filename:
             return error_response("没有选择文件")
         
         # 创建临时目录保存上传的文件
         with tempfile.TemporaryDirectory() as temp_dir:
             # 保存文件到临时目录
-            file_path = os.path.join(temp_dir, file.filename)
+            file_path = os.path.join(temp_dir, filename)
             file.save(file_path)
             
             # 检查Docker容器是否存在
@@ -176,7 +177,7 @@ def analyze_firmware():
                     "docker", "exec", DOCKER_CONTAINER_NAME,
                     "java", "-jar", "/app/CrypTody/CrypTody-1.0-SNAPSHOT.jar",
                     "-g", "/app/CrypTody/test",
-                    "-i", f"/app/CrypTody/{file.filename}",
+                    "-i", f"/app/CrypTody/{filename}",
                     "-p", "test1",
                     "-o", "/app/CrypTody/output",
                     "-v"

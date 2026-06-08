@@ -32,6 +32,8 @@ def process_keywords(config):
             }
         )
         keywords = response.choices[0].message.content
+        if keywords is None:
+            raise ValueError("Empty keyword extraction response")
         with open(config["paths"]["keywords"], "w", encoding="utf-8") as f:
             f.write(keywords)
         print("✅ Keywords extracted")
