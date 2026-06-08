@@ -167,7 +167,7 @@ const assertProgressSteps: AssertProgressStep[] = [
         hasLogText(line, 'Installed')),
   },
   {
-    description: '读取 violations.db 中的违规记录，提取相关函数源码和 AST 上下文。',
+    description: '读取代码定位与一致性分析结论，提取相关函数源码和 AST 上下文。',
     key: 'violation-read',
     label: '违规记录解析',
     match: (line) =>

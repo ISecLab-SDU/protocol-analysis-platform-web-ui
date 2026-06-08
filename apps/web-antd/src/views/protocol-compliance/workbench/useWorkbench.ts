@@ -184,8 +184,6 @@ let resultHistoryAppended = false;
 let resultHistoryIdSeq = 0;
 let pendingPocSnapshotPromise: null | Promise<void> = null;
 
-const TEMP_ASSERTION_DATABASE_PATH =
-  '/home/lab426_system/protocol-web-ui/violations.db';
 const STAGE_TRANSITION_DELAY_MS = 2000;
 const AFLNET_FALLBACK_REPLAY_LINES_PER_TICK = 2;
 const SOL_AFLNET_STALE_LOG_FALLBACK_MS = 25_000;
@@ -1197,7 +1195,14 @@ function parseCodeSnippetToEvidence(
 
 function mergeCodeLocateEvidence(next: CodeLocateEvidence | null, force = false) {
   if (!next) return;
-  if (!force && codeLocateEvidence.value?.source === '静态分析数据库') return;
+  if (
+    !force &&
+    ['代码定位与一致性分析', '静态分析数据库'].includes(
+      codeLocateEvidence.value?.source || '',
+    )
+  ) {
+    return;
+  }
   const currentFunctionCount = codeLocateEvidence.value?.functions?.length ?? 0;
   const nextFunctionCount = next.functions?.length ?? 0;
   if (
@@ -1257,7 +1262,7 @@ function buildEvidenceFromInsight(
     keySliceCount,
     resultLabel: insight.resultLabel,
     ruleText: insight.ruleDesc,
-    source: '静态分析数据库',
+    source: '代码定位与一致性分析',
     targetFile,
     violationLines,
     violationReason: insight.reason,
@@ -1554,16 +1559,21 @@ async function runAssertGenStep(runId: number) {
     markStageError('assert_gen', '缺少源码压缩包');
     return;
   }
-  setStage('assert_gen', 'running', '准备固定违规数据库…');
+  const analysisDataPath = staticResult.value?.artifacts?.database;
+  if (!analysisDataPath) {
+    markStageError('assert_gen', '缺少代码定位与一致性分析结果数据');
+    return;
+  }
+  setStage('assert_gen', 'running', '准备代码定位与一致性分析结果…');
   assertLogText.value = '';
   assertDiffContent.value = '';
   await nextTick();
   if (!isCurrentPipelineRun(runId)) return;
   try {
-    stageMessage.value = `使用固定违规数据库: ${TEMP_ASSERTION_DATABASE_PATH}`;
+    stageMessage.value = `使用分析结果数据: ${analysisDataPath}`;
     const job = await runProtocolAssertGeneration({
       codeArchive: projectConfig.archive,
-      databasePath: TEMP_ASSERTION_DATABASE_PATH,
+      databasePath: analysisDataPath,
       buildInstructions: projectConfig.buildInstructions,
       notes: projectConfig.notes,
     });
