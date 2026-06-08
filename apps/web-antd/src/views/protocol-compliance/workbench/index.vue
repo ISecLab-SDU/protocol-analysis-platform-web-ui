@@ -648,6 +648,26 @@ function historyReasonFallback(entry: ProtocolViolationHistoryEntry) {
   return '数据库未记录判定说明';
 }
 
+function readErrorMessage(error: unknown) {
+  if (!error || typeof error !== 'object') return '';
+  const payload = error as { message?: unknown; response?: { data?: unknown } };
+  const responseData = payload.response?.data;
+  if (responseData && typeof responseData === 'object') {
+    const messageValue = (responseData as { message?: unknown }).message;
+    return typeof messageValue === 'string' ? messageValue : '';
+  }
+  return typeof payload.message === 'string' ? payload.message : '';
+}
+
+function isViolationHistoryMissingError(error: unknown) {
+  if (!error || typeof error !== 'object') return false;
+  const response = (error as { response?: { status?: number } }).response;
+  return (
+    response?.status === 404 ||
+    readErrorMessage(error).includes('历史记录不存在')
+  );
+}
+
 async function handleDeleteViolationHistory(entry: ProtocolViolationHistoryEntry) {
   if (deletingViolationHistoryId.value) return;
 
@@ -664,6 +684,12 @@ async function handleDeleteViolationHistory(entry: ProtocolViolationHistoryEntry
     message.success('历史记录已删除');
   } catch (error) {
     console.error('删除历史记录失败:', error);
+    if (isViolationHistoryMissingError(error)) {
+      selectedViolationHistoryId.value = '';
+      await loadViolationHistory(true, true, true);
+      message.warning('历史列表已刷新，请重新选择后删除');
+      return;
+    }
     message.error('删除历史记录失败');
   } finally {
     deletingViolationHistoryId.value = '';

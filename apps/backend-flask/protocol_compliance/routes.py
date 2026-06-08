@@ -802,7 +802,7 @@ def _read_violation_history_from_database(
 
     conn.row_factory = sqlite3.Row
     query = (
-        "SELECT rule_desc, code_snippet, call_graph, llm_response "
+        "SELECT rowid AS __rowid, rule_desc, code_snippet, call_graph, llm_response "
         "FROM rule_code_snippet"
     )
     try:
@@ -825,6 +825,7 @@ def _read_violation_history_from_database(
         item_id = _build_violation_history_item_id(
             db_path=db_path,
             job_id=job_id,
+            row_id=row["__rowid"],
             row_index=index,
             rule_desc=row["rule_desc"],
             source_type=source_type,
@@ -860,17 +861,19 @@ def _build_violation_history_item_id(
     *,
     db_path: Path,
     job_id: Optional[str],
+    row_id: Optional[int] = None,
     row_index: int,
     rule_desc: Any,
     source_type: str,
 ) -> str:
+    row_key = f"rowid:{row_id}" if row_id is not None else str(row_index)
     stable_key = "|".join(
         [
             source_type,
             job_id or "",
             str(db_path),
             str(rule_desc),
-            str(row_index),
+            row_key,
         ]
     )
     return hashlib.sha1(stable_key.encode("utf-8")).hexdigest()
@@ -905,11 +908,19 @@ def _delete_violation_history_from_database(
         current_id = _build_violation_history_item_id(
             db_path=db_path,
             job_id=job_id,
+            row_id=row["__rowid"],
             row_index=index,
             rule_desc=row["rule_desc"],
             source_type=source_type,
         )
-        if current_id != item_id:
+        legacy_id = _build_violation_history_item_id(
+            db_path=db_path,
+            job_id=job_id,
+            row_index=index,
+            rule_desc=row["rule_desc"],
+            source_type=source_type,
+        )
+        if item_id not in {current_id, legacy_id}:
             continue
 
         try:
@@ -1435,6 +1446,7 @@ def upsert_static_analysis_violation_history():
     item_id = _build_violation_history_item_id(
         db_path=resolved_path,
         job_id=job_id,
+        row_id=matched["__rowid"],
         row_index=matched_index,
         rule_desc=matched["rule_desc"],
         source_type="job" if job_id else "builtin",
