@@ -144,7 +144,7 @@ def classify_keywords_with_llm(keywords_by_type: Dict[str, List[str]], apikey: s
                         print(f"[INFO] {cat} JSON修复成功")
                     else:
                         result[cat] = []
-                except:
+                except Exception:
                     print(f"[ERROR] {cat} JSON修复失败，使用空列表")
                     result[cat] = []
                     

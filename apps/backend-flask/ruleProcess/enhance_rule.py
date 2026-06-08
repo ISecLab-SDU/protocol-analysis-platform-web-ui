@@ -107,7 +107,7 @@ def run_enhance_rule(config, api_key, protocol, version):
 
     # 只处理 Conforms 的句子 2025-10-29修改
     #conforms_df = df[df["Second_Filter_Result"] == "Conforms"].copy()
-    conforms_df = df[df["Is_Matched"] == True].copy()
+    conforms_df = df[df["Is_Matched"]].copy()
     if conforms_df.empty:
         print("没有通过第二阶段筛选的句子，跳过增强阶段。")
         return

@@ -11,9 +11,9 @@ BACKEND_ROOT = Path(__file__).resolve().parents[1]
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
-from protocol_compliance._docker_runner.config import ProtocolGuardDockerSettings
-from protocol_compliance._docker_runner.runner import ProtocolGuardDockerRunner
-from protocol_compliance._docker_runner.job import JobPaths
+from protocol_compliance._docker_runner.config import ProtocolGuardDockerSettings  # noqa: E402
+from protocol_compliance._docker_runner.job import JobPaths  # noqa: E402
+from protocol_compliance._docker_runner.runner import ProtocolGuardDockerRunner  # noqa: E402
 
 
 def _settings(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> ProtocolGuardDockerSettings:

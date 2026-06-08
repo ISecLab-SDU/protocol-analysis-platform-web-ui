@@ -1093,7 +1093,6 @@ def write_script():
 
     content = data.get("content")
     protocol = data.get("protocol", "UNKNOWN")
-    protocol_implementations = data.get("protocolImplementations", [])
 
     if not content:
         return make_response(error_response("脚本内容不能为空"), 400)
@@ -1115,27 +1114,6 @@ def write_script():
         })
     else:
         return make_response(error_response(f"不支持的协议类型: {protocol}"), 400)
-
-    try:
-        # 确保目录存在
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
-
-        # 写入文件（覆盖模式）
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(content)
-
-        # 如果是shell脚本，设置执行权限
-        if file_path.endswith('.sh'):
-            os.chmod(file_path, 0o755)
-
-        return success_response({
-            "message": f"{protocol}脚本文件写入成功",
-            "filePath": file_path,
-            "size": len(content.encode('utf-8'))
-        })
-
-    except Exception as e:
-        return make_response(error_response(f"写入文件失败: {str(e)}"), 500)
 
 
 @bp.route("/execute-command", methods=["POST"])
@@ -2001,4 +1979,3 @@ def add_analysis_history():
         )
 
     return success_response({'message': '已添加到历史记录'})
-

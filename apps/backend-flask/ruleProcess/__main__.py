@@ -64,7 +64,7 @@ def main():
     rule_dir = store_dir / "ruleDir"
     rule_dir.mkdir(parents=True, exist_ok=True)
     
-    config = create_default_config(store_dir)
+    create_default_config(store_dir)
     config_file = rule_dir / "rule_config.json"
 
     # 步骤处理逻辑

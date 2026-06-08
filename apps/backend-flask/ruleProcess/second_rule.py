@@ -135,7 +135,7 @@ def run_second_rule(api_key, protocol, version, config):
     table_md_path = Path(config["paths"]["table"])
 
     df = pd.read_excel(excel_path, engine='openpyxl')
-    matched_rows = df[df["Is_Matched"] == True]
+    matched_rows = df[df["Is_Matched"]]
 
     sections = load_sections_with_blocks(table_md_path)
     client = OpenAI(api_key=api_key, base_url=this_url)
