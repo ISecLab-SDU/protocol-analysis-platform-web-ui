@@ -72,9 +72,11 @@ def _ensure_authenticated():
 # Helpers -------------------------------------------------------------------
 
 def _to_int(value: Optional[str], fallback: int) -> int:
+    if value is None:
+        return fallback
     try:
         parsed = int(value)
-    except (TypeError, ValueError):
+    except ValueError:
         return fallback
     return parsed if parsed > 0 else fallback
 
@@ -91,7 +93,7 @@ def _normalize_status(raw: Optional[Iterable[str]]) -> Optional[list[TaskStatus]
         segments = [segment.strip() for segment in item.split(",")]
         for segment in segments:
             if segment in allowed:
-                statuses.add(segment)  # type: ignore[arg-type]
+                statuses.add(cast(TaskStatus, segment))
 
     return list(statuses) if statuses else None
 
@@ -939,11 +941,13 @@ def assertion_generation_instrumentation_diff(job_id: str):
     if not instrumentation or not isinstance(instrumentation, dict):
         return make_response(error_response("未找到 instrumentation 数据"), 404)
     
-    artifacts = instrumentation.get("artifacts")
+    instrumentation_data = cast(Dict[str, object], instrumentation)
+    artifacts = instrumentation_data.get("artifacts")
     if not artifacts or not isinstance(artifacts, dict):
         return make_response(error_response("未找到 instrumentation artifacts"), 404)
     
-    diff_output = artifacts.get("diffOutput")
+    artifact_data = cast(Dict[str, object], artifacts)
+    diff_output = artifact_data.get("diffOutput")
     if not diff_output or not isinstance(diff_output, dict):
         return make_response(error_response("未找到 instrumentation diff 输出"), 404)
     
@@ -1133,7 +1137,7 @@ def execute_command():
         # MQTT协议支持双引擎配置
         if protocol_implementations and "SOL" in protocol_implementations:
             # SOL使用AFLNET引擎 (原RTSP配置)
-            command = RTSP_CONFIG["shell_command"]
+            command = cast(str, RTSP_CONFIG["shell_command"])
             print(f"[DEBUG] MQTT协议使用SOL实现(AFLNET引擎): {protocol_implementations}")
         else:
             # 传统MQTT broker使用MBFuzzer引擎
@@ -1277,7 +1281,7 @@ def read_log():
         # MQTT协议支持双引擎配置
         if protocol_implementations and "SOL" in protocol_implementations:
             # SOL使用AFLNET引擎日志路径 (原RTSP配置)
-            file_path = RTSP_CONFIG["log_file_path"]
+            file_path = cast(str, RTSP_CONFIG["log_file_path"])
             print(f"[DEBUG] MQTT协议使用SOL实现，读取AFLNET日志: {file_path}")
         else:
             # 传统MQTT broker使用MBFuzzer引擎日志路径
@@ -1376,7 +1380,7 @@ def check_status():
             
             if protocol_implementations and "SOL" in protocol_implementations:
                 # 检查SOL相关状态 (使用AFLNET引擎)
-                log_file_path = RTSP_CONFIG["log_file_path"]
+                log_file_path = cast(str, RTSP_CONFIG["log_file_path"])
                 status_info["engine"] = "AFLNET"
                 status_info["implementation"] = "SOL"
             else:
@@ -1565,7 +1569,7 @@ def pre_start_cleanup():
         
         # 2. 清理输出文件夹
         if protocol == "RTSP" or protocol == "MQTT":
-            output_dir = os.path.dirname(RTSP_CONFIG["log_file_path"])
+            output_dir = os.path.dirname(cast(str, RTSP_CONFIG["log_file_path"]))
             
             # Linux安全检查：防止删除系统重要目录
             dangerous_paths = ['/', '/home', '/usr', '/var', '/etc', '/bin', '/sbin', '/lib', '/opt']

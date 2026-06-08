@@ -14,7 +14,7 @@ import argparse
 import sys
 import uuid
 from pathlib import Path
-from typing import Optional
+from typing import Optional, cast
 
 # Support running as a module or as a standalone script.
 try:  # noqa: SIM105 - explicit guard for script execution
@@ -60,14 +60,14 @@ def seed_history(
     storage_dir: Optional[str],
 ) -> Path:
     repo = _resolve_repo(db_path, storage_dir)
-    return repo.insert_manual_entry(
+    return cast(Path, repo.insert_manual_entry(
         job_id=job_id,
         diff_file=diff_file,
         code_filename=code_filename,
         database_filename=database_filename,
         created_at=created_at,
         copy_diff=copy_diff,
-    )
+    ))
 
 
 def main(argv: Optional[list[str]] = None) -> int:

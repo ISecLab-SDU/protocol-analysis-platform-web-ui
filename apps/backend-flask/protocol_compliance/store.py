@@ -7,7 +7,7 @@ import threading
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Dict, Iterable, List, Literal, Optional
+from typing import Dict, Iterable, List, Literal, Optional, cast
 
 
 TaskStatus = Literal["completed", "failed", "processing", "queued"]
@@ -146,8 +146,12 @@ class TaskStore:
                 return
 
             now = _now_iso()
-            target.progress = int(patch.get("progress", target.progress))
-            target.status = patch.get("status", target.status)  # type: ignore[assignment]
+            progress = patch.get("progress", target.progress)
+            if isinstance(progress, (int, str)):
+                target.progress = int(progress)
+            status = patch.get("status", target.status)
+            if status in ("completed", "failed", "processing", "queued"):
+                target.status = cast(TaskStatus, status)
             target.updated_at = now
 
             if patch.get("completed"):

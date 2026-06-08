@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from functools import lru_cache
 from io import BytesIO
-from typing import BinaryIO, Callable, Dict, List, Literal, Optional
+from typing import BinaryIO, Callable, Dict, List, Literal, Optional, cast
 
 from .docker_runner import (
     ProtocolGuardDockerError,
@@ -242,7 +242,9 @@ def build_mock_analysis(
     findings = [_build_finding(code_file_name) for _ in range(random.randint(4, 6))]
     counts = {"compliant": 0, "needs_review": 0, "non_compliant": 0}
     for finding in findings:
-        counts[finding["compliance"]] += 1
+        compliance = finding.get("compliance")
+        if compliance in counts:
+            counts[cast(str, compliance)] += 1
 
     if counts["non_compliant"]:
         overall_status: ComplianceStatus = "non_compliant"
@@ -595,7 +597,7 @@ def get_static_analysis_result(job_id: str) -> Optional[Dict[str, object]]:
         return None
     result = snapshot.get("result")
     if isinstance(result, dict):
-        return result
+        return cast(Dict[str, object], result)
     return None
 
 

@@ -18,7 +18,7 @@ import zipfile
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import BinaryIO, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, BinaryIO, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import toml
 
@@ -26,9 +26,17 @@ from .config import DEFAULT_CONFIG_PACKET_TYPES, ProtocolGuardDockerSettings, _e
 from .errors import ProtocolGuardDockerError, ProtocolGuardExecutionError, ProtocolGuardNotAvailableError
 from .job import JobPaths
 
+docker: Any
+DockerException: type[Exception]
+ImageNotFound: type[Exception]
+
 try:  # pragma: no cover - optional dependency
-    import docker
-    from docker.errors import DockerException, ImageNotFound
+    import docker as _docker
+    from docker.errors import DockerException as _DockerException, ImageNotFound as _ImageNotFound
+
+    docker = _docker
+    DockerException = _DockerException
+    ImageNotFound = _ImageNotFound
 except ModuleNotFoundError:  # pragma: no cover - optional dependency
     docker = None
     DockerException = RuntimeError
@@ -501,7 +509,10 @@ class ProtocolGuardDockerRunner:
                 return workspace_prefix
             return f"{workspace_prefix}/{rel}"
 
-        project_section = dict(data.get("project") or {})
+        def object_dict(value: object) -> Dict[str, object]:
+            return {str(key): item for key, item in value.items()} if isinstance(value, Mapping) else {}
+
+        project_section = object_dict(data.get("project"))
         project_section["project_name"] = project_section.get("project_name") or self._settings.project_name
         project_section["project_path"] = f"{workspace_prefix}/project"
         project_section["protocol_name"] = protocol
@@ -515,20 +526,20 @@ class ProtocolGuardDockerRunner:
         project_section["rule_path"] = container_path(artifacts.rule_config)
         data["project"] = project_section
 
-        database_section = dict(data.get("database") or {})
+        database_section = object_dict(data.get("database"))
         database_section["path"] = container_path(artifacts.database)
         data["database"] = database_section
 
-        wpa_section = dict(data.get("wpa") or {})
+        wpa_section = object_dict(data.get("wpa"))
         wpa_section["path"] = container_path(artifacts.wpa_report)
         data["wpa"] = wpa_section
 
-        debug_section = dict(data.get("debug") or {})
+        debug_section = object_dict(data.get("debug"))
         debug_section["code_slice_replace_mode"] = self._settings.debug_code_slice_mode
         debug_section["log_print"] = _env_int("PG_DEBUG_LOG_PRINT", 0) or 0
         data["debug"] = debug_section
 
-        config_section = dict(data.get("config") or {})
+        config_section = object_dict(data.get("config"))
         for key, values in DEFAULT_CONFIG_PACKET_TYPES.items():
             config_section.setdefault(key, list(values))
         data["config"] = config_section
@@ -1278,7 +1289,7 @@ class ProtocolGuardDockerRunner:
             if isinstance(function_name, str):
                 location_function = function_name
 
-        verdict = {
+        verdict: Dict[str, object] = {
             "category": "LLM Rule Compliance",
             "compliance": compliance,
             "confidence": "medium",
