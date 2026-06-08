@@ -113,6 +113,8 @@ RULE_RESULT_PRIORITY = {
     "violation_found": 2,
 }
 
+VISIBLE_VIOLATION_HISTORY_LIMIT = 5
+
 
 # Authentication -------------------------------------------------------------
 
@@ -1286,9 +1288,10 @@ def static_analysis_violation_history():
         ]
 
     items.sort(key=lambda item: str(item.get("updatedAt") or ""), reverse=True)
+    visible_items = items[:VISIBLE_VIOLATION_HISTORY_LIMIT]
     payload: Dict[str, Any] = {
-        "items": items,
-        "count": len(items),
+        "items": visible_items,
+        "count": len(visible_items),
         "generatedAt": datetime.now(timezone.utc).isoformat(),
     }
     if warnings:

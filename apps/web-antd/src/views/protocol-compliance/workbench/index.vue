@@ -122,7 +122,7 @@ type SideNavKey = (typeof sideNavItems)[number]['key'];
 
 const activeSideNav = ref<SideNavKey>('overview');
 const demoConfigLoading = ref(false);
-const HISTORY_PAGE_SIZE = 24;
+const VISIBLE_HISTORY_LIMIT = 5;
 const violationHistory = ref<ProtocolViolationHistoryEntry[]>([]);
 const violationHistoryError = ref('');
 const violationHistoryGeneratedAt = ref('');
@@ -133,7 +133,6 @@ const violationHistoryQueuedRefreshOverview = ref(false);
 const violationHistoryWarnings = ref<string[]>([]);
 const selectedViolationHistoryId = ref('');
 const deletingViolationHistoryId = ref('');
-const historyVisibleCount = ref(HISTORY_PAGE_SIZE);
 const bannerProgress = ref(0);
 let bannerProgressStageKey = '';
 let bannerProgressTimer: null | ReturnType<typeof setTimeout> = null;
@@ -191,14 +190,7 @@ const shouldCompleteBannerProgress = computed(() => {
 });
 
 const visibleViolationHistory = computed(() =>
-  violationHistory.value.slice(0, historyVisibleCount.value),
-);
-
-const hiddenViolationHistoryCount = computed(() =>
-  Math.max(
-    violationHistory.value.length - visibleViolationHistory.value.length,
-    0,
-  ),
+  violationHistory.value.slice(0, VISIBLE_HISTORY_LIMIT),
 );
 
 const overviewStats = ref<null | ProtocolDatabaseOverviewStats>(null);
@@ -466,28 +458,6 @@ function protocolAccent(name: string) {
   return 'coap';
 }
 
-function resetHistoryVisibleCount(preserveCurrent = false) {
-  const baseCount = preserveCurrent
-    ? Math.max(historyVisibleCount.value, HISTORY_PAGE_SIZE)
-    : HISTORY_PAGE_SIZE;
-
-  if (!selectedViolationHistoryId.value) {
-    historyVisibleCount.value = baseCount;
-    return;
-  }
-
-  const selectedIndex = violationHistory.value.findIndex(
-    (entry) => entry.id === selectedViolationHistoryId.value,
-  );
-  const minimumCount = selectedIndex >= 0 ? selectedIndex + 1 : baseCount;
-  historyVisibleCount.value =
-    Math.ceil(minimumCount / HISTORY_PAGE_SIZE) * HISTORY_PAGE_SIZE;
-}
-
-function loadMoreViolationHistory() {
-  historyVisibleCount.value += HISTORY_PAGE_SIZE;
-}
-
 async function loadViolationHistory(
   force = false,
   refreshOverview = true,
@@ -507,8 +477,6 @@ async function loadViolationHistory(
   if (!silent) {
     violationHistoryError.value = '';
   }
-  const shouldPreserveVisibleCount =
-    violationHistoryLoaded.value || violationHistory.value.length > 0;
   try {
     const response = await fetchProtocolViolationHistory({
       implementation: historyFilters.implementation || undefined,
@@ -532,7 +500,6 @@ async function loadViolationHistory(
     ) {
       selectedViolationHistoryId.value = '';
     }
-    resetHistoryVisibleCount(shouldPreserveVisibleCount);
   } catch (error) {
     if (!silent || !violationHistoryLoaded.value) {
       violationHistoryError.value =
@@ -584,7 +551,6 @@ function refreshViolationHistoryOnEnter() {
 
 function handleHistoryFilterChange() {
   selectedViolationHistoryId.value = '';
-  historyVisibleCount.value = HISTORY_PAGE_SIZE;
   void loadViolationHistory(true);
 }
 
@@ -1517,18 +1483,6 @@ async function handleLoadDemoConfig() {
                   </footer>
                 </section>
               </article>
-              <footer
-                v-if="hiddenViolationHistoryCount > 0"
-                class="history-load-more"
-              >
-                <span>还有 {{ formatNumber(hiddenViolationHistoryCount) }} 条结果</span>
-                <Button size="small" @click="loadMoreViolationHistory">
-                  加载更多
-                  <template #icon>
-                    <IconifyIcon icon="mdi:chevron-down" />
-                  </template>
-                </Button>
-              </footer>
             </div>
 
             <section
@@ -2993,16 +2947,6 @@ async function handleLoadDemoConfig() {
   box-shadow: 0 10px 28px rgb(22 119 255 / 10%);
 }
 
-.history-load-more {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  justify-content: center;
-  padding: 6px 0 2px;
-  font-size: 12px;
-  color: #64748b;
-}
-
 .result-history-head {
   display: flex;
   gap: 16px;
@@ -3352,7 +3296,6 @@ async function handleLoadDemoConfig() {
 .workflow-index,
 .stepper-state,
 .workbench-banner-percent,
-.history-load-more,
 .result-history-meta,
 .history-detail-head span,
 .history-detail-head p,
