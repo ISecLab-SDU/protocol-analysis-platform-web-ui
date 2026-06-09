@@ -792,6 +792,51 @@ def _parse_violation_details(payload: Dict[str, Any]) -> Optional[List[Dict[str,
     return violations or None
 
 
+def _preview_text(value: Any, limit: int = 240) -> str:
+    if value is None:
+        return ""
+    return str(value)[:limit].replace("\n", "\\n")
+
+
+def _log_rule_code_snippet_rows(
+    *,
+    context: str,
+    database_path: Path,
+    rows: Iterable[sqlite3.Row],
+    columns: Optional[List[str]] = None,
+    job_id: Any = None,
+) -> None:
+    materialized_rows = list(rows)
+    LOGGER.warning(
+        "*** ProtocolGuard rule_code_snippet %s: jobId=%s db=%s columns=%s row_count=%d ***",
+        context,
+        job_id,
+        database_path,
+        columns or [],
+        len(materialized_rows),
+    )
+    for index, row in enumerate(materialized_rows[:10], start=1):
+        rule_desc = row["rule_desc"] if "rule_desc" in row.keys() else None
+        code_snippet = row["code_snippet"] if "code_snippet" in row.keys() else None
+        call_graph = row["call_graph"] if "call_graph" in row.keys() else None
+        llm_response = row["llm_response"] if "llm_response" in row.keys() else None
+        LOGGER.warning(
+            (
+                "*** ProtocolGuard rule_code_snippet %s row=%d "
+                "rule_len=%d code_snippet_len=%d call_graph_len=%d llm_response_len=%d "
+                "rule_preview=%r code_snippet_preview=%r ***"
+            ),
+            context,
+            index,
+            len(str(rule_desc or "")),
+            len(str(code_snippet or "")),
+            len(str(call_graph or "")),
+            len(str(llm_response or "")),
+            _preview_text(rule_desc, 160),
+            _preview_text(code_snippet),
+        )
+
+
 def _iter_static_analysis_database_sources(
     job_limit: int,
 ) -> tuple[List[Dict[str, Any]], List[str]]:
@@ -1961,21 +2006,26 @@ def static_analysis_database_insights():
         },
     )
 
-    history_entry = _find_static_analysis_history_entry(job_id)
-    if history_entry:
-        result_payload = _read_database_insights_from_analysis_result(history_entry)
-        if result_payload:
-            LOGGER.info(
-                "Static analysis insights resolved from code locate result",
-                extra={
-                    "jobId": job_id,
-                    "findings": len(result_payload.get("findings") or []),
-                },
-            )
-            return make_response(success_response(result_payload), 200)
-
     resolved_path, warnings = _find_sqlite_file(database_path_raw, workspace_path_raw)
     if not resolved_path:
+        history_entry = _find_static_analysis_history_entry(job_id)
+        if history_entry:
+            result_payload = _read_database_insights_from_analysis_result(history_entry)
+            if result_payload:
+                LOGGER.warning(
+                    (
+                        "*** ProtocolGuard rule_code_snippet database-insights fallback: "
+                        "SQLite not found, returning history verdicts without code snippets. "
+                        "jobId=%s databasePath=%r workspacePath=%r findings=%d warnings=%s ***"
+                    ),
+                    job_id,
+                    database_path_raw,
+                    workspace_path_raw,
+                    len(result_payload.get("findings") or []),
+                    warnings,
+                )
+                return make_response(success_response(result_payload), 200)
+
         detail = {
             "jobId": job_id,
             "databasePath": database_path_raw,
@@ -2025,6 +2075,10 @@ def static_analysis_database_insights():
         "FROM rule_code_snippet"
     )
     try:
+        columns = [
+            str(row["name"])
+            for row in conn.execute("PRAGMA table_info(rule_code_snippet)").fetchall()
+        ]
         cursor = conn.execute(query)
         rows = cursor.fetchall()
     except sqlite3.Error as exc:
@@ -2044,6 +2098,14 @@ def static_analysis_database_insights():
             error_response("读取静态分析规则结果失败", detail),
             500,
         )
+
+    _log_rule_code_snippet_rows(
+        context="database-insights",
+        database_path=resolved_path,
+        rows=rows,
+        columns=columns,
+        job_id=job_id,
+    )
 
     findings: List[Dict[str, Any]] = []
     parsing_warnings: List[str] = []

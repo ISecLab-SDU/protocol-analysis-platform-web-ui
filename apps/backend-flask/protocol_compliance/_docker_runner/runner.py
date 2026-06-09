@@ -1225,14 +1225,41 @@ class ProtocolGuardDockerRunner:
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
             try:
-                cursor.execute("SELECT rowid, rule_desc, llm_response FROM rule_code_snippet")
+                cursor.execute("PRAGMA table_info(rule_code_snippet)")
+                columns = [str(row[1]) for row in cursor.fetchall()]
+                LOGGER.warning(
+                    "*** ProtocolGuard rule_code_snippet static collect: db=%s columns=%s ***",
+                    db_path,
+                    columns,
+                )
+                cursor.execute("SELECT rowid, rule_desc, code_snippet, llm_response FROM rule_code_snippet")
             except sqlite3.DatabaseError as exc:
                 LOGGER.warning("Unable to query rule_code_snippet table: %s", exc)
                 return findings, counts
 
             rows = cursor.fetchall()
 
-        for index, (row_id, rule_desc, llm_response) in enumerate(rows, start=1):
+        LOGGER.warning(
+            "*** ProtocolGuard rule_code_snippet static collect: db=%s row_count=%d ***",
+            db_path,
+            len(rows),
+        )
+
+        for index, (row_id, rule_desc, code_snippet, llm_response) in enumerate(rows, start=1):
+            code_snippet_text = code_snippet if isinstance(code_snippet, str) else ""
+            llm_response_text = llm_response if isinstance(llm_response, str) else ""
+            LOGGER.warning(
+                (
+                    "*** ProtocolGuard rule_code_snippet static collect row=%s "
+                    "rule_len=%d code_snippet_len=%d llm_response_len=%d "
+                    "code_snippet_preview=%r ***"
+                ),
+                row_id,
+                len(str(rule_desc or "")),
+                len(code_snippet_text),
+                len(llm_response_text),
+                code_snippet_text[:240].replace("\n", "\\n"),
+            )
             compliance, rule_findings = self._parse_llm_response(
                 llm_response,
                 rule_desc,
