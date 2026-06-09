@@ -78,8 +78,10 @@ def _set_job_mtime(settings: ProtocolGuardDockerSettings, job_id: str, timestamp
 def test_config_cleanup_defaults(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     settings = _settings(monkeypatch, tmp_path)
 
+    assert settings.keep_artifacts is True
+    assert settings.keep_builder_images is True
     assert settings.workspace_snapshots_enabled is False
-    assert settings.runtime_cleanup_enabled is True
+    assert settings.runtime_cleanup_enabled is False
     assert settings.runtime_retention_days == 7
     assert settings.runtime_retention_max_jobs == 20
     assert settings.assert_keep_full_artifacts is False
@@ -126,12 +128,13 @@ def test_rotation_deletes_old_job_across_managed_roots(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    monkeypatch.setenv("PG_RUNTIME_CLEANUP_ENABLED", "1")
     settings = _settings(monkeypatch, tmp_path)
     runner = _runner(settings)
     _touch_job(settings, "old-job", age_days=8)
     _touch_job(settings, "recent-job")
 
-    runner._rotate_runtime_artifacts_once()
+    runner._rotate_runtime_artifacts()
 
     assert not (settings.workspace_root / "old-job").exists()
     assert not (settings.output_root / "old-job").exists()
@@ -144,13 +147,14 @@ def test_rotation_keeps_newest_twenty_and_deletes_older_excess(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    monkeypatch.setenv("PG_RUNTIME_CLEANUP_ENABLED", "1")
     settings = _settings(monkeypatch, tmp_path)
     runner = _runner(settings)
     for index in range(22):
         _touch_job(settings, f"job-{index:02d}")
         _set_job_mtime(settings, f"job-{index:02d}", time.time() + index)
 
-    runner._rotate_runtime_artifacts_once()
+    runner._rotate_runtime_artifacts()
 
     assert not (settings.workspace_root / "job-00").exists()
     assert not (settings.workspace_root / "job-01").exists()
@@ -159,16 +163,18 @@ def test_rotation_keeps_newest_twenty_and_deletes_older_excess(
 
 
 def test_rotation_excludes_active_job(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("PG_RUNTIME_CLEANUP_ENABLED", "1")
     settings = _settings(monkeypatch, tmp_path)
     runner = _runner(settings)
     _touch_job(settings, "active-job", age_days=8)
 
-    runner._rotate_runtime_artifacts_once(active_job_id="active-job")
+    runner._rotate_runtime_artifacts(active_job_id="active-job")
 
     assert (settings.workspace_root / "active-job").exists()
 
 
 def test_rotation_ignores_symlinked_job_directory(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("PG_RUNTIME_CLEANUP_ENABLED", "1")
     settings = _settings(monkeypatch, tmp_path)
     runner = _runner(settings)
     target = tmp_path / "outside"
@@ -176,10 +182,26 @@ def test_rotation_ignores_symlinked_job_directory(monkeypatch: pytest.MonkeyPatc
     settings.workspace_root.mkdir(parents=True, exist_ok=True)
     (settings.workspace_root / "linked-job").symlink_to(target, target_is_directory=True)
 
-    runner._rotate_runtime_artifacts_once()
+    runner._rotate_runtime_artifacts()
 
     assert target.exists()
     assert (settings.workspace_root / "linked-job").is_symlink()
+
+
+def test_rotation_disabled_by_default_preserves_old_jobs(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    settings = _settings(monkeypatch, tmp_path)
+    runner = _runner(settings)
+    _touch_job(settings, "old-job", age_days=8)
+
+    runner._rotate_runtime_artifacts()
+
+    assert (settings.workspace_root / "old-job").exists()
+    assert (settings.output_root / "old-job").exists()
+    assert (settings.config_root / "old-job").exists()
+    assert (settings.output_root / "_workspace_snapshots" / "old-job").exists()
 
 
 def test_assertion_cleanup_preserves_deliverables(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

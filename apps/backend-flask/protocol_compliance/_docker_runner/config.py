@@ -254,10 +254,10 @@ class ProtocolGuardDockerSettings:
 
         env_passthrough = _split_env_list("PG_ENV_VARS", ("OPENAI_API_KEY",))
         artifacts = ArtifactLayout.from_env()
-        keep_artifacts = _env_bool("PG_KEEP_ARTIFACTS", default=False)
-        keep_builder_images = _env_bool("PG_KEEP_BUILDER_IMAGES", default=False)
+        keep_artifacts = _env_bool("PG_KEEP_ARTIFACTS", default=True)
+        keep_builder_images = _env_bool("PG_KEEP_BUILDER_IMAGES", default=True)
         workspace_snapshots_enabled = _env_bool("PG_WORKSPACE_SNAPSHOTS_ENABLED", default=False)
-        runtime_cleanup_enabled = _env_bool("PG_RUNTIME_CLEANUP_ENABLED", default=True)
+        runtime_cleanup_enabled = _env_bool("PG_RUNTIME_CLEANUP_ENABLED", default=False)
         runtime_retention_days_raw = _env_int("PG_RUNTIME_RETENTION_DAYS", 7)
         runtime_retention_days = max(0, 7 if runtime_retention_days_raw is None else runtime_retention_days_raw)
         runtime_retention_max_jobs_raw = _env_int("PG_RUNTIME_RETENTION_MAX_JOBS", 20)
