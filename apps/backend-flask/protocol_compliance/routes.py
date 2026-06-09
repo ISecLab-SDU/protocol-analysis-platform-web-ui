@@ -1041,7 +1041,14 @@ def _delete_violation_history_from_database(
             rule_desc=row["rule_desc"],
             source_type=source_type,
         )
-        if item_id not in {current_id, legacy_id}:
+        legacy_rowid_index_id = _build_violation_history_item_id(
+            db_path=db_path,
+            job_id=job_id,
+            row_index=row["__rowid"],
+            rule_desc=row["rule_desc"],
+            source_type=source_type,
+        )
+        if item_id not in {current_id, legacy_id, legacy_rowid_index_id}:
             continue
 
         try:

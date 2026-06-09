@@ -161,3 +161,64 @@ def test_delete_violation_history_accepts_analysis_result_ids(
     with sqlite3.connect(db_path) as conn:
         count = conn.execute("SELECT COUNT(*) FROM rule_code_snippet").fetchone()[0]
     assert count == 0
+
+
+def test_delete_violation_history_accepts_legacy_row_index_after_prior_deletes(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "sqlite_Test.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            CREATE TABLE rule_code_snippet (
+                rule_desc TEXT,
+                code_snippet TEXT,
+                call_graph TEXT,
+                llm_response TEXT
+            )
+            """
+        )
+        for rule_desc in ("first rule", "second rule", "target rule"):
+            conn.execute(
+                """
+                INSERT INTO rule_code_snippet (
+                    rule_desc,
+                    code_snippet,
+                    call_graph,
+                    llm_response
+                )
+                VALUES (?, ?, ?, ?)
+                """,
+                (
+                    rule_desc,
+                    "Function: parse_packet\n    7 return 0;",
+                    "parse_packet -> validate_packet",
+                    '{"result":"violation_found","reason":"sqlite reason"}',
+                ),
+            )
+        conn.execute("DELETE FROM rule_code_snippet WHERE rule_desc = ?", ("first rule",))
+
+    stale_item_id = routes._build_violation_history_item_id(
+        db_path=db_path,
+        job_id=None,
+        row_index=3,
+        rule_desc="target rule",
+        source_type="builtin",
+    )
+
+    deleted, warnings = routes._delete_violation_history_from_database(
+        db_path,
+        item_id=stale_item_id,
+        source_type="builtin",
+    )
+
+    assert warnings == []
+    assert deleted is not None
+    with sqlite3.connect(db_path) as conn:
+        remaining_rules = [
+            row[0]
+            for row in conn.execute(
+                "SELECT rule_desc FROM rule_code_snippet ORDER BY rowid"
+            )
+        ]
+    assert remaining_rules == ["second rule"]
