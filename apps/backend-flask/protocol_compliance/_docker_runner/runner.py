@@ -939,7 +939,7 @@ class ProtocolGuardDockerRunner:
                 volumes=volumes,
                 environment=environment,
                 detach=True,
-                remove=True,
+                remove=False,
                 stdout=True,
                 stderr=True,
                 network=self._settings.network,
@@ -965,8 +965,10 @@ class ProtocolGuardDockerRunner:
         try:
             result = container.wait(timeout=timeout)
         except DockerException as exc:  # pragma: no cover - requires docker engine
-            container.remove(force=True)
             raise ProtocolGuardDockerError(f"Failed waiting for container exit: {exc}") from exc
+        finally:
+            with contextlib.suppress(Exception):
+                container.remove(force=True)
 
         status = result.get("StatusCode", 1)
         if status != 0:
