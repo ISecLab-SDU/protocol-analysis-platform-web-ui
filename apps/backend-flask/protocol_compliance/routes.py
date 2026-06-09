@@ -601,6 +601,159 @@ def _find_sqlite_file(
     return None, warnings
 
 
+def _violation_history_timestamp_store_path() -> Path:
+    state_dir = Path(
+        os.environ.get(
+            "PROTOCOLGUARD_STATE_DIR",
+            str(Path(__file__).resolve().parent / "_state"),
+        )
+    ).expanduser()
+    return state_dir / "violation_history_timestamps.json"
+
+
+def _load_violation_history_timestamps() -> Dict[str, Any]:
+    store_path = _violation_history_timestamp_store_path()
+    if not store_path.is_file():
+        return {"databases": {}, "rows": {}}
+    try:
+        payload = json.loads(store_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        LOGGER.warning("Failed to read violation history timestamps: %s", exc)
+        return {"databases": {}, "rows": {}}
+    if not isinstance(payload, dict):
+        return {"databases": {}, "rows": {}}
+    databases = payload.get("databases")
+    rows = payload.get("rows")
+    return {
+        "databases": databases if isinstance(databases, dict) else {},
+        "rows": rows if isinstance(rows, dict) else {},
+    }
+
+
+def _save_violation_history_timestamps(payload: Dict[str, Any]) -> None:
+    store_path = _violation_history_timestamp_store_path()
+    try:
+        store_path.parent.mkdir(parents=True, exist_ok=True)
+        store_path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        LOGGER.warning("Failed to write violation history timestamps: %s", exc)
+
+
+def _database_history_time_marker(db_path: Path) -> str:
+    return _history_database_path_marker(db_path)
+
+
+def _row_history_time_marker(
+    db_path: Path,
+    *,
+    call_graph: Any,
+    code_snippet: Any,
+    rule_desc: Any,
+) -> str:
+    stable_key = "|".join(
+        [
+            _database_history_time_marker(db_path),
+            _dedupe_key(rule_desc),
+            hashlib.sha1(str(code_snippet or "").encode("utf-8")).hexdigest(),
+            hashlib.sha1(str(call_graph or "").encode("utf-8")).hexdigest(),
+        ]
+    )
+    return hashlib.sha1(stable_key.encode("utf-8")).hexdigest()
+
+
+def _candidate_database_history_times(db_path: Path) -> List[str]:
+    candidates: List[str] = []
+    for candidate in [
+        db_path,
+        Path(__file__).resolve().parent / "databases" / db_path.name,
+        Path.cwd() / "database" / db_path.name,
+    ]:
+        try:
+            if candidate.is_file():
+                candidates.append(
+                    datetime.fromtimestamp(
+                        candidate.stat().st_mtime,
+                        timezone.utc,
+                    ).isoformat()
+                )
+        except OSError:
+            continue
+    return candidates
+
+
+def _database_history_display_time(
+    db_path: Path,
+    *,
+    persist_if_missing: bool = True,
+) -> str:
+    marker = _database_history_time_marker(db_path)
+    timestamps = _load_violation_history_timestamps()
+    databases = cast(Dict[str, Any], timestamps["databases"])
+    stored = databases.get(marker)
+    if isinstance(stored, str) and stored.strip():
+        return stored
+
+    candidate_times = _candidate_database_history_times(db_path)
+    display_time = (
+        min(candidate_times)
+        if candidate_times
+        else datetime.now(timezone.utc).isoformat()
+    )
+    if persist_if_missing:
+        databases[marker] = display_time
+        _save_violation_history_timestamps(timestamps)
+    return display_time
+
+
+def _row_history_display_time(
+    db_path: Path,
+    *,
+    call_graph: Any,
+    code_snippet: Any,
+    fallback: str,
+    persist_if_missing: bool = True,
+    rule_desc: Any,
+) -> str:
+    marker = _row_history_time_marker(
+        db_path,
+        call_graph=call_graph,
+        code_snippet=code_snippet,
+        rule_desc=rule_desc,
+    )
+    timestamps = _load_violation_history_timestamps()
+    rows = cast(Dict[str, Any], timestamps["rows"])
+    stored = rows.get(marker)
+    if isinstance(stored, str) and stored.strip():
+        return stored
+    if persist_if_missing:
+        rows[marker] = fallback
+        _save_violation_history_timestamps(timestamps)
+    return fallback
+
+
+def _remember_row_history_display_time(
+    db_path: Path,
+    *,
+    call_graph: Any,
+    code_snippet: Any,
+    rule_desc: Any,
+    timestamp: str,
+) -> None:
+    timestamps = _load_violation_history_timestamps()
+    marker = _row_history_time_marker(
+        db_path,
+        call_graph=call_graph,
+        code_snippet=code_snippet,
+        rule_desc=rule_desc,
+    )
+    rows = cast(Dict[str, Any], timestamps["rows"])
+    rows[marker] = timestamp
+    _save_violation_history_timestamps(timestamps)
+
+
 def _candidate_sqlite_roots_for_job(job_id: str) -> list[Path]:
     runtime_root = Path(os.environ.get("PG_RUNTIME_ROOT", "/tmp/protocolguard")).expanduser()
     output_root = Path(os.environ.get("PG_OUTPUT_ROOT", runtime_root / "outputs")).expanduser()
@@ -706,6 +859,14 @@ def _classify_rule_result(llm_payload: Dict[str, Any]) -> tuple[str, str]:
     if "violation" in normalized_result:
         return "violation_found", "发现违规"
     return "unknown", "未判定"
+
+
+def _llm_payload_history_time(llm_payload: Dict[str, Any]) -> Optional[str]:
+    for key in ("updated_at", "updatedAt", "created_at", "createdAt"):
+        value = llm_payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
 
 
 def _normalize_implementation_from_db(path: Path) -> str:
@@ -908,13 +1069,11 @@ def _read_violation_history_from_database(
     implementation_name = _normalize_implementation_from_db(db_path)
     resolved_protocol = _normalize_protocol_name(protocol_name, implementation_name)
     database_name = db_path.name
-    try:
-        extracted_at = datetime.fromtimestamp(
-            db_path.stat().st_mtime,
-            timezone.utc,
-        ).isoformat()
-    except OSError:
-        extracted_at = datetime.now(timezone.utc).isoformat()
+    database_display_time = (
+        updated_at
+        or created_at
+        or _database_history_display_time(db_path)
+    )
 
     try:
         conn = sqlite3.connect(db_path)
@@ -951,6 +1110,19 @@ def _read_violation_history_from_database(
             rule_desc=row["rule_desc"],
             source_type=source_type,
         )
+        llm_history_time = _llm_payload_history_time(llm_payload)
+        row_display_time = (
+            updated_at
+            or created_at
+            or llm_history_time
+            or _row_history_display_time(
+                db_path,
+                call_graph=row["call_graph"],
+                code_snippet=row["code_snippet"],
+                fallback=llm_history_time or database_display_time,
+                rule_desc=row["rule_desc"],
+            )
+        )
         items.append(
             {
                 "id": item_id,
@@ -968,9 +1140,9 @@ def _read_violation_history_from_database(
                 "callGraph": row["call_graph"],
                 "llmRaw": raw_llm_response,
                 "violations": _parse_violation_details(llm_payload),
-                "createdAt": created_at or extracted_at,
-                "updatedAt": updated_at or extracted_at,
-                "extractedAt": extracted_at,
+                "createdAt": row_display_time,
+                "updatedAt": row_display_time,
+                "extractedAt": row_display_time,
             }
         )
 
@@ -2232,12 +2404,13 @@ def upsert_static_analysis_violation_history():
     llm_payload = _parse_llm_response(matched["llm_response"])
     if not isinstance(llm_payload, dict):
         llm_payload = {}
+    updated_at = datetime.now(timezone.utc).isoformat()
     llm_payload.update(
         {
             "reason": reason,
             "result": "violation_found",
             "updated_by": "workbench_result_verification",
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": updated_at,
         }
     )
     if isinstance(violations_payload, list) and violations_payload:
@@ -2270,6 +2443,14 @@ def upsert_static_analysis_violation_history():
     except sqlite3.Error as exc:
         conn.close()
         return make_response(error_response(f"写入违规历史失败：{exc}"), 500)
+
+    _remember_row_history_display_time(
+        resolved_path,
+        call_graph=next_call_graph,
+        code_snippet=next_code_snippet,
+        rule_desc=matched["rule_desc"],
+        timestamp=updated_at,
+    )
 
     item_id = _build_violation_history_item_id(
         db_path=resolved_path,

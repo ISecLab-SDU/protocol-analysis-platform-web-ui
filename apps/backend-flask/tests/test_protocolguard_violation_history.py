@@ -83,6 +83,7 @@ def test_violation_history_prefers_database_ids_for_database_backed_jobs(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
+    monkeypatch.setenv("PROTOCOLGUARD_STATE_DIR", str(tmp_path / "state"))
     db_path = tmp_path / "sqlite_Test.db"
     _create_rule_database(db_path)
     entry = _history_entry(db_path)
@@ -133,6 +134,7 @@ def test_delete_violation_history_accepts_analysis_result_ids(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
+    monkeypatch.setenv("PROTOCOLGUARD_STATE_DIR", str(tmp_path / "state"))
     db_path = tmp_path / "sqlite_Test.db"
     _create_rule_database(db_path)
     entry = _history_entry(db_path)
@@ -278,3 +280,81 @@ def test_delete_violation_history_payload_matches_duplicate_rules(
             "SELECT code_snippet FROM rule_code_snippet ORDER BY rowid"
         ).fetchall()
     assert remaining_rows == [("Function: read_callback\n    7 first",)]
+
+
+def test_violation_history_uses_llm_row_timestamp_instead_of_database_mtime(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("PROTOCOLGUARD_STATE_DIR", str(tmp_path / "state"))
+    db_path = tmp_path / "sqlite_Test.db"
+    row_timestamp = "2026-06-09T12:13:19+00:00"
+    _create_rule_database(db_path)
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            UPDATE rule_code_snippet
+            SET llm_response = ?
+            """,
+            (
+                (
+                    '{"result":"violation_found","reason":"sqlite reason",'
+                    f'"updated_at":"{row_timestamp}"}}'
+                ),
+            ),
+        )
+
+    items, warnings = routes._read_violation_history_from_database(
+        db_path,
+        source_type="builtin",
+    )
+
+    assert warnings == []
+    assert items[0]["updatedAt"] == row_timestamp
+    assert items[0]["createdAt"] == row_timestamp
+    assert items[0]["extractedAt"] == row_timestamp
+
+
+def test_violation_history_keeps_cached_time_after_database_delete(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("PROTOCOLGUARD_STATE_DIR", str(tmp_path / "state"))
+    db_path = tmp_path / "sqlite_Test.db"
+    _create_rule_database(db_path)
+
+    first_items, first_warnings = routes._read_violation_history_from_database(
+        db_path,
+        source_type="builtin",
+    )
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO rule_code_snippet (
+                rule_desc,
+                code_snippet,
+                call_graph,
+                llm_response
+            )
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                "second rule",
+                "Function: parse_packet\n    8 return 1;",
+                "parse_packet -> validate_packet",
+                '{"result":"violation_found","reason":"second reason"}',
+            ),
+        )
+        conn.execute(
+            "DELETE FROM rule_code_snippet WHERE rule_desc = ?",
+            ("second rule",),
+        )
+
+    second_items, second_warnings = routes._read_violation_history_from_database(
+        db_path,
+        source_type="builtin",
+    )
+
+    assert first_warnings == []
+    assert second_warnings == []
+    assert second_items[0]["updatedAt"] == first_items[0]["updatedAt"]
