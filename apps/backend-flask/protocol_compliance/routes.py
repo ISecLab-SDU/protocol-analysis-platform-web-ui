@@ -572,6 +572,8 @@ def _expand_path(raw: Optional[str]) -> Optional[Path]:
 def _find_sqlite_file(
     database_path: Optional[str],
     workspace_path: Optional[str],
+    *,
+    collect_warnings: bool = True,
 ) -> tuple[Optional[Path], list[str]]:
     """Resolve the SQLite database path, collecting warnings."""
     warnings: list[str] = []
@@ -579,7 +581,7 @@ def _find_sqlite_file(
     candidate = _expand_path(database_path)
     if candidate and candidate.is_file():
         return candidate, warnings
-    if candidate and not candidate.exists():
+    if collect_warnings and candidate and not candidate.exists():
         warnings.append(f"指定的数据库路径不存在：{candidate}")
 
     workspace = _expand_path(workspace_path)
@@ -588,11 +590,13 @@ def _find_sqlite_file(
             matches = sorted(workspace.glob("sqlite_*.db"))
             if matches:
                 return matches[0], warnings
-            warnings.append(
-                f"在工作目录 {workspace} 中未找到 sqlite_*.db 文件"
-            )
+            if collect_warnings:
+                warnings.append(
+                    f"在工作目录 {workspace} 中未找到 sqlite_*.db 文件"
+                )
         else:
-            warnings.append(f"工作目录不存在或不可访问：{workspace}")
+            if collect_warnings:
+                warnings.append(f"工作目录不存在或不可访问：{workspace}")
 
     return None, warnings
 
@@ -821,6 +825,7 @@ def _iter_static_analysis_database_sources(
         resolved_path, resolve_warnings = _find_sqlite_file(
             str(database_path_raw) if database_path_raw else None,
             str(workspace_path_raw) if workspace_path_raw else None,
+            collect_warnings=False,
         )
         warnings.extend(resolve_warnings)
         if not resolved_path:
