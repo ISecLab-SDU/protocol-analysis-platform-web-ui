@@ -247,3 +247,20 @@ def test_assertion_cleanup_can_keep_full_artifacts(monkeypatch: pytest.MonkeyPat
     assert job_paths.workspace.exists()
     assert job_paths.config_dir.exists()
     assert (job_paths.output / "assert_tasks").exists()
+
+
+def test_database_artifact_is_persisted_under_output_database(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    settings = _settings(monkeypatch, tmp_path)
+    runner = _runner(settings)
+    job_paths = _job_paths(settings, "analysis-job")
+    source = job_paths.workspace / "database" / "sqlite_Sol.db"
+    source.parent.mkdir(parents=True, exist_ok=True)
+    source.write_text("sqlite", encoding="utf-8")
+
+    persisted = runner._persist_database_artifact(job_paths, source)
+
+    assert persisted == job_paths.output / "database" / "sqlite_Sol.db"
+    assert persisted.read_text(encoding="utf-8") == "sqlite"

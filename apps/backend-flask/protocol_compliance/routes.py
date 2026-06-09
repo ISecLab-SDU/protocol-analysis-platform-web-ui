@@ -597,6 +597,78 @@ def _find_sqlite_file(
     return None, warnings
 
 
+def _candidate_sqlite_roots_for_job(job_id: str) -> list[Path]:
+    runtime_root = Path(os.environ.get("PG_RUNTIME_ROOT", "/tmp/protocolguard")).expanduser()
+    output_root = Path(os.environ.get("PG_OUTPUT_ROOT", runtime_root / "outputs")).expanduser()
+    workspace_root = Path(os.environ.get("PG_WORKSPACE_ROOT", runtime_root / "workspaces")).expanduser()
+
+    roots = [
+        output_root / job_id / "database",
+        output_root / job_id,
+        workspace_root / job_id / "database",
+        workspace_root / job_id,
+    ]
+
+    snapshot = get_static_analysis_job(job_id)
+    if snapshot:
+        for key in ("database_path", "databasePath"):
+            raw_database_path = snapshot.get(key)
+            database_path = _expand_path(str(raw_database_path)) if raw_database_path else None
+            if database_path:
+                roots.append(database_path.parent if database_path.suffix else database_path)
+        for key in ("output_path", "outputPath"):
+            raw_output_path = snapshot.get(key)
+            output_path = _expand_path(str(raw_output_path)) if raw_output_path else None
+            if output_path:
+                roots.extend([output_path / "database", output_path])
+        for key in ("workspace_path", "workspacePath"):
+            raw_workspace_path = snapshot.get(key)
+            workspace_path = _expand_path(str(raw_workspace_path)) if raw_workspace_path else None
+            if workspace_path:
+                roots.extend([workspace_path / "database", workspace_path])
+
+    unique_roots: list[Path] = []
+    seen: set[str] = set()
+    for root in roots:
+        marker = str(root.resolve(strict=False))
+        if marker in seen:
+            continue
+        seen.add(marker)
+        unique_roots.append(root)
+    return unique_roots
+
+
+def _resolve_assertion_database_path(database_path: Path) -> tuple[Optional[Path], list[str]]:
+    warnings: list[str] = []
+    if database_path.is_file():
+        return database_path, warnings
+
+    warnings.append(f"指定的分析结果数据不存在：{database_path}")
+    job_id = next(
+        (
+            part
+            for part in database_path.parts
+            if re.fullmatch(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", part)
+        ),
+        None,
+    )
+    if not job_id:
+        return None, warnings
+
+    expected_name = database_path.name
+    for root in _candidate_sqlite_roots_for_job(job_id):
+        if not root.exists() or not root.is_dir():
+            continue
+        named_candidate = root / expected_name
+        if named_candidate.is_file():
+            return named_candidate, warnings
+        matches = sorted(root.glob("*.db"))
+        if matches:
+            return matches[0], warnings
+
+    return None, warnings
+
+
 def _parse_llm_response(payload: Any) -> Dict[str, Any]:
     if isinstance(payload, str):
         payload = payload.strip()
@@ -2195,11 +2267,22 @@ def assertion_generation():
         database_path = _expand_path(database_path_requested)
         if database_path is None:
             return make_response(error_response("分析结果数据路径无效"), 400)
-        if not database_path.is_file():
+        resolved_database_path, database_warnings = _resolve_assertion_database_path(database_path)
+        if resolved_database_path is None:
             return make_response(
                 error_response(f"分析结果数据不存在：{database_path}"),
                 400,
             )
+        if database_warnings:
+            LOGGER.warning(
+                "Resolved assertion analysis data with fallback",
+                extra={
+                    "requestedDatabasePath": str(database_path),
+                    "resolvedDatabasePath": str(resolved_database_path),
+                    "warnings": database_warnings,
+                },
+            )
+        database_path = resolved_database_path
         try:
             database_data = database_path.read_bytes()
         except OSError as exc:

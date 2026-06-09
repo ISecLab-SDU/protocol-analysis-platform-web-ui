@@ -1092,6 +1092,7 @@ class ProtocolGuardDockerRunner:
                 "ProtocolGuard analysis completed but database file was not found",
                 logs=docker_logs,
             )
+        db_path = self._persist_database_artifact(job_paths, db_path)
         findings, summary_counts = self._extract_findings(db_path, protocol, version)
 
         if not findings:
@@ -1177,6 +1178,19 @@ class ProtocolGuardDockerRunner:
 
         LOGGER.warning(f"[查找数据库] 最终选择数据库: {candidates[0]}")
         return candidates[0]
+
+    def _persist_database_artifact(self, job_paths: JobPaths, db_path: Path) -> Path:
+        database_dir = job_paths.output / "database"
+        database_dir.mkdir(parents=True, exist_ok=True)
+        destination = database_dir / db_path.name
+        if db_path.resolve(strict=False) == destination.resolve(strict=False):
+            return db_path
+        try:
+            shutil.copy2(db_path, destination)
+        except OSError as exc:
+            LOGGER.warning("Failed to persist SQLite database artifact %s -> %s: %s", db_path, destination, exc)
+            return db_path
+        return destination
 
     def _zip_directory(self, source: Path, destination: Path) -> Path:
         destination.parent.mkdir(parents=True, exist_ok=True)
