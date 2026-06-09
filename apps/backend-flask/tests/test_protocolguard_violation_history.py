@@ -352,6 +352,38 @@ def test_violation_history_uses_llm_row_timestamp_instead_of_database_mtime(
     assert items[0]["extractedAt"] == row_timestamp
 
 
+def test_violation_history_prefers_llm_row_timestamp_over_job_timestamp(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("PROTOCOLGUARD_STATE_DIR", str(tmp_path / "state"))
+    db_path = tmp_path / "sqlite_Test.db"
+    row_timestamp = "2026-06-09T21:18:15+00:00"
+    _create_rule_database(db_path)
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            UPDATE rule_code_snippet
+            SET llm_response = ?
+            """,
+            (
+                (
+                    '{"result":"violation_found","reason":"sqlite reason",'
+                    f'"updated_at":"{row_timestamp}"}}'
+                ),
+            ),
+        )
+
+    items, warnings = routes._read_violation_history_from_database(
+        db_path,
+        source_type="job",
+        updated_at="2026-06-09T20:32:36+00:00",
+    )
+
+    assert warnings == []
+    assert items[0]["updatedAt"] == row_timestamp
+
+
 def test_violation_history_keeps_cached_time_after_database_delete(
     monkeypatch,
     tmp_path: Path,
@@ -432,6 +464,30 @@ def test_deleted_violation_history_marker_hides_equivalent_items(
     routes._remember_deleted_violation_history(deleted_item)
 
     assert routes._is_violation_history_deleted(equivalent_item)
+
+
+def test_deleted_violation_history_marker_does_not_hide_newer_items(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("PROTOCOLGUARD_STATE_DIR", str(tmp_path / "state"))
+    deleted_item = {
+        "databaseName": "sqlite_sol.db",
+        "id": "stale-id",
+        "reason": "target reason",
+        "ruleDesc": "duplicate rule",
+    }
+    newer_item = {
+        "databaseName": "sqlite_sol.db",
+        "id": "new-id",
+        "reason": "target reason",
+        "ruleDesc": "duplicate rule",
+        "updatedAt": "2099-01-01T00:00:00+00:00",
+    }
+
+    routes._remember_deleted_violation_history(deleted_item)
+
+    assert not routes._is_violation_history_deleted(newer_item)
 
 
 def test_delete_violation_history_soft_deletes_reappeared_result_item(

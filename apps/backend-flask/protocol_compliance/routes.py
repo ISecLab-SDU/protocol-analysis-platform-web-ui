@@ -794,15 +794,34 @@ def _history_item_delete_markers(item: Dict[str, Any]) -> set[str]:
     return markers
 
 
-def _deleted_violation_history_markers() -> set[str]:
+def _deleted_violation_history_markers() -> Dict[str, Any]:
     timestamps = _load_violation_history_timestamps()
     deleted = cast(Dict[str, Any], timestamps["deleted"])
-    return set(deleted)
+    return deleted
 
 
 def _is_violation_history_deleted(item: Dict[str, Any]) -> bool:
     deleted = _deleted_violation_history_markers()
-    return bool(_history_item_delete_markers(item) & deleted)
+    item_markers = _history_item_delete_markers(item)
+    matched_deleted_at = [
+        deleted[marker] for marker in item_markers if marker in deleted
+    ]
+    if not matched_deleted_at:
+        return False
+
+    item_time = _history_item_datetime(item)
+    if item_time is None:
+        return True
+
+    parsed_deleted_times = [
+        deleted_time
+        for value in matched_deleted_at
+        if isinstance(value, str)
+        and (deleted_time := _parse_history_datetime(value)) is not None
+    ]
+    if not parsed_deleted_times:
+        return True
+    return item_time <= max(parsed_deleted_times)
 
 
 def _remember_deleted_violation_history(item: Dict[str, Any]) -> None:
@@ -1175,9 +1194,9 @@ def _read_violation_history_from_database(
         )
         llm_history_time = _llm_payload_history_time(llm_payload)
         row_display_time = (
-            updated_at
+            llm_history_time
+            or updated_at
             or created_at
-            or llm_history_time
             or _row_history_display_time(
                 db_path,
                 call_graph=row["call_graph"],
