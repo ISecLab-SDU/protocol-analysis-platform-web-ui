@@ -226,6 +226,43 @@ def test_delete_violation_history_accepts_legacy_row_index_after_prior_deletes(
     assert remaining_rules == ["second rule"]
 
 
+def test_physical_delete_payload_can_mark_equivalent_history_deleted(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("PROTOCOLGUARD_STATE_DIR", str(tmp_path / "state"))
+    db_path = tmp_path / "sqlite_Test.db"
+    _create_rule_database(db_path)
+    item_id = routes._build_violation_history_item_id(
+        db_path=db_path,
+        job_id=None,
+        row_id=1,
+        row_index=1,
+        rule_desc="rule from sqlite",
+        source_type="builtin",
+    )
+
+    deleted, warnings = routes._delete_violation_history_from_database(
+        db_path,
+        item_id=item_id,
+        source_type="builtin",
+    )
+    assert warnings == []
+    assert deleted is not None
+
+    routes._remember_deleted_violation_history(deleted)
+
+    assert routes._is_violation_history_deleted(
+        {
+            "databaseName": "sqlite_Test.db",
+            "id": "alternate-source-id",
+            "reason": "sqlite reason",
+            "ruleDesc": "rule from sqlite",
+            "violations": [],
+        }
+    )
+
+
 def test_delete_violation_history_payload_matches_duplicate_rules(
     tmp_path: Path,
 ) -> None:
@@ -358,3 +395,81 @@ def test_violation_history_keeps_cached_time_after_database_delete(
     assert first_warnings == []
     assert second_warnings == []
     assert second_items[0]["updatedAt"] == first_items[0]["updatedAt"]
+
+
+def test_deleted_violation_history_marker_hides_equivalent_items(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("PROTOCOLGUARD_STATE_DIR", str(tmp_path / "state"))
+    deleted_item = {
+        "databaseName": "sqlite_Sol.db",
+        "id": "stale-id",
+        "reason": "target reason",
+        "ruleDesc": "duplicate rule",
+        "violations": [
+            {
+                "codeLines": [7, 8],
+                "filename": "/workspace/project/sol/src/server.c",
+                "functionName": "read_callback",
+            }
+        ],
+    }
+    equivalent_item = {
+        "databaseName": "sqlite_sol.db",
+        "id": "new-id-from-another-source",
+        "reason": "target reason",
+        "ruleDesc": "duplicate rule",
+        "violations": [
+            {
+                "codeLines": [7, 8],
+                "filename": "/workspace/project/sol/src/server.c",
+                "functionName": "read_callback",
+            }
+        ],
+    }
+
+    routes._remember_deleted_violation_history(deleted_item)
+
+    assert routes._is_violation_history_deleted(equivalent_item)
+
+
+def test_delete_violation_history_soft_deletes_reappeared_result_item(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("PROTOCOLGUARD_STATE_DIR", str(tmp_path / "state"))
+    db_path = tmp_path / "sqlite_Test.db"
+    entry = _history_entry(db_path)
+    history_item = routes._read_violation_history_from_analysis_result(entry)[0]
+
+    monkeypatch.setattr(
+        routes,
+        "list_static_analysis_history",
+        lambda limit=50, include_result=False: [entry],
+    )
+    monkeypatch.setattr(
+        routes,
+        "_iter_static_analysis_database_sources",
+        lambda job_limit: ([], []),
+    )
+
+    client = _app(monkeypatch).test_client()
+    delete_response = client.delete(
+        f"/api/protocol-compliance/static-analysis/violation-history/{history_item['id']}",
+        json={
+            "databaseName": history_item["databaseName"],
+            "databasePath": history_item["databasePath"],
+            "reason": history_item["reason"],
+            "ruleDesc": history_item["ruleDesc"],
+            "violations": history_item["violations"],
+        },
+    )
+    list_response = client.get(
+        "/api/protocol-compliance/static-analysis/violation-history"
+    )
+
+    assert delete_response.status_code == 200
+    assert delete_response.get_json()["data"]["deleted"] is True
+    assert list_response.status_code == 200
+    assert list_response.get_json()["data"]["items"] == []

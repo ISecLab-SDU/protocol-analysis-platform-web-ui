@@ -614,18 +614,20 @@ def _violation_history_timestamp_store_path() -> Path:
 def _load_violation_history_timestamps() -> Dict[str, Any]:
     store_path = _violation_history_timestamp_store_path()
     if not store_path.is_file():
-        return {"databases": {}, "rows": {}}
+        return {"databases": {}, "deleted": {}, "rows": {}}
     try:
         payload = json.loads(store_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         LOGGER.warning("Failed to read violation history timestamps: %s", exc)
-        return {"databases": {}, "rows": {}}
+        return {"databases": {}, "deleted": {}, "rows": {}}
     if not isinstance(payload, dict):
-        return {"databases": {}, "rows": {}}
+        return {"databases": {}, "deleted": {}, "rows": {}}
     databases = payload.get("databases")
+    deleted = payload.get("deleted")
     rows = payload.get("rows")
     return {
         "databases": databases if isinstance(databases, dict) else {},
+        "deleted": deleted if isinstance(deleted, dict) else {},
         "rows": rows if isinstance(rows, dict) else {},
     }
 
@@ -751,6 +753,67 @@ def _remember_row_history_display_time(
     )
     rows = cast(Dict[str, Any], timestamps["rows"])
     rows[marker] = timestamp
+    _save_violation_history_timestamps(timestamps)
+
+
+def _history_delete_marker_payload(value: Any) -> str:
+    return hashlib.sha1(str(value or "").encode("utf-8")).hexdigest()
+
+
+def _history_item_delete_markers(item: Dict[str, Any]) -> set[str]:
+    markers: set[str] = set()
+    item_id = item.get("id")
+    if isinstance(item_id, str) and item_id.strip():
+        markers.add(f"id:{item_id.strip()}")
+
+    database_key = _dedupe_key(
+        item.get("databaseName")
+        or Path(str(item.get("databasePath") or "")).name
+    )
+    rule_key = _dedupe_key(item.get("ruleDesc"))
+    reason_key = _dedupe_key(item.get("reason"))
+    code_snippet = str(item.get("codeSnippet") or "")
+    call_graph = str(item.get("callGraph") or "")
+    code_key = _history_delete_marker_payload(code_snippet) if code_snippet else ""
+    call_graph_key = _history_delete_marker_payload(call_graph) if call_graph else ""
+    violation_key = ";".join(sorted(_violation_match_keys(item.get("violations"))))
+
+    if database_key and rule_key:
+        if reason_key:
+            markers.add(f"reason:{database_key}:{rule_key}:{reason_key}")
+        if violation_key:
+            markers.add(f"location:{database_key}:{rule_key}:{violation_key}")
+        if reason_key or violation_key:
+            markers.add(
+                f"semantic:{database_key}:{rule_key}:{reason_key}:{violation_key}"
+            )
+        if code_key or call_graph_key:
+            markers.add(
+                f"body:{database_key}:{rule_key}:{code_key}:{call_graph_key}"
+            )
+    return markers
+
+
+def _deleted_violation_history_markers() -> set[str]:
+    timestamps = _load_violation_history_timestamps()
+    deleted = cast(Dict[str, Any], timestamps["deleted"])
+    return set(deleted)
+
+
+def _is_violation_history_deleted(item: Dict[str, Any]) -> bool:
+    deleted = _deleted_violation_history_markers()
+    return bool(_history_item_delete_markers(item) & deleted)
+
+
+def _remember_deleted_violation_history(item: Dict[str, Any]) -> None:
+    markers = _history_item_delete_markers(item)
+    if not markers:
+        return
+    timestamps = _load_violation_history_timestamps()
+    deleted = cast(Dict[str, Any], timestamps["deleted"])
+    deleted_at = datetime.now(timezone.utc).isoformat()
+    for marker in markers:
+        deleted[marker] = deleted_at
     _save_violation_history_timestamps(timestamps)
 
 
@@ -1188,7 +1251,7 @@ def _delete_violation_history_from_database(
 
     conn.row_factory = sqlite3.Row
     query = (
-        "SELECT rowid AS __rowid, rule_desc, llm_response "
+        "SELECT rowid AS __rowid, rule_desc, code_snippet, call_graph, llm_response "
         "FROM rule_code_snippet"
     )
     try:
@@ -1223,6 +1286,10 @@ def _delete_violation_history_from_database(
         if item_id not in {current_id, legacy_id, legacy_rowid_index_id}:
             continue
 
+        llm_payload = _parse_llm_response(row["llm_response"])
+        reason = llm_payload.get("reason")
+        if not isinstance(reason, str):
+            reason = json.dumps(reason, ensure_ascii=False) if reason else None
         try:
             conn.execute(
                 "DELETE FROM rule_code_snippet WHERE rowid = ?",
@@ -1238,7 +1305,12 @@ def _delete_violation_history_from_database(
             {
                 "databaseName": db_path.name,
                 "databasePath": str(db_path),
+                "callGraph": row["call_graph"],
+                "codeSnippet": row["code_snippet"],
                 "id": item_id,
+                "reason": reason,
+                "ruleDesc": row["rule_desc"],
+                "violations": _parse_violation_details(llm_payload),
             },
             warnings,
         )
@@ -1262,7 +1334,7 @@ def _delete_violation_history_by_rule_desc(
 
     conn.row_factory = sqlite3.Row
     query = (
-        "SELECT rowid AS __rowid, rule_desc, llm_response "
+        "SELECT rowid AS __rowid, rule_desc, code_snippet, call_graph, llm_response "
         "FROM rule_code_snippet"
     )
     try:
@@ -1276,6 +1348,10 @@ def _delete_violation_history_by_rule_desc(
         conn.close()
         return None, warnings
 
+    llm_payload = _parse_llm_response(matched["llm_response"])
+    reason = llm_payload.get("reason")
+    if not isinstance(reason, str):
+        reason = json.dumps(reason, ensure_ascii=False) if reason else None
     try:
         conn.execute(
             "DELETE FROM rule_code_snippet WHERE rowid = ?",
@@ -1289,12 +1365,17 @@ def _delete_violation_history_by_rule_desc(
     conn.close()
     return (
         {
-            "databaseName": db_path.name,
-            "databasePath": str(db_path),
-            "id": item_id,
-        },
-        warnings,
-    )
+                "databaseName": db_path.name,
+                "databasePath": str(db_path),
+                "callGraph": matched["call_graph"],
+                "codeSnippet": matched["code_snippet"],
+                "id": item_id,
+                "reason": reason,
+                "ruleDesc": matched["rule_desc"],
+                "violations": _parse_violation_details(llm_payload),
+            },
+            warnings,
+        )
 
 
 def _delete_analysis_result_violation_history_from_database(
@@ -1444,6 +1525,10 @@ def _delete_violation_history_by_payload(
 
     scored_rows.sort(key=lambda entry: entry[0], reverse=True)
     matched = scored_rows[0][1]
+    llm_payload = _parse_llm_response(matched["llm_response"])
+    reason = llm_payload.get("reason")
+    if not isinstance(reason, str):
+        reason = json.dumps(reason, ensure_ascii=False) if reason else None
 
     try:
         conn.execute(
@@ -1458,12 +1543,17 @@ def _delete_violation_history_by_payload(
     conn.close()
     return (
         {
-            "databaseName": db_path.name,
-            "databasePath": str(db_path),
-            "id": item_id,
-        },
-        warnings,
-    )
+                "databaseName": db_path.name,
+                "databasePath": str(db_path),
+                "callGraph": matched["call_graph"],
+                "codeSnippet": matched["code_snippet"],
+                "id": item_id,
+                "reason": reason,
+                "ruleDesc": matched["rule_desc"],
+                "violations": _parse_violation_details(llm_payload),
+            },
+            warnings,
+        )
 
 
 def _payload_candidate_database_sources(
@@ -2223,6 +2313,8 @@ def static_analysis_violation_history():
                 not in database_backed_paths
             )
 
+    items = [item for item in items if not _is_violation_history_deleted(item)]
+
     if protocol_filter:
         items = [
             item
@@ -2280,6 +2372,21 @@ def delete_static_analysis_violation_history(item_id: str):
     job_limit = _to_int(request.args.get("jobLimit"), 200)
     delete_payload = request.get_json(silent=True)
     delete_payload = delete_payload if isinstance(delete_payload, dict) else {}
+    tombstone_item: Dict[str, Any] = {**delete_payload, "id": item_id}
+    if delete_payload and _is_violation_history_deleted(tombstone_item):
+        return make_response(
+            success_response(
+                {
+                    "databaseName": str(
+                        delete_payload.get("databaseName") or "",
+                    ),
+                    "databasePath": delete_payload.get("databasePath"),
+                    "deleted": True,
+                    "id": item_id,
+                }
+            ),
+            200,
+        )
     sources, warnings = _iter_static_analysis_database_sources(job_limit)
 
     try:
@@ -2293,6 +2400,9 @@ def delete_static_analysis_violation_history(item_id: str):
             )
             warnings.extend(db_warnings)
             if deleted:
+                _remember_deleted_violation_history(
+                    {**delete_payload, **deleted, "id": item_id}
+                )
                 payload: Dict[str, Any] = {**deleted, "deleted": True}
                 if warnings:
                     payload["warnings"] = warnings
@@ -2306,6 +2416,9 @@ def delete_static_analysis_violation_history(item_id: str):
             )
             warnings.extend(payload_warnings)
             if deleted:
+                _remember_deleted_violation_history(
+                    {**delete_payload, **deleted, "id": item_id}
+                )
                 response_payload = {**deleted, "deleted": True}
                 if warnings:
                     response_payload["warnings"] = warnings
@@ -2319,10 +2432,25 @@ def delete_static_analysis_violation_history(item_id: str):
         )
         warnings.extend(result_warnings)
         if deleted:
+            _remember_deleted_violation_history(
+                {**delete_payload, **deleted, "id": item_id}
+            )
             payload = {**deleted, "deleted": True}
             if warnings:
                 payload["warnings"] = warnings
             return make_response(success_response(payload), 200)
+
+        if delete_payload and delete_payload.get("ruleDesc"):
+            _remember_deleted_violation_history(tombstone_item)
+            response_payload = {
+                "databaseName": str(delete_payload.get("databaseName") or ""),
+                "databasePath": delete_payload.get("databasePath"),
+                "deleted": True,
+                "id": item_id,
+            }
+            if warnings:
+                response_payload["warnings"] = warnings
+            return make_response(success_response(response_payload), 200)
     except RuntimeError as exc:
         LOGGER.error("Failed to delete violation history item %s: %s", item_id, exc)
         return make_response(error_response(str(exc)), 500)
