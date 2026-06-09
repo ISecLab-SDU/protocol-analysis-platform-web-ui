@@ -67,6 +67,7 @@ const {
   stopPipeline,
   resetWorkbench,
   loadDemoConfig,
+  canViewStage,
 } = useWorkbench();
 
 const isRunning = computed(() => {
@@ -735,10 +736,6 @@ function stageStateLabel(key: (typeof STAGE_LIST)[number]['key']) {
   if (status === 'skipped') return '已跳过';
   if (status === 'error') return '异常';
   return stage.value === key ? '当前' : '等待中';
-}
-
-function canViewStage(key: (typeof STAGE_LIST)[number]['key']) {
-  return stage.value === key || stageStatus[key] !== 'idle';
 }
 
 function handleStageSelect(key: (typeof STAGE_LIST)[number]['key']) {

@@ -879,11 +879,67 @@ function markStageError(target: WorkbenchStage, msg: string) {
 }
 
 function selectStageView(target: WorkbenchStage) {
-  if (stage.value === target || stageStatus[target] !== 'idle') {
+  if (canViewStage(target)) {
     activeStageView.value = target;
     return true;
   }
   return false;
+}
+
+function canViewStage(target: WorkbenchStage) {
+  if (target === 'setup') return true;
+  if (stage.value === target) return true;
+  if (stageStatus[target] !== 'idle') return true;
+  return false;
+}
+
+function resetPipelineStageState() {
+  clearTransitionTimer(false);
+  clearTimer('static');
+  clearTimer('assert');
+  clearTimer('fuzz');
+  lastFuzzLogGrowthAt = 0;
+  activeAflNetOutputSource = 'primary';
+  switchingToFallbackOutput = false;
+
+  for (const s of STAGE_LIST) stageStatus[s.key] = 'idle';
+  stageStatus.rule_confirm = 'done';
+  errorMessage.value = null;
+  resultHistoryAppended = false;
+  staticJobId.value = null;
+  staticJob.value = null;
+  staticResult.value = null;
+  staticLogText.value = '';
+  staticLogHtml.value = '';
+  staticLastEventId.value = 0;
+  codeLocateEvidence.value = null;
+  assertJobId.value = null;
+  assertJob.value = null;
+  assertResult.value = null;
+  assertLogText.value = '';
+  assertDiffContent.value = '';
+  fuzzPid.value = null;
+  fuzzContainerId.value = null;
+  aflNetPocPath.value = '';
+  fuzzLogs.value = [];
+  fuzzLogReadPosition.value = 0;
+  Object.assign(fuzzStats, {
+    executions: 0,
+    paths: 0,
+    currentPath: 0,
+    pathsTotal: 0,
+    pendingTotal: 0,
+    pendingFavs: 0,
+    coverage: 0,
+    crashes: 0,
+    hangs: 0,
+    cycles: 0,
+    speed: 0,
+    maxDepth: 0,
+    nodes: 0,
+    edges: 0,
+  });
+  fuzzSpeedSeries.value = [];
 }
 
 const protocolImplementationsKey = computed(() => [
@@ -1854,16 +1910,13 @@ async function runConfiguredPipeline(runId: number) {
 
 async function startPipeline(rule: ProtocolExtractRuleItem) {
   if (!(await ensureProjectReady())) return;
-  clearTransitionTimer(false);
   pipelineRunId += 1;
   const runId = pipelineRunId;
   selectedRule.value = rule;
-  errorMessage.value = null;
-  resultHistoryAppended = false;
+  resetPipelineStageState();
   startedAt.value = new Date();
   elapsedSeconds.value = 0;
   startElapsedTimer();
-  stageStatus.rule_confirm = 'done';
   await runConfiguredPipeline(runId);
 }
 
@@ -1898,13 +1951,20 @@ async function stopPipeline() {
       fuzzPid.value = null;
       fuzzContainerId.value = null;
     }
-    if (stageStatus.fuzz === 'running') stageStatus.fuzz = 'done';
-    if (stageStatus.code_locate === 'running') stageStatus.code_locate = 'idle';
-    if (stageStatus.assert_gen === 'running') stageStatus.assert_gen = 'idle';
-    stage.value = 'done';
-    activeStageView.value = 'done';
-    stageStatus.done = 'done';
-    appendResultHistoryRecord('stopped');
+    if (stageStatus.fuzz === 'running') {
+      stageStatus.fuzz = 'done';
+      stage.value = 'done';
+      activeStageView.value = 'done';
+      stageStatus.done = 'done';
+      appendResultHistoryRecord('stopped');
+    } else {
+      const interruptedStage = stage.value;
+      if (stageStatus.code_locate === 'running') stageStatus.code_locate = 'error';
+      if (stageStatus.assert_gen === 'running') stageStatus.assert_gen = 'error';
+      if (stageStatus.fuzz === 'idle') stageStatus.done = 'idle';
+      activeStageView.value = interruptedStage;
+      errorMessage.value = '分析流程已停止，后续阶段未生成';
+    }
     clearTimer('elapsed');
     stageMessage.value = '分析流程已停止';
   } finally {
@@ -2017,6 +2077,7 @@ export function useWorkbench() {
     stopPipeline,
     resetWorkbench,
     selectStageView,
+    canViewStage,
     downloadHistoryPocArtifact,
   };
 }
