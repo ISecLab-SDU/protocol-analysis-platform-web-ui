@@ -779,11 +779,10 @@ def _history_item_delete_markers(item: Dict[str, Any]) -> set[str]:
     violation_key = ";".join(sorted(_violation_match_keys(item.get("violations"))))
 
     if database_key and rule_key:
-        if reason_key:
-            markers.add(f"reason:{database_key}:{rule_key}:{reason_key}")
+        has_specific_evidence = bool(code_key or call_graph_key or violation_key)
         if violation_key:
             markers.add(f"location:{database_key}:{rule_key}:{violation_key}")
-        if reason_key or violation_key:
+        if reason_key and violation_key:
             markers.add(
                 f"semantic:{database_key}:{rule_key}:{reason_key}:{violation_key}"
             )
@@ -791,6 +790,8 @@ def _history_item_delete_markers(item: Dict[str, Any]) -> set[str]:
             markers.add(
                 f"body:{database_key}:{rule_key}:{code_key}:{call_graph_key}"
             )
+        if reason_key and not has_specific_evidence:
+            markers.add(f"reason:{database_key}:{rule_key}:{reason_key}")
     return markers
 
 
@@ -803,25 +804,7 @@ def _deleted_violation_history_markers() -> Dict[str, Any]:
 def _is_violation_history_deleted(item: Dict[str, Any]) -> bool:
     deleted = _deleted_violation_history_markers()
     item_markers = _history_item_delete_markers(item)
-    matched_deleted_at = [
-        deleted[marker] for marker in item_markers if marker in deleted
-    ]
-    if not matched_deleted_at:
-        return False
-
-    item_time = _history_item_datetime(item)
-    if item_time is None:
-        return True
-
-    parsed_deleted_times = [
-        deleted_time
-        for value in matched_deleted_at
-        if isinstance(value, str)
-        and (deleted_time := _parse_history_datetime(value)) is not None
-    ]
-    if not parsed_deleted_times:
-        return True
-    return item_time <= max(parsed_deleted_times)
+    return any(marker in deleted for marker in item_markers)
 
 
 def _remember_deleted_violation_history(item: Dict[str, Any]) -> None:
@@ -834,6 +817,21 @@ def _remember_deleted_violation_history(item: Dict[str, Any]) -> None:
     for marker in markers:
         deleted[marker] = deleted_at
     _save_violation_history_timestamps(timestamps)
+
+
+def _forget_deleted_violation_history(item: Dict[str, Any]) -> None:
+    markers = _history_item_delete_markers(item)
+    if not markers:
+        return
+    timestamps = _load_violation_history_timestamps()
+    deleted = cast(Dict[str, Any], timestamps["deleted"])
+    changed = False
+    for marker in markers:
+        if marker in deleted:
+            changed = True
+            deleted.pop(marker, None)
+    if changed:
+        _save_violation_history_timestamps(timestamps)
 
 
 def _candidate_sqlite_roots_for_job(job_id: str) -> list[Path]:
@@ -2597,6 +2595,21 @@ def upsert_static_analysis_violation_history():
         code_snippet=next_code_snippet,
         rule_desc=matched["rule_desc"],
         timestamp=updated_at,
+    )
+    _forget_deleted_violation_history(
+        {
+            "callGraph": next_call_graph,
+            "codeSnippet": next_code_snippet,
+            "databaseName": resolved_path.name,
+            "databasePath": str(resolved_path),
+            "reason": reason,
+            "ruleDesc": matched["rule_desc"],
+            "violations": (
+                violations_payload
+                if isinstance(violations_payload, list)
+                else None
+            ),
+        }
     )
 
     item_id = _build_violation_history_item_id(

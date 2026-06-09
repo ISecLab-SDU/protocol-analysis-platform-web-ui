@@ -466,7 +466,7 @@ def test_deleted_violation_history_marker_hides_equivalent_items(
     assert routes._is_violation_history_deleted(equivalent_item)
 
 
-def test_deleted_violation_history_marker_does_not_hide_newer_items(
+def test_upserted_violation_history_clears_deleted_marker(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
@@ -477,17 +477,19 @@ def test_deleted_violation_history_marker_does_not_hide_newer_items(
         "reason": "target reason",
         "ruleDesc": "duplicate rule",
     }
-    newer_item = {
+    upserted_item = {
         "databaseName": "sqlite_sol.db",
         "id": "new-id",
         "reason": "target reason",
         "ruleDesc": "duplicate rule",
-        "updatedAt": "2099-01-01T00:00:00+00:00",
     }
 
     routes._remember_deleted_violation_history(deleted_item)
+    assert routes._is_violation_history_deleted(upserted_item)
 
-    assert not routes._is_violation_history_deleted(newer_item)
+    routes._forget_deleted_violation_history(upserted_item)
+
+    assert not routes._is_violation_history_deleted(upserted_item)
 
 
 def test_delete_violation_history_soft_deletes_reappeared_result_item(
