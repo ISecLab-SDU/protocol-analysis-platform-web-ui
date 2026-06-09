@@ -1068,6 +1068,89 @@ def _delete_violation_history_from_database(
     return None, warnings
 
 
+def _delete_violation_history_by_rule_desc(
+    db_path: Path,
+    *,
+    item_id: str,
+    rule_desc: str,
+) -> tuple[Optional[Dict[str, Any]], List[str]]:
+    warnings: List[str] = []
+
+    try:
+        conn = sqlite3.connect(db_path)
+    except sqlite3.Error as exc:
+        return None, [f"无法打开数据库 {db_path}: {exc}"]
+
+    conn.row_factory = sqlite3.Row
+    query = (
+        "SELECT rowid AS __rowid, rule_desc, llm_response "
+        "FROM rule_code_snippet"
+    )
+    try:
+        rows = conn.execute(query).fetchall()
+    except sqlite3.Error as exc:
+        conn.close()
+        return None, [f"无法读取数据库 {db_path} 的 rule_code_snippet: {exc}"]
+
+    matched = _find_matching_rule_row(rows, rule_desc)
+    if not matched:
+        conn.close()
+        return None, warnings
+
+    try:
+        conn.execute(
+            "DELETE FROM rule_code_snippet WHERE rowid = ?",
+            (matched["__rowid"],),
+        )
+        conn.commit()
+    except sqlite3.Error as exc:
+        conn.close()
+        raise RuntimeError(f"删除数据库记录失败：{exc}") from exc
+
+    conn.close()
+    return (
+        {
+            "databaseName": db_path.name,
+            "databasePath": str(db_path),
+            "id": item_id,
+        },
+        warnings,
+    )
+
+
+def _delete_analysis_result_violation_history_from_database(
+    item_id: str,
+    *,
+    job_limit: int,
+) -> tuple[Optional[Dict[str, Any]], List[str]]:
+    warnings: List[str] = []
+
+    for entry in list_static_analysis_history(limit=job_limit, include_result=True):
+        if entry.get("status") != "completed":
+            continue
+        for item in _read_violation_history_from_analysis_result(entry):
+            if item.get("id") != item_id:
+                continue
+
+            resolved_path, resolve_warnings = _find_sqlite_file(
+                cast(Optional[str], item.get("databasePath")),
+                cast(Optional[str], entry.get("workspacePath")),
+            )
+            warnings.extend(resolve_warnings)
+            if not resolved_path:
+                return None, warnings
+
+            deleted, db_warnings = _delete_violation_history_by_rule_desc(
+                resolved_path,
+                item_id=item_id,
+                rule_desc=str(item.get("ruleDesc") or ""),
+            )
+            warnings.extend(db_warnings)
+            return deleted, warnings
+
+    return None, warnings
+
+
 def _find_matching_rule_row(
     rows: list[sqlite3.Row],
     rule_desc: str,
@@ -1115,6 +1198,15 @@ def _history_item_datetime(item: Dict[str, Any]) -> Optional[datetime]:
         or _parse_history_datetime(item.get("extractedAt"))
         or _parse_history_datetime(item.get("createdAt"))
     )
+
+
+def _history_database_path_marker(value: Any) -> str:
+    if not value:
+        return ""
+    try:
+        return str(Path(str(value)).expanduser().resolve(strict=False))
+    except (OSError, RuntimeError, ValueError):
+        return str(value)
 
 
 def _strip_archive_suffix(filename: str) -> str:
@@ -1723,28 +1815,12 @@ def static_analysis_violation_history():
         limit=job_limit,
         include_result=True,
     )
-    result_backed_job_ids: set[str] = set()
+    database_backed_job_ids: set[str] = set()
+    database_backed_paths: set[str] = set()
     sources, warnings = _iter_static_analysis_database_sources(job_limit)
     items: List[Dict[str, Any]] = []
 
-    for entry in history_entries:
-        if entry.get("status") != "completed":
-            continue
-        result_items = _read_violation_history_from_analysis_result(entry)
-        if not result_items:
-            continue
-        job_id = entry.get("jobId")
-        if job_id:
-            result_backed_job_ids.add(str(job_id))
-        items.extend(result_items)
-
     for source in sources:
-        if (
-            source.get("sourceType") == "job"
-            and source.get("jobId")
-            and str(source.get("jobId")) in result_backed_job_ids
-        ):
-            continue
         db_path = cast(Path, source["path"])
         db_items, db_warnings = _read_violation_history_from_database(
             db_path,
@@ -1756,6 +1832,25 @@ def static_analysis_violation_history():
         )
         items.extend(db_items)
         warnings.extend(db_warnings)
+        if db_items:
+            database_backed_paths.add(_history_database_path_marker(db_path))
+            if source.get("sourceType") == "job" and source.get("jobId"):
+                database_backed_job_ids.add(str(source["jobId"]))
+
+    for entry in history_entries:
+        if entry.get("status") != "completed":
+            continue
+        job_id = entry.get("jobId")
+        if job_id and str(job_id) in database_backed_job_ids:
+            continue
+        result_items = _read_violation_history_from_analysis_result(entry)
+        if result_items:
+            items.extend(
+                item
+                for item in result_items
+                if _history_database_path_marker(item.get("databasePath"))
+                not in database_backed_paths
+            )
 
     if protocol_filter:
         items = [
@@ -1829,6 +1924,19 @@ def delete_static_analysis_violation_history(item_id: str):
                 if warnings:
                     payload["warnings"] = warnings
                 return make_response(success_response(payload), 200)
+
+        deleted, result_warnings = (
+            _delete_analysis_result_violation_history_from_database(
+                item_id,
+                job_limit=job_limit,
+            )
+        )
+        warnings.extend(result_warnings)
+        if deleted:
+            payload = {**deleted, "deleted": True}
+            if warnings:
+                payload["warnings"] = warnings
+            return make_response(success_response(payload), 200)
     except RuntimeError as exc:
         LOGGER.error("Failed to delete violation history item %s: %s", item_id, exc)
         return make_response(error_response(str(exc)), 500)
