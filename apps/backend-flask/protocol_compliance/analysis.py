@@ -601,7 +601,11 @@ def get_static_analysis_result(job_id: str) -> Optional[Dict[str, object]]:
     return None
 
 
-def list_static_analysis_history(limit: int = 50) -> List[Dict[str, object]]:
+def list_static_analysis_history(
+    limit: int = 50,
+    *,
+    include_result: bool = False,
+) -> List[Dict[str, object]]:
     """Return persisted static analysis job history entries."""
     entries = analysis_state_repository.fetch_jobs(limit=limit)
     history: List[Dict[str, object]] = []
@@ -649,37 +653,38 @@ def list_static_analysis_history(limit: int = 50) -> List[Dict[str, object]]:
         else:
             workspace_snapshots = []
 
-        history.append(
-            {
-                "jobId": entry.get("job_id"),
-                "status": entry.get("status"),
-                "stage": entry.get("stage"),
-                "message": entry.get("message"),
-                "workspacePath": entry.get("workspace_path"),
-                "outputPath": entry.get("output_path"),
-                "configPath": entry.get("config_path"),
-                "logsPath": entry.get("logs_path"),
-                "databasePath": entry.get("database_path"),
-                "createdAt": entry.get("created_at"),
-                "updatedAt": entry.get("updated_at"),
-                "completedAt": entry.get("completed_at"),
-                "error": entry.get("error"),
-                "details": entry.get("details"),
-                "analysisId": analysis_id,
-                "model": model_name,
-                "modelVersion": model_version,
-                "durationMs": duration_ms,
-                "submittedAt": submitted_at,
-                "protocolName": protocol,
-                "protocolVersion": protocol_version,
-                "ruleSet": rule_set,
-                "overallStatus": overall_status,
-                "summary": summary_payload,
-                "codeFileName": code_file_name,
-                "rulesFileName": rules_file_name,
-                "workspaceSnapshots": workspace_snapshots,
-            }
-        )
+        history_entry = {
+            "jobId": entry.get("job_id"),
+            "status": entry.get("status"),
+            "stage": entry.get("stage"),
+            "message": entry.get("message"),
+            "workspacePath": entry.get("workspace_path"),
+            "outputPath": entry.get("output_path"),
+            "configPath": entry.get("config_path"),
+            "logsPath": entry.get("logs_path"),
+            "databasePath": entry.get("database_path"),
+            "createdAt": entry.get("created_at"),
+            "updatedAt": entry.get("updated_at"),
+            "completedAt": entry.get("completed_at"),
+            "error": entry.get("error"),
+            "details": entry.get("details"),
+            "analysisId": analysis_id,
+            "model": model_name,
+            "modelVersion": model_version,
+            "durationMs": duration_ms,
+            "submittedAt": submitted_at,
+            "protocolName": protocol,
+            "protocolVersion": protocol_version,
+            "ruleSet": rule_set,
+            "overallStatus": overall_status,
+            "summary": summary_payload,
+            "codeFileName": code_file_name,
+            "rulesFileName": rules_file_name,
+            "workspaceSnapshots": workspace_snapshots,
+        }
+        if include_result:
+            history_entry["result"] = result_dict
+        history.append(history_entry)
     return history
 
 

@@ -277,7 +277,7 @@ class ProtocolGuardDockerRunner:
 
             database_filename_real = database_filename or "violations.db"
             database_destination = job_paths.workspace / "violations.db"
-            self._log_step(job_paths, "workspace", "Staging SQLite database as /workspace/violations.db")
+            self._log_step(job_paths, "workspace", "Staging analysis result data for assertion generation")
             self._write_stream(database_destination, database_stream)
             if not database_destination.exists() or database_destination.stat().st_size == 0:
                 raise ProtocolGuardDockerError("Uploaded database file is empty. Please verify the input.")

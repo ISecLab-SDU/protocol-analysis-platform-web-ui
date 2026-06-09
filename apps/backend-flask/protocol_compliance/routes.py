@@ -73,10 +73,6 @@ LOGGER = logging.getLogger(__name__)
 
 bp = Blueprint("protocol_compliance", __name__, url_prefix="/api/protocol-compliance")
 
-TEMP_ASSERTION_DATABASE_PATH = Path(
-    "/home/lab426_system/protocol-web-ui/violations.db"
-)
-
 PROTOCOL_BY_IMPLEMENTATION = {
     "freecoap": "CoAP",
     "libcoap": "CoAP",
@@ -999,6 +995,271 @@ def _history_item_datetime(item: Dict[str, Any]) -> Optional[datetime]:
     )
 
 
+def _strip_archive_suffix(filename: str) -> str:
+    normalized = filename.strip()
+    for suffix in (".tar.gz", ".tar.bz2", ".tar.xz", ".zip", ".tgz", ".tbz2", ".txz"):
+        if normalized.lower().endswith(suffix):
+            return normalized[: -len(suffix)]
+    return Path(normalized).stem or normalized
+
+
+def _get_static_analysis_verdicts(result: Any) -> List[Dict[str, Any]]:
+    if not isinstance(result, dict):
+        return []
+    model_response = result.get("modelResponse")
+    if not isinstance(model_response, dict):
+        return []
+    verdicts = model_response.get("verdicts")
+    if not isinstance(verdicts, list):
+        return []
+    return [item for item in verdicts if isinstance(item, dict)]
+
+
+def _analysis_result_inputs(result: Any) -> Dict[str, Any]:
+    if not isinstance(result, dict):
+        return {}
+    inputs = result.get("inputs")
+    return inputs if isinstance(inputs, dict) else {}
+
+
+def _analysis_result_artifacts(result: Any) -> Dict[str, Any]:
+    if not isinstance(result, dict):
+        return {}
+    artifacts = result.get("artifacts")
+    return artifacts if isinstance(artifacts, dict) else {}
+
+
+def _normalize_implementation_from_analysis_result(
+    entry: Dict[str, Any],
+    result: Dict[str, Any],
+) -> str:
+    inputs = _analysis_result_inputs(result)
+    raw_name = (
+        inputs.get("codeFileName")
+        or entry.get("codeFileName")
+        or entry.get("databasePath")
+        or entry.get("jobId")
+        or "analysis-result"
+    )
+    name = Path(str(raw_name)).name
+    return _strip_archive_suffix(name)
+
+
+def _analysis_result_database_path(
+    entry: Dict[str, Any],
+    result: Dict[str, Any],
+) -> Optional[str]:
+    artifacts = _analysis_result_artifacts(result)
+    raw_path = artifacts.get("database") or entry.get("databasePath")
+    return str(raw_path) if raw_path else None
+
+
+def _analysis_result_database_name(
+    entry: Dict[str, Any],
+    result: Dict[str, Any],
+) -> str:
+    database_path = _analysis_result_database_path(entry, result)
+    if database_path:
+        return Path(database_path).name
+    return "code-locate-consistency"
+
+
+def _verdict_result_status(verdict: Dict[str, Any]) -> tuple[str, str]:
+    compliance = str(verdict.get("compliance") or "").lower()
+    if compliance == "non_compliant":
+        return "violation_found", "发现违规"
+    if compliance == "compliant":
+        return "no_violation", "未发现违规"
+    return "unknown", "未判定"
+
+
+def _verdict_rule_desc(verdict: Dict[str, Any]) -> str:
+    related_rule = verdict.get("relatedRule")
+    if isinstance(related_rule, dict):
+        requirement = related_rule.get("requirement")
+        if isinstance(requirement, str) and requirement.strip():
+            return requirement.strip()
+        rule_id = related_rule.get("id")
+        if isinstance(rule_id, str) and rule_id.strip():
+            return rule_id.strip()
+    category = verdict.get("category")
+    if isinstance(category, str) and category.strip():
+        return category.strip()
+    return "未命名规则"
+
+
+def _verdict_code_lines(verdict: Dict[str, Any]) -> Optional[List[int]]:
+    line_range = verdict.get("lineRange")
+    if not isinstance(line_range, list) or len(line_range) < 2:
+        return None
+    try:
+        start = int(line_range[0])
+        end = int(line_range[1])
+    except (TypeError, ValueError):
+        return None
+    if start <= 0 or end <= 0:
+        return None
+    if end < start:
+        start, end = end, start
+    return list(range(start, min(end, start + 199) + 1))
+
+
+def _verdict_violation_details(
+    verdict: Dict[str, Any],
+) -> Optional[List[Dict[str, Any]]]:
+    location = verdict.get("location")
+    location = location if isinstance(location, dict) else {}
+    filename = location.get("file")
+    function_name = location.get("function")
+    code_lines = _verdict_code_lines(verdict)
+    if not filename and not function_name and not code_lines:
+        return None
+    return [
+        {
+            "filename": filename,
+            "functionName": function_name,
+            "codeLines": code_lines,
+        }
+    ]
+
+
+def _build_analysis_result_history_item_id(
+    *,
+    entry: Dict[str, Any],
+    verdict: Dict[str, Any],
+    row_index: int,
+) -> str:
+    related_rule = verdict.get("relatedRule")
+    rule_id = related_rule.get("id") if isinstance(related_rule, dict) else None
+    stable_key = "|".join(
+        [
+            "analysis-result",
+            str(entry.get("jobId") or ""),
+            str(verdict.get("findingId") or ""),
+            str(rule_id or ""),
+            _verdict_rule_desc(verdict),
+            str(row_index),
+        ]
+    )
+    return hashlib.sha1(stable_key.encode("utf-8")).hexdigest()
+
+
+def _read_violation_history_from_analysis_result(
+    entry: Dict[str, Any],
+) -> List[Dict[str, Any]]:
+    result = entry.get("result")
+    if not isinstance(result, dict):
+        return []
+
+    verdicts = _get_static_analysis_verdicts(result)
+    if not verdicts:
+        return []
+
+    implementation_name = _normalize_implementation_from_analysis_result(entry, result)
+    resolved_protocol = _normalize_protocol_name(
+        cast(Optional[str], entry.get("protocolName")),
+        implementation_name,
+    )
+    database_path = _analysis_result_database_path(entry, result)
+    database_name = _analysis_result_database_name(entry, result)
+    extracted_at = (
+        entry.get("completedAt")
+        or entry.get("updatedAt")
+        or datetime.now(timezone.utc).isoformat()
+    )
+
+    items: List[Dict[str, Any]] = []
+    for index, verdict in enumerate(verdicts, start=1):
+        result_status, result_label = _verdict_result_status(verdict)
+        reason = verdict.get("explanation")
+        if isinstance(reason, str):
+            reason = reason.strip()
+        elif reason is not None:
+            reason = json.dumps(reason, ensure_ascii=False)
+
+        items.append(
+            {
+                "id": _build_analysis_result_history_item_id(
+                    entry=entry,
+                    verdict=verdict,
+                    row_index=index,
+                ),
+                "sourceType": "job",
+                "jobId": entry.get("jobId"),
+                "implementationName": implementation_name,
+                "protocolName": resolved_protocol,
+                "databaseName": database_name,
+                "databasePath": database_path,
+                "ruleDesc": _verdict_rule_desc(verdict),
+                "result": result_status,
+                "resultLabel": result_label,
+                "reason": reason,
+                "codeSnippet": None,
+                "callGraph": None,
+                "llmRaw": verdict,
+                "violations": _verdict_violation_details(verdict),
+                "createdAt": entry.get("createdAt") or extracted_at,
+                "updatedAt": entry.get("updatedAt") or extracted_at,
+                "extractedAt": extracted_at,
+            }
+        )
+
+    return items
+
+
+def _find_static_analysis_history_entry(
+    job_id: Any,
+    *,
+    limit: int = 500,
+) -> Optional[Dict[str, Any]]:
+    if not job_id:
+        return None
+    job_key = str(job_id)
+    for entry in list_static_analysis_history(limit=limit, include_result=True):
+        if str(entry.get("jobId") or "") == job_key:
+            return entry
+    return None
+
+
+def _read_database_insights_from_analysis_result(
+    entry: Dict[str, Any],
+) -> Optional[Dict[str, Any]]:
+    result = entry.get("result")
+    if not isinstance(result, dict):
+        return None
+
+    history_items = _read_violation_history_from_analysis_result(entry)
+    if not history_items:
+        return None
+
+    artifacts = _analysis_result_artifacts(result)
+    database_path = _analysis_result_database_path(entry, result)
+    workspace_path = artifacts.get("workspace") or entry.get("workspacePath")
+    findings = [
+        {
+            "ruleDesc": item.get("ruleDesc"),
+            "codeSnippet": item.get("codeSnippet"),
+            "callGraph": item.get("callGraph"),
+            "llmRaw": item.get("llmRaw"),
+            "reason": item.get("reason"),
+            "result": item.get("result"),
+            "resultLabel": item.get("resultLabel"),
+            "violations": item.get("violations"),
+        }
+        for item in history_items
+    ]
+    return {
+        "databasePath": database_path,
+        "workspacePath": str(workspace_path) if workspace_path else None,
+        "extractedAt": (
+            entry.get("completedAt")
+            or entry.get("updatedAt")
+            or datetime.now(timezone.utc).isoformat()
+        ),
+        "findings": findings,
+    }
+
+
 def _read_overview_from_database(
     db_path: Path,
     *,
@@ -1095,6 +1356,74 @@ def _read_overview_from_database(
     return item, top_findings, table_counts, warnings
 
 
+def _read_overview_from_analysis_result(
+    entry: Dict[str, Any],
+) -> tuple[Optional[Dict[str, Any]], List[Dict[str, Any]]]:
+    result = entry.get("result")
+    if not isinstance(result, dict):
+        return None, []
+
+    verdicts = _get_static_analysis_verdicts(result)
+    if not verdicts:
+        return None, []
+
+    implementation_name = _normalize_implementation_from_analysis_result(entry, result)
+    resolved_protocol = _normalize_protocol_name(
+        cast(Optional[str], entry.get("protocolName")),
+        implementation_name,
+    )
+    database_name = _analysis_result_database_name(entry, result)
+
+    rule_status_by_key: Dict[str, str] = {}
+    code_snippet_rule_keys: set[str] = set()
+    violation_location_keys: set[str] = set()
+    top_findings: List[Dict[str, Any]] = []
+
+    for verdict in verdicts:
+        rule_desc = _verdict_rule_desc(verdict)
+        rule_key = _dedupe_key(rule_desc)
+        result_status, _ = _verdict_result_status(verdict)
+        _merge_rule_status(rule_status_by_key, rule_key, result_status)
+
+        location = verdict.get("location")
+        if isinstance(location, dict) and location.get("file"):
+            code_snippet_rule_keys.add(rule_key)
+
+        violations = _verdict_violation_details(verdict)
+        if result_status == "violation_found" and violations:
+            for violation in violations:
+                violation_location_keys.add(
+                    _violation_location_key(rule_key, violation)
+                )
+
+        if result_status == "violation_found":
+            top_findings.append(
+                {
+                    "implementation": implementation_name,
+                    "protocol": resolved_protocol,
+                    "rule": _truncate_text(rule_desc, 160),
+                    "reason": _truncate_text(verdict.get("explanation"), 220),
+                }
+            )
+
+    item = {
+        "name": implementation_name,
+        "protocol": resolved_protocol,
+        "database": database_name,
+        "analysisRecords": len(rule_status_by_key),
+        "ruleResults": len(rule_status_by_key),
+        "violationRules": list(rule_status_by_key.values()).count("violation_found"),
+        "noViolationRules": list(rule_status_by_key.values()).count("no_violation"),
+        "unknownRules": list(rule_status_by_key.values()).count("unknown"),
+        "violationLocations": len(violation_location_keys),
+        "codeSnippets": len(code_snippet_rule_keys),
+        "_ruleStatusByKey": rule_status_by_key,
+        "_codeSnippetRuleKeys": code_snippet_rule_keys,
+        "_violationLocationKeys": violation_location_keys,
+    }
+    return item, top_findings
+
+
 @bp.route("/static-analysis/database-overview", methods=["GET"])
 def static_analysis_database_overview():
     _, error = _ensure_authenticated()
@@ -1102,6 +1431,11 @@ def static_analysis_database_overview():
         return error
 
     job_limit = _to_int(request.args.get("jobLimit"), 200)
+    history_entries = list_static_analysis_history(
+        limit=job_limit,
+        include_result=True,
+    )
+    result_backed_job_ids: set[str] = set()
     sources, warnings = _iter_static_analysis_database_sources(job_limit)
     summary: Dict[str, int] = defaultdict(int)
     table_totals: Dict[str, int] = defaultdict(int)
@@ -1109,18 +1443,16 @@ def static_analysis_database_overview():
     implementation_groups: Dict[tuple[str, str], Dict[str, Any]] = {}
     top_findings: List[Dict[str, Any]] = []
 
-    for source in sources:
-        db_path = cast(Path, source["path"])
-        item, findings, table_counts, db_warnings = _read_overview_from_database(
-            db_path,
-            protocol_name=cast(Optional[str], source.get("protocolName")),
-        )
-        warnings.extend(db_warnings)
+    def absorb_overview_item(
+        item: Optional[Dict[str, Any]],
+        findings: List[Dict[str, Any]],
+        table_counts: Optional[Dict[str, int]] = None,
+    ) -> None:
         if item is None:
-            continue
+            return
 
         top_findings.extend(findings)
-        for table, count in table_counts.items():
+        for table, count in (table_counts or {}).items():
             table_totals[table] += count
 
         group_key = (str(item["name"]).lower(), str(item["protocol"]).lower())
@@ -1150,6 +1482,32 @@ def static_analysis_database_overview():
             cast(set[str], grouped["_violationLocationKeys"]).update(
                 cast(set[str], item.get("_violationLocationKeys") or set())
             )
+
+    for entry in history_entries:
+        if entry.get("status") != "completed":
+            continue
+        item, findings = _read_overview_from_analysis_result(entry)
+        if item is None:
+            continue
+        job_id = entry.get("jobId")
+        if job_id:
+            result_backed_job_ids.add(str(job_id))
+        absorb_overview_item(item, findings)
+
+    for source in sources:
+        if (
+            source.get("sourceType") == "job"
+            and source.get("jobId")
+            and str(source.get("jobId")) in result_backed_job_ids
+        ):
+            continue
+        db_path = cast(Path, source["path"])
+        item, findings, table_counts, db_warnings = _read_overview_from_database(
+            db_path,
+            protocol_name=cast(Optional[str], source.get("protocolName")),
+        )
+        warnings.extend(db_warnings)
+        absorb_overview_item(item, findings, table_counts)
 
     implementations = list(implementation_groups.values())
     for item in implementations:
@@ -1239,10 +1597,32 @@ def static_analysis_violation_history():
     implementation_filter = _dedupe_key(request.args.get("implementation"))
     result_filter = _dedupe_key(request.args.get("result"))
     time_range = _dedupe_key(request.args.get("timeRange"))
+    history_entries = list_static_analysis_history(
+        limit=job_limit,
+        include_result=True,
+    )
+    result_backed_job_ids: set[str] = set()
     sources, warnings = _iter_static_analysis_database_sources(job_limit)
     items: List[Dict[str, Any]] = []
 
+    for entry in history_entries:
+        if entry.get("status") != "completed":
+            continue
+        result_items = _read_violation_history_from_analysis_result(entry)
+        if not result_items:
+            continue
+        job_id = entry.get("jobId")
+        if job_id:
+            result_backed_job_ids.add(str(job_id))
+        items.extend(result_items)
+
     for source in sources:
+        if (
+            source.get("sourceType") == "job"
+            and source.get("jobId")
+            and str(source.get("jobId")) in result_backed_job_ids
+        ):
+            continue
         db_path = cast(Path, source["path"])
         db_items, db_warnings = _read_violation_history_from_database(
             db_path,
@@ -1503,6 +1883,19 @@ def static_analysis_database_insights():
             "workspacePath": workspace_path_raw,
         },
     )
+
+    history_entry = _find_static_analysis_history_entry(job_id)
+    if history_entry:
+        result_payload = _read_database_insights_from_analysis_result(history_entry)
+        if result_payload:
+            LOGGER.info(
+                "Static analysis insights resolved from code locate result",
+                extra={
+                    "jobId": job_id,
+                    "findings": len(result_payload.get("findings") or []),
+                },
+            )
+            return make_response(success_response(result_payload), 200)
 
     resolved_path, warnings = _find_sqlite_file(database_path_raw, workspace_path_raw)
     if not resolved_path:
@@ -1799,23 +2192,25 @@ def assertion_generation():
     database_path_requested = request.form.get("databasePath")
     database_source = "upload"
     if database_path_requested:
-        database_path = TEMP_ASSERTION_DATABASE_PATH
+        database_path = _expand_path(database_path_requested)
+        if database_path is None:
+            return make_response(error_response("分析结果数据路径无效"), 400)
         if not database_path.is_file():
             return make_response(
-                error_response(f"固定违规数据库不存在：{database_path}"),
+                error_response(f"分析结果数据不存在：{database_path}"),
                 400,
             )
         try:
             database_data = database_path.read_bytes()
         except OSError as exc:
-            LOGGER.exception("Failed to read fixed assertion database: %s", database_path)
-            return make_response(error_response(f"读取固定违规数据库失败：{exc}"), 500)
+            LOGGER.exception("Failed to read assertion analysis data: %s", database_path)
+            return make_response(error_response(f"读取分析结果数据失败：{exc}"), 500)
         database_name = database_path.name
         database_source = str(database_path)
     else:
         database_upload_raw = request.files.get("database")
         if not isinstance(database_upload_raw, FileStorage):
-            return make_response(error_response("请上传完整文件：违规数据库文件"), 400)
+            return make_response(error_response("请上传完整文件：分析结果数据文件"), 400)
         database_upload = cast(FileStorage, database_upload_raw)
         database_name, database_data = _read_upload(database_upload)
 
