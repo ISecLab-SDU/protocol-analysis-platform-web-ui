@@ -269,6 +269,17 @@ export interface DeleteProtocolViolationHistoryResponse {
   warnings?: string[];
 }
 
+export interface DeleteProtocolViolationHistoryPayload {
+  callGraph?: string | null;
+  codeSnippet?: string | null;
+  databaseName?: string;
+  databasePath?: string | null;
+  reason?: string | null;
+  ruleDesc?: string;
+  violations?: ProtocolStaticAnalysisRuleViolationDetail[] | null;
+  workspacePath?: string | null;
+}
+
 export interface UpsertProtocolViolationHistoryPayload {
   callGraph?: string;
   codeSnippet?: string;
@@ -549,9 +560,13 @@ export function fetchProtocolViolationHistory(
   );
 }
 
-export function deleteProtocolViolationHistory(itemId: string) {
+export function deleteProtocolViolationHistory(
+  itemId: string,
+  payload?: DeleteProtocolViolationHistoryPayload,
+) {
   return requestClient.delete<DeleteProtocolViolationHistoryResponse>(
     `/protocol-compliance/static-analysis/violation-history/${itemId}`,
+    payload ? { data: payload } : undefined,
   );
 }
 

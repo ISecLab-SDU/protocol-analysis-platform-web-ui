@@ -1158,6 +1158,198 @@ def _delete_analysis_result_violation_history_from_database(
     return None, warnings
 
 
+def _normalized_history_match_text(value: Any) -> str:
+    return " ".join(str(value or "").split()).lower()
+
+
+def _violation_match_keys(violations: Any) -> set[str]:
+    if not isinstance(violations, list):
+        return set()
+
+    keys: set[str] = set()
+    for violation in violations:
+        if not isinstance(violation, dict):
+            continue
+        code_lines = violation.get("codeLines") or violation.get("code_lines")
+        if isinstance(code_lines, list):
+            lines = ",".join(str(item) for item in code_lines)
+        else:
+            lines = ""
+        keys.add(
+            "|".join(
+                [
+                    _dedupe_key(violation.get("filename")),
+                    _dedupe_key(
+                        violation.get("functionName")
+                        or violation.get("function_name"),
+                    ),
+                    lines,
+                ]
+            )
+        )
+    return {key for key in keys if key.strip("|")}
+
+
+def _score_violation_history_payload_row(
+    row: sqlite3.Row,
+    payload: Dict[str, Any],
+) -> int:
+    score = 0
+    rule_key = _dedupe_key(payload.get("ruleDesc"))
+    row_rule_key = _dedupe_key(row["rule_desc"])
+    if rule_key:
+        if row_rule_key == rule_key:
+            score += 100
+        elif rule_key in row_rule_key or row_rule_key in rule_key:
+            score += 50
+        else:
+            return 0
+
+    code_snippet = _normalized_history_match_text(payload.get("codeSnippet"))
+    row_code_snippet = _normalized_history_match_text(row["code_snippet"])
+    if code_snippet and row_code_snippet:
+        if code_snippet == row_code_snippet:
+            score += 80
+        elif code_snippet in row_code_snippet or row_code_snippet in code_snippet:
+            score += 35
+
+    call_graph = _normalized_history_match_text(payload.get("callGraph"))
+    row_call_graph = _normalized_history_match_text(row["call_graph"])
+    if call_graph and row_call_graph:
+        if call_graph == row_call_graph:
+            score += 40
+        elif call_graph in row_call_graph or row_call_graph in call_graph:
+            score += 20
+
+    llm_payload = _parse_llm_response(row["llm_response"])
+    reason = _normalized_history_match_text(payload.get("reason"))
+    row_reason = _normalized_history_match_text(llm_payload.get("reason"))
+    if reason and row_reason:
+        if reason == row_reason:
+            score += 70
+        elif reason in row_reason or row_reason in reason:
+            score += 35
+
+    payload_violation_keys = _violation_match_keys(payload.get("violations"))
+    row_violation_keys = _violation_match_keys(_parse_violation_details(llm_payload))
+    if payload_violation_keys and row_violation_keys:
+        score += 50 * len(payload_violation_keys & row_violation_keys)
+
+    return score
+
+
+def _delete_violation_history_by_payload(
+    db_path: Path,
+    *,
+    item_id: str,
+    payload: Dict[str, Any],
+) -> tuple[Optional[Dict[str, Any]], List[str]]:
+    warnings: List[str] = []
+
+    try:
+        conn = sqlite3.connect(db_path)
+    except sqlite3.Error as exc:
+        return None, [f"无法打开数据库 {db_path}: {exc}"]
+
+    conn.row_factory = sqlite3.Row
+    query = (
+        "SELECT rowid AS __rowid, rule_desc, code_snippet, call_graph, llm_response "
+        "FROM rule_code_snippet"
+    )
+    try:
+        rows = conn.execute(query).fetchall()
+    except sqlite3.Error as exc:
+        conn.close()
+        return None, [f"无法读取数据库 {db_path} 的 rule_code_snippet: {exc}"]
+
+    scored_rows = [
+        (_score_violation_history_payload_row(row, payload), row) for row in rows
+    ]
+    scored_rows = [entry for entry in scored_rows if entry[0] >= 100]
+    if not scored_rows:
+        conn.close()
+        return None, warnings
+
+    scored_rows.sort(key=lambda entry: entry[0], reverse=True)
+    matched = scored_rows[0][1]
+
+    try:
+        conn.execute(
+            "DELETE FROM rule_code_snippet WHERE rowid = ?",
+            (matched["__rowid"],),
+        )
+        conn.commit()
+    except sqlite3.Error as exc:
+        conn.close()
+        raise RuntimeError(f"删除数据库记录失败：{exc}") from exc
+
+    conn.close()
+    return (
+        {
+            "databaseName": db_path.name,
+            "databasePath": str(db_path),
+            "id": item_id,
+        },
+        warnings,
+    )
+
+
+def _payload_candidate_database_sources(
+    payload: Dict[str, Any],
+    sources: List[Dict[str, Any]],
+) -> tuple[List[Path], List[str]]:
+    warnings: List[str] = []
+    candidates: List[Path] = []
+    seen: set[str] = set()
+
+    def add_candidate(path: Optional[Path]) -> None:
+        if not path:
+            return
+        marker = _history_database_path_marker(path)
+        if marker in seen:
+            return
+        seen.add(marker)
+        candidates.append(path)
+
+    resolved_path, resolve_warnings = _find_sqlite_file(
+        cast(Optional[str], payload.get("databasePath")),
+        cast(Optional[str], payload.get("workspacePath")),
+        collect_warnings=False,
+    )
+    warnings.extend(resolve_warnings)
+    add_candidate(resolved_path)
+
+    database_name = _dedupe_key(payload.get("databaseName"))
+    for source in sources:
+        db_path = cast(Path, source["path"])
+        if database_name and _dedupe_key(db_path.name) == database_name:
+            add_candidate(db_path)
+
+    for source in sources:
+        add_candidate(cast(Path, source["path"]))
+
+    return candidates, warnings
+
+
+def _delete_violation_history_from_payload_sources(
+    item_id: str,
+    *,
+    payload: Dict[str, Any],
+    sources: List[Dict[str, Any]],
+) -> tuple[Optional[Dict[str, Any]], List[str]]:
+    candidates, warnings = _payload_candidate_database_sources(payload, sources)
+    for db_path in candidates:
+        deleted, db_warnings = _delete_violation_history_by_payload(
+            db_path,
+            item_id=item_id,
+            payload=payload,
+        )
+        warnings.extend(db_warnings)
+        if deleted:
+            return deleted, warnings
+    return None, warnings
+
+
 def _find_matching_rule_row(
     rows: list[sqlite3.Row],
     rule_desc: str,
@@ -1914,6 +2106,8 @@ def delete_static_analysis_violation_history(item_id: str):
         return make_response(error_response("无效的历史记录 ID"), 400)
 
     job_limit = _to_int(request.args.get("jobLimit"), 200)
+    delete_payload = request.get_json(silent=True)
+    delete_payload = delete_payload if isinstance(delete_payload, dict) else {}
     sources, warnings = _iter_static_analysis_database_sources(job_limit)
 
     try:
@@ -1931,6 +2125,19 @@ def delete_static_analysis_violation_history(item_id: str):
                 if warnings:
                     payload["warnings"] = warnings
                 return make_response(success_response(payload), 200)
+
+        if delete_payload:
+            deleted, payload_warnings = _delete_violation_history_from_payload_sources(
+                item_id,
+                payload=delete_payload,
+                sources=sources,
+            )
+            warnings.extend(payload_warnings)
+            if deleted:
+                response_payload = {**deleted, "deleted": True}
+                if warnings:
+                    response_payload["warnings"] = warnings
+                return make_response(success_response(response_payload), 200)
 
         deleted, result_warnings = (
             _delete_analysis_result_violation_history_from_database(

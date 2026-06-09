@@ -640,7 +640,15 @@ async function handleDeleteViolationHistory(entry: ProtocolViolationHistoryEntry
 
   deletingViolationHistoryId.value = entry.id;
   try {
-    await deleteProtocolViolationHistory(entry.id);
+    await deleteProtocolViolationHistory(entry.id, {
+      callGraph: entry.callGraph,
+      codeSnippet: entry.codeSnippet,
+      databaseName: entry.databaseName,
+      databasePath: entry.databasePath,
+      reason: entry.reason,
+      ruleDesc: entry.ruleDesc,
+      violations: entry.violations,
+    });
     violationHistory.value = violationHistory.value.filter(
       (item) => item.id !== entry.id,
     );

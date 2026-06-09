@@ -222,3 +222,59 @@ def test_delete_violation_history_accepts_legacy_row_index_after_prior_deletes(
             )
         ]
     assert remaining_rules == ["second rule"]
+
+
+def test_delete_violation_history_payload_matches_duplicate_rules(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "sqlite_Test.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            CREATE TABLE rule_code_snippet (
+                rule_desc TEXT,
+                code_snippet TEXT,
+                call_graph TEXT,
+                llm_response TEXT
+            )
+            """
+        )
+        for code_snippet, reason in (
+            ("Function: read_callback\n    7 first", "first reason"),
+            ("Function: process_message\n    9 target", "target reason"),
+        ):
+            conn.execute(
+                """
+                INSERT INTO rule_code_snippet (
+                    rule_desc,
+                    code_snippet,
+                    call_graph,
+                    llm_response
+                )
+                VALUES (?, ?, ?, ?)
+                """,
+                (
+                    "duplicate rule",
+                    code_snippet,
+                    "call graph",
+                    f'{{"result":"violation_found","reason":"{reason}"}}',
+                ),
+            )
+
+    deleted, warnings = routes._delete_violation_history_by_payload(
+        db_path,
+        item_id="stale-id",
+        payload={
+            "codeSnippet": "Function: process_message\n    9 target",
+            "reason": "target reason",
+            "ruleDesc": "duplicate rule",
+        },
+    )
+
+    assert warnings == []
+    assert deleted is not None
+    with sqlite3.connect(db_path) as conn:
+        remaining_rows = conn.execute(
+            "SELECT code_snippet FROM rule_code_snippet ORDER BY rowid"
+        ).fetchall()
+    assert remaining_rows == [("Function: read_callback\n    7 first",)]
