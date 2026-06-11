@@ -88,6 +88,22 @@ export interface ProtocolStaticAnalysisModelResponse {
   verdicts: ProtocolStaticAnalysisVerdict[];
 }
 
+export interface ProtocolStaticAnalysisCheck {
+  allNoViolation: boolean;
+  hasViolation: boolean;
+  invalidCount: number;
+  invalidRows: Array<{
+    reason: string;
+    result?: unknown;
+    rowId: number;
+    ruleDesc?: string | null;
+  }>;
+  noViolationCount: number;
+  shouldSkipDownstream: boolean;
+  totalCount: number;
+  violationCount: number;
+}
+
 export interface ProtocolStaticAnalysisResult {
   analysisId: string;
   artifacts?: {
@@ -110,6 +126,7 @@ export interface ProtocolStaticAnalysisResult {
   };
   model: string;
   modelResponse: ProtocolStaticAnalysisModelResponse;
+  staticAnalysisCheck?: ProtocolStaticAnalysisCheck;
   submittedAt: string;
 }
 

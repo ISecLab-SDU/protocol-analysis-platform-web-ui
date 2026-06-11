@@ -1293,13 +1293,13 @@ class ProtocolGuardDockerRunner:
             LOGGER.warning("Failed to decode LLM response for rule %s", rule_desc)
             return compliance, verdicts
 
-        result = str(payload.get("result", "")).lower()
+        result = str(payload.get("result", "")).strip().lower()
         reason = str(payload.get("reason", "")).strip()
         violations = payload.get("violations")
 
-        if "violation" in result:
+        if result == "violation found!" or result == "violation_found":
             compliance = "non_compliant"
-        elif "no violation" in result:
+        elif result == "no violation found!" or result == "no_violation_found":
             compliance = "compliant"
         else:
             compliance = "needs_review"

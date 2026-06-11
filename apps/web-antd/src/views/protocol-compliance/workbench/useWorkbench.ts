@@ -129,7 +129,7 @@ const resultHistory = ref<
     pocSnapshotStatus: 'failed' | 'idle' | 'ready' | 'saving';
     protocolType: string;
     ruleText: string;
-    status: 'crash' | 'stopped';
+    status: 'crash' | 'no-crash' | 'stopped';
     stats: {
       coverage: number;
       crashes: number;
@@ -700,7 +700,7 @@ async function persistViolationHistoryFromWorkbench(
   }
 }
 
-function appendResultHistoryRecord(reason: 'crash' | 'stopped') {
+function appendResultHistoryRecord(reason: 'crash' | 'no-crash' | 'stopped') {
   if (resultHistoryAppended) return;
   resultHistoryAppended = true;
 
@@ -712,6 +712,8 @@ function appendResultHistoryRecord(reason: 'crash' | 'stopped') {
   const conclusion =
     hasCrash
       ? `发现 ${fuzzStats.crashes || 1} 个崩溃，已进入结果验证`
+      : reason === 'no-crash'
+        ? '静态分析未发现违规，后续断言生成和模糊测试已跳过'
       : '分析流程已停止，当前结果已汇总';
   const changedFileCount =
     (assertDiffContent.value.match(/^diff --git\s+/gm) ?? []).length;
@@ -878,6 +880,28 @@ function markStageError(target: WorkbenchStage, msg: string) {
   stageMessage.value = msg;
 }
 
+function completePipelineAfterNoStaticViolation(result: ProtocolStaticAnalysisResult) {
+  const check = result.staticAnalysisCheck;
+  const total = check?.totalCount ?? result.modelResponse?.summary?.compliantCount ?? 0;
+  const invalid = check?.invalidCount ?? 0;
+  const suffix = invalid > 0 ? `，其中 ${invalid} 条结果格式需要复核` : '';
+  markStageDone('code_locate');
+  markStageSkipped('assert_gen');
+  markStageSkipped('fuzz');
+  stage.value = 'done';
+  activeStageView.value = 'done';
+  stageStatus.done = 'done';
+  stageMessage.value = `静态分析未发现违规（${total} 条规则结果均无违规${suffix}），后续流程已跳过`;
+  appendResultHistoryRecord('no-crash');
+}
+
+function shouldSkipAfterStaticAnalysis(result: ProtocolStaticAnalysisResult) {
+  const check = result.staticAnalysisCheck;
+  if (check) return check.shouldSkipDownstream;
+  const summary = result.modelResponse?.summary;
+  return Boolean(summary && summary.nonCompliantCount === 0);
+}
+
 function selectStageView(target: WorkbenchStage) {
   if (canViewStage(target)) {
     activeStageView.value = target;
@@ -1041,7 +1065,7 @@ async function switchToFallbackFuzzOutput(runId: number) {
   scheduleFallbackReplay(runId);
 }
 
-async function checkAndFallbackStaleSolAflNetFuzzer(data: any) {
+async function checkAndFallbackStaleSolAflNetFuzzer() {
   if (!isSolAflNetFuzzing.value || stageStatus.fuzz !== 'running') return;
   if (switchingToFallbackOutput || activeAflNetOutputSource === 'fallback') return;
   if (!lastFuzzLogGrowthAt) {
@@ -1495,6 +1519,10 @@ async function pollStaticAnalysis(jobId: string, runId: number) {
         staticResult.value = result;
         await refreshCodeLocateEvidenceFromResult(jobId, result);
         if (!isCurrentPipelineRun(runId)) return;
+        if (shouldSkipAfterStaticAnalysis(result)) {
+          completePipelineAfterNoStaticViolation(result);
+          return;
+        }
         markStageDone('code_locate', '代码定位完成，2 秒后进入断言生成…');
         if (await waitForStageTransition(runId)) await runAssertGenStep(runId);
       } else if (snapshot.status === 'failed') {
@@ -1592,6 +1620,10 @@ async function runStaticAnalysisStep(runId: number) {
       staticResult.value = result;
       await refreshCodeLocateEvidenceFromResult(job.jobId, result);
       if (!isCurrentPipelineRun(runId)) return;
+      if (shouldSkipAfterStaticAnalysis(result)) {
+        completePipelineAfterNoStaticViolation(result);
+        return;
+      }
       markStageDone('code_locate', '代码定位完成，2 秒后进入断言生成…');
       if (await waitForStageTransition(runId)) await runAssertGenStep(runId);
     } else if (job.status === 'failed') {
@@ -1809,7 +1841,7 @@ async function readFuzzLogs(
       }
       return;
     }
-    await checkAndFallbackStaleSolAflNetFuzzer(data);
+    await checkAndFallbackStaleSolAflNetFuzzer();
   } catch (err: any) {
     // Non-fatal: keep polling until user stops
     console.warn('[workbench] readLog error', err?.message || err);

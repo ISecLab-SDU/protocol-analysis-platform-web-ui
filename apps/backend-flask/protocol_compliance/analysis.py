@@ -20,6 +20,7 @@ from .docker_runner import (
     ProtocolGuardNotAvailableError,
 )
 from .state_repository import analysis_state_repository
+from .static_analysis_result_checker import check_static_analysis_database
 
 LOGGER = logging.getLogger(__name__)
 
@@ -460,7 +461,7 @@ def run_static_analysis(
         raise AnalysisNotReadyError(str(exc)) from exc
 
     try:
-        return runner.run_static_analysis(
+        result = runner.run_static_analysis(
             code_stream=code_stream,
             code_filename=code_file_name,
             builder_stream=builder_stream,
@@ -476,6 +477,10 @@ def run_static_analysis(
             job_id=job_identifier,
             progress_callback=progress_callback,
         )
+        database_path = _extract_database_path(result)
+        if database_path:
+            result["staticAnalysisCheck"] = check_static_analysis_database(database_path)
+        return result
     except ProtocolGuardExecutionError as exc:
         LOGGER.error(
             "ProtocolGuard analysis execution failed (image=%s, status=%s): %s",
@@ -495,6 +500,16 @@ def run_static_analysis(
     except ProtocolGuardDockerError as exc:
         LOGGER.error("ProtocolGuard Docker error: %s", exc)
         raise AnalysisError(str(exc)) from exc
+
+
+def _extract_database_path(result: Dict[str, object]) -> Optional[str]:
+    artifacts = result.get("artifacts")
+    if not isinstance(artifacts, dict):
+        return None
+    database_path = artifacts.get("database")
+    if isinstance(database_path, str) and database_path:
+        return database_path
+    return None
 
 
 def submit_static_analysis_job(
