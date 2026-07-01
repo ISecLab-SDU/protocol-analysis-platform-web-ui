@@ -250,6 +250,13 @@ def _assert_required_instrumentation_env() -> None:
         )
 
 
+def _container_host_identity_env() -> Dict[str, str]:
+    return {
+        "PG_HOST_UID": str(os.getuid()),
+        "PG_HOST_GID": str(os.getgid()),
+    }
+
+
 # Apply environment adjustments before docker settings are cached
 _ensure_env_passthrough_for_instrumentation()
 
@@ -437,6 +444,7 @@ def _run_instrumentation_container(
 
     # Build environment forwarded to the container
     env = {name: os.environ.get(name, "") for name in REQUIRED_INSTRUMENTATION_ENVS}
+    env.update(_container_host_identity_env())
 
     # Prefer Docker SDK; fall back to CLI if unavailable
     try:

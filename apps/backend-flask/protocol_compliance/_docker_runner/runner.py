@@ -740,6 +740,8 @@ class ProtocolGuardDockerRunner:
             value = os.environ.get(name)
             if value is not None:
                 env[name] = value
+        env["PG_HOST_UID"] = str(os.getuid())
+        env["PG_HOST_GID"] = str(os.getgid())
         return env
 
     def _snapshot_workspace(self, job_paths: JobPaths, *, stage: str) -> Optional[Path]:

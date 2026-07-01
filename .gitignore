@@ -65,3 +65,5 @@ reference/
 database/
 New-Input/
 fuzz-output/
+
+.envrc

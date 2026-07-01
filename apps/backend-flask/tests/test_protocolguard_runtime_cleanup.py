@@ -97,6 +97,24 @@ def test_config_invalid_retention_values_fall_back(monkeypatch: pytest.MonkeyPat
     assert settings.runtime_retention_max_jobs == 20
 
 
+def test_container_environment_includes_host_identity(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("PG_ENV_VARS", "OPENAI_API_KEY")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("PG_HOST_UID", "stale")
+    monkeypatch.setenv("PG_HOST_GID", "stale")
+    settings = _settings(monkeypatch, tmp_path)
+    runner = _runner(settings)
+
+    env = runner._build_environment()
+
+    assert env["OPENAI_API_KEY"] == "test-key"
+    assert env["PG_HOST_UID"] == str(os.getuid())
+    assert env["PG_HOST_GID"] == str(os.getgid())
+
+
 def test_snapshot_disabled_does_not_copy_workspace(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     settings = _settings(monkeypatch, tmp_path)
     runner = _runner(settings)

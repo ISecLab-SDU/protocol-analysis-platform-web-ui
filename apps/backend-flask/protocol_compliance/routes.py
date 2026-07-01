@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import sqlite3
 import subprocess
 import uuid
@@ -611,6 +612,104 @@ def _violation_history_timestamp_store_path() -> Path:
     return state_dir / "violation_history_timestamps.json"
 
 
+def _violation_history_writable_database_root() -> Path:
+    return _violation_history_timestamp_store_path().parent / "writable-databases"
+
+
+def _sqlite_path_hash(path: Path) -> str:
+    return hashlib.sha1(str(path.expanduser()).encode("utf-8")).hexdigest()[:12]
+
+
+def _violation_history_writable_database_path(
+    source_path: Path,
+    *,
+    job_id: Optional[str],
+) -> Path:
+    job_key = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(job_id or "manual")).strip("._")
+    if not job_key:
+        job_key = "manual"
+    return (
+        _violation_history_writable_database_root()
+        / job_key
+        / f"{_sqlite_path_hash(source_path)}-{source_path.name}"
+    )
+
+
+def _is_sqlite_database_writable(db_path: Path) -> bool:
+    if not db_path.is_file():
+        return False
+    try:
+        with sqlite3.connect(db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            conn.execute(
+                "CREATE TABLE __protocolguard_write_probe__ "
+                "(id INTEGER PRIMARY KEY)"
+            )
+            conn.execute("DROP TABLE __protocolguard_write_probe__")
+            conn.rollback()
+        return True
+    except sqlite3.Error:
+        return False
+
+
+def _copy_sqlite_database_for_violation_history(
+    source_path: Path,
+    *,
+    job_id: Optional[str],
+) -> Path:
+    destination = _violation_history_writable_database_path(source_path, job_id=job_id)
+    if destination.is_file() and _is_sqlite_database_writable(destination):
+        return destination
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source_path, destination)
+    os.chmod(destination, 0o600)
+    return destination
+
+
+def _ensure_writable_violation_history_database(
+    db_path: Path,
+    *,
+    job_id: Optional[str],
+    warnings: List[str],
+) -> Path:
+    if _is_sqlite_database_writable(db_path):
+        return db_path
+
+    writable_copy = _copy_sqlite_database_for_violation_history(db_path, job_id=job_id)
+    warnings.append(
+        f"数据库 {db_path} 不可写，已使用后端状态目录中的可写副本：{writable_copy}"
+    )
+    return writable_copy
+
+
+def _iter_violation_history_writable_database_copies() -> List[Dict[str, Any]]:
+    copy_root = _violation_history_writable_database_root()
+    if not copy_root.is_dir():
+        return []
+
+    sources: List[Dict[str, Any]] = []
+    for db_path in sorted(copy_root.glob("*/*.db")):
+        name = db_path.name
+        if "-" not in name:
+            continue
+        original_hash, _ = name.split("-", 1)
+        if not re.fullmatch(r"[0-9a-f]{12}", original_hash):
+            continue
+        job_id = db_path.parent.name if db_path.parent.name != "manual" else None
+        sources.append(
+            {
+                "path": db_path,
+                "sourceType": "job" if job_id else "builtin",
+                "jobId": job_id,
+                "protocolName": None,
+                "createdAt": None,
+                "updatedAt": None,
+                "originalPathHash": original_hash,
+            }
+        )
+    return sources
+
+
 def _load_violation_history_timestamps() -> Dict[str, Any]:
     store_path = _violation_history_timestamp_store_path()
     if not store_path.is_file():
@@ -1085,10 +1184,22 @@ def _iter_static_analysis_database_sources(
     sources: List[Dict[str, Any]] = []
     warnings: List[str] = []
     seen_database_paths: set[str] = set()
+    shadowed_database_hashes: set[str] = set()
+
+    for source in _iter_violation_history_writable_database_copies():
+        db_path = cast(Path, source["path"])
+        resolved = str(db_path.resolve())
+        seen_database_paths.add(resolved)
+        original_hash = source.get("originalPathHash")
+        if isinstance(original_hash, str):
+            shadowed_database_hashes.add(original_hash)
+        sources.append(source)
 
     if db_dir.is_dir():
         for db_path in sorted(db_dir.glob("sqlite_*.db")):
             resolved = str(db_path.resolve())
+            if _sqlite_path_hash(db_path) in shadowed_database_hashes:
+                continue
             seen_database_paths.add(resolved)
             sources.append(
                 {
@@ -1117,7 +1228,10 @@ def _iter_static_analysis_database_sources(
         if not resolved_path:
             continue
         resolved = str(resolved_path.resolve())
-        if resolved in seen_database_paths:
+        if (
+            resolved in seen_database_paths
+            or _sqlite_path_hash(resolved_path) in shadowed_database_hashes
+        ):
             continue
         seen_database_paths.add(resolved)
         sources.append(
@@ -2513,6 +2627,15 @@ def upsert_static_analysis_violation_history():
         )
 
     try:
+        resolved_path = _ensure_writable_violation_history_database(
+            resolved_path,
+            job_id=job_id,
+            warnings=warnings,
+        )
+    except OSError as exc:
+        return make_response(error_response(f"准备可写数据库失败：{exc}"), 500)
+
+    try:
         conn = sqlite3.connect(resolved_path)
     except sqlite3.Error as exc:
         return make_response(error_response(f"无法打开静态分析结果数据库：{exc}"), 500)
@@ -3298,6 +3421,31 @@ def _aflnet_fallback_output_root() -> Path:
     configured = os.environ.get("AFLNET_FALLBACK_OUTPUT_ROOT")
     if configured:
         return Path(configured).expanduser()
+
+    filename = os.environ.get("AFLNET_FALLBACK_LOG_FILE_NAME", "plot_data")
+    candidates = [
+        _repo_root() / "fuzz-output",
+        _repo_root().parent / "fuzz-output",
+        Path.cwd() / "fuzz-output",
+        Path("/tmp/protocolguard/fuzz-output"),
+    ]
+    seen: set[Path] = set()
+    for candidate in candidates:
+        try:
+            resolved = candidate.expanduser().resolve()
+        except (OSError, RuntimeError):
+            continue
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        if (resolved / filename).exists():
+            return resolved
+
+    for candidate in candidates:
+        expanded = candidate.expanduser()
+        if expanded.exists():
+            return expanded
+
     return _repo_root() / "fuzz-output"
 
 
@@ -3821,6 +3969,15 @@ def read_log():
             }
             if is_sol_aflnet:
                 response_data.update(_aflnet_result_path_info(output_source))
+                if output_source == "fallback":
+                    response_data.update({
+                        "is_eof": True,
+                        "file_size": 0,
+                        "message": (
+                            "AFLNET 备份日志目录不存在，请设置 "
+                            f"AFLNET_FALLBACK_OUTPUT_ROOT 或创建 {log_dir}"
+                        ),
+                    })
             return success_response(response_data)
         
         # 列出目录中的文件
@@ -3839,6 +3996,15 @@ def read_log():
             }
             if is_sol_aflnet:
                 response_data.update(_aflnet_result_path_info(output_source))
+                if output_source == "fallback":
+                    response_data.update({
+                        "is_eof": True,
+                        "file_size": 0,
+                        "message": (
+                            "AFLNET 备份日志文件不存在，请确认 "
+                            f"{file_path} 已生成或设置 AFLNET_FALLBACK_LOG_FILE_NAME"
+                        ),
+                    })
             return success_response(response_data)
         
         # 获取文件信息

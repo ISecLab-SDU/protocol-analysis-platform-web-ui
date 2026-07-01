@@ -531,3 +531,65 @@ def test_delete_violation_history_soft_deletes_reappeared_result_item(
     assert delete_response.get_json()["data"]["deleted"] is True
     assert list_response.status_code == 200
     assert list_response.get_json()["data"]["items"] == []
+
+
+def test_upsert_violation_history_uses_writable_copy_for_readonly_database(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    state_dir = tmp_path / "state"
+    monkeypatch.setenv("PROTOCOLGUARD_STATE_DIR", str(state_dir))
+    readonly_dir = tmp_path / "readonly-output"
+    readonly_dir.mkdir()
+    db_path = readonly_dir / "sqlite_Sol.db"
+    _create_rule_database(db_path, rule_desc="readonly rule")
+    entry = _history_entry(db_path, rule_desc="readonly rule")
+    client = _app(monkeypatch).test_client()
+
+    monkeypatch.setattr(
+        routes,
+        "list_static_analysis_history",
+        lambda limit=50, include_result=False: [entry],
+    )
+
+    db_path.chmod(0o400)
+    readonly_dir.chmod(0o500)
+    try:
+        response = client.post(
+            "/api/protocol-compliance/static-analysis/violation-history",
+            json={
+                "databasePath": str(db_path),
+                "jobId": "job-with-readonly-database",
+                "reason": "verified from workbench",
+                "result": "violation_found",
+                "ruleDesc": "readonly rule",
+                "workspacePath": str(readonly_dir),
+            },
+        )
+    finally:
+        readonly_dir.chmod(0o700)
+        db_path.chmod(0o600)
+
+    assert response.status_code == 200
+    payload = response.get_json()["data"]
+    copied_db_path = Path(payload["databasePath"])
+    assert copied_db_path != db_path
+    assert copied_db_path.is_file()
+    assert "可写副本" in payload["warnings"][0]
+
+    with sqlite3.connect(copied_db_path) as conn:
+        llm_response = conn.execute(
+            "SELECT llm_response FROM rule_code_snippet WHERE rule_desc = ?",
+            ("readonly rule",),
+        ).fetchone()[0]
+    assert "verified from workbench" in llm_response
+
+    list_response = client.get(
+        "/api/protocol-compliance/static-analysis/violation-history"
+    )
+
+    assert list_response.status_code == 200
+    items = list_response.get_json()["data"]["items"]
+    assert len(items) == 1
+    assert items[0]["databasePath"] == str(copied_db_path)
+    assert items[0]["reason"] == "verified from workbench"
