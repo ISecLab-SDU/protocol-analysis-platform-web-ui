@@ -139,3 +139,5 @@ apps/backend-mock/api/protocol-compliance/tasks.post.ts
 </tips>
 
 ```
+
+这是一个关于 GitHub 权限配置的测试。
