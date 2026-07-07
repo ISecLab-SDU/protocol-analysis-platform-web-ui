@@ -56,6 +56,11 @@ def create_app() -> Flask:
 
 
 def main():
+    import os
+    os.environ.setdefault("ANTHROPIC_API_KEY", "sk-7GHq4pK8H4BS4nlDXCUQvYKAmJWh4ox9Bj2oB9ihHcUUjfZb")
+    os.environ.setdefault("ANTHROPIC_BASE_URL", "http://10.102.32.6:47860/")
+    os.environ.setdefault("OPENAI_API_KEY", "sk-7GHq4pK8H4BS4nlDXCUQvYKAmJWh4ox9Bj2oB9ihHcUUjfZb")
+    os.environ.setdefault("OPENAI_BASE_URL", "http://10.102.32.6:47860/v1")
     application = create_app()
     application.run(host="0.0.0.0", port=5000, debug=True)
 

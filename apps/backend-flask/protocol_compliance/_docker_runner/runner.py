@@ -124,6 +124,11 @@ class ProtocolGuardDockerRunner:
             self._log_step(job_paths, "workspace", "Preparing project directory for source archive")
             self._reset_directory(project_dir)
             self._extract_archive(code_path, project_dir)
+
+            code_archive_in_project = project_dir / code_filename_real
+            shutil.copy2(code_path, code_archive_in_project)
+            self._log_step(job_paths, "inputs", f"Copied code archive to project context: {code_archive_in_project}")
+
             if not any(project_dir.iterdir()):
                 raise ProtocolGuardDockerError(
                     "Source archive did not contain any files. Please verify the uploaded archive."
@@ -133,6 +138,31 @@ class ProtocolGuardDockerRunner:
             dockerfile_path = project_dir / builder_filename_real
             self._log_step(job_paths, "inputs", "Writing builder Dockerfile to workspace")
             self._write_stream(dockerfile_path, builder_stream)
+
+            rules_path = self._stage_rules_file(job_paths, rules_stream)
+            rules_path_in_project = project_dir / "inputs" / "rules.json"
+            rules_path_in_project.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(rules_path, rules_path_in_project)
+            self._log_step(job_paths, "inputs", f"Copied rules file to project context: {rules_path_in_project}")
+
+            rule_config_path_in_project = project_dir / "rule_config.json"
+            shutil.copy2(rules_path, rule_config_path_in_project)
+            self._log_step(job_paths, "inputs", f"Copied rule_config.json to project root: {rule_config_path_in_project}")
+
+            self._log_step(job_paths, "config", "Loading and preparing config file")
+            config_data = self._load_config(config_stream, config_filename)
+            prepared_config = self._prepare_config(
+                config_data=config_data,
+                job_paths=job_paths,
+                protocol_name=protocol_name,
+                protocol_version=protocol_version,
+            )
+            self._write_config(job_paths.config_file, prepared_config)
+            self._log_step(job_paths, "config", "Config file written to workspace")
+
+            config_path_in_project = project_dir / "config.toml"
+            self._write_config(config_path_in_project, prepared_config)
+            self._log_step(job_paths, "inputs", f"Copied prepared config file to project context: {config_path_in_project}")
 
             builder_image = None
             if builder_stream:
@@ -151,19 +181,7 @@ class ProtocolGuardDockerRunner:
                     "Builder Dockerfile not provided and no default builder image configured."
                 )
 
-            rules_path = self._stage_rules_file(job_paths, rules_stream)
             LOGGER.debug("Staged code archive at %s, project at %s, rules at %s", code_path, project_dir, rules_path)
-
-            self._log_step(job_paths, "config", "Loading and preparing config file")
-            config_data = self._load_config(config_stream, config_filename)
-            prepared_config = self._prepare_config(
-                config_data=config_data,
-                job_paths=job_paths,
-                protocol_name=protocol_name,
-                protocol_version=protocol_version,
-            )
-            self._write_config(job_paths.config_file, prepared_config)
-            self._log_step(job_paths, "config", "Config file written to workspace")
 
             if builder_image:
                 self._log_step(job_paths, "builder", f"Running builder container image {builder_image}")
@@ -618,6 +636,7 @@ class ProtocolGuardDockerRunner:
             "docker",
             "build",
             "--progress=plain",
+            "--network=host",
             "--file",
             str(dockerfile_rel),
             "--tag",
@@ -629,7 +648,6 @@ class ProtocolGuardDockerRunner:
                 "proxy",
                 f"[Type 1] Setting Docker CLI build-args (HTTP_PROXY, HTTPS_PROXY, http_proxy, https_proxy) = {proxy_url}",
             )
-            command.append("--network=host")
             for key in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
                 command.extend(["--build-arg", f"{key}={proxy_url}"])
         
@@ -652,19 +670,23 @@ class ProtocolGuardDockerRunner:
             raise ProtocolGuardDockerError(f"Failed to invoke docker CLI for builder image build: {exc}") from exc
 
         assert process.stdout is not None
+        build_log_lines: List[str] = []
         with job_paths.log_file.open("a", encoding="utf-8") as log_file:
             try:
                 for line in process.stdout:
                     text = line.rstrip()
                     if text:
+                        build_log_lines.append(text)
                         log_file.write(text + "\n")
                         self._log_step(job_paths, "builder-log", text)
             finally:
                 process.stdout.close()
         exit_code = process.wait()
         if exit_code != 0:
+            last_lines = "\n".join(build_log_lines[-30:]) if build_log_lines else "(no log output)"
             raise ProtocolGuardDockerError(
-                f"Docker CLI build failed for builder image {tag} with exit code {exit_code}."
+                f"Docker CLI build failed for builder image {tag} with exit code {exit_code}.\n"
+                f"Last 30 lines of build output:\n{last_lines}"
             )
         self._log_step(job_paths, "builder", f"docker CLI build completed for {tag}")
         return tag

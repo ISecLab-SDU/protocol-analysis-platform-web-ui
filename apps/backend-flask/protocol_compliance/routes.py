@@ -69,6 +69,7 @@ from .pipeline_runner import (
     PipelineResultNotFoundError,
     run_protocol_pipeline,
 )
+from .compiler import CompilerController
 
 LOGGER = logging.getLogger(__name__)
 
@@ -399,7 +400,7 @@ def static_analysis():
 
     if not request.files:
         return make_response(
-            error_response("请上传源码、Builder Dockerfile、协议规则和配置文件"), 400
+            error_response("请上传源码、协议规则和配置文件（Builder Dockerfile可选）"), 400
         )
 
     uploads_map = {
@@ -409,33 +410,38 @@ def static_analysis():
         "config": request.files.get("config"),
     }
 
-    missing = [
-        key for key, value in uploads_map.items() if not isinstance(value, FileStorage)
+    required_missing = [
+        key for key, value in uploads_map.items() 
+        if key != "builderDockerfile" and not isinstance(value, FileStorage)
     ]
-    if missing:
+    if required_missing:
         labels = {
             "codeArchive": "源码压缩包",
-            "builderDockerfile": "Builder Dockerfile",
             "rules": "协议规则 JSON",
             "config": "分析配置 TOML",
         }
-        readable = "、".join(labels.get(item, item) for item in missing)
+        readable = "、".join(labels.get(item, item) for item in required_missing)
         return make_response(
             error_response(f"请上传完整文件：{readable}"), 400
         )
 
     code_upload = cast(FileStorage, uploads_map["codeArchive"])
-    builder_upload = cast(FileStorage, uploads_map["builderDockerfile"])
     rules_upload = cast(FileStorage, uploads_map["rules"])
     config_upload = cast(FileStorage, uploads_map["config"])
 
     code_name, code_data = _read_upload(code_upload)
-    builder_name, builder_data = _read_upload(builder_upload)
     rules_name, rules_data = _read_upload(rules_upload)
     config_name, config_data = _read_upload(config_upload)
 
-    if code_data is None or builder_data is None or config_data is None or rules_data is None:
+    if code_data is None or config_data is None or rules_data is None:
         return make_response(error_response("上传的文件内容为空，请重新上传"), 400)
+
+    builder_name, builder_data = None, None
+    builder_upload = uploads_map["builderDockerfile"]
+    if isinstance(builder_upload, FileStorage):
+        builder_name, builder_data = _read_upload(builder_upload)
+        if builder_data is None:
+            return make_response(error_response("上传的Builder Dockerfile内容为空，请重新上传"), 400)
 
     parsed_rules = None
     if rules_data:
@@ -477,6 +483,110 @@ def static_analysis():
         )
     rules_summary = try_extract_rules_summary(parsed_rules)
     notes = request.form.get("notes")
+
+    if builder_data is None:
+        LOGGER.info("No Builder Dockerfile provided, using default build template")
+        default_dockerfile = '''FROM ubuntu:22.04
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+RUN bash -lc 'echo "Acquire::http::No-Cache true;" > /etc/apt/apt.conf.d/99no-cache && \\
+    apt-get update && \\
+    apt-get install -y --no-install-recommends \\
+        ca-certificates \\
+        curl \\
+        wget'
+
+RUN bash -lc "$(curl -sL https://git.io/vokNn)"
+
+RUN apt-fast install -y --no-install-recommends \\
+        git \\
+        build-essential \\
+        cmake \\
+        ninja-build \\
+        pkg-config \\
+        python3.10 \\
+        python3-pip \\
+        python3.10-venv \\
+        llvm-14 \\
+        clang-14 \\
+        libclang-14-dev \\
+        llvm-14-dev \\
+        llvm-12 \\
+        clang-12 \\
+        golang-1.18-go \\
+        libcurl4-openssl-dev \\
+        libsqlite3-dev \\
+        tshark \\
+        zlib1g-dev \\
+        libssl-dev
+
+ENV PATH="/usr/lib/go-1.18/bin:/usr/local/lib:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/games:/usr/games:/snap/bin"
+
+ARG GLLVM_REPO=https://github.com/SRI-CSL/gllvm.git
+ARG GLLVM_REF=master
+
+RUN git clone --depth 1 --branch ${GLLVM_REF} ${GLLVM_REPO} /opt/src/gllvm && \\
+    cd /opt/src/gllvm && \\
+    GOBIN=/usr/local/bin /usr/lib/go-1.18/bin/go install ./cmd/...
+
+RUN ln -sf /usr/bin/clang-14 /usr/local/bin/clang && \\
+    ln -sf /usr/bin/clang++-14 /usr/local/bin/clang++ && \\
+    ln -sf /usr/bin/clang-cpp-14 /usr/local/bin/clang-cpp
+
+ENV PG_DEFAULT_BUILD_FLAGS="-g -Xclang -disable-O0-optnone -fno-discard-value-names"
+ENV PG_DEFAULT_BUILD_COMMAND="CC=gclang CXX=gclang++ CFLAGS=\"\\$PG_DEFAULT_BUILD_FLAGS\" CXXFLAGS=\"\\$PG_DEFAULT_BUILD_FLAGS\" make -j\"\\$(nproc)\""
+
+RUN mkdir -p /workspace /out
+
+RUN apt-fast install -y --no-install-recommends file tree
+
+RUN go install github.com/SRI-CSL/gllvm/cmd/...@latest
+
+RUN <<'EOF' bash
+cat >/usr/local/bin/pg-run <<'SH'
+#!/bin/bash
+tree /workspace
+export PATH=/root/go/bin:/usr/lib/llvm-14/bin:$PATH
+rm -rf /workspace/project/sol/build && mkdir -p /workspace/project/sol/build && cd /workspace/project/sol/build
+cmake \\
+  -DCMAKE_C_COMPILER="$(command -v gclang)" \\
+  -DCMAKE_CXX_COMPILER="$(command -v gclang++)" \\
+  -DCMAKE_BUILD_TYPE=Debug \\
+  -DCMAKE_C_FLAGS_DEBUG="-g -O0 -Xclang -disable-O0-optnone -fno-discard-value-names" \\
+  -DCMAKE_CXX_FLAGS_DEBUG="-g -O0 -Xclang -disable-O0-optnone -fno-discard-value-names" \\
+  -DCMAKE_VERBOSE_MAKEFILE=ON \\
+  ..
+which gclang
+gclang -v
+echo "! PATH:"
+echo $PATH
+export VERBOSE=1
+make CC=gclang CFLAGS="-g -Xclang -disable-O0-optnone -fno-discard-value-names" > build_log.txt
+get-bc ./sol 
+cp sol.bc program.bc
+llvm-dis-14 program.bc -o program.ll
+cp /workspace/project/sol/build/* /workspace
+exit 0
+SH
+chmod +x /usr/local/bin/pg-run
+echo "Finished setting up /usr/local/bin/pg-run"
+EOF
+
+WORKDIR /workspace/project
+
+COPY sol.tar /workspace/project/sol.tar
+RUN tar -xf sol.tar -C /workspace/project --strip-components=1 && rm sol.tar
+
+COPY config.toml /workspace/project/config.toml
+COPY rule_config.json /workspace/project/rule_config.json
+RUN mkdir -p /workspace/project/inputs && cp /workspace/project/rule_config.json /workspace/project/inputs/rules.json
+
+ENTRYPOINT [ "/usr/local/bin/pg-run" ]
+WORKDIR /workspace'''
+        builder_name = "Dockerfile"
+        builder_data = default_dockerfile.encode("utf-8")
+        LOGGER.info("Using default Builder Dockerfile template")
 
     snapshot = submit_static_analysis_job(
         code_payload=(code_name, code_data),
