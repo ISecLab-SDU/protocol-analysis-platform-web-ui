@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from flask import Flask
 from flask_cors import CORS
 
@@ -20,7 +22,12 @@ from user import bp as user_blueprint
 
 
 def create_app() -> Flask:
+    logging.basicConfig(level=logging.DEBUG)
+    logging.getLogger().setLevel(logging.DEBUG)
+
     app = Flask(__name__)
+    app.logger.setLevel(logging.DEBUG)
+    logging.getLogger('werkzeug').setLevel(logging.DEBUG)
 
         # ✅ 新增：配置文件上传大小限制（例如 100MB）
     app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
