@@ -131,7 +131,7 @@ export interface ProtocolStaticAnalysisResult {
 }
 
 export interface RunProtocolStaticAnalysisPayload {
-  builderDockerfile: File;
+  builderDockerfile?: File;
   codeArchive: File;
   config: File;
   notes?: string;
@@ -424,7 +424,9 @@ export function runProtocolStaticAnalysis(
   const { builderDockerfile, codeArchive, config, notes, rules } = payload;
   const formData = new FormData();
   formData.append('codeArchive', codeArchive);
-  formData.append('builderDockerfile', builderDockerfile);
+  if (builderDockerfile) {
+    formData.append('builderDockerfile', builderDockerfile);
+  }
   formData.append('rules', rules);
   formData.append('config', config);
   if (notes?.trim()) {
