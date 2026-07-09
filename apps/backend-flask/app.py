@@ -23,6 +23,36 @@ from upload import bp as upload_blueprint
 from user import bp as user_blueprint
 
 
+BUSINESS_LOGGERS = (
+    "app",
+    "auth",
+    "custom",
+    "demo",
+    "firmware",
+    "formalgpt",
+    "menu",
+    "misc",
+    "protocol_compliance",
+    "system",
+    "table",
+    "upload",
+    "user",
+)
+
+
+def _configure_logging() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    )
+    logging.getLogger().setLevel(logging.INFO)
+
+    for logger_name in BUSINESS_LOGGERS:
+        logging.getLogger(logger_name).setLevel(logging.DEBUG)
+
+    logging.getLogger("watchdog").setLevel(logging.WARNING)
+    logging.getLogger("werkzeug").setLevel(logging.INFO)
+
 def _load_envrc() -> None:
     envrc_path = Path(__file__).resolve().parent / ".envrc"
     if envrc_path.exists():
@@ -42,6 +72,7 @@ def _load_envrc() -> None:
 
 
 def create_app() -> Flask:
+    _configure_logging()
     _load_envrc()
     logging.basicConfig(level=logging.DEBUG)
     logging.getLogger().setLevel(logging.DEBUG)
