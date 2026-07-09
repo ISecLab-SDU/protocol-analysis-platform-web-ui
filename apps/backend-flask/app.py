@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
+from logging.config import dictConfig
 
 from flask import Flask
 from flask_cors import CORS
@@ -23,45 +24,49 @@ from upload import bp as upload_blueprint
 from user import bp as user_blueprint
 
 
-BUSINESS_LOGGERS = (
-    "app",
-    "auth",
-    "custom",
-    "demo",
-    "firmware",
-    "formalgpt",
-    "menu",
-    "misc",
-    "protocol_compliance",
-    "system",
-    "table",
-    "upload",
-    "user",
-)
-
-
 def _configure_logging() -> None:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    dictConfig(
+        {
+            "version": 1,
+            "disable_existing_loggers": False,
+            "formatters": {
+                "default": {
+                    "format": "%(asctime)s %(levelname)s [%(name)s] %(message)s",
+                },
+            },
+            "handlers": {
+                "console": {
+                    "class": "logging.StreamHandler",
+                    "formatter": "default",
+                    "level": "DEBUG",
+                },
+            },
+            "root": {
+                "handlers": ["console"],
+                "level": "INFO",
+            },
+            "loggers": {
+                "protocol_compliance": {
+                    "level": "DEBUG",
+                    "propagate": True,
+                },
+                "werkzeug": {
+                    "level": "INFO",
+                    "propagate": True,
+                },
+                "watchdog": {
+                    "level": "WARNING",
+                    "propagate": True,
+                },
+            },
+        }
     )
-    logging.getLogger().setLevel(logging.INFO)
-
-    for logger_name in BUSINESS_LOGGERS:
-        logging.getLogger(logger_name).setLevel(logging.DEBUG)
-
-    logging.getLogger("watchdog").setLevel(logging.WARNING)
-    logging.getLogger("werkzeug").setLevel(logging.INFO)
 
 
 def create_app() -> Flask:
     _configure_logging()
-    logging.basicConfig(level=logging.DEBUG)
-    logging.getLogger().setLevel(logging.DEBUG)
 
     app = Flask(__name__)
-    app.logger.setLevel(logging.DEBUG)
-    logging.getLogger('werkzeug').setLevel(logging.DEBUG)
 
     # 配置文件上传大小限制（例如 100MB）
     app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
