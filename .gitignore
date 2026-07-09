@@ -52,7 +52,9 @@ vite.config.ts.*
 .cursor
 
 *.pyc
-.venv
+__pycache__/
+.venv/
+**/.venv/
 
 *.sqlite3
 
@@ -67,3 +69,11 @@ New-Input/
 fuzz-output/
 
 .envrc
+.tmux.conf
+uv.lock
+.python-version
+*.html
+compiler_test.py
+demo_mqtt_integration.py
+**/.envrc
+**/.tmux.conf

@@ -12,12 +12,12 @@ from functools import lru_cache
 from io import BytesIO
 from typing import BinaryIO, Callable, Dict, List, Literal, Optional, cast
 
-from .docker_runner import (
-    ProtocolGuardDockerError,
-    ProtocolGuardDockerRunner,
-    ProtocolGuardDockerSettings,
-    ProtocolGuardExecutionError,
-    ProtocolGuardNotAvailableError,
+from .compiler import (
+    AgentExecutor,
+    AgentExecutorError,
+    AgentExecutorSettings,
+    AgentExecutionError,
+    AgentNotAvailableError,
 )
 from .state_repository import analysis_state_repository
 from .static_analysis_result_checker import check_static_analysis_database
@@ -392,7 +392,7 @@ _WORD_BANK = [
 ]
 
 
-# Docker integration ------------------------------------------------------------
+# Agent integration ------------------------------------------------------------
 
 
 class AnalysisError(RuntimeError):
@@ -400,11 +400,11 @@ class AnalysisError(RuntimeError):
 
 
 class AnalysisNotReadyError(AnalysisError):
-    """Raised when Docker integration is enabled but not available."""
+    """Raised when Agent integration is enabled but not available."""
 
 
 class AnalysisExecutionError(AnalysisError):
-    """Raised when the Docker pipeline fails."""
+    """Raised when the Agent pipeline fails."""
 
     def __init__(
         self,
@@ -419,16 +419,14 @@ class AnalysisExecutionError(AnalysisError):
 
 
 @lru_cache(maxsize=1)
-def _docker_settings() -> ProtocolGuardDockerSettings:
-    return ProtocolGuardDockerSettings.from_env()
+def _agent_settings() -> AgentExecutorSettings:
+    return AgentExecutorSettings.from_env()
 
 
 def run_static_analysis(
     *,
     code_stream: BinaryIO,
     code_file_name: str,
-    builder_stream: BinaryIO,
-    builder_file_name: str,
     config_stream: BinaryIO,
     config_file_name: str,
     rules_stream: BinaryIO,
@@ -440,11 +438,11 @@ def run_static_analysis(
     job_id: Optional[str] = None,
     progress_callback: Optional[Callable[[str, str, str], None]] = None,
 ) -> Dict[str, object]:
-    """Dispatch static analysis either via Docker or the mock generator."""
+    """Dispatch static analysis using AI Agent."""
     job_identifier = job_id or str(uuid.uuid4())
-    settings = _docker_settings()
+    settings = _agent_settings()
     if not settings.enabled:
-        LOGGER.debug("ProtocolGuard Docker disabled; returning mock analysis.")
+        LOGGER.debug("ProtocolGuard Agent disabled; returning mock analysis.")
         if progress_callback:
             progress_callback(job_identifier, "mock", "Generating mock analysis response")
         return build_mock_analysis(
@@ -456,16 +454,14 @@ def run_static_analysis(
         )
 
     try:
-        runner = ProtocolGuardDockerRunner(settings)
-    except ProtocolGuardNotAvailableError as exc:
+        executor = AgentExecutor(settings)
+    except AgentNotAvailableError as exc:
         raise AnalysisNotReadyError(str(exc)) from exc
 
     try:
-        result = runner.run_static_analysis(
+        result = executor.run_compilation(
             code_stream=code_stream,
             code_filename=code_file_name,
-            builder_stream=builder_stream,
-            builder_filename=builder_file_name,
             config_stream=config_stream,
             config_filename=config_file_name,
             rules_stream=rules_stream,
@@ -473,7 +469,6 @@ def run_static_analysis(
             notes=notes,
             protocol_name=protocol_name,
             protocol_version=protocol_version,
-            rules_summary=rules_summary,
             job_id=job_identifier,
             progress_callback=progress_callback,
         )
@@ -481,24 +476,18 @@ def run_static_analysis(
         if database_path:
             result["staticAnalysisCheck"] = check_static_analysis_database(database_path)
         return result
-    except ProtocolGuardExecutionError as exc:
+    except AgentExecutionError as exc:
         LOGGER.error(
-            "ProtocolGuard analysis execution failed (image=%s, status=%s): %s",
-            getattr(exc, "image", None),
-            getattr(exc, "status", None),
+            "ProtocolGuard analysis execution failed: %s",
             exc,
         )
         raise AnalysisExecutionError(
             str(exc),
             logs=getattr(exc, "logs", []),
-            details={
-                "status": getattr(exc, "status", None),
-                "image": getattr(exc, "image", None),
-                "logExcerpt": getattr(exc, "log_excerpt", None),
-            },
+            details=getattr(exc, "details", {}),
         ) from exc
-    except ProtocolGuardDockerError as exc:
-        LOGGER.error("ProtocolGuard Docker error: %s", exc)
+    except AgentExecutorError as exc:
+        LOGGER.error("ProtocolGuard Agent error: %s", exc)
         raise AnalysisError(str(exc)) from exc
 
 
@@ -515,7 +504,6 @@ def _extract_database_path(result: Dict[str, object]) -> Optional[str]:
 def submit_static_analysis_job(
     *,
     code_payload: tuple[str, bytes],
-    builder_payload: tuple[str, bytes],
     config_payload: tuple[str, bytes],
     rules_payload: tuple[str, bytes],
     notes: Optional[str],
@@ -533,15 +521,12 @@ def submit_static_analysis_job(
         progress_callback(job_id, "inputs", "Persisting uploaded artefacts")
         try:
             code_name, code_bytes = code_payload
-            builder_name, builder_bytes = builder_payload
             config_name, config_bytes = config_payload
             rules_name, rules_bytes = rules_payload
 
             result = run_static_analysis(
                 code_stream=BytesIO(code_bytes),
                 code_file_name=code_name,
-                builder_stream=BytesIO(builder_bytes),
-                builder_file_name=builder_name,
                 config_stream=BytesIO(config_bytes),
                 config_file_name=config_name,
                 rules_stream=BytesIO(rules_bytes),

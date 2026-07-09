@@ -66,7 +66,6 @@ const errorMessage = ref<null | string>(null);
 
 const projectConfig = reactive<ProjectConfig>({
   archive: null,
-  builder: null,
   config: null,
   rules: null,
   buildInstructions: 'make all',
@@ -205,7 +204,7 @@ interface ParsedAflNetStats {
   speed: number;
 }
 
-type DemoProjectFileField = 'archive' | 'builder' | 'config' | 'rules';
+type DemoProjectFileField = 'archive' | 'config' | 'rules';
 
 const DEMO_INPUT_FILES: Array<{
   field: DemoProjectFileField;
@@ -213,7 +212,6 @@ const DEMO_INPUT_FILES: Array<{
   name: string;
 }> = [
   { field: 'archive', mimeType: 'application/x-tar', name: 'sol.tar' },
-  { field: 'builder', mimeType: 'text/plain', name: 'Dockerfile' },
   { field: 'config', mimeType: 'application/toml', name: 'config.toml' },
   { field: 'rules', mimeType: 'application/json', name: 'rule_config.json' },
 ];
@@ -1385,10 +1383,6 @@ async function ensureProjectReady(): Promise<boolean> {
     message.warning('请上传源码压缩包');
     return false;
   }
-  if (!projectConfig.builder) {
-    message.warning('请上传 Builder Dockerfile');
-    return false;
-  }
   if (!projectConfig.config) {
     message.warning('请上传配置 TOML');
     return false;
@@ -1407,7 +1401,6 @@ async function ensureProjectReady(): Promise<boolean> {
 function commitSetup() {
   if (
     !projectConfig.archive ||
-    !projectConfig.builder ||
     !projectConfig.config ||
     !projectConfig.rules
   ) {
@@ -1588,7 +1581,7 @@ async function pollAssertGen(jobId: string, runId: number) {
 }
 
 async function runStaticAnalysisStep(runId: number) {
-  if (!projectConfig.archive || !projectConfig.builder || !projectConfig.config) {
+  if (!projectConfig.archive || !projectConfig.config || !projectConfig.rules) {
     markStageError('code_locate', '项目设置不完整');
     return;
   }
@@ -1605,7 +1598,6 @@ async function runStaticAnalysisStep(runId: number) {
   try {
     const job = await runProtocolStaticAnalysis({
       codeArchive: projectConfig.archive,
-      builderDockerfile: projectConfig.builder,
       config: projectConfig.config,
       rules: buildRulesFile(),
       notes: projectConfig.notes,
