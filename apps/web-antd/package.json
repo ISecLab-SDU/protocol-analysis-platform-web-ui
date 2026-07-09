@@ -26,7 +26,7 @@
     "#/*": "./src/*"
   },
   "dependencies": {
-    "@git-diff-view/vue": "^0.0.35",
+    "@git-diff-view/vue": "^0.1.6",
     "@vben/access": "workspace:*",
     "@vben/common-ui": "workspace:*",
     "@vben/constants": "workspace:*",
