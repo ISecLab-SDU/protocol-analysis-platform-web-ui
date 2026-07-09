@@ -53,27 +53,9 @@ def _configure_logging() -> None:
     logging.getLogger("watchdog").setLevel(logging.WARNING)
     logging.getLogger("werkzeug").setLevel(logging.INFO)
 
-def _load_envrc() -> None:
-    envrc_path = Path(__file__).resolve().parent / ".envrc"
-    if envrc_path.exists():
-        with open(envrc_path, "r") as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                if "=" in line:
-                    key, value = line.split("=", 1)
-                    key = key.strip()
-                    value = value.strip().strip('"').strip("'")
-                    os.environ.setdefault(key, value)
-        logging.debug(f"[*] Loaded environment variables from {envrc_path}")
-    else:
-        logging.debug(f"[*] .envrc file not found at {envrc_path}")
-
 
 def create_app() -> Flask:
     _configure_logging()
-    _load_envrc()
     logging.basicConfig(level=logging.DEBUG)
     logging.getLogger().setLevel(logging.DEBUG)
 
