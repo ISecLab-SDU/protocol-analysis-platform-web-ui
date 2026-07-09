@@ -39,7 +39,7 @@ catalog:
   '@tailwindcss/typography': ^0.5.16
   '@tanstack/vue-query': ^5.81.5
   '@tanstack/vue-store': ^0.7.1
-  '@types/archiver': ^6.0.3
+  '@types/archiver': ^8.0.0
   '@types/eslint': ^9.6.1
   '@types/html-minifier-terser': ^7.0.2
   '@types/json-bigint': ^1.0.4
@@ -67,7 +67,7 @@ catalog:
   '@vueuse/integrations': ^13.4.0
   '@vueuse/motion': ^3.0.3
   ant-design-vue: ^4.2.6
-  archiver: ^7.0.1
+  archiver: ^8.0.0
   autoprefixer: ^10.4.21
   axios: ^1.10.0
   axios-mock-adapter: ^2.1.0
