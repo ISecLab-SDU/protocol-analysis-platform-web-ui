@@ -103,12 +103,8 @@ class LLMClient:
 {last_dockerfile}
 """
 
-        import json
-        config_str = str(config) if not isinstance(config, str) else config
-        rule_str = json.dumps(rule, indent=2) if isinstance(rule, dict) else str(rule)
-
         prompt = f"""
-You are an expert DevOps engineer specializing in protocol compliance analysis.
+You are an expert DevOps engineer.
 
 Your task is to create a Dockerfile that rebuilds a pre-compiled project using gclang and extracts LLVM bitcode.
 
@@ -118,23 +114,12 @@ The sol.tar contains pre-compiled artifacts including .cf_*.json AST files. Do N
 AVAILABLE FILES
 ========================
 - sol.tar (pre-compiled source code archive with .cf_*.json AST files)
-- config.toml (analysis configuration file - READ THIS CAREFULLY)
 - rule_config.json (rule configuration)
 
 ========================
 sol.tar CONTENTS
 ========================
 {structure}
-
-========================
-config.toml CONTENT
-========================
-{config_str}
-
-========================
-rule_config.json CONTENT
-========================
-{rule_str}
 
 ========================
 REQUIREMENTS
@@ -148,51 +133,42 @@ REQUIREMENTS
 BUILD PROCESS
 ========================
 Create an entrypoint script /usr/local/bin/pg-run that:
-1. Extract sol.tar to /workspace/project/
-2. Note: /workspace/project/sol/ contains pre-compiled artifacts including .cf_*.json files
-3. Removes and recreates /workspace/project/sol/build ONLY (keep src/ directory intact)
-4. Runs cmake from /workspace/project/sol/build with:
+1. Note: /workspace/project/sol/ already exists with pre-compiled artifacts including .cf_*.json files
+2. Removes and recreates /workspace/project/sol/build ONLY (keep src/ directory intact)
+3. Runs cmake from /workspace/project/sol/build with:
    - DCMAKE_C_COMPILER=gclang
    - DCMAKE_CXX_COMPILER=gclang++
    - DCMAKE_BUILD_TYPE=Debug
    - DCMAKE_C_FLAGS_DEBUG="-g -O0 -Xclang -disable-O0-optnone -fno-discard-value-names"
    - DCMAKE_CXX_FLAGS_DEBUG="-g -O0 -Xclang -disable-O0-optnone -fno-discard-value-names"
--  - DCMAKE_VERBOSE_MAKEFILE=ON
-5. Runs make with CC=gclang and CFLAGS="-g -Xclang -disable-O0-optnone -fno-discard-value-names", output to build_log.txt
-6. Runs get-bc ./sol to extract bitcode
-7. Copies sol.bc to program.bc
-8. Runs llvm-dis-14 program.bc -o program.ll
+4. Runs make with CC=gclang and CFLAGS="-g -Xclang -disable-O0-optnone -fno-discard-value-names", output to build_log.txt
+5. Runs get-bc ./sol to extract bitcode
+6. Copies sol.bc to program.bc
+7. Runs llvm-dis-14 program.bc -o program.ll
 
 CRITICAL POST-BUILD STEPS:
 1. Copy all build artifacts to /workspace/:
-   - cp /workspace/project/sol/build/* /workspace
-   - cp /workspace/project/sol/build/sol /workspace/
-   - cp /workspace/project/sol/build/sol.bc /workspace/
-   - cp /workspace/project/sol/build/sol.bc /workspace/program.bc
+   - cp /workspace/project/sol/build/* /workspace/
+   - cp sol /workspace/
+   - cp sol.bc /workspace/
+   - cp sol.bc /workspace/program.bc
    - llvm-dis-14 /workspace/program.bc -o /workspace/program.ll
-   - cp /workspace/project/sol/build/build_log.txt /workspace/
+   - cp build_log.txt /workspace/
 
-2. Copy configuration files:
+2. Copy rules config:
    - mkdir -p /workspace/inputs
    - cp /workspace/rule_config.json /workspace/inputs/rules.json
-   - cp /workspace/config.toml /workspace/inputs/config.toml
 
-3. LLVM PRODUCTS TO src/ DIRECTORY:
-   - Copy ALL .cf_*.json files from build directory to /workspace/project/sol/src/
-   - cp /workspace/project/sol/build/*.cf_*.json /workspace/project/sol/src/ 2>/dev/null || true
-   - Ensure .cf_ref.json is present in /workspace/project/sol/src/
-   - If .cf_ref.json doesn't exist in build/, copy it from /workspace/project/sol/src/ backup if available
-
-4. IMPORTANT: Preserve all .cf_*.json files in /workspace/project/sol/src/
-   - These files are LLVM AST extraction products and required for analysis
+3. IMPORTANT: Do NOT modify or recreate any .cf_*.json files in /workspace/project/sol/src/
+   - These files are pre-generated and required for AST extraction
 
 OUTPUT VERIFICATION:
 Before exiting, run:
-- ls -la /workspace/project/sol/src/*.cf_*.json
+- tree /workspace/project/sol/src/
 - ls -la /workspace/project/sol/src/*.json
 - ls -la /workspace/
 
-Use COPY to bring sol.tar, config.toml and rule_config.json from the build context into /workspace/.
+Use COPY to bring sol.tar and rule_config.json from the build context into /workspace/.
 Set ENTRYPOINT to ["/usr/local/bin/pg-run"]
 Set WORKDIR to /workspace
 
@@ -336,23 +312,13 @@ class DockerTester:
                 
                 exit_code = int(r_wait.stdout.strip())
                 if exit_code != 0:
-                    logs_result = subprocess.run(
+                    logs = subprocess.run(
                         ["docker", "logs", container_id],
                         capture_output=True,
                         text=True,
                         timeout=60
-                    )
-                    logs_stdout = logs_result.stdout
-                    logs_stderr = logs_result.stderr
-                    
-                    inspect_result = subprocess.run(
-                        ["docker", "inspect", container_id],
-                        capture_output=True,
-                        text=True,
-                        timeout=30
-                    )
-                    
-                    return False, f"Container exited with code {exit_code}\nSTDOUT:\n{logs_stdout}\nSTDERR:\n{logs_stderr}\nINSPECT:\n{inspect_result.stdout[:500]}"
+                    ).stdout
+                    return False, f"Container exited with code {exit_code}\nLogs:\n{logs}"
 
                 r = subprocess.run(
                     ["docker", "cp", f"{container_id}:/workspace/.", dest_path],
@@ -852,7 +818,6 @@ class AgentExecutor:
         
         command = [
             "docker", "run", "--rm",
-            "-u", f"{os.getuid()}:{os.getgid()}",
             "-v", f"{workspace_dir}:/workspace",
             "-v", f"{output_dir}:/out",
             "-v", f"{config_dir}:/config",
@@ -866,14 +831,10 @@ class AgentExecutor:
         command.extend(["-e", f"OPENAI_BASE_URL={base_url}"])
         command.extend(["-e", f"ANTHROPIC_API_KEY={api_key}"])
         command.extend(["-e", f"ANTHROPIC_BASE_URL={base_url}"])
-        command.extend(["-e", f"PG_HOST_UID={os.getuid()}"])
-        command.extend(["-e", f"PG_HOST_GID={os.getgid()}"])
         logger.debug(f"[*] Passing OPENAI_API_KEY to container")
         logger.debug(f"[*] Passing OPENAI_BASE_URL to container")
         logger.debug(f"[*] Passing ANTHROPIC_API_KEY to container")
         logger.debug(f"[*] Passing ANTHROPIC_BASE_URL to container")
-        logger.debug(f"[*] Passing PG_HOST_UID={os.getuid()} to container")
-        logger.debug(f"[*] Passing PG_HOST_GID={os.getgid()} to container")
         
         command.extend([self._analysis_image, *self._analysis_command])
         
@@ -932,31 +893,6 @@ class AgentExecutor:
                 if progress_callback:
                     progress_callback(job_identifier, "analysis", "ProtocolGuard analysis completed")
                 
-                logger.debug(f"[*] Fixing permissions on source files in {output_dir}")
-                try:
-                    subprocess.run(
-                        ["chmod", "-R", "755", str(output_dir)],
-                        capture_output=True,
-                        text=True,
-                        timeout=30
-                    )
-                    logger.debug(f"[*] chmod -R 755 applied to {output_dir}")
-                except Exception as e:
-                    logger.debug(f"[*] Failed to chmod: {e}")
-                
-                try:
-                    subprocess.run(
-                        ["find", str(output_dir), "-type", "f", "-exec", "chmod", "644", "{}", "+"],
-                        capture_output=True,
-                        text=True,
-                        timeout=30
-                    )
-                    logger.debug(f"[*] find -type f -exec chmod 644 applied to {output_dir}")
-                except Exception as e:
-                    logger.debug(f"[*] Failed to chmod files: {e}")
-                
-                logger.debug(f"[*] Source file permissions fixed")
-                
                 logger.debug(f"[*] Copying analysis outputs from {output_dir} to {workspace_dir}")
                 for item in output_dir.iterdir():
                     dest_path = workspace_dir / item.name
@@ -987,27 +923,12 @@ class AgentExecutor:
                 
                 db_in_workspace = workspace_dir / "database"
                 if db_in_workspace.exists():
-                    try:
-                        db_in_workspace.chmod(0o755)
-                    except Exception:
-                        pass
                     for db_file in db_in_workspace.glob("*.db"):
                         try:
                             db_file.chmod(0o644)
                         except Exception:
                             pass
                     logger.debug(f"[*] Set permissions on database files")
-                
-                for db_file in workspace_dir.rglob("*.db"):
-                    try:
-                        db_file.chmod(0o644)
-                    except Exception:
-                        pass
-                    try:
-                        db_file.parent.chmod(0o755)
-                    except Exception:
-                        pass
-                logger.debug(f"[*] Set permissions on all .db files in workspace")
                 
                 logger.debug(f"[*] Final workspace contents:")
                 for root, dirs, files in os.walk(workspace_dir):
@@ -1027,31 +948,6 @@ class AgentExecutor:
                 logger.debug("-" * 40)
                 logger.debug("\n".join(log_lines[-40:]) if log_lines else "")
                 logger.debug("-" * 40)
-                
-                logger.debug(f"[*] Fixing permissions on source files in {output_dir} (failure path)")
-                try:
-                    subprocess.run(
-                        ["chmod", "-R", "755", str(output_dir)],
-                        capture_output=True,
-                        text=True,
-                        timeout=30
-                    )
-                    logger.debug(f"[*] chmod -R 755 applied to {output_dir}")
-                except Exception as e:
-                    logger.debug(f"[*] Failed to chmod: {e}")
-                
-                try:
-                    subprocess.run(
-                        ["find", str(output_dir), "-type", "f", "-exec", "chmod", "644", "{}", "+"],
-                        capture_output=True,
-                        text=True,
-                        timeout=30
-                    )
-                    logger.debug(f"[*] find -type f -exec chmod 644 applied to {output_dir}")
-                except Exception as e:
-                    logger.debug(f"[*] Failed to chmod files: {e}")
-                
-                logger.debug(f"[*] Source file permissions fixed (failure path)")
                 
                 logger.debug(f"[*] Copying analysis outputs from {output_dir} to {workspace_dir} (even on failure)")
                 for item in output_dir.iterdir():
@@ -1080,17 +976,6 @@ class AgentExecutor:
                         except Exception:
                             pass
                 logger.debug(f"[*] Analysis outputs copied to workspace")
-                
-                for db_file in workspace_dir.rglob("*.db"):
-                    try:
-                        db_file.chmod(0o644)
-                    except Exception:
-                        pass
-                    try:
-                        db_file.parent.chmod(0o755)
-                    except Exception:
-                        pass
-                logger.debug(f"[*] Set permissions on all .db files in workspace (failure path)")
                 
                 ast_stderr_path = workspace_dir / "logs" / "ast_extraction.stderr"
                 if ast_stderr_path.exists():
@@ -1203,59 +1088,7 @@ class AgentExecutor:
             else:
                 logger.debug(f"⚠️ WARNING: No .cf_*.json files found in {project_dir}")
         else:
-                logger.debug(f"⚠️ sol.tar not found at {tar_path}")
-        
-        if progress_callback:
-            progress_callback(job_identifier, "compile", "Building builder image")
-        
-        build_tag = f"protocolguard-builder-{job_identifier[:8]}"
-        
-        build_ok, build_log = self.compiler.docker.build(
-            "-", 
-            tag=build_tag, 
-            dockerfile_content=dockerfile,
-            build_context=str(workspace_dir)
-        )
-        
-        if not build_ok:
-            logger.debug(f"❌ BUILD FAILED: {build_log}")
-            if progress_callback:
-                progress_callback(job_identifier, "compile", f"Builder build failed: {build_log[:200]}")
-            raise AgentExecutionError(
-                f"Builder image build failed",
-                logs=[build_log],
-                details={"workspace": str(workspace_dir)}
-            )
-        
-        logger.debug(f"✅ BUILD SUCCESS")
-        
-        if progress_callback:
-            progress_callback(job_identifier, "compile", "Running builder container")
-        
-        copy_ok, copy_log = self.compiler.docker.copy_output(build_tag, str(workspace_dir))
-        
-        if not copy_ok:
-            logger.debug(f"❌ COPY OUTPUT FAILED: {copy_log}")
-            if progress_callback:
-                progress_callback(job_identifier, "compile", f"Builder output copy failed: {copy_log[:200]}")
-            raise AgentExecutionError(
-                f"Builder output copy failed",
-                logs=[copy_log],
-                details={"workspace": str(workspace_dir)}
-            )
-        
-        logger.debug(f"✅ COPY OUTPUT SUCCESS")
-        
-        logger.debug(f"[*] Workspace contents after builder:")
-        for root, dirs, files in os.walk(workspace_dir):
-            level = root.replace(str(workspace_dir), '').count(os.sep)
-            indent = ' ' * 2 * level
-            logger.debug(f"{indent}{os.path.basename(root)}/")
-            subindent = ' ' * 2 * (level + 1)
-            for file in files[:10]:
-                logger.debug(f"{subindent}{file}")
-            if len(files) > 10:
-                logger.debug(f"{subindent}... and {len(files) - 10} more")
+            logger.debug(f"⚠️ sol.tar not found at {tar_path}")
         
         self._run_analysis_container(workspace_dir, job_identifier, progress_callback)
         
