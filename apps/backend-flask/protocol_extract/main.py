@@ -7,7 +7,15 @@ from pathlib import Path
 import toml
 
 
-def run_command(cmd: list, cwd: str = None):
+def format_command(cmd: list, secret: str | None = None) -> str:
+    safe_parts = []
+    for part in cmd:
+        text = str(part)
+        safe_parts.append("<API_KEY>" if secret and text == secret else text)
+    return " ".join(safe_parts)
+
+
+def run_command(cmd: list, cwd: str = None, secret: str | None = None):
     """通用命令执行函数"""
     try:
         result = subprocess.run(
@@ -15,11 +23,11 @@ def run_command(cmd: list, cwd: str = None):
             cwd=cwd,
             check=True,
         )
-        print(f"[SUCCESS] 命令执行成功: {' '.join(cmd)}")
+        print(f"[SUCCESS] 命令执行成功: {format_command(cmd, secret)}")
         if result.stdout:
             print("输出摘要:\n" + "\n".join(result.stdout.splitlines()[:5]))
     except subprocess.CalledProcessError as e:
-        print(f"\n❌ 命令执行失败: {' '.join(e.cmd)}")
+        print(f"\n❌ 命令执行失败: {format_command(e.cmd, secret)}")
         print(f"错误信息:\n{e.stdout}")
         sys.exit(1)
 
@@ -105,12 +113,13 @@ def main():
         print(f"\n{'=' * 40}")
         print(f"🚀 开始 {step['name']}")
         print(f"📂 工作目录: {step['cwd'] or '当前目录'}")
-        print(f"⚙️ 执行命令: {' '.join(step['cmd'])}")
+        print(f"⚙️ 执行命令: {format_command(step['cmd'], api_key)}")
         print("=" * 40)
 
         run_command(
             cmd=step["cmd"],
-            cwd=step["cwd"]
+            cwd=step["cwd"],
+            secret=api_key,
         )
         
 

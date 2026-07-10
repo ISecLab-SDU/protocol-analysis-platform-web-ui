@@ -1,6 +1,7 @@
 import argparse
 import pandas as pd
 import json
+import os
 from tqdm import tqdm
 from pathlib import Path
 import toml
@@ -18,7 +19,11 @@ toml_config = toml.load(config_path)
 toml_prompt = toml.load(prompt_path)
 PROMPT_TEMPLATE = toml_prompt["prompt_enhance_rule"]["user"]
 
-this_url = toml_config["llm"]["base_url"]
+this_url = (
+    os.environ.get("PROTOCOL_EXTRACT_LLM_BASE_URL")
+    or os.environ.get("OPENAI_BASE_URL")
+    or toml_config["llm"]["base_url"]
+)
 this_model = toml_config["llm"]["model1"]
 this_temperature = toml_config["llm"]["temperature"]
 this_workers = toml_config["llm"]["max_workers"]

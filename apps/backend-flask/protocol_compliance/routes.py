@@ -234,6 +234,7 @@ def run_protocol_extract():
         return make_response(error_response("请上传协议 HTML 文件"), 400)
 
     api_key = (request.form.get("apiKey") or "").strip()
+    llm_base_url = (request.form.get("llmBaseUrl") or "").strip()
     protocol = (request.form.get("protocol") or "").strip()
     version = (request.form.get("version") or "").strip()
     filter_flag = (request.form.get("filterHeadings") or "").strip().lower()
@@ -246,6 +247,7 @@ def run_protocol_extract():
             version=version,
             html_upload=html_upload,
             filter_headings=filter_headings,
+            llm_base_url=llm_base_url,
         )
     except ValueError as exc:
         payload = make_error_payload("参数错误", details=str(exc))
@@ -258,7 +260,9 @@ def run_protocol_extract():
         payload = make_error_payload("未找到分析结果文件", details=detail)
         return make_response(payload, 500)
     except PipelineExecutionError as exc:
+        LOGGER.error("Protocol extract pipeline failed. log_path=%s", exc.log_path)
         detail = {
+            "logPath": exc.log_path,
             "stdout": (exc.stdout or "").splitlines()[-40:] or None,
             "stderr": (exc.stderr or "").splitlines()[-40:] or None,
         }

@@ -3,7 +3,7 @@
 root = "project_store"
 
 [llm]
-base_url = "https://api.deepseek.com/v1"
+base_url = "https://api.deepseek.com"
 model1 = "deepseek-chat"
 model2 = "deepseek-reasoner"
 max_workers = 12

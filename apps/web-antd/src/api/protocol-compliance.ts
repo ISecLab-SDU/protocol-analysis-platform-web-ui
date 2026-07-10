@@ -344,7 +344,10 @@ export interface ProtocolDatabaseOverviewProtocolStats {
 }
 
 export interface ProtocolDatabaseOverviewImplementationStats
-  extends Omit<ProtocolDatabaseOverviewProtocolStats, 'implementations' | 'name'> {
+  extends Omit<
+    ProtocolDatabaseOverviewProtocolStats,
+    'implementations' | 'name'
+  > {
   database: string;
   name: string;
   protocol: string;
@@ -709,7 +712,8 @@ export interface RunProtocolAssertGenerationPayload {
 export function runProtocolAssertGeneration(
   payload: RunProtocolAssertGenerationPayload,
 ) {
-  const { buildInstructions, codeArchive, database, databasePath, notes } = payload;
+  const { buildInstructions, codeArchive, database, databasePath, notes } =
+    payload;
   const formData = new FormData();
   formData.append('codeArchive', codeArchive);
   if (databasePath?.trim()) {
@@ -745,7 +749,8 @@ export function fetchProtocolAssertGenerationResult(jobId: string) {
   );
 }
 
-export type ProtocolInstrumentationDiffResponse = ProtocolInstrumentationDiffOutput;
+export type ProtocolInstrumentationDiffResponse =
+  ProtocolInstrumentationDiffOutput;
 
 export function fetchProtocolInstrumentationDiff(jobId: string) {
   return requestClient.get<ProtocolInstrumentationDiffResponse>(
@@ -911,7 +916,10 @@ export function stopProcess(data: { pid: string | number; protocol: string }) {
 }
 
 // 停止并清理Docker容器
-export function stopAndCleanup(data: { container_id: string; protocol: string }) {
+export function stopAndCleanup(data: {
+  container_id: string;
+  protocol: string;
+}) {
   return requestClient.post('/protocol-compliance/stop-and-cleanup', data);
 }
 
@@ -921,12 +929,19 @@ export function preStartCleanup(data: { protocol: string }) {
 }
 
 // 写入脚本文件
-export function writeScript(data: { content: string; protocol: string; protocolImplementations?: string[] }) {
+export function writeScript(data: {
+  content: string;
+  protocol: string;
+  protocolImplementations?: string[];
+}) {
   return requestClient.post('/protocol-compliance/write-script', data);
 }
 
 // 执行命令
-export function executeCommand(data: { protocol: string; protocolImplementations?: string[] }) {
+export function executeCommand(data: {
+  protocol: string;
+  protocolImplementations?: string[];
+}) {
   return requestClient.post('/protocol-compliance/execute-command', data);
 }
 
@@ -943,7 +958,10 @@ export function readLog(data: {
 }
 
 // 检查状态
-export function checkStatus(data: { protocol: string; protocolImplementations?: string[] }) {
+export function checkStatus(data: {
+  protocol: string;
+  protocolImplementations?: string[];
+}) {
   return requestClient.post('/protocol-compliance/check-status', data);
 }
 
@@ -953,6 +971,7 @@ export interface RunProtocolExtractPayload {
   version: string;
   htmlFile: File;
   filterHeadings?: boolean;
+  llmBaseUrl?: string;
 }
 
 export interface ProtocolExtractRuleItem {
@@ -980,6 +999,9 @@ export async function runProtocolExtract(payload: RunProtocolExtractPayload) {
   formData.append('protocol', payload.protocol);
   formData.append('version', payload.version);
   formData.append('htmlFile', payload.htmlFile);
+  if (payload.llmBaseUrl?.trim()) {
+    formData.append('llmBaseUrl', payload.llmBaseUrl.trim());
+  }
   if (payload.filterHeadings) {
     formData.append('filterHeadings', '1');
   }
@@ -992,6 +1014,7 @@ export async function runProtocolExtract(payload: RunProtocolExtractPayload) {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
+      timeout: 10 * 60_000,
     },
   );
 

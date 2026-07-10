@@ -10,8 +10,10 @@ import subprocess
 import sys
 import uuid
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterable, Sequence
+from urllib.parse import urlparse
 
 if TYPE_CHECKING:  # 仅在类型检查时导入
     from werkzeug.datastructures import FileStorage  # type: ignore[import]
@@ -22,8 +24,16 @@ else:  # pragma: no cover - 运行时用宽松类型，避免依赖缺失
 class PipelineExecutionError(RuntimeError):
     """Raised when the protocol pipeline exits with a non-zero status."""
 
-    def __init__(self, message: str, *, stdout: str | None = None, stderr: str | None = None):
+    def __init__(
+        self,
+        message: str,
+        *,
+        log_path: str | None = None,
+        stdout: str | None = None,
+        stderr: str | None = None,
+    ):
         super().__init__(message)
+        self.log_path = log_path
         self.stdout = stdout
         self.stderr = stderr
 
@@ -36,9 +46,12 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 PIPELINE_ROOT = (Path(__file__).resolve().parents[1] / "protocol_extract").resolve()
 STORAGE_ROOT = PIPELINE_ROOT / "project_store"
 UPLOAD_ROOT = PIPELINE_ROOT / "uploads"
+LOG_ROOT = PIPELINE_ROOT / "logs"
+DEFAULT_LLM_BASE_URL = "https://api.deepseek.com"
 
 
 UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
+LOG_ROOT.mkdir(parents=True, exist_ok=True)
 
 
 @dataclass(slots=True)
@@ -66,6 +79,60 @@ _TOKEN_SPLIT_RE = re.compile(r"\s*(?:,|;|/|\bor\b|\band\b)\s*", re.IGNORECASE)
 def _ensure_pipeline_root() -> None:
     if not PIPELINE_ROOT.exists():
         raise FileNotFoundError(f"pipeline root does not exist: {PIPELINE_ROOT}")
+
+
+def _resolve_llm_base_url(value: str | None) -> str:
+    base_url = (
+        (value or "").strip()
+        or os.environ.get("PROTOCOL_EXTRACT_LLM_BASE_URL", "").strip()
+        or os.environ.get("OPENAI_BASE_URL", "").strip()
+        or DEFAULT_LLM_BASE_URL
+    ).rstrip("/")
+    parsed = urlparse(base_url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("模型接口地址必须是有效的 http(s) URL")
+    return base_url
+
+
+def _redact_pipeline_output(value: str | None, secrets: Sequence[str]) -> str:
+    if not value:
+        return ""
+    redacted = value
+    for secret in secrets:
+        if secret:
+            redacted = redacted.replace(secret, "<API_KEY>")
+    return re.sub(r"\bsk-[A-Za-z0-9_-]{8,}\b", "<API_KEY>", redacted)
+
+
+def _write_pipeline_log(
+    *,
+    command: Sequence[str],
+    protocol: str,
+    stderr: str,
+    stdout: str,
+    version: str,
+) -> Path:
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    protocol_part = _sanitize_segment(protocol.lower(), "protocol")
+    version_part = _sanitize_segment(version.replace(".", "_"), "version")
+    log_path = (
+        LOG_ROOT / f"{timestamp}-{protocol_part}-{version_part}-{uuid.uuid4().hex[:8]}.log"
+    )
+    content = [
+        f"timestamp: {timestamp}",
+        f"protocol: {protocol}",
+        f"version: {version}",
+        f"command: {' '.join(str(part) for part in command)}",
+        "",
+        "===== STDOUT =====",
+        stdout or "<empty>",
+        "",
+        "===== STDERR =====",
+        stderr or "<empty>",
+        "",
+    ]
+    log_path.write_text("\n".join(content), encoding="utf-8")
+    return log_path
 
 
 def _sanitize_segment(value: str, fallback: str) -> str:
@@ -204,6 +271,7 @@ def run_protocol_pipeline(
     version: str,
     html_upload: FileStorage,
     filter_headings: bool = False,
+    llm_base_url: str | None = None,
 ) -> PipelineResult:
     """Execute the protocol extraction pipeline and load its results."""
 
@@ -220,6 +288,7 @@ def run_protocol_pipeline(
         api_key = os.environ.get("OPENAI_API_KEY", "").strip()
         if not api_key:
             raise ValueError("API 密钥不能为空")
+    resolved_llm_base_url = _resolve_llm_base_url(llm_base_url)
 
     saved_path = _save_upload(html_upload)
 
@@ -230,21 +299,36 @@ def run_protocol_pipeline(
         saved_path,
         filter_headings=filter_headings,
     )
+    child_env = os.environ.copy()
+    child_env["OPENAI_API_KEY"] = api_key
+    child_env["OPENAI_BASE_URL"] = resolved_llm_base_url
+    child_env["PROTOCOL_EXTRACT_LLM_BASE_URL"] = resolved_llm_base_url
 
     try:
         subprocess.run(
             command,
             cwd=str(PIPELINE_ROOT),
+            env=child_env,
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
         )
     except subprocess.CalledProcessError as exc:  # pragma: no cover - interactive error handling
+        stdout = _redact_pipeline_output(exc.stdout, [api_key])
+        stderr = _redact_pipeline_output(exc.stderr, [api_key])
+        log_path = _write_pipeline_log(
+            command=command,
+            protocol=protocol,
+            stderr=stderr,
+            stdout=stdout,
+            version=version,
+        )
         raise PipelineExecutionError(
             "协议分析流程执行失败",
-            stdout=exc.stdout,
-            stderr=exc.stderr,
+            log_path=str(log_path),
+            stdout=stdout,
+            stderr=stderr,
         ) from exc
     finally:
         # 删除临时文件，忽略失败
@@ -267,6 +351,3 @@ def run_protocol_pipeline(
 def _ensure_pipeline_dependencies() -> None:
     """Placeholder to keep backwards compatibility; dependencies需手动安装。"""
     return
-
-
-
