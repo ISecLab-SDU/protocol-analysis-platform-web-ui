@@ -65,8 +65,6 @@ def _configure_logging() -> None:
 
 def create_app() -> Flask:
     _configure_logging()
-    logging.basicConfig(level=logging.DEBUG)
-    logging.getLogger().setLevel(logging.DEBUG)
 
     app = Flask(__name__)
 

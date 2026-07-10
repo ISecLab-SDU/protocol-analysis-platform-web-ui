@@ -252,13 +252,16 @@ def run_protocol_extract():
         payload = make_error_payload("参数错误", details=str(exc))
         return make_response(payload, 400)
     except FileNotFoundError as exc:
+        LOGGER.exception("Protocol extraction pipeline is not ready")
         payload = make_error_payload("流程未准备就绪", details=str(exc))
         return make_response(payload, 500)
     except PipelineResultNotFoundError as exc:
+        LOGGER.exception("Protocol extraction pipeline result file was not found")
         detail = {"message": str(exc)}
         payload = make_error_payload("未找到分析结果文件", details=detail)
         return make_response(payload, 500)
     except PipelineExecutionError as exc:
+        LOGGER.exception("Protocol extraction pipeline execution failed")
         detail = {
             "stdout": (exc.stdout or "").splitlines()[-40:] or None,
             "stderr": (exc.stderr or "").splitlines()[-40:] or None,
@@ -517,7 +520,7 @@ def delete_static_analysis_history(job_id: str):
             return make_response(error_response("任务不存在"), 404)
         return make_response(success_response({"jobId": job_id, "deleted": True}), 200)
     except Exception as exc:
-        LOGGER.error("Failed to delete static analysis job %s: %s", job_id, exc)
+        LOGGER.exception("Failed to delete static analysis job %s", job_id)
         return make_response(error_response(f"删除失败：{str(exc)}"), 500)
 
 
@@ -1144,7 +1147,7 @@ def _log_rule_code_snippet_rows(
     job_id: Any = None,
 ) -> None:
     materialized_rows = list(rows)
-    LOGGER.warning(
+    LOGGER.debug(
         "*** ProtocolGuard rule_code_snippet %s: jobId=%s db=%s columns=%s row_count=%d ***",
         context,
         job_id,
@@ -1157,7 +1160,7 @@ def _log_rule_code_snippet_rows(
         code_snippet = row["code_snippet"] if "code_snippet" in row.keys() else None
         call_graph = row["call_graph"] if "call_graph" in row.keys() else None
         llm_response = row["llm_response"] if "llm_response" in row.keys() else None
-        LOGGER.warning(
+        LOGGER.debug(
             (
                 "*** ProtocolGuard rule_code_snippet %s row=%d "
                 "rule_len=%d code_snippet_len=%d call_graph_len=%d llm_response_len=%d "
@@ -2630,11 +2633,13 @@ def upsert_static_analysis_violation_history():
             warnings=warnings,
         )
     except OSError as exc:
+        LOGGER.exception("Failed to prepare writable violation-history database")
         return make_response(error_response(f"准备可写数据库失败：{exc}"), 500)
 
     try:
         conn = sqlite3.connect(resolved_path)
     except sqlite3.Error as exc:
+        LOGGER.exception("Failed to open static analysis result database %s", resolved_path)
         return make_response(error_response(f"无法打开静态分析结果数据库：{exc}"), 500)
 
     conn.row_factory = sqlite3.Row
@@ -2645,6 +2650,7 @@ def upsert_static_analysis_violation_history():
         ).fetchall()
     except sqlite3.Error as exc:
         conn.close()
+        LOGGER.exception("Failed to read static analysis rule results from %s", resolved_path)
         return make_response(error_response(f"读取静态分析规则结果失败：{exc}"), 500)
 
     matched = _find_matching_rule_row(rows, rule_desc)
@@ -2707,6 +2713,7 @@ def upsert_static_analysis_violation_history():
         conn.commit()
     except sqlite3.Error as exc:
         conn.close()
+        LOGGER.exception("Failed to write violation history to %s", resolved_path)
         return make_response(error_response(f"写入违规历史失败：{exc}"), 500)
 
     _remember_row_history_display_time(
@@ -3023,27 +3030,27 @@ def static_analysis_result(job_id: str):
 
 @bp.route("/static-analysis/<job_id>/artifact/database", methods=["GET"])
 def download_static_analysis_database(job_id: str):
-    LOGGER.info(f"[下载数据库] 请求下载任务 {job_id} 的数据库文件")
+    LOGGER.info("[下载数据库] 请求下载任务 %s 的数据库文件", job_id)
     _, error = _ensure_authenticated()
     if error:
-        LOGGER.warning(f"[下载数据库] 任务 {job_id} 认证失败")
+        LOGGER.warning("[下载数据库] 任务 %s 认证失败", job_id)
         return error
 
     snapshot = get_static_analysis_job(job_id)
     if not snapshot:
-        LOGGER.error(f"[下载数据库] 任务 {job_id} 未找到")
+        LOGGER.error("[下载数据库] 任务 %s 未找到", job_id)
         return make_response(error_response("未找到静态分析任务"), 404)
 
-    LOGGER.info(f"[下载数据库] 任务 {job_id} 找到，状态: {snapshot.get('status')}")
+    LOGGER.info("[下载数据库] 任务 %s 找到，状态: %s", job_id, snapshot.get("status"))
 
     # 优先使用存储的database_path
     database_path = snapshot.get("database_path")
-    LOGGER.info(f"[下载数据库] 任务 {job_id} 的 database_path: {database_path}")
+    LOGGER.info("[下载数据库] 任务 %s 的 database_path: %s", job_id, database_path)
 
     if database_path:
         db_file = Path(database_path)
         if db_file.exists():
-            LOGGER.info(f"[下载数据库] 使用存储的路径: {db_file}")
+            LOGGER.info("[下载数据库] 使用存储的路径: %s", db_file)
             return send_file(
                 db_file,
                 as_attachment=True,
@@ -3052,19 +3059,19 @@ def download_static_analysis_database(job_id: str):
             )
 
     # 如果database_path为空或文件不存在，尝试从output_path动态查找
-    LOGGER.warning(f"[下载数据库] database_path 无效，尝试从 output_path 查找")
+    LOGGER.warning("[下载数据库] database_path 无效，尝试从 output_path 查找")
     output_path = snapshot.get("output_path")
     if output_path:
         output_dir = Path(output_path)
         database_dir = output_dir / "database"
-        LOGGER.info(f"[下载数据库] 在 {database_dir} 目录查找数据库文件")
+        LOGGER.info("[下载数据库] 在 %s 目录查找数据库文件", database_dir)
 
         if database_dir.exists():
             candidates = list(database_dir.glob("*.db"))
-            LOGGER.info(f"[下载数据库] 找到 {len(candidates)} 个 .db 文件: {candidates}")
+            LOGGER.info("[下载数据库] 找到 %d 个 .db 文件: %s", len(candidates), candidates)
             if candidates:
                 db_file = candidates[0]
-                LOGGER.info(f"[下载数据库] 使用 output_path 找到的文件: {db_file}")
+                LOGGER.info("[下载数据库] 使用 output_path 找到的文件: %s", db_file)
                 return send_file(
                     db_file,
                     as_attachment=True,
@@ -3073,17 +3080,17 @@ def download_static_analysis_database(job_id: str):
                 )
 
     # 最后尝试：直接从环境变量配置的output_root构造路径
-    LOGGER.warning(f"[下载数据库] output_path 也无效，尝试从环境变量构造路径")
+    LOGGER.warning("[下载数据库] output_path 也无效，尝试从环境变量构造路径")
     output_root = os.environ.get("PG_OUTPUT_ROOT", "/tmp/protocolguard/outputs")
     constructed_path = Path(output_root) / job_id / "database"
-    LOGGER.info(f"[下载数据库] 尝试构造的路径: {constructed_path}")
+    LOGGER.info("[下载数据库] 尝试构造的路径: %s", constructed_path)
 
     if constructed_path.exists():
         candidates = list(constructed_path.glob("*.db"))
-        LOGGER.info(f"[下载数据库] 在构造路径找到 {len(candidates)} 个 .db 文件: {candidates}")
+        LOGGER.info("[下载数据库] 在构造路径找到 %d 个 .db 文件: %s", len(candidates), candidates)
         if candidates:
             db_file = candidates[0]
-            LOGGER.info(f"[下载数据库] 使用构造路径找到的文件: {db_file}")
+            LOGGER.info("[下载数据库] 使用构造路径找到的文件: %s", db_file)
             return send_file(
                 db_file,
                 as_attachment=True,
@@ -3091,7 +3098,7 @@ def download_static_analysis_database(job_id: str):
                 mimetype="application/octet-stream",
             )
 
-    LOGGER.error(f"[下载数据库] 所有方法都失败，无法找到数据库文件")
+    LOGGER.error("[下载数据库] 所有方法都失败，无法找到数据库文件")
     return make_response(error_response("数据库文件不存在"), 404)
 
 

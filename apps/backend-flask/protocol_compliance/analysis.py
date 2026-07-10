@@ -19,6 +19,7 @@ from .compiler import (
     AgentExecutionError,
     AgentNotAvailableError,
 )
+from .job_logging import JobStageLogger
 from .state_repository import analysis_state_repository
 from .static_analysis_result_checker import check_static_analysis_database
 
@@ -64,6 +65,9 @@ class AnalysisProgressRegistry:
         self._lock = threading.Lock()
         self._repository = analysis_state_repository
 
+    def _job_logger(self, job_id: str) -> JobStageLogger:
+        return JobStageLogger(job_id=job_id, logger=LOGGER)
+
     def create_job(self) -> AnalysisProgressState:
         job_id = str(uuid.uuid4())
         now = _now_iso()
@@ -87,6 +91,7 @@ class AnalysisProgressRegistry:
             updated_at=now,
         )
         self._repository.add_event(job_id=job_id, timestamp=now, stage="queued", message="Job queued")
+        self._job_logger(job_id).info("Job queued", stage="queued", status="queued")
         return state
 
     def mark_running(self, job_id: str, stage: str, message: str) -> None:
@@ -96,6 +101,7 @@ class AnalysisProgressRegistry:
                 return
             state.status = "running"
             self._append_event(state, stage, message)
+            self._job_logger(job_id).info(message, stage=stage, status="running")
 
     def append_event(self, job_id: str, stage: str, message: str) -> None:
         with self._lock:
@@ -103,6 +109,7 @@ class AnalysisProgressRegistry:
             if not state:
                 return
             self._append_event(state, stage, message)
+            self._job_logger(job_id).info(message, stage=stage, status=state.status)
 
     def complete(self, job_id: str, result: Dict[str, object]) -> None:
         with self._lock:
@@ -119,6 +126,11 @@ class AnalysisProgressRegistry:
                 message=state.message,
                 updated_at=state.updated_at,
                 result=result,
+            )
+            self._job_logger(job_id).info(
+                "Static analysis completed successfully",
+                stage="completed",
+                status="completed",
             )
 
     def fail(
@@ -146,6 +158,12 @@ class AnalysisProgressRegistry:
                 updated_at=state.updated_at,
                 error=state.error,
                 details=state.details,
+            )
+            self._job_logger(job_id).error(
+                message,
+                stage=stage,
+                status="failed",
+                error=state.error,
             )
 
     def snapshot(
@@ -477,17 +495,14 @@ def run_static_analysis(
             result["staticAnalysisCheck"] = check_static_analysis_database(database_path)
         return result
     except AgentExecutionError as exc:
-        LOGGER.error(
-            "ProtocolGuard analysis execution failed: %s",
-            exc,
-        )
+        LOGGER.exception("ProtocolGuard analysis execution failed")
         raise AnalysisExecutionError(
             str(exc),
             logs=getattr(exc, "logs", []),
             details=getattr(exc, "details", {}),
         ) from exc
     except AgentExecutorError as exc:
-        LOGGER.error("ProtocolGuard Agent error: %s", exc)
+        LOGGER.exception("ProtocolGuard Agent error")
         raise AnalysisError(str(exc)) from exc
 
 
