@@ -69,6 +69,7 @@ from .pipeline_runner import (
     PipelineResultNotFoundError,
     run_protocol_pipeline,
 )
+from .compiler import CompilerController
 
 LOGGER = logging.getLogger(__name__)
 
@@ -399,42 +400,39 @@ def static_analysis():
 
     if not request.files:
         return make_response(
-            error_response("请上传源码、Builder Dockerfile、协议规则和配置文件"), 400
+            error_response("请上传源码、协议规则和配置文件"), 400
         )
 
     uploads_map = {
         "codeArchive": request.files.get("codeArchive"),
-        "builderDockerfile": request.files.get("builderDockerfile"),
         "rules": request.files.get("rules"),
         "config": request.files.get("config"),
     }
 
-    missing = [
-        key for key, value in uploads_map.items() if not isinstance(value, FileStorage)
+    required_missing = [
+        key for key, value in uploads_map.items() 
+        if not isinstance(value, FileStorage)
     ]
-    if missing:
+    if required_missing:
         labels = {
             "codeArchive": "源码压缩包",
-            "builderDockerfile": "Builder Dockerfile",
             "rules": "协议规则 JSON",
             "config": "分析配置 TOML",
         }
-        readable = "、".join(labels.get(item, item) for item in missing)
+        readable = "、".join(labels.get(item, item) for item in required_missing)
         return make_response(
             error_response(f"请上传完整文件：{readable}"), 400
         )
 
     code_upload = cast(FileStorage, uploads_map["codeArchive"])
-    builder_upload = cast(FileStorage, uploads_map["builderDockerfile"])
     rules_upload = cast(FileStorage, uploads_map["rules"])
     config_upload = cast(FileStorage, uploads_map["config"])
 
     code_name, code_data = _read_upload(code_upload)
-    builder_name, builder_data = _read_upload(builder_upload)
     rules_name, rules_data = _read_upload(rules_upload)
     config_name, config_data = _read_upload(config_upload)
 
-    if code_data is None or builder_data is None or config_data is None or rules_data is None:
+    if code_data is None or config_data is None or rules_data is None:
         return make_response(error_response("上传的文件内容为空，请重新上传"), 400)
 
     parsed_rules = None
@@ -480,7 +478,6 @@ def static_analysis():
 
     snapshot = submit_static_analysis_job(
         code_payload=(code_name, code_data),
-        builder_payload=(builder_name, builder_data),
         config_payload=(config_name, config_data),
         rules_payload=(rules_name, rules_data),
         notes=notes,
@@ -2872,7 +2869,7 @@ def static_analysis_database_insights():
             "jobId": job_id,
             "databasePath": str(resolved_path),
             "exception": exc.__class__.__name__,
-            "args": [str(item) for item in exc.args],
+            "exceptionArgs": [str(item) for item in exc.args],
             "query": query,
         }
         LOGGER.exception(
@@ -3375,8 +3372,8 @@ def _strip_extension(filename: str) -> str:
 # SOL配置 - ProtocolGuard配置
 RTSP_CONFIG = {
     "script_path": None,  # 不再需要脚本文件
-    "shell_command": "docker run -d --privileged -v /home/lab426_system/ProtocolGuardOutPut:/out/fuzz-output protocolguard:latest fuzz",  # ProtocolGuard启动命令（使用-d后台运行，移除--rm和-it）
-    "log_file_path": "/home/lab426_system/ProtocolGuardOutPut/plot_data"  # ProtocolGuard日志文件路径
+    "shell_command": "docker run -d --privileged -v /home/wenhao/protocol-analysis-platform-easy-upload/fuzz-output:/out/fuzz-output protocolguard:latest fuzz",  # ProtocolGuard启动命令（使用-d后台运行，移除--rm和-it）
+    "log_file_path": "/home/wenhao/protocol-analysis-platform-easy-upload/fuzz-output/plot_data"  # ProtocolGuard日志文件路径
 }
 
 # MQTT协议配置 - MBFuzzer相关路径
@@ -3446,7 +3443,9 @@ def _aflnet_fallback_output_root() -> Path:
         if expanded.exists():
             return expanded
 
-    return _repo_root() / "fuzz-output"
+    fallback = _repo_root() / "fuzz-output"
+    fallback.mkdir(parents=True, exist_ok=True)
+    return fallback
 
 
 def _aflnet_output_root_for_source(source: str = "primary") -> Path:
