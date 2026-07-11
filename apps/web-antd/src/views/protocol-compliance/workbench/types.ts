@@ -55,10 +55,10 @@ export type AnyImplementation = MQTTImplementation | SNMPImplementation;
 
 export interface ProjectConfig {
   archive: File | null;
-  config: File | null;
   rules: File | null;
   buildInstructions: string;
   protocolType: ProtocolKind;
+  protocolVersion: string;
   implementation: AnyImplementation;
   targetHost: string;
   targetPort: number;

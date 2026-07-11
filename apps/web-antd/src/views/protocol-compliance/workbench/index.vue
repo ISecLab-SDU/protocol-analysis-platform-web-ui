@@ -104,8 +104,7 @@ const taskTitle = computed(() => {
 });
 
 const protocolVersion = computed(() => {
-  if (projectConfig.protocolType === 'MQTT') return 'MQTT 3.1.1';
-  return 'SNMP v2c/v3';
+  return `${projectConfig.protocolType} ${projectConfig.protocolVersion}`;
 });
 
 const startedAtDisplay = computed(() => {

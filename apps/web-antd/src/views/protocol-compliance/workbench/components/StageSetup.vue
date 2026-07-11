@@ -27,6 +27,7 @@ const implementationOptions = computed(() => PROTOCOL_IMPLEMENTATIONS[props.conf
 
 function onProtocolChange(val: 'MQTT' | 'SNMP') {
   props.config.protocolType = val;
+  props.config.protocolVersion = val === 'MQTT' ? '3.1.1' : 'v2c/v3';
   props.config.implementation = PROTOCOL_IMPLEMENTATIONS[val][0]!;
   props.config.targetHost = DEFAULT_TARGET[val].host;
   props.config.targetPort = DEFAULT_TARGET[val].port;
@@ -50,20 +51,19 @@ function onImplementationChange(val: ProjectConfig['implementation']) {
 
 function beforeUpload(
   file: File,
-  field: 'archive' | 'config' | 'rules',
+  field: 'archive' | 'rules',
 ) {
   props.config[field] = file;
   return false;
 }
 
-function removeFile(field: 'archive' | 'config' | 'rules') {
+function removeFile(field: 'archive' | 'rules') {
   props.config[field] = null;
 }
 
 const canCommit = computed(() => {
   return Boolean(
     props.config.archive &&
-    props.config.config &&
     props.config.rules &&
     props.config.buildInstructions.trim()
   );
@@ -80,21 +80,6 @@ const canCommit = computed(() => {
           :before-upload="(file) => beforeUpload(file, 'archive')"
           :disabled="disabled"
           @remove="() => removeFile('archive')"
-        >
-          <Button :disabled="disabled">
-            <template #icon><IconifyIcon icon="mdi:upload" /></template>
-            选择文件
-          </Button>
-        </Upload>
-      </div>
-
-      <div class="setup-section">
-        <div class="setup-label">配置 TOML *</div>
-        <Upload
-          :file-list="config.config ? [{ uid: '-3', name: config.config.name, status: 'done' }] : []"
-          :before-upload="(file) => beforeUpload(file, 'config')"
-          :disabled="disabled"
-          @remove="() => removeFile('config')"
         >
           <Button :disabled="disabled">
             <template #icon><IconifyIcon icon="mdi:upload" /></template>
@@ -142,6 +127,15 @@ const canCommit = computed(() => {
           <SelectOption value="MQTT">MQTT</SelectOption>
           <SelectOption value="SNMP">SNMP</SelectOption>
         </Select>
+      </div>
+
+      <div class="setup-section">
+        <div class="setup-label">协议版本</div>
+        <Input
+          v-model:value="config.protocolVersion"
+          placeholder="3.1.1"
+          :disabled="disabled"
+        />
       </div>
 
       <div class="setup-section">

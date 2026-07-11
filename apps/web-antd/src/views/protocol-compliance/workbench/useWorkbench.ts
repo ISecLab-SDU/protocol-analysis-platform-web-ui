@@ -66,10 +66,10 @@ const errorMessage = ref<null | string>(null);
 
 const projectConfig = reactive<ProjectConfig>({
   archive: null,
-  config: null,
   rules: null,
   buildInstructions: 'make all',
   protocolType: 'MQTT',
+  protocolVersion: '3.1.1',
   implementation: 'SOL',
   targetHost: DEFAULT_TARGET.MQTT.host,
   targetPort: DEFAULT_TARGET.MQTT.port,
@@ -204,7 +204,7 @@ interface ParsedAflNetStats {
   speed: number;
 }
 
-type DemoProjectFileField = 'archive' | 'config' | 'rules';
+type DemoProjectFileField = 'archive' | 'rules';
 
 const DEMO_INPUT_FILES: Array<{
   field: DemoProjectFileField;
@@ -212,7 +212,6 @@ const DEMO_INPUT_FILES: Array<{
   name: string;
 }> = [
   { field: 'archive', mimeType: 'application/x-tar', name: 'sol.tar' },
-  { field: 'config', mimeType: 'application/toml', name: 'config.toml' },
   { field: 'rules', mimeType: 'application/json', name: 'rule_config.json' },
 ];
 
@@ -1401,10 +1400,6 @@ async function ensureProjectReady(): Promise<boolean> {
     message.warning('请上传源码压缩包');
     return false;
   }
-  if (!projectConfig.config) {
-    message.warning('请上传配置 TOML');
-    return false;
-  }
   if (!projectConfig.rules) {
     message.warning('请上传协议规则 JSON');
     return false;
@@ -1417,11 +1412,7 @@ async function ensureProjectReady(): Promise<boolean> {
 }
 
 function commitSetup() {
-  if (
-    !projectConfig.archive ||
-    !projectConfig.config ||
-    !projectConfig.rules
-  ) {
+  if (!projectConfig.archive || !projectConfig.rules) {
     message.warning('请先完成项目设置');
     return;
   }
@@ -1461,6 +1452,7 @@ async function loadDemoConfig() {
     }
 
     projectConfig.protocolType = 'MQTT';
+    projectConfig.protocolVersion = '3.1.1';
     projectConfig.implementation = 'SOL';
     projectConfig.targetHost = DEFAULT_TARGET.MQTT.host;
     projectConfig.targetPort = DEFAULT_TARGET.MQTT.port;
@@ -1599,7 +1591,7 @@ async function pollAssertGen(jobId: string, runId: number) {
 }
 
 async function runStaticAnalysisStep(runId: number) {
-  if (!projectConfig.archive || !projectConfig.config || !projectConfig.rules) {
+  if (!projectConfig.archive || !projectConfig.rules) {
     markStageError('code_locate', '项目设置不完整');
     return;
   }
@@ -1616,9 +1608,11 @@ async function runStaticAnalysisStep(runId: number) {
   try {
     const job = await runProtocolStaticAnalysis({
       codeArchive: projectConfig.archive,
-      config: projectConfig.config,
       rules: buildRulesFile(),
       notes: projectConfig.notes,
+      projectName: String(projectConfig.implementation),
+      protocolName: projectConfig.protocolType,
+      protocolVersion: projectConfig.protocolVersion,
     });
     if (!isCurrentPipelineRun(runId)) return;
     staticJobId.value = job.jobId;
