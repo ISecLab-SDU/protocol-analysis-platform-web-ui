@@ -1,792 +1,192 @@
-
-
-====================================================================================================
-文件 1: apps/web-antd/src/router/routes/modules/protocol-compliance.ts
-====================================================================================================
+==================================================================================================== 文件 1: apps/web-antd/src/router/routes/modules/protocol-compliance.ts ====================================================================================================
 
 import type { RouteRecordRaw } from 'vue-router';
 
-const routes: RouteRecordRaw[] = [
-  {
-    meta: {
-      icon: 'lucide:shield-check',
-      order: 1,
-      title: '协议合规与安全性分析',
-    },
-    name: 'ProtocolCompliance',
-    path: '/protocol-compliance',
-    children: [
-      {
-        name: 'ProtocolComplianceExtract',
-        path: '/protocol-compliance/extract',
-        component: () =>
-          import('#/views/protocol-compliance/extract/index.vue'),
-        meta: {
-          title: '协议规则提取',
-        },
-      },
-      {
-        name: 'ProtocolComplianceStatic',
-        path: '/protocol-compliance/static',
-        component: () => import('#/views/protocol-compliance/static/index.vue'),
-        meta: {
-          title: '协议代码提取',
-        },
-      },
-      {
-        name: 'ProtocolComplianceAssert',
-        path: '/protocol-compliance/assert',
-        component: () =>
-          import('#/views/protocol-compliance/assert/index.vue'),
-        meta: {
-          title: '合规断言生成',
-        },
-      },
-      {
-        name: 'ProtocolComplianceFuzz',
-        path: '/protocol-compliance/fuzz',
-        component: () =>
-          import('#/views/protocol-compliance/fuzz/index.vue'),
-        meta: {
-          title: '协议模糊测试',
-        },
-      },
-    ],
-  },
-];
+const routes: RouteRecordRaw[] = [ { meta: { icon: 'lucide:shield-check', order: 1, title: '协议合规与安全性分析', }, name: 'ProtocolCompliance', path: '/protocol-compliance', children: [ { name: 'ProtocolComplianceExtract', path: '/protocol-compliance/extract', component: () => import('#/views/protocol-compliance/extract/index.vue'), meta: { title: '协议规则提取', }, }, { name: 'ProtocolComplianceStatic', path: '/protocol-compliance/static', component: () => import('#/views/protocol-compliance/static/index.vue'), meta: { title: '协议代码提取', }, }, { name: 'ProtocolComplianceAssert', path: '/protocol-compliance/assert', component: () => import('#/views/protocol-compliance/assert/index.vue'), meta: { title: '合规断言生成', }, }, { name: 'ProtocolComplianceFuzz', path: '/protocol-compliance/fuzz', component: () => import('#/views/protocol-compliance/fuzz/index.vue'), meta: { title: '协议模糊测试', }, }, ], }, ];
 
 export default routes;
 
-
-====================================================================================================
-文件 2: apps/web-antd/src/api/protocol-compliance.ts
-====================================================================================================
+==================================================================================================== 文件 2: apps/web-antd/src/api/protocol-compliance.ts ====================================================================================================
 
 import { useAccessStore } from '@vben/stores';
 
 import { baseRequestClient, requestClient } from './request';
 
-export type ProtocolComplianceTaskStatus =
-  | 'completed'
-  | 'failed'
-  | 'processing'
-  | 'queued';
+export type ProtocolComplianceTaskStatus = | 'completed' | 'failed' | 'processing' | 'queued';
 
-export interface ProtocolComplianceTask {
-  completedAt?: string;
-  description?: string;
-  documentName: string;
-  documentSize?: number;
-  id: string;
-  name: string;
-  progress?: number;
-  resultDownloadUrl: null | string;
-  status: ProtocolComplianceTaskStatus;
-  submittedAt: string;
-  updatedAt: string;
-}
+export interface ProtocolComplianceTask { completedAt?: string; description?: string; documentName: string; documentSize?: number; id: string; name: string; progress?: number; resultDownloadUrl: null | string; status: ProtocolComplianceTaskStatus; submittedAt: string; updatedAt: string; }
 
-export interface FetchProtocolComplianceTasksParams {
-  page?: number;
-  pageSize?: number;
-  status?: ProtocolComplianceTaskStatus | ProtocolComplianceTaskStatus[];
-}
+export interface FetchProtocolComplianceTasksParams { page?: number; pageSize?: number; status?: ProtocolComplianceTaskStatus | ProtocolComplianceTaskStatus[]; }
 
-export interface FetchProtocolComplianceTasksResponse {
-  items: ProtocolComplianceTask[];
-  page: number;
-  pageSize: number;
-  total: number;
-}
+export interface FetchProtocolComplianceTasksResponse { items: ProtocolComplianceTask[]; page: number; pageSize: number; total: number; }
 
-export interface CreateProtocolComplianceTaskPayload {
-  description?: string;
-  document: File;
-  name: string;
-  tags?: string[];
-}
+export interface CreateProtocolComplianceTaskPayload { description?: string; document: File; name: string; tags?: string[]; }
 
-export type ProtocolStaticAnalysisComplianceStatus =
-  | 'compliant'
-  | 'needs_review'
-  | 'non_compliant';
+export type ProtocolStaticAnalysisComplianceStatus = | 'compliant' | 'needs_review' | 'non_compliant';
 
-export interface ProtocolStaticAnalysisVerdict {
-  category: string;
-  compliance: ProtocolStaticAnalysisComplianceStatus;
-  confidence: 'high' | 'low' | 'medium';
-  explanation: string;
-  findingId: string;
-  lineRange?: [number, number];
-  location: {
-    file: string;
-    function?: string;
-  };
-  recommendation?: string;
-  relatedRule: {
-    id: string;
-    requirement: string;
-    source: string;
-  };
-}
+export interface ProtocolStaticAnalysisVerdict { category: string; compliance: ProtocolStaticAnalysisComplianceStatus; confidence: 'high' | 'low' | 'medium'; explanation: string; findingId: string; lineRange?: [number, number]; location: { file: string; function?: string; }; recommendation?: string; relatedRule: { id: string; requirement: string; source: string; }; }
 
-export interface ProtocolStaticAnalysisSummary {
-  compliantCount: number;
-  needsReviewCount: number;
-  nonCompliantCount: number;
-  notes: string;
-  overallStatus: ProtocolStaticAnalysisComplianceStatus;
-}
+export interface ProtocolStaticAnalysisSummary { compliantCount: number; needsReviewCount: number; nonCompliantCount: number; notes: string; overallStatus: ProtocolStaticAnalysisComplianceStatus; }
 
-export interface ProtocolStaticAnalysisModelMetadata {
-  generatedAt: string;
-  modelVersion: string;
-  protocol: string;
-  protocolVersion?: string;
-  ruleSet: string;
-}
+export interface ProtocolStaticAnalysisModelMetadata { generatedAt: string; modelVersion: string; protocol: string; protocolVersion?: string; ruleSet: string; }
 
-export interface ProtocolStaticAnalysisModelResponse {
-  metadata: ProtocolStaticAnalysisModelMetadata;
-  summary: ProtocolStaticAnalysisSummary;
-  verdicts: ProtocolStaticAnalysisVerdict[];
-}
+export interface ProtocolStaticAnalysisModelResponse { metadata: ProtocolStaticAnalysisModelMetadata; summary: ProtocolStaticAnalysisSummary; verdicts: ProtocolStaticAnalysisVerdict[]; }
 
-export interface ProtocolStaticAnalysisResult {
-  analysisId: string;
-  durationMs: number;
-  inputs: {
-    codeFileName: string;
-    notes: null | string;
-    protocolName: string;
-    rulesFileName: string;
-    rulesSummary: null | string;
-  };
-  model: string;
-  modelResponse: ProtocolStaticAnalysisModelResponse;
-  submittedAt: string;
-}
+export interface ProtocolStaticAnalysisResult { analysisId: string; durationMs: number; inputs: { codeFileName: string; notes: null | string; protocolName: string; rulesFileName: string; rulesSummary: null | string; }; model: string; modelResponse: ProtocolStaticAnalysisModelResponse; submittedAt: string; }
 
-export interface RunProtocolStaticAnalysisPayload {
-  builderDockerfile: File;
-  codeArchive: File;
-  config: File;
-  notes?: string;
-  rules: File;
-}
+export interface RunProtocolStaticAnalysisPayload { builderDockerfile: File; codeArchive: File; config: File; notes?: string; rules: File; }
 
-export type ProtocolStaticAnalysisJobStatus =
-  | 'queued'
-  | 'running'
-  | 'completed'
-  | 'failed';
+export type ProtocolStaticAnalysisJobStatus = | 'queued' | 'running' | 'completed' | 'failed';
 
-export interface ProtocolStaticAnalysisProgressEvent {
-  id?: number;
-  message: string;
-  stage: string;
-  timestamp: string;
-}
+export interface ProtocolStaticAnalysisProgressEvent { id?: number; message: string; stage: string; timestamp: string; }
 
-export interface ProtocolStaticAnalysisJob {
-  createdAt: string;
-  details?: Record<string, unknown> | null;
-  error?: string | null;
-  events: ProtocolStaticAnalysisProgressEvent[];
-  jobId: string;
-  message: string;
-  result?: ProtocolStaticAnalysisResult | null;
-  stage: string;
-  status: ProtocolStaticAnalysisJobStatus;
-  updatedAt: string;
-}
+export interface ProtocolStaticAnalysisJob { createdAt: string; details?: Record<string, unknown> | null; error?: string | null; events: ProtocolStaticAnalysisProgressEvent[]; jobId: string; message: string; result?: ProtocolStaticAnalysisResult | null; stage: string; status: ProtocolStaticAnalysisJobStatus; updatedAt: string; }
 
-export interface ProtocolStaticAnalysisHistoryEntry {
-  analysisId?: string | null;
-  completedAt?: string | null;
-  configPath?: string | null;
-  codeFileName?: string | null;
-  createdAt: string;
-  databasePath?: string | null;
-  details?: Record<string, unknown> | null;
-  durationMs?: number | null;
-  error?: string | null;
-  jobId: string;
-  logsPath?: string | null;
-  message: string;
-  model?: string | null;
-  modelVersion?: string | null;
-  overallStatus?: ProtocolStaticAnalysisComplianceStatus | null;
-  outputPath?: string | null;
-  protocolName?: string | null;
-  protocolVersion?: string | null;
-  ruleSet?: string | null;
-  rulesFileName?: string | null;
-  stage: string;
-  status: ProtocolStaticAnalysisJobStatus;
-  submittedAt?: string | null;
-  summary?: ProtocolStaticAnalysisSummary | null;
-  updatedAt: string;
-  workspacePath?: string | null;
-  workspaceSnapshots?: { path?: string; stage?: string }[] | null;
-}
+export interface ProtocolStaticAnalysisHistoryEntry { analysisId?: string | null; completedAt?: string | null; configPath?: string | null; codeFileName?: string | null; createdAt: string; databasePath?: string | null; details?: Record<string, unknown> | null; durationMs?: number | null; error?: string | null; jobId: string; logsPath?: string | null; message: string; model?: string | null; modelVersion?: string | null; overallStatus?: ProtocolStaticAnalysisComplianceStatus | null; outputPath?: string | null; protocolName?: string | null; protocolVersion?: string | null; ruleSet?: string | null; rulesFileName?: string | null; stage: string; status: ProtocolStaticAnalysisJobStatus; submittedAt?: string | null; summary?: ProtocolStaticAnalysisSummary | null; updatedAt: string; workspacePath?: string | null; workspaceSnapshots?: { path?: string; stage?: string }[] | null; }
 
-export interface FetchProtocolStaticAnalysisHistoryParams {
-  limit?: number;
-}
+export interface FetchProtocolStaticAnalysisHistoryParams { limit?: number; }
 
-export interface FetchProtocolStaticAnalysisHistoryResponse {
-  count: number;
-  items: ProtocolStaticAnalysisHistoryEntry[];
-  limit: number;
-}
+export interface FetchProtocolStaticAnalysisHistoryResponse { count: number; items: ProtocolStaticAnalysisHistoryEntry[]; limit: number; }
 
-export type ProtocolStaticAnalysisRuleResultStatus =
-  | 'violation_found'
-  | 'no_violation'
-  | 'unknown';
+export type ProtocolStaticAnalysisRuleResultStatus = | 'violation_found' | 'no_violation' | 'unknown';
 
-export interface ProtocolStaticAnalysisRuleViolationDetail {
-  codeLines?: number[] | null;
-  filename?: string | null;
-  functionName?: string | null;
-}
+export interface ProtocolStaticAnalysisRuleViolationDetail { codeLines?: number[] | null; filename?: string | null; functionName?: string | null; }
 
-export interface ProtocolStaticAnalysisDatabaseRuleInsight {
-  callGraph?: string | null;
-  codeSnippet?: string | null;
-  llmRaw?: unknown;
-  reason?: string | null;
-  result: ProtocolStaticAnalysisRuleResultStatus;
-  resultLabel: string;
-  ruleDesc: string;
-  violations?: ProtocolStaticAnalysisRuleViolationDetail[];
-}
+export interface ProtocolStaticAnalysisDatabaseRuleInsight { callGraph?: string | null; codeSnippet?: string | null; llmRaw?: unknown; reason?: string | null; result: ProtocolStaticAnalysisRuleResultStatus; resultLabel: string; ruleDesc: string; violations?: ProtocolStaticAnalysisRuleViolationDetail[]; }
 
-export interface ProtocolStaticAnalysisDatabaseInsights {
-  databasePath?: string | null;
-  extractedAt: string;
-  findings: ProtocolStaticAnalysisDatabaseRuleInsight[];
-  warnings?: string[];
-  workspacePath?: string | null;
-}
+export interface ProtocolStaticAnalysisDatabaseInsights { databasePath?: string | null; extractedAt: string; findings: ProtocolStaticAnalysisDatabaseRuleInsight[]; warnings?: string[]; workspacePath?: string | null; }
 
-export interface FetchProtocolStaticAnalysisDatabaseInsightsPayload {
-  databasePath?: string;
-  jobId?: string;
-  workspacePath?: string;
-}
+export interface FetchProtocolStaticAnalysisDatabaseInsightsPayload { databasePath?: string; jobId?: string; workspacePath?: string; }
 
 const BASE_PATH = '/protocol-compliance/tasks';
 
-export function fetchProtocolComplianceTasks(
-  params?: FetchProtocolComplianceTasksParams,
-) {
-  return requestClient.get<FetchProtocolComplianceTasksResponse>(BASE_PATH, {
-    params,
-  });
-}
+export function fetchProtocolComplianceTasks( params?: FetchProtocolComplianceTasksParams, ) { return requestClient.get<FetchProtocolComplianceTasksResponse>(BASE_PATH, { params, }); }
 
-export function createProtocolComplianceTask(
-  payload: CreateProtocolComplianceTaskPayload,
-) {
-  const { description, document, name, tags } = payload;
-  const formData = new FormData();
-  formData.append('file', document);
-  formData.append('name', name);
-  if (description) {
-    formData.append('description', description);
-  }
-  if (tags?.length) {
-    formData.append('tags', JSON.stringify(tags));
-  }
+export function createProtocolComplianceTask( payload: CreateProtocolComplianceTaskPayload, ) { const { description, document, name, tags } = payload; const formData = new FormData(); formData.append('file', document); formData.append('name', name); if (description) { formData.append('description', description); } if (tags?.length) { formData.append('tags', JSON.stringify(tags)); }
 
-  return requestClient.post<ProtocolComplianceTask>(BASE_PATH, formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
-}
+return requestClient.post<ProtocolComplianceTask>(BASE_PATH, formData, { headers: { 'Content-Type': 'multipart/form-data', }, }); }
 
-export async function downloadProtocolComplianceTaskResult(taskId: string) {
-  const accessStore = useAccessStore();
-  const token = accessStore.accessToken;
-  const headers: Record<string, string> = {};
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
+export async function downloadProtocolComplianceTaskResult(taskId: string) { const accessStore = useAccessStore(); const token = accessStore.accessToken; const headers: Record<string, string> = {}; if (token) { headers.Authorization = `Bearer ${token}`; }
 
-  const response = (await baseRequestClient.request(
-    `${BASE_PATH}/${taskId}/result`,
-    {
-      headers,
-      method: 'GET',
-      responseType: 'blob',
-    },
-  )) as { data: Blob };
-  return response.data;
-}
+const response = (await baseRequestClient.request( `${BASE_PATH}/${taskId}/result`, { headers, method: 'GET', responseType: 'blob', }, )) as { data: Blob }; return response.data; }
 
-export function runProtocolStaticAnalysis(
-  payload: RunProtocolStaticAnalysisPayload,
-) {
-  const { builderDockerfile, codeArchive, config, notes, rules } = payload;
-  const formData = new FormData();
-  formData.append('codeArchive', codeArchive);
-  formData.append('builderDockerfile', builderDockerfile);
-  formData.append('rules', rules);
-  formData.append('config', config);
-  if (notes?.trim()) {
-    formData.append('notes', notes.trim());
-  }
+export function runProtocolStaticAnalysis( payload: RunProtocolStaticAnalysisPayload, ) { const { builderDockerfile, codeArchive, config, notes, rules } = payload; const formData = new FormData(); formData.append('codeArchive', codeArchive); formData.append('builderDockerfile', builderDockerfile); formData.append('rules', rules); formData.append('config', config); if (notes?.trim()) { formData.append('notes', notes.trim()); }
 
-  return requestClient.post<ProtocolStaticAnalysisJob>(
-    '/protocol-compliance/static-analysis',
-    formData,
-    {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    },
-  );
-}
+return requestClient.post<ProtocolStaticAnalysisJob>( '/protocol-compliance/static-analysis', formData, { headers: { 'Content-Type': 'multipart/form-data', }, }, ); }
 
-export function fetchProtocolStaticAnalysisProgress(
-  jobId: string,
-  fromEventId: number,
-) {
-  return requestClient.get<ProtocolStaticAnalysisJob>(
-    `/protocol-compliance/static-analysis/${jobId}/progress`,
-    {
-      params: { fromEventId },
-    },
-  );
-}
+export function fetchProtocolStaticAnalysisProgress( jobId: string, fromEventId: number, ) { return requestClient.get<ProtocolStaticAnalysisJob>( `/protocol-compliance/static-analysis/${jobId}/progress`, { params: { fromEventId }, }, ); }
 
-export function fetchProtocolStaticAnalysisResult(jobId: string) {
-  return requestClient.get<ProtocolStaticAnalysisResult>(
-    `/protocol-compliance/static-analysis/${jobId}/result`,
-  );
-}
+export function fetchProtocolStaticAnalysisResult(jobId: string) { return requestClient.get<ProtocolStaticAnalysisResult>( `/protocol-compliance/static-analysis/${jobId}/result`, ); }
 
-export function fetchProtocolStaticAnalysisHistory(
-  params?: FetchProtocolStaticAnalysisHistoryParams,
-) {
-  return requestClient.get<FetchProtocolStaticAnalysisHistoryResponse>(
-    '/protocol-compliance/static-analysis/history',
-    { params },
-  );
-}
+export function fetchProtocolStaticAnalysisHistory( params?: FetchProtocolStaticAnalysisHistoryParams, ) { return requestClient.get<FetchProtocolStaticAnalysisHistoryResponse>( '/protocol-compliance/static-analysis/history', { params }, ); }
 
-export function fetchProtocolStaticAnalysisDatabaseInsights(
-  payload: FetchProtocolStaticAnalysisDatabaseInsightsPayload,
-) {
-  return requestClient.post<ProtocolStaticAnalysisDatabaseInsights>(
-    '/protocol-compliance/static-analysis/database-insights',
-    payload,
-  );
-}
+export function fetchProtocolStaticAnalysisDatabaseInsights( payload: FetchProtocolStaticAnalysisDatabaseInsightsPayload, ) { return requestClient.post<ProtocolStaticAnalysisDatabaseInsights>( '/protocol-compliance/static-analysis/database-insights', payload, ); }
 
-export function deleteProtocolStaticAnalysisJob(jobId: string) {
-  return requestClient.delete<{ deleted: boolean; jobId: string }>(
-    `/protocol-compliance/static-analysis/history/${jobId}`,
-  );
-}
+export function deleteProtocolStaticAnalysisJob(jobId: string) { return requestClient.delete<{ deleted: boolean; jobId: string }>( `/protocol-compliance/static-analysis/history/${jobId}`, ); }
 
-// Assertion Generation Types and APIs
-export type ProtocolAssertGenerationJobStatus =
-  | 'queued'
-  | 'running'
-  | 'completed'
-  | 'failed';
+// Assertion Generation Types and APIs export type ProtocolAssertGenerationJobStatus = | 'queued' | 'running' | 'completed' | 'failed';
 
-export interface ProtocolAssertGenerationProgressEvent {
-  message: string;
-  stage: string;
-  timestamp: string;
-}
+export interface ProtocolAssertGenerationProgressEvent { message: string; stage: string; timestamp: string; }
 
-export interface ProtocolAssertGenerationInputInfo {
-  buildInstructions?: null | string;
-  codeFileName?: string;
-  databaseFileName?: string;
-  notes?: null | string;
-}
+export interface ProtocolAssertGenerationInputInfo { buildInstructions?: null | string; codeFileName?: string; databaseFileName?: string; notes?: null | string; }
 
-export interface ProtocolAssertGenerationArtifactInfo {
-  database?: string;
-  logs?: string;
-  output?: string;
-  workspace?: string;
-  workspaceSnapshots?: Array<{ stage?: string; path?: string }>;
-  zipPath?: string;
-}
+export interface ProtocolAssertGenerationArtifactInfo { database?: string; logs?: string; output?: string; workspace?: string; workspaceSnapshots?: Array<{ stage?: string; path?: string }>; zipPath?: string; }
 
-export interface ProtocolAssertGenerationDockerInfo {
-  command?: string[];
-  durationMs?: number;
-  image?: string;
-  logs?: string[];
-}
+export interface ProtocolAssertGenerationDockerInfo { command?: string[]; durationMs?: number; image?: string; logs?: string[]; }
 
-export interface ProtocolInstrumentationDiffOutput {
-  available: boolean;
-  content?: string | null;
-  path?: string | null;
-  size?: number;
-  truncated?: boolean;
-}
+export interface ProtocolInstrumentationDiffOutput { available: boolean; content?: string | null; path?: string | null; size?: number; truncated?: boolean; }
 
-export interface ProtocolInstrumentationArtifacts {
-  diffFiles?: string[];
-  diffOutput?: ProtocolInstrumentationDiffOutput;
-  instrumentedCodePath?: string | null;
-}
+export interface ProtocolInstrumentationArtifacts { diffFiles?: string[]; diffOutput?: ProtocolInstrumentationDiffOutput; instrumentedCodePath?: string | null; }
 
-export interface ProtocolInstrumentationDockerInfo {
-  command?: string[];
-  durationMs?: number;
-  image?: string;
-}
+export interface ProtocolInstrumentationDockerInfo { command?: string[]; durationMs?: number; image?: string; }
 
-export interface ProtocolInstrumentationResult {
-  artifacts?: ProtocolInstrumentationArtifacts;
-  completedAt?: string;
-  docker?: ProtocolInstrumentationDockerInfo;
-  logs?: string[];
-}
+export interface ProtocolInstrumentationResult { artifacts?: ProtocolInstrumentationArtifacts; completedAt?: string; docker?: ProtocolInstrumentationDockerInfo; logs?: string[]; }
 
-export interface ProtocolAssertGenerationResult {
-  assertionCount: number;
-  artifacts?: ProtocolAssertGenerationArtifactInfo;
-  docker?: ProtocolAssertGenerationDockerInfo;
-  generatedAt: string;
-  inputs?: ProtocolAssertGenerationInputInfo;
-  instrumentation?: ProtocolInstrumentationResult;
-  jobId: string;
-  protocolName: string;
-}
+export interface ProtocolAssertGenerationResult { assertionCount: number; artifacts?: ProtocolAssertGenerationArtifactInfo; docker?: ProtocolAssertGenerationDockerInfo; generatedAt: string; inputs?: ProtocolAssertGenerationInputInfo; instrumentation?: ProtocolInstrumentationResult; jobId: string; protocolName: string; }
 
-export interface ProtocolAssertGenerationJob {
-  createdAt: string;
-  error?: null | string;
-  events: ProtocolAssertGenerationProgressEvent[];
-  jobId: string;
-  message: string;
-  result?: null | ProtocolAssertGenerationResult;
-  stage: string;
-  status: ProtocolAssertGenerationJobStatus;
-  updatedAt: string;
-}
+export interface ProtocolAssertGenerationJob { createdAt: string; error?: null | string; events: ProtocolAssertGenerationProgressEvent[]; jobId: string; message: string; result?: null | ProtocolAssertGenerationResult; stage: string; status: ProtocolAssertGenerationJobStatus; updatedAt: string; }
 
-export interface RunProtocolAssertGenerationPayload {
-  buildInstructions: string;
-  codeArchive: File;
-  database: File;
-  notes?: string;
-}
+export interface RunProtocolAssertGenerationPayload { buildInstructions: string; codeArchive: File; database: File; notes?: string; }
 
-export function runProtocolAssertGeneration(
-  payload: RunProtocolAssertGenerationPayload,
-) {
-  const { buildInstructions, codeArchive, database, notes } = payload;
-  const formData = new FormData();
-  formData.append('codeArchive', codeArchive);
-  formData.append('database', database);
-  formData.append('buildInstructions', buildInstructions.trim());
-  if (notes?.trim()) {
-    formData.append('notes', notes.trim());
-  }
+export function runProtocolAssertGeneration( payload: RunProtocolAssertGenerationPayload, ) { const { buildInstructions, codeArchive, database, notes } = payload; const formData = new FormData(); formData.append('codeArchive', codeArchive); formData.append('database', database); formData.append('buildInstructions', buildInstructions.trim()); if (notes?.trim()) { formData.append('notes', notes.trim()); }
 
-  return requestClient.post<ProtocolAssertGenerationJob>(
-    '/protocol-compliance/assertion-generation',
-    formData,
-    {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    },
-  );
-}
+return requestClient.post<ProtocolAssertGenerationJob>( '/protocol-compliance/assertion-generation', formData, { headers: { 'Content-Type': 'multipart/form-data', }, }, ); }
 
-export function fetchProtocolAssertGenerationProgress(jobId: string) {
-  return requestClient.get<ProtocolAssertGenerationJob>(
-    `/protocol-compliance/assertion-generation/${jobId}/progress`,
-  );
-}
+export function fetchProtocolAssertGenerationProgress(jobId: string) { return requestClient.get<ProtocolAssertGenerationJob>( `/protocol-compliance/assertion-generation/${jobId}/progress`, ); }
 
-export function fetchProtocolAssertGenerationResult(jobId: string) {
-  return requestClient.get<ProtocolAssertGenerationResult>(
-    `/protocol-compliance/assertion-generation/${jobId}/result`,
-  );
-}
+export function fetchProtocolAssertGenerationResult(jobId: string) { return requestClient.get<ProtocolAssertGenerationResult>( `/protocol-compliance/assertion-generation/${jobId}/result`, ); }
 
 export type ProtocolInstrumentationDiffResponse = ProtocolInstrumentationDiffOutput;
 
-export function fetchProtocolInstrumentationDiff(jobId: string) {
-  return requestClient.get<ProtocolInstrumentationDiffResponse>(
-    `/protocol-compliance/assertion-generation/${jobId}/instrumentation-diff`,
-  );
-}
+export function fetchProtocolInstrumentationDiff(jobId: string) { return requestClient.get<ProtocolInstrumentationDiffResponse>( `/protocol-compliance/assertion-generation/${jobId}/instrumentation-diff`, ); }
 
-export async function downloadProtocolAssertGenerationResult(jobId: string) {
-  const accessStore = useAccessStore();
-  const token = accessStore.accessToken;
-  const headers: Record<string, string> = {};
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
+export async function downloadProtocolAssertGenerationResult(jobId: string) { const accessStore = useAccessStore(); const token = accessStore.accessToken; const headers: Record<string, string> = {}; if (token) { headers.Authorization = `Bearer ${token}`; }
 
-  const response = (await baseRequestClient.request(
-    `/protocol-compliance/assertion-generation/${jobId}/download`,
-    {
-      headers,
-      method: 'GET',
-      responseType: 'blob',
-    },
-  )) as { data: Blob };
+const response = (await baseRequestClient.request( `/protocol-compliance/assertion-generation/${jobId}/download`, { headers, method: 'GET', responseType: 'blob', }, )) as { data: Blob };
 
-  return response.data;
-}
+return response.data; }
 
 // Assertion history ------------------------------------------------------
 
-export interface ProtocolAssertionHistoryEntry {
-  jobId: string;
-  codeFilename?: string | null;
-  databaseFilename?: string | null;
-  diffPath?: string | null;
-  diffFilename?: string | null;
-  createdAt: string;
-  updatedAt: string;
-  source?: string | null;
-}
+export interface ProtocolAssertionHistoryEntry { jobId: string; codeFilename?: string | null; databaseFilename?: string | null; diffPath?: string | null; diffFilename?: string | null; createdAt: string; updatedAt: string; source?: string | null; }
 
-export interface ProtocolAssertionHistoryResponse {
-  items: ProtocolAssertionHistoryEntry[];
-  limit: number;
-  count: number;
-}
+export interface ProtocolAssertionHistoryResponse { items: ProtocolAssertionHistoryEntry[]; limit: number; count: number; }
 
-export function fetchProtocolAssertionHistory(limit = 20) {
-  return requestClient.get<ProtocolAssertionHistoryResponse>(
-    '/protocol-compliance/assertions/history',
-    {
-      params: { limit },
-    },
-  );
-}
+export function fetchProtocolAssertionHistory(limit = 20) { return requestClient.get<ProtocolAssertionHistoryResponse>( '/protocol-compliance/assertions/history', { params: { limit }, }, ); }
 
-export async function downloadProtocolAssertionDiff(jobId: string) {
-  const accessStore = useAccessStore();
-  const token = accessStore.accessToken;
-  const headers: Record<string, string> = {};
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
+export async function downloadProtocolAssertionDiff(jobId: string) { const accessStore = useAccessStore(); const token = accessStore.accessToken; const headers: Record<string, string> = {}; if (token) { headers.Authorization = `Bearer ${token}`; }
 
-  const response = (await baseRequestClient.request(
-    `/protocol-compliance/assertions/history/${jobId}/diff`,
-    {
-      headers,
-      method: 'GET',
-      responseType: 'blob',
-    },
-  )) as { data: Blob };
+const response = (await baseRequestClient.request( `/protocol-compliance/assertions/history/${jobId}/diff`, { headers, method: 'GET', responseType: 'blob', }, )) as { data: Blob };
 
-  return response.data;
-}
+return response.data; }
 
-// Diff Parsing Types and APIs
-export type ProtocolDiffParsingJobStatus =
-  | 'queued'
-  | 'running'
-  | 'completed'
-  | 'failed';
+// Diff Parsing Types and APIs export type ProtocolDiffParsingJobStatus = | 'queued' | 'running' | 'completed' | 'failed';
 
-export interface DiffHunk {
-  newLines: number;
-  newStart: number;
-  oldLines: number;
-  oldStart: number;
-  lines: Array<{
-    content: string;
-    type: 'add' | 'delete' | 'normal';
-  }>;
-}
+export interface DiffHunk { newLines: number; newStart: number; oldLines: number; oldStart: number; lines: Array<{ content: string; type: 'add' | 'delete' | 'normal'; }>; }
 
-export interface DiffFile {
-  additions: number;
-  deletions: number;
-  from: string;
-  hunks: DiffHunk[];
-  to: string;
-}
+export interface DiffFile { additions: number; deletions: number; from: string; hunks: DiffHunk[]; to: string; }
 
-export interface ProtocolDiffParsingResult {
-  diffContent: string;
-  files: DiffFile[];
-  generatedAt: string;
-  jobId: string;
-  summary: {
-    filesChanged: number;
-    insertions: number;
-    deletions: number;
-  };
-}
+export interface ProtocolDiffParsingResult { diffContent: string; files: DiffFile[]; generatedAt: string; jobId: string; summary: { filesChanged: number; insertions: number; deletions: number; }; }
 
-export interface ProtocolDiffParsingProgressEvent {
-  message: string;
-  percentage: number;
-  stage: string;
-  timestamp: string;
-}
+export interface ProtocolDiffParsingProgressEvent { message: string; percentage: number; stage: string; timestamp: string; }
 
-export interface ProtocolDiffParsingJob {
-  createdAt: string;
-  error?: null | string;
-  events: ProtocolDiffParsingProgressEvent[];
-  jobId: string;
-  message: string;
-  parentJobId: string;
-  percentage: number;
-  result?: null | ProtocolDiffParsingResult;
-  stage: string;
-  status: ProtocolDiffParsingJobStatus;
-  updatedAt: string;
-}
+export interface ProtocolDiffParsingJob { createdAt: string; error?: null | string; events: ProtocolDiffParsingProgressEvent[]; jobId: string; message: string; parentJobId: string; percentage: number; result?: null | ProtocolDiffParsingResult; stage: string; status: ProtocolDiffParsingJobStatus; updatedAt: string; }
 
-export function startProtocolDiffParsing(assertGenerationJobId: string) {
-  return requestClient.post<ProtocolDiffParsingJob>(
-    `/protocol-compliance/assertion-generation/${assertGenerationJobId}/diff-parsing`,
-    {},
-  );
-}
+export function startProtocolDiffParsing(assertGenerationJobId: string) { return requestClient.post<ProtocolDiffParsingJob>( `/protocol-compliance/assertion-generation/${assertGenerationJobId}/diff-parsing`, {}, ); }
 
-export function fetchProtocolDiffParsingProgress(
-  assertGenerationJobId: string,
-  diffParsingJobId: string,
-) {
-  return requestClient.get<ProtocolDiffParsingJob>(
-    `/protocol-compliance/assertion-generation/${assertGenerationJobId}/diff-parsing/${diffParsingJobId}/progress`,
-  );
-}
+export function fetchProtocolDiffParsingProgress( assertGenerationJobId: string, diffParsingJobId: string, ) { return requestClient.get<ProtocolDiffParsingJob>( `/protocol-compliance/assertion-generation/${assertGenerationJobId}/diff-parsing/${diffParsingJobId}/progress`, ); }
 
-export function fetchProtocolDiffParsingResult(
-  assertGenerationJobId: string,
-  diffParsingJobId: string,
-) {
-  return requestClient.get<ProtocolDiffParsingResult>(
-    `/protocol-compliance/assertion-generation/${assertGenerationJobId}/diff-parsing/${diffParsingJobId}/result`,
-  );
-}
+export function fetchProtocolDiffParsingResult( assertGenerationJobId: string, diffParsingJobId: string, ) { return requestClient.get<ProtocolDiffParsingResult>( `/protocol-compliance/assertion-generation/${assertGenerationJobId}/diff-parsing/${diffParsingJobId}/result`, ); }
 
-// 停止进程
-export function stopProcess(data: { pid: string | number; protocol: string }) {
-  return requestClient.post('/protocol-compliance/stop-process', data);
-}
+// 停止进程 export function stopProcess(data: { pid: string | number; protocol: string }) { return requestClient.post('/protocol-compliance/stop-process', data); }
 
-// 停止并清理Docker容器
-export function stopAndCleanup(data: { container_id: string; protocol: string }) {
-  return requestClient.post('/protocol-compliance/stop-and-cleanup', data);
-}
+// 停止并清理Docker容器export function stopAndCleanup(data: { container_id: string; protocol: string }) { return requestClient.post('/protocol-compliance/stop-and-cleanup', data); }
 
-// 写入脚本文件
-export function writeScript(data: { content: string; protocol: string; protocolImplementations?: string[] }) {
-  return requestClient.post('/protocol-compliance/write-script', data);
-}
+// 写入脚本文件 export function writeScript(data: { content: string; protocol: string; protocolImplementations?: string[] }) { return requestClient.post('/protocol-compliance/write-script', data); }
 
-// 执行命令
-export function executeCommand(data: { protocol: string; protocolImplementations?: string[] }) {
-  return requestClient.post('/protocol-compliance/execute-command', data);
-}
+// 执行命令 export function executeCommand(data: { protocol: string; protocolImplementations?: string[] }) { return requestClient.post('/protocol-compliance/execute-command', data); }
 
-// 读取日志
-export function readLog(data: { protocol: string; lastPosition: number }) {
-  return requestClient.post('/protocol-compliance/read-log', data);
-}
+// 读取日志 export function readLog(data: { protocol: string; lastPosition: number }) { return requestClient.post('/protocol-compliance/read-log', data); }
 
-// 检查状态
-export function checkStatus(data: { protocol: string }) {
-  return requestClient.post('/protocol-compliance/check-status', data);
-}
+// 检查状态 export function checkStatus(data: { protocol: string }) { return requestClient.post('/protocol-compliance/check-status', data); }
 
-export interface RunProtocolExtractPayload {
-  apiKey: string;
-  protocol: string;
-  version: string;
-  htmlFile: File;
-  filterHeadings?: boolean;
-}
+export interface RunProtocolExtractPayload { apiKey: string; protocol: string; version: string; htmlFile: File; filterHeadings?: boolean; }
 
-export interface ProtocolExtractRuleItem {
-  group?: string | null;
-  req_fields: string[];
-  req_type: string[];
-  res_fields: string[];
-  res_type: string[];
-  rule: string;
-}
+export interface ProtocolExtractRuleItem { group?: string | null; req_fields: string[]; req_type: string[]; res_fields: string[]; res_type: string[]; rule: string; }
 
-export interface RunProtocolExtractResponse {
-  protocol: string;
-  version: string;
-  ruleCount: number;
-  rules: ProtocolExtractRuleItem[];
-  storeDir: string;
-  resultPath: string;
-}
+export interface RunProtocolExtractResponse { protocol: string; version: string; ruleCount: number; rules: ProtocolExtractRuleItem[]; storeDir: string; resultPath: string; }
 
-export async function runProtocolExtract(payload: RunProtocolExtractPayload) {
-  const formData = new FormData();
-  formData.append('apiKey', payload.apiKey);
-  formData.append('protocol', payload.protocol);
-  formData.append('version', payload.version);
-  formData.append('htmlFile', payload.htmlFile);
-  if (payload.filterHeadings) {
-    formData.append('filterHeadings', '1');
-  }
+export async function runProtocolExtract(payload: RunProtocolExtractPayload) { const formData = new FormData(); formData.append('apiKey', payload.apiKey); formData.append('protocol', payload.protocol); formData.append('version', payload.version); formData.append('htmlFile', payload.htmlFile); if (payload.filterHeadings) { formData.append('filterHeadings', '1'); }
 
-  // ✅ 发送请求
-  const res = await requestClient.post(
-    '/protocol-compliance/extract/run',
-    formData,
-    {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    },
-  );
+// ✅ 发送请求 const res = await requestClient.post( '/protocol-compliance/extract/run', formData, { headers: { 'Content-Type': 'multipart/form-data', }, }, );
 
-  // ✅ 自动兼容各种返回结构
-  const data = res?.data ?? res;
+// ✅ 自动兼容各种返回结构 const data = res?.data ?? res;
 
-  // 兼容数组格式、对象格式、嵌套 data 结构
-  const rules = Array.isArray(data)
-    ? data
-    : Array.isArray(data.rules)
-      ? data.rules
-      : Array.isArray(data.result)
-        ? data.result
-        : Array.isArray(data.data?.rules)
-          ? data.data.rules
-          : [];
+// 兼容数组格式、对象格式、嵌套 data 结构 const rules = Array.isArray(data) ? data : Array.isArray(data.rules) ? data.rules : Array.isArray(data.result) ? data.result : Array.isArray(data.data?.rules) ? data.data.rules : [];
 
-  // ✅ 兼容附加字段（若后端没返回则设默认值）
-  return {
-    rules,
-    storeDir: data.storeDir || '',
-    resultPath: data.resultPath || '',
-    version: data.version || '',
-    protocol: data.protocol || payload.protocol,
-    ruleCount: rules.length || 0,
-  };
-}
+// ✅ 兼容附加字段（若后端没返回则设默认值）return { rules, storeDir: data.storeDir || '', resultPath: data.resultPath || '', version: data.version || '', protocol: data.protocol || payload.protocol, ruleCount: rules.length || 0, }; }
 
-
-====================================================================================================
-文件 3: apps/web-antd/src/views/protocol-compliance/extract/index.vue
-====================================================================================================
+==================================================================================================== 文件 3: apps/web-antd/src/views/protocol-compliance/extract/index.vue ====================================================================================================
 
 <script lang="ts" setup>
 import type { TableColumnType, UploadFile, UploadProps } from 'ant-design-vue';
@@ -2045,6 +1445,7 @@ onMounted(async () => {
         </Tabs.TabPane>
       </Tabs>
     </div>
+
   </Page>
 </template>
 
@@ -2176,10 +1577,7 @@ onMounted(async () => {
 }
 </style>
 
-
-====================================================================================================
-文件 4: apps/web-antd/src/views/protocol-compliance/static/index.vue
-====================================================================================================
+==================================================================================================== 文件 4: apps/web-antd/src/views/protocol-compliance/static/index.vue ====================================================================================================
 
 <script lang="ts" setup>
 import type { FormInstance, UploadFile, UploadProps } from 'ant-design-vue';
@@ -4127,6 +3525,7 @@ async function handleSubmit() {
         </div>
       </Card>
     </div>
+
   </Page>
 </template>
 
@@ -4561,10 +3960,7 @@ async function handleSubmit() {
 }
 </style>
 
-
-====================================================================================================
-文件 5: apps/web-antd/src/views/protocol-compliance/static/index.ts
-====================================================================================================
+==================================================================================================== 文件 5: apps/web-antd/src/views/protocol-compliance/static/index.ts ====================================================================================================
 
 <script lang="ts" setup>
 import type { UploadFile, UploadProps } from 'ant-design-vue';
@@ -5047,6 +4443,7 @@ const detectionStatistics = computed(() => {
         </TabPane>
       </Tabs>
     </Card>
+
   </div>
 </template>
 
@@ -5100,10 +4497,7 @@ const detectionStatistics = computed(() => {
 }
 </style>
 
-
-====================================================================================================
-文件 6: apps/web-antd/src/views/protocol-compliance/assert/index.vue
-====================================================================================================
+==================================================================================================== 文件 6: apps/web-antd/src/views/protocol-compliance/assert/index.vue ====================================================================================================
 
 <script lang="ts" setup>
 import type { FormInstance, UploadFile, UploadProps } from 'ant-design-vue';
@@ -6452,6 +5846,7 @@ async function handleSubmit() {
         <Result sub-title="请选择一条历史记录查看详情" title=" " />
       </template>
     </Drawer>
+
   </Page>
 </template>
 
@@ -6803,10 +6198,7 @@ async function handleSubmit() {
 }
 </style>
 
-
-====================================================================================================
-文件 7: apps/web-antd/src/views/protocol-compliance/fuzz/index.vue
-====================================================================================================
+==================================================================================================== 文件 7: apps/web-antd/src/views/protocol-compliance/fuzz/index.vue ====================================================================================================
 
 <script setup lang="ts">
 import {
@@ -12325,7 +11717,7 @@ onMounted(async () => {
                     v-model="selectedProtocolImplementation"
                     class="border-primary/20 focus:ring-primary w-full appearance-none rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1"
                   >
-                    <option 
+                    <option
                       v-for="impl in protocolImplementationConfigs[fuzzEngine].defaultImplementations"
                       :key="impl"
                       :value="impl"
@@ -12694,8 +12086,8 @@ onMounted(async () => {
                         :class="
                           !isRunning
                             ? 'bg-gray-400'
-                            : crashCount > 0 
-                              ? 'animate-pulse bg-red-500' 
+                            : crashCount > 0
+                              ? 'animate-pulse bg-red-500'
                               : 'animate-pulse bg-green-500'
                         "
                       ></div>
@@ -12709,12 +12101,12 @@ onMounted(async () => {
                               : 'text-gray-700'
                         "
                       >
-                        {{ 
-                          !isRunning 
-                            ? '待启动' 
-                            : crashCount > 0 
-                              ? '检测到崩溃异常' 
-                              : '运行正常' 
+                        {{
+                          !isRunning
+                            ? '待启动'
+                            : crashCount > 0
+                              ? '检测到崩溃异常'
+                              : '运行正常'
                         }}
                       </span>
                     </div>
@@ -12756,8 +12148,8 @@ onMounted(async () => {
                     protocolType === 'RTSP'
                       ? 'SOL状态机统计'
                       : protocolType === 'MQTT'
-                        ? (selectedProtocolImplementation === 'SOL' 
-                            ? 'SOLAFLNET模糊测试' 
+                        ? (selectedProtocolImplementation === 'SOL'
+                            ? 'SOLAFLNET模糊测试'
                             : 'MQTT多方模糊测试')
                         : '消息类型分布与版本统计'
                   }}
@@ -12845,7 +12237,7 @@ onMounted(async () => {
                     </div>
                   </div>
                 </div>
-                
+
                 <!-- SOL状态机统计 - 运行时显示 -->
                 <div v-else class="grid h-72 grid-cols-1 gap-8 md:grid-cols-2">
                   <!-- 路径发现趋势 -->
@@ -13768,8 +13160,8 @@ onMounted(async () => {
                   {{
                     protocolType === 'MQTT' && selectedProtocolImplementation === 'SOL'
                       ? 'AFLNET分析报告'
-                      : protocolType === 'MQTT' 
-                        ? 'MBFuzzer分析报告' 
+                      : protocolType === 'MQTT'
+                        ? 'MBFuzzer分析报告'
                         : '文件信息'
                   }}
                 </h4>
@@ -15373,6 +14765,7 @@ onMounted(async () => {
         </Tabs.TabPane>
       </Tabs>
     </div>
+
   </Page>
 </template>
 
@@ -15659,10 +15052,7 @@ onMounted(async () => {
 }
 </style>
 
-
-====================================================================================================
-文件 8: apps/web-antd/src/views/protocol-compliance/fuzz/components/ProtocolLogViewer.vue
-====================================================================================================
+==================================================================================================== 文件 8: apps/web-antd/src/views/protocol-compliance/fuzz/components/ProtocolLogViewer.vue ====================================================================================================
 
 <template>
   <div class="protocol-log-viewer">
@@ -15830,109 +15220,45 @@ onMounted(() => {
 }
 </style>
 
+==================================================================================================== 文件 9: apps/web-antd/src/views/protocol-compliance/fuzz/composables/index.ts ====================================================================================================
 
-====================================================================================================
-文件 9: apps/web-antd/src/views/protocol-compliance/fuzz/composables/index.ts
-====================================================================================================
+/\*\*
 
-/**
- * Composables 入口文件
- * 统一导出所有协议专用的composables
- */
+- Composables 入口文件
+- 统一导出所有协议专用的composables \*/
 
-// 类型定义
-export * from './types';
+// 类型定义 export \* from './types';
 
-// 协议专用composables
-export { useSNMP } from './useSNMP';
-export { useSOL } from './useSOL';
-export { useMQTT } from './useMQTT';
-// useRTSP已移除，SOL协议现在通过MQTT协议实现选择来使用
+// 协议专用composables export { useSNMP } from './useSNMP'; export { useSOL } from './useSOL'; export { useMQTT } from './useMQTT'; // useRTSP已移除，SOL协议现在通过MQTT协议实现选择来使用
 
-// 共享工具composables
-export { useLogReader } from './useLogReader';
+// 共享工具composables export { useLogReader } from './useLogReader';
 
+==================================================================================================== 文件 10: apps/web-antd/src/views/protocol-compliance/fuzz/composables/types.ts ====================================================================================================
 
-====================================================================================================
-文件 10: apps/web-antd/src/views/protocol-compliance/fuzz/composables/types.ts
-====================================================================================================
+/\*\*
 
-/**
- * 共享的类型定义
- */
+- 共享的类型定义 \*/
 
-// 基础数据包接口
-export interface FuzzPacket {
-  id: number | 'crash_event';
-  version: string;
-  type: string;
-  oids: string[];
-  hex: string;
-  result: 'success' | 'timeout' | 'failed' | 'crash' | 'unknown';
-  responseSize?: number;
-  timestamp?: string;
-  failed?: boolean;
-  failedReason?: string;
-  crashEvent?: {
-    type: string;
-    message: string;
-    timestamp: string;
-    crashPacket: string;
-    crashLogPath: string;
-  };
-}
+// 基础数据包接口 export interface FuzzPacket { id: number | 'crash_event'; version: string; type: string; oids: string[]; hex: string; result: 'success' | 'timeout' | 'failed' | 'crash' | 'unknown'; responseSize?: number; timestamp?: string; failed?: boolean; failedReason?: string; crashEvent?: { type: string; message: string; timestamp: string; crashPacket: string; crashLogPath: string; }; }
 
-// 历史结果接口
-export interface HistoryResult {
-  id: string;
-  timestamp: string;
-  protocol: 'SNMP' | 'MQTT';
-  fuzzEngine: string;
-  targetHost: string;
-  targetPort: number;
-  duration: number;
-  totalPackets: number;
-  successCount: number;
-  timeoutCount: number;
-  failedCount: number;
-  crashCount: number;
-  successRate: number;
-  
-  // SNMP协议专用数据
-  protocolStats?: {
-    v1: number;
-    v2c: number;
-    v3: number;
-  };
-  messageTypeStats?: {
-    get: number;
-    set: number;
-    getnext: number;
-    getbulk: number;
-  };
-  
-  // SOL协议专用统计
-  rtspStats?: RTSPStats;
-  
-  // MQTT协议专用统计
-  mqttStats?: MQTTStats;
-  
-  hasCrash: boolean;
-  crashDetails?: any;
-  
-  // 协议特定的扩展数据
-  protocolSpecificData?: {
-    // SNMP特定数据
-    oidCoverage?: number;
-    communityStrings?: string[];
-    targetDeviceInfo?: string;
-    
+// 历史结果接口 export interface HistoryResult { id: string; timestamp: string; protocol: 'SNMP' | 'MQTT'; fuzzEngine: string; targetHost: string; targetPort: number; duration: number; totalPackets: number; successCount: number; timeoutCount: number; failedCount: number; crashCount: number; successRate: number;
+
+// SNMP协议专用数据protocolStats?: { v1: number; v2c: number; v3: number; }; messageTypeStats?: { get: number; set: number; getnext: number; getbulk: number; };
+
+// SOL协议专用统计rtspStats?: RTSPStats;
+
+// MQTT协议专用统计mqttStats?: MQTTStats;
+
+hasCrash: boolean; crashDetails?: any;
+
+// 协议特定的扩展数据protocolSpecificData?: { // SNMP特定数据oidCoverage?: number; communityStrings?: string[]; targetDeviceInfo?: string;
+
     // SOL特定数据
     pathCoverage?: number;
     stateTransitions?: number;
     maxDepth?: number;
     uniqueHangs?: number;
-    
+
     // MQTT特定数据
     clientRequestCount?: number;
     brokerRequestCount?: number;
@@ -15942,162 +15268,52 @@ export interface HistoryResult {
     duplicateConnectDiff?: number;
     fuzzingStartTime?: string;
     fuzzingEndTime?: string;
-  };
-}
 
-// SNMP协议统计
-export interface SNMPStats {
-  v1: number;
-  v2c: number;
-  v3: number;
-}
+}; }
 
-export interface SNMPMessageStats {
-  get: number;
-  set: number;
-  getnext: number;
-  getbulk: number;
-}
+// SNMP协议统计export interface SNMPStats { v1: number; v2c: number; v3: number; }
 
-// SOL协议统计（基于RTSP协议）
-export interface RTSPStats {
-  cycles_done: number;
-  paths_total: number;
-  cur_path: number;
-  pending_total: number;
-  pending_favs: number;
-  map_size: string;
-  unique_crashes: number;
-  unique_hangs: number;
-  max_depth: number;
-  execs_per_sec: number;
-  n_nodes: number;
-  n_edges: number;
-}
+export interface SNMPMessageStats { get: number; set: number; getnext: number; getbulk: number; }
 
-// MQTT协议统计
-export interface MQTTStats {
-  fuzzing_start_time: string;
-  fuzzing_end_time: string;
-  client_request_count: number;
-  broker_request_count: number;
-  total_request_count: number;
-  crash_number: number;
-  diff_number: number;
-  duplicate_diff_number: number;
-  valid_connect_number: number;
-  duplicate_connect_diff?: number;
-  total_differences?: number;
-  
-  client_messages: MQTTMessageStats;
-  broker_messages: MQTTMessageStats;
-  duplicate_diffs: MQTTMessageStats;
-  differential_reports: MQTTDifferentialReport[];
-  q_table_states: any[];
-  broker_issues: MQTTBrokerIssues;
-}
+// SOL协议统计（基于RTSP协议）export interface RTSPStats { cycles_done: number; paths_total: number; cur_path: number; pending_total: number; pending_favs: number; map_size: string; unique_crashes: number; unique_hangs: number; max_depth: number; execs_per_sec: number; n_nodes: number; n_edges: number; }
 
-export interface MQTTMessageStats {
-  CONNECT: number;
-  CONNACK: number;
-  PUBLISH: number;
-  PUBACK: number;
-  PUBREC: number;
-  PUBREL: number;
-  PUBCOMP: number;
-  SUBSCRIBE: number;
-  SUBACK: number;
-  UNSUBSCRIBE: number;
-  UNSUBACK: number;
-  PINGREQ: number;
-  PINGRESP: number;
-  DISCONNECT: number;
-  AUTH: number;
-}
+// MQTT协议统计export interface MQTTStats { fuzzing_start_time: string; fuzzing_end_time: string; client_request_count: number; broker_request_count: number; total_request_count: number; crash_number: number; diff_number: number; duplicate_diff_number: number; valid_connect_number: number; duplicate_connect_diff?: number; total_differences?: number;
 
-export interface MQTTDifferentialReport {
-  protocol_version: number | null;
-  type: string | null;
-  field: string | null;
-  diff_range_broker: string[];
-  msg_type: string | null;
-  direction: string | null;
-  file_path: string | null;
-  capture_time: string | null;
-}
+client_messages: MQTTMessageStats; broker_messages: MQTTMessageStats; duplicate_diffs: MQTTMessageStats; differential_reports: MQTTDifferentialReport[]; q_table_states: any[]; broker_issues: MQTTBrokerIssues; }
 
-export interface MQTTBrokerIssues {
-  hivemq: number;
-  vernemq: number;
-  emqx: number;
-  flashmq: number;
-  nanomq: number;
-  mosquitto: number;
-}
+export interface MQTTMessageStats { CONNECT: number; CONNACK: number; PUBLISH: number; PUBACK: number; PUBREC: number; PUBREL: number; PUBCOMP: number; SUBSCRIBE: number; SUBACK: number; UNSUBSCRIBE: number; UNSUBACK: number; PINGREQ: number; PINGRESP: number; DISCONNECT: number; AUTH: number; }
 
-// 日志UI数据接口
-export interface LogUIData {
-  timestamp: string;
-  type: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR' | 'HEADER' | 'STATS';
-  content: string;
-  isHeader?: boolean;
-  rawData?: any;
-  diffInfo?: MQTTDifferentialReport;
-  isDetailedDiff?: boolean; // 标识这是一个详细的差异报告
-}
+export interface MQTTDifferentialReport { protocol_version: number | null; type: string | null; field: string | null; diff_range_broker: string[]; msg_type: string | null; direction: string | null; file_path: string | null; capture_time: string | null; }
 
-// 协议类型
-export type ProtocolType = 'SNMP' | 'MQTT';
+export interface MQTTBrokerIssues { hivemq: number; vernemq: number; emqx: number; flashmq: number; nanomq: number; mosquitto: number; }
 
-// Fuzz引擎类型
-export type FuzzEngineType = 'SNMP_Fuzz' | 'AFLNET' | 'MBFuzzer';
+// 日志UI数据接口export interface LogUIData { timestamp: string; type: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR' | 'HEADER' | 'STATS'; content: string; isHeader?: boolean; rawData?: any; diffInfo?: MQTTDifferentialReport; isDetailedDiff?: boolean; // 标识这是一个详细的差异报告 }
 
-// 协议实现类型
-export type ProtocolImplementationType = 
-  | '系统固件'  // SNMP_Fuzz 默认
-  | 'SOL协议'   // MQTT + AFLNET 选项 (SOL协议实现)
-  | 'HiveMQ'    // MQTT + MBFuzzer 选项
-  | 'VerneMQ'   // MQTT + MBFuzzer 选项
-  | 'EMQX'      // MQTT + MBFuzzer 选项
-  | 'FlashMQ'   // MQTT + MBFuzzer 选项
-  | 'NanoMQ'    // MQTT + MBFuzzer 选项
-  | 'Mosquitto'; // MQTT + MBFuzzer 选项
+// 协议类型 export type ProtocolType = 'SNMP' | 'MQTT';
 
-// 协议实现配置接口
-export interface ProtocolImplementationConfig {
-  fuzzEngine: FuzzEngineType;
-  defaultImplementations: ProtocolImplementationType[];
-  isMultiSelect: boolean;
-}
+// Fuzz引擎类型export type FuzzEngineType = 'SNMP_Fuzz' | 'AFLNET' | 'MBFuzzer';
 
+// 协议实现类型 export type ProtocolImplementationType = | '系统固件' // SNMP_Fuzz 默认 | 'SOL协议' // MQTT + AFLNET 选项 (SOL协议实现) | 'HiveMQ' // MQTT + MBFuzzer 选项 | 'VerneMQ' // MQTT + MBFuzzer 选项 | 'EMQX' // MQTT + MBFuzzer 选项 | 'FlashMQ' // MQTT + MBFuzzer 选项 | 'NanoMQ' // MQTT + MBFuzzer 选项 | 'Mosquitto'; // MQTT + MBFuzzer 选项
 
-====================================================================================================
-文件 11: apps/web-antd/src/views/protocol-compliance/fuzz/composables/useLogReader.ts
-====================================================================================================
+// 协议实现配置接口 export interface ProtocolImplementationConfig { fuzzEngine: FuzzEngineType; defaultImplementations: ProtocolImplementationType[]; isMultiSelect: boolean; }
 
-/**
- * 共享的日志处理composable
- * 包含日志读取、UI显示等通用逻辑
- */
+==================================================================================================== 文件 11: apps/web-antd/src/views/protocol-compliance/fuzz/composables/useLogReader.ts ====================================================================================================
 
-import { ref, nextTick, type Ref } from 'vue';
-import type { LogUIData, ProtocolType } from './types';
+/\*\*
 
-export function useLogReader() {
-  // 日志读取状态
-  const isReadingLog = ref(false);
-  const logReadingInterval = ref<number | null>(null);
-  const logReadPosition = ref(0);
-  const logContainer = ref<HTMLDivElement | null>(null);
+- 共享的日志处理composable
+- 包含日志读取、UI显示等通用逻辑 \*/
 
-  // 开始实时日志读取
-  async function startLogReading(protocol: ProtocolType, processLogLine: (line: string) => LogUIData | null) {
-    isReadingLog.value = true;
-    
+import { ref, nextTick, type Ref } from 'vue'; import type { LogUIData, ProtocolType } from './types';
+
+export function useLogReader() { // 日志读取状态 const isReadingLog = ref(false); const logReadingInterval = ref<number | null>(null); const logReadPosition = ref(0); const logContainer = ref<HTMLDivElement | null>(null);
+
+// 开始实时日志读取 async function startLogReading(protocol: ProtocolType, processLogLine: (line: string) => LogUIData | null) { isReadingLog.value = true;
+
     if (logReadingInterval.value) {
       clearInterval(logReadingInterval.value);
     }
-    
+
     logReadingInterval.value = window.setInterval(async () => {
       if (!isReadingLog.value) {
         if (logReadingInterval.value) {
@@ -16106,7 +15322,7 @@ export function useLogReader() {
         }
         return;
       }
-      
+
       try {
         // 调用后端API读取日志文件
         const response = await fetch('/api/protocol-compliance/read-log', {
@@ -16119,13 +15335,13 @@ export function useLogReader() {
             lastPosition: logReadPosition.value
           }),
         });
-        
+
         if (response.ok) {
           const result = await response.json();
           if (result.data && result.data.content && result.data.content.trim()) {
             // 更新读取位置
             logReadPosition.value = result.data.position || logReadPosition.value;
-            
+
             // 处理日志内容
             const logLines = result.data.content.split('\n').filter((line: string) => line.trim());
             logLines.forEach((line: string) => {
@@ -16145,35 +15361,23 @@ export function useLogReader() {
         console.error(`读取${protocol}日志失败:`, error);
       }
     }, 2000); // 每2秒读取一次日志
-  }
 
-  // 停止日志读取
-  function stopLogReading() {
-    isReadingLog.value = false;
-    if (logReadingInterval.value) {
-      clearInterval(logReadingInterval.value);
-      logReadingInterval.value = null;
-    }
-  }
+}
 
-  // 重置日志读取状态
-  function resetLogReader() {
-    stopLogReading();
-    logReadPosition.value = 0;
-  }
+// 停止日志读取 function stopLogReading() { isReadingLog.value = false; if (logReadingInterval.value) { clearInterval(logReadingInterval.value); logReadingInterval.value = null; } }
 
-  // 通用的日志UI显示函数
-  function addLogToUI(logData: LogUIData) {
-    if (!logContainer.value) return;
-    
+// 重置日志读取状态 function resetLogReader() { stopLogReading(); logReadPosition.value = 0; }
+
+// 通用的日志UI显示函数function addLogToUI(logData: LogUIData) { if (!logContainer.value) return;
+
     nextTick(() => {
       try {
         if (!logContainer.value || !logContainer.value.appendChild) {
           return;
         }
-        
+
         const div = document.createElement('div');
-        
+
         // 根据日志类型设置样式和内容
         switch (logData.type) {
           case 'HEADER':
@@ -16200,14 +15404,14 @@ export function useLogReader() {
             div.className = 'log-info-line';
             div.innerHTML = `<span class="text-dark/50">[${logData.timestamp}]</span> <span class="text-primary">INFO:</span> <span class="text-dark/70">${logData.content}</span>`;
         }
-        
+
         logContainer.value.appendChild(div);
-        
+
         // 自动滚动到底部
         if (logContainer.value.scrollTop !== undefined) {
           logContainer.value.scrollTop = logContainer.value.scrollHeight;
         }
-        
+
         // 限制日志条目数量，保持性能
         if (logContainer.value.children && logContainer.value.children.length > 200) {
           const firstChild = logContainer.value.firstChild;
@@ -16219,12 +15423,11 @@ export function useLogReader() {
         console.warn('添加日志到UI失败:', error);
       }
     });
-  }
 
-  // MQTT专用的日志显示函数
-  function addMQTTLogToUI(logData: LogUIData) {
-    if (!logContainer.value) return;
-    
+}
+
+// MQTT专用的日志显示函数function addMQTTLogToUI(logData: LogUIData) { if (!logContainer.value) return;
+
     // 使用 nextTick 确保 DOM 稳定后再操作
     nextTick(() => {
       try {
@@ -16232,27 +15435,27 @@ export function useLogReader() {
         if (!logContainer.value || !logContainer.value.appendChild) {
           return;
         }
-        
+
         const div = document.createElement('div');
-        
+
         if (logData.isDetailedDiff && logData.diffInfo) {
           // 差异报告专用样式 - 更突出和详细
           div.className = 'mqtt-diff-line';
-          const severityClass = logData.type === 'ERROR' ? 'border-red-400 bg-red-50' : 
-                               logData.type === 'WARNING' ? 'border-yellow-400 bg-yellow-50' : 
+          const severityClass = logData.type === 'ERROR' ? 'border-red-400 bg-red-50' :
+                               logData.type === 'WARNING' ? 'border-yellow-400 bg-yellow-50' :
                                'border-blue-400 bg-blue-50';
-          
+
           div.innerHTML = `
             <div class="p-3 rounded-lg border-l-4 ${severityClass} mb-2">
               <div class="flex items-center justify-between mb-1">
                 <span class="text-xs text-gray-500">[${logData.timestamp}]</span>
-                <span class="text-xs px-2 py-1 rounded-full ${logData.type === 'ERROR' ? 'bg-red-100 text-red-700' : 
-                                                             logData.type === 'WARNING' ? 'bg-yellow-100 text-yellow-700' : 
+                <span class="text-xs px-2 py-1 rounded-full ${logData.type === 'ERROR' ? 'bg-red-100 text-red-700' :
+                                                             logData.type === 'WARNING' ? 'bg-yellow-100 text-yellow-700' :
                                                              'bg-blue-100 text-blue-700'}">${logData.diffInfo.type}</span>
               </div>
               <div class="text-sm font-medium text-gray-800">${logData.content}</div>
               <div class="text-xs text-gray-600 mt-1">
-                文件: ${logData.diffInfo.file_path?.split('/').pop() || 'N/A'} | 
+                文件: ${logData.diffInfo.file_path?.split('/').pop() || 'N/A'} |
                 时间: ${logData.diffInfo.capture_time}
               </div>
             </div>
@@ -16282,16 +15485,16 @@ export function useLogReader() {
           div.className = 'mqtt-info-line';
           div.innerHTML = `<span class="text-dark/50">[${logData.timestamp}]</span> <span class="text-primary">MQTT:</span> <span class="text-dark/70">${logData.content}</span>`;
         }
-        
+
         // 再次检查容器是否存在再添加元素
         if (logContainer.value && logContainer.value.appendChild) {
           logContainer.value.appendChild(div);
-          
+
           // 自动滚动到底部
           if (logContainer.value.scrollTop !== undefined) {
             logContainer.value.scrollTop = logContainer.value.scrollHeight;
           }
-          
+
           // 限制日志条目数量，保持性能
           if (logContainer.value.children && logContainer.value.children.length > 200) {
             const firstChild = logContainer.value.firstChild;
@@ -16304,13 +15507,11 @@ export function useLogReader() {
         console.warn('添加MQTT日志到UI失败:', error);
       }
     });
-  }
 
-  // RTSP专用的日志显示函数已移除，SOL协议现在通过addSOLLogToUI处理
-  /*
-  function addRTSPLogToUI(logData: LogUIData) {
-    if (!logContainer.value) return;
-    
+}
+
+// RTSP专用的日志显示函数已移除，SOL协议现在通过addSOLLogToUI处理 /\* function addRTSPLogToUI(logData: LogUIData) { if (!logContainer.value) return;
+
     // 使用 nextTick 确保 DOM 稳定后再操作
     nextTick(() => {
       try {
@@ -16318,9 +15519,9 @@ export function useLogReader() {
         if (!logContainer.value || !logContainer.value.appendChild) {
           return;
         }
-        
+
         const div = document.createElement('div');
-        
+
         if (logData.isHeader) {
           // 参数说明行
           div.className = 'rtsp-header-line';
@@ -16334,16 +15535,16 @@ export function useLogReader() {
           div.className = 'rtsp-info-line';
           div.innerHTML = `<span class="text-dark/50">[${logData.timestamp}]</span> <span class="text-primary">RTSP-AFL:</span> <span class="text-dark/70">${logData.content}</span>`;
         }
-        
+
         // 再次检查容器是否存在再添加元素
         if (logContainer.value && logContainer.value.appendChild) {
           logContainer.value.appendChild(div);
-          
+
           // 自动滚动到底部
           if (logContainer.value.scrollTop !== undefined) {
             logContainer.value.scrollTop = logContainer.value.scrollHeight;
           }
-          
+
           // 限制日志条目数量，保持性能
           if (logContainer.value.children && logContainer.value.children.length > 200) {
             const firstChild = logContainer.value.firstChild;
@@ -16356,13 +15557,11 @@ export function useLogReader() {
         console.warn('添加RTSP日志到UI失败:', error);
       }
     });
-  }
-  */
 
-  // SOL专用的日志显示函数
-  function addSOLLogToUI(logData: LogUIData) {
-    if (!logContainer.value) return;
-    
+} \*/
+
+// SOL专用的日志显示函数function addSOLLogToUI(logData: LogUIData) { if (!logContainer.value) return;
+
     // 使用 nextTick 确保 DOM 稳定后再操作
     nextTick(() => {
       try {
@@ -16370,9 +15569,9 @@ export function useLogReader() {
         if (!logContainer.value || !logContainer.value.appendChild) {
           return;
         }
-        
+
         const div = document.createElement('div');
-        
+
         if (logData.isHeader) {
           // 参数说明行
           div.className = 'rtsp-header-line';
@@ -16386,16 +15585,16 @@ export function useLogReader() {
           div.className = 'rtsp-info-line';
           div.innerHTML = `<span class="text-dark/50">[${logData.timestamp}]</span> <span class="text-primary">SOL-AFL:</span> <span class="text-dark/70">${logData.content}</span>`;
         }
-        
+
         // 再次检查容器是否存在再添加元素
         if (logContainer.value && logContainer.value.appendChild) {
           logContainer.value.appendChild(div);
-          
+
           // 自动滚动到底部
           if (logContainer.value.scrollTop !== undefined) {
             logContainer.value.scrollTop = logContainer.value.scrollHeight;
           }
-          
+
           // 限制日志条目数量，保持性能
           if (logContainer.value.children && logContainer.value.children.length > 200) {
             const firstChild = logContainer.value.firstChild;
@@ -16408,75 +15607,24 @@ export function useLogReader() {
         console.warn('添加SOL日志到UI失败:', error);
       }
     });
-  }
 
-  // 清空日志
-  function clearLog() {
-    try {
-      nextTick(() => {
-        try {
-          if (logContainer.value && logContainer.value.innerHTML !== undefined) {
-            logContainer.value.innerHTML = '<div class="text-dark/50 italic">测试未开始，请配置参数并点击"开始测试"</div>';
-          }
-        } catch (error) {
-          console.warn('清空日志容器失败:', error);
-        }
-      });
-    } catch (error) {
-      console.warn('清空日志失败:', error);
-    }
-  }
-
-  return {
-    isReadingLog,
-    logReadingInterval,
-    logReadPosition,
-    logContainer,
-    startLogReading,
-    stopLogReading,
-    resetLogReader,
-    addLogToUI,
-    addMQTTLogToUI,
-    // addRTSPLogToUI, // 已移除
-    addSOLLogToUI,
-    clearLog
-  };
 }
 
+// 清空日志 function clearLog() { try { nextTick(() => { try { if (logContainer.value && logContainer.value.innerHTML !== undefined) { logContainer.value.innerHTML = '<div class="text-dark/50 italic">测试未开始，请配置参数并点击"开始测试"</div>'; } } catch (error) { console.warn('清空日志容器失败:', error); } }); } catch (error) { console.warn('清空日志失败:', error); } }
 
-====================================================================================================
-文件 12: apps/web-antd/src/views/protocol-compliance/fuzz/composables/useMQTT.ts
-====================================================================================================
+return { isReadingLog, logReadingInterval, logReadPosition, logContainer, startLogReading, stopLogReading, resetLogReader, addLogToUI, addMQTTLogToUI, // addRTSPLogToUI, // 已移除 addSOLLogToUI, clearLog }; }
 
-/**
- * MQTT协议专用的composable
- * 包含MBFuzzer相关的数据处理和UI逻辑
- */
+==================================================================================================== 文件 12: apps/web-antd/src/views/protocol-compliance/fuzz/composables/useMQTT.ts ====================================================================================================
 
-import { ref, type Ref } from 'vue';
-import type { 
-  MQTTStats, 
-  MQTTMessageStats, 
-  MQTTDifferentialReport, 
-  MQTTBrokerIssues,
-  LogUIData 
-} from './types';
+/\*\*
 
-export function useMQTT() {
-  // MQTT统计数据
-  const mqttStats: Ref<MQTTStats> = ref({
-    fuzzing_start_time: '',
-    fuzzing_end_time: '',
-    client_request_count: 0,
-    broker_request_count: 0,
-    total_request_count: 0,
-    crash_number: 0,
-    diff_number: 0,
-    duplicate_diff_number: 0,
-    valid_connect_number: 0,
-    duplicate_connect_diff: 0,
-    total_differences: 0,
-    
+- MQTT协议专用的composable
+- 包含MBFuzzer相关的数据处理和UI逻辑 \*/
+
+import { ref, type Ref } from 'vue'; import type { MQTTStats, MQTTMessageStats, MQTTDifferentialReport, MQTTBrokerIssues, LogUIData } from './types';
+
+export function useMQTT() { // MQTT统计数据const mqttStats: Ref<MQTTStats> = ref({ fuzzing_start_time: '', fuzzing_end_time: '', client_request_count: 0, broker_request_count: 0, total_request_count: 0, crash_number: 0, diff_number: 0, duplicate_diff_number: 0, valid_connect_number: 0, duplicate_connect_diff: 0, total_differences: 0,
+
     client_messages: createEmptyMQTTMessageStats(),
     broker_messages: createEmptyMQTTMessageStats(),
     duplicate_diffs: createEmptyMQTTMessageStats(),
@@ -16490,44 +15638,13 @@ export function useMQTT() {
       nanomq: 0,
       mosquitto: 0
     }
-  });
 
-  // 创建空的MQTT消息统计
-  function createEmptyMQTTMessageStats(): MQTTMessageStats {
-    return {
-      CONNECT: 0,
-      CONNACK: 0,
-      PUBLISH: 0,
-      PUBACK: 0,
-      PUBREC: 0,
-      PUBREL: 0,
-      PUBCOMP: 0,
-      SUBSCRIBE: 0,
-      SUBACK: 0,
-      UNSUBSCRIBE: 0,
-      UNSUBACK: 0,
-      PINGREQ: 0,
-      PINGRESP: 0,
-      DISCONNECT: 0,
-      AUTH: 0
-    };
-  }
+});
 
-  // 重置MQTT统计数据
-  function resetMQTTStats() {
-    mqttStats.value = {
-      fuzzing_start_time: '',
-      fuzzing_end_time: '',
-      client_request_count: 0,
-      broker_request_count: 0,
-      total_request_count: 0,
-      crash_number: 0,
-      diff_number: 0, // 实时累加模式：从0开始
-      duplicate_diff_number: 0,
-      valid_connect_number: 0,
-      duplicate_connect_diff: 0,
-      total_differences: 0, // 与diff_number保持同步
-      
+// 创建空的MQTT消息统计function createEmptyMQTTMessageStats(): MQTTMessageStats { return { CONNECT: 0, CONNACK: 0, PUBLISH: 0, PUBACK: 0, PUBREC: 0, PUBREL: 0, PUBCOMP: 0, SUBSCRIBE: 0, SUBACK: 0, UNSUBSCRIBE: 0, UNSUBACK: 0, PINGREQ: 0, PINGRESP: 0, DISCONNECT: 0, AUTH: 0 }; }
+
+// 重置MQTT统计数据function resetMQTTStats() { mqttStats.value = { fuzzing_start_time: '', fuzzing_end_time: '', client_request_count: 0, broker_request_count: 0, total_request_count: 0, crash_number: 0, diff_number: 0, // 实时累加模式：从0开始duplicate_diff_number: 0, valid_connect_number: 0, duplicate_connect_diff: 0, total_differences: 0, // 与diff_number保持同步
+
       client_messages: createEmptyMQTTMessageStats(),
       broker_messages: createEmptyMQTTMessageStats(),
       duplicate_diffs: createEmptyMQTTMessageStats(),
@@ -16542,40 +15659,29 @@ export function useMQTT() {
         mosquitto: 0
       }
     };
-  }
 
-  // 解析差异报告行
-  function parseDifferentialReport(line: string, timestamp: string): MQTTDifferentialReport | null {
-    try {
-      const diffInfo: MQTTDifferentialReport = {
-        protocol_version: null,
-        type: null,
-        field: null,
-        diff_range_broker: [],
-        msg_type: null,
-        direction: null,
-        file_path: null,
-        capture_time: null
-      };
-      
+}
+
+// 解析差异报告行 function parseDifferentialReport(line: string, timestamp: string): MQTTDifferentialReport | null { try { const diffInfo: MQTTDifferentialReport = { protocol_version: null, type: null, field: null, diff_range_broker: [], msg_type: null, direction: null, file_path: null, capture_time: null };
+
       // 提取协议版本
       const versionMatch = line.match(/protocol_version:\s*(\d+)/);
       if (versionMatch) {
         diffInfo.protocol_version = parseInt(versionMatch[1]);
       }
-      
+
       // 提取差异类型
       const typeMatch = line.match(/type:\s*\{([^}]+)\}/);
       if (typeMatch) {
         diffInfo.type = typeMatch[1].trim();
       }
-      
+
       // 提取字段名（如果存在）
       const fieldMatch = line.match(/field:\s*([^,]+?)(?:,|$)/);
       if (fieldMatch) {
         diffInfo.field = fieldMatch[1].trim();
       }
-      
+
       // 提取受影响的代理
       const brokerMatch = line.match(/diff_range_broker:\s*\[([^\]]+)\]/);
       if (brokerMatch) {
@@ -16583,80 +15689,50 @@ export function useMQTT() {
           .split(',')
           .map(broker => broker.trim().replace(/'/g, ''));
       }
-      
+
       // 提取消息类型
       const msgTypeMatch = line.match(/msg_type:\s*([^,]+)/);
       if (msgTypeMatch) {
         diffInfo.msg_type = msgTypeMatch[1].trim();
       }
-      
+
       // 提取方向
       const directionMatch = line.match(/direction:\s*([^,]+)/);
       if (directionMatch) {
         diffInfo.direction = directionMatch[1].trim();
       }
-      
+
       // 提取捕获时间
       const timeMatch = line.match(/capture_time:\s*([^,\s]+(?:\s+[^,\s]+)*)/);
       if (timeMatch) {
         diffInfo.capture_time = timeMatch[1].trim();
       }
-      
+
       // 添加到差异报告列表
       mqttStats.value.differential_reports.push(diffInfo);
-      
+
       // 更新代理问题统计
       diffInfo.diff_range_broker.forEach(broker => {
         if (mqttStats.value.broker_issues.hasOwnProperty(broker)) {
           (mqttStats.value.broker_issues as any)[broker]++;
         }
       });
-      
+
       return diffInfo;
-      
+
     } catch (error) {
       console.warn('解析差异报告失败:', line, error);
       return null;
     }
-  }
 
-  // 根据差异类型确定严重程度
-  function getDiffSeverityType(diffType: string): LogUIData['type'] {
-    switch (diffType) {
-      case 'Message Unexpected':
-      case 'Message Missing':
-        return 'ERROR';  // 消息级别差异，严重
-      case 'Field Different':
-      case 'Field Missing':
-      case 'Field Unexpected':
-        return 'WARNING'; // 字段级别差异，中等
-      default:
-        return 'INFO';
-    }
-  }
+}
 
-  // 根据差异类型获取图标
-  function getTypeIcon(diffType: string): string {
-    switch (diffType) {
-      case 'Message Unexpected':
-        return '⚠️';  // 意外消息
-      case 'Message Missing':
-        return '❌';  // 缺失消息
-      case 'Field Different':
-        return '🔄';  // 字段差异
-      case 'Field Missing':
-        return '🚫';  // 缺失字段
-      case 'Field Unexpected':
-        return '❗';  // 意外字段
-      default:
-        return '🔍';  // 一般差异
-    }
-  }
+// 根据差异类型确定严重程度 function getDiffSeverityType(diffType: string): LogUIData['type'] { switch (diffType) { case 'Message Unexpected': case 'Message Missing': return 'ERROR'; // 消息级别差异，严重 case 'Field Different': case 'Field Missing': case 'Field Unexpected': return 'WARNING'; // 字段级别差异，中等 default: return 'INFO'; } }
 
-  // 处理MQTT协议的MBFuzzer日志行
-  function processMQTTLogLine(line: string, packetCount: Ref<number>, successCount: Ref<number>, crashCount: Ref<number>) {
-    const timestamp = new Date().toLocaleTimeString();
-    
+// 根据差异类型获取图标 function getTypeIcon(diffType: string): string { switch (diffType) { case 'Message Unexpected': return '⚠️'; // 意外消息 case 'Message Missing': return '❌'; // 缺失消息 case 'Field Different': return '🔄'; // 字段差异 case 'Field Missing': return '🚫'; // 缺失字段 case 'Field Unexpected': return '❗'; // 意外字段 default: return '🔍'; // 一般差异 } }
+
+// 处理MQTT协议的MBFuzzer日志行function processMQTTLogLine(line: string, packetCount: Ref<number>, successCount: Ref<number>, crashCount: Ref<number>) { const timestamp = new Date().toLocaleTimeString();
+
     try {
       // 优先处理差异报告 - 这是Fuzz过程的核心输出
       if (line.includes('protocol_version:') && (line.includes('type: {') || line.includes('field:'))) {
@@ -16666,7 +15742,7 @@ export function useMQTT() {
           const fieldInfo = diffInfo.field ? ` → ${diffInfo.field}` : '';
           const directionIcon = diffInfo.direction === 'client' ? '📤' : '📥';
           const typeIcon = getTypeIcon(diffInfo.type || '');
-          
+
           // 构建更直观的差异描述
           let content = '';
           switch (diffInfo.type) {
@@ -16688,7 +15764,7 @@ export function useMQTT() {
             default:
               content = `${typeIcon} 【协议差异】${diffInfo.type}${fieldInfo} | ${diffInfo.msg_type} ${directionIcon} | 代理: ${brokerList} | MQTT v${diffInfo.protocol_version}`;
           }
-          
+
           return {
             timestamp,
             type: getDiffSeverityType(diffInfo.type || ''),
@@ -16699,7 +15775,7 @@ export function useMQTT() {
         }
         return null;
       }
-      
+
       // 解析基本统计信息（静默处理，不显示在Fuzz过程中）
       if (line.includes('Fuzzing Start Time:')) {
         const match = line.match(/Fuzzing Start Time:\s*(.+)/);
@@ -16716,7 +15792,7 @@ export function useMQTT() {
         }
         return null;
       }
-      
+
       if (line.includes('Fuzzing End Time:')) {
         const match = line.match(/Fuzzing End Time:\s*(.+)/);
         if (match) {
@@ -16729,7 +15805,7 @@ export function useMQTT() {
         }
         return null;
       }
-      
+
       // 解析请求数量统计（静默处理，不在fuzz过程中显示）
       if (line.includes('Fuzzing request number (client):')) {
         const match = line.match(/Fuzzing request number \(client\):\s*(\d+)/);
@@ -16739,7 +15815,7 @@ export function useMQTT() {
         }
         return null; // 静默处理，不显示
       }
-      
+
       if (line.includes('Fuzzing request number (broker):')) {
         const match = line.match(/Fuzzing request number \(broker\):\s*(\d+)/);
         if (match) {
@@ -16748,16 +15824,16 @@ export function useMQTT() {
         }
         return null; // 静默处理，不显示
       }
-      
+
       // 解析消息类型统计（静默处理）
       const messageMatch = line.match(/^\s*([A-Z]+):\s*(\d+)/);
       if (messageMatch) {
         const [, messageType, count] = messageMatch;
         const countNum = parseInt(count);
-        
+
         if (mqttStats.value.client_messages.hasOwnProperty(messageType)) {
           // 简单的启发式判断：如果客户端统计还是0，则认为是客户端数据
-          if (mqttStats.value.client_messages[messageType as keyof MQTTMessageStats] === 0 && 
+          if (mqttStats.value.client_messages[messageType as keyof MQTTMessageStats] === 0 &&
               mqttStats.value.broker_messages[messageType as keyof MQTTMessageStats] === 0) {
             (mqttStats.value.client_messages as any)[messageType] = countNum;
           } else if (mqttStats.value.broker_messages[messageType as keyof MQTTMessageStats] === 0) {
@@ -16766,7 +15842,7 @@ export function useMQTT() {
         }
         return null;
       }
-      
+
       // 解析崩溃和差异统计（静默处理，不在fuzz过程中显示）
       if (line.includes('Crash Number:')) {
         const match = line.match(/Crash Number:\s*(\d+)/);
@@ -16776,13 +15852,13 @@ export function useMQTT() {
         }
         return null; // 静默处理，不显示
       }
-      
+
       if (line.includes('Diff Number:')) {
         // 注意：不再从日志解析diff_number，改为实时累加模式
         // diff_number现在由addUnifiedLog函数实时递增
         return null; // 静默处理，不显示
       }
-      
+
       if (line.includes('Valid Connect Number:')) {
         const match = line.match(/Valid Connect Number:\s*(\d+)/);
         if (match) {
@@ -16791,101 +15867,40 @@ export function useMQTT() {
         }
         return null; // 静默处理，不显示
       }
-      
+
     } catch (error) {
       console.warn('解析MQTT日志行失败:', line, error);
     }
-    
-    return null;
-  }
 
-  return {
-    mqttStats,
-    resetMQTTStats,
-    parseDifferentialReport,
-    getDiffSeverityType,
-    processMQTTLogLine,
-    createEmptyMQTTMessageStats
-  };
+    return null;
+
 }
 
+return { mqttStats, resetMQTTStats, parseDifferentialReport, getDiffSeverityType, processMQTTLogLine, createEmptyMQTTMessageStats }; }
 
-====================================================================================================
-文件 13: apps/web-antd/src/views/protocol-compliance/fuzz/composables/useProtocolDataManager.ts
-====================================================================================================
+==================================================================================================== 文件 13: apps/web-antd/src/views/protocol-compliance/fuzz/composables/useProtocolDataManager.ts ====================================================================================================
 
-/**
- * 协议数据管理器 - 隔离不同协议的数据和状态
- */
+/\*\*
+
+- 协议数据管理器 - 隔离不同协议的数据和状态 \*/
 
 import { ref, reactive, computed } from 'vue';
 
 export type ProtocolType = 'SNMP' | 'MQTT';
 
-export interface LogEntry {
-  id: string;
-  timestamp: string;
-  type: 'INFO' | 'ERROR' | 'WARNING' | 'SUCCESS';
-  content: string;
-  protocol: ProtocolType;
-  raw?: any; // 原始数据
-}
+export interface LogEntry { id: string; timestamp: string; type: 'INFO' | 'ERROR' | 'WARNING' | 'SUCCESS'; content: string; protocol: ProtocolType; raw?: any; // 原始数据 }
 
-export interface ProtocolState {
-  isRunning: boolean;
-  isProcessing: boolean;
-  totalRecords: number;
-  processedRecords: number;
-  logs: LogEntry[];
-  stats: Record<string, any>;
-}
+export interface ProtocolState { isRunning: boolean; isProcessing: boolean; totalRecords: number; processedRecords: number; logs: LogEntry[]; stats: Record<string, any>; }
 
-export function useProtocolDataManager() {
-  // 每个协议的独立状态
-  const protocolStates = reactive<Record<ProtocolType, ProtocolState>>({
-    SNMP: {
-      isRunning: false,
-      isProcessing: false,
-      totalRecords: 0,
-      processedRecords: 0,
-      logs: [],
-      stats: {}
-    },
-    RTSP: {
-      isRunning: false,
-      isProcessing: false,
-      totalRecords: 0,
-      processedRecords: 0,
-      logs: [],
-      stats: {}
-    },
-    MQTT: {
-      isRunning: false,
-      isProcessing: false,
-      totalRecords: 0,
-      processedRecords: 0,
-      logs: [],
-      stats: {}
-    }
-  });
+export function useProtocolDataManager() { // 每个协议的独立状态 const protocolStates = reactive<Record<ProtocolType, ProtocolState>>({ SNMP: { isRunning: false, isProcessing: false, totalRecords: 0, processedRecords: 0, logs: [], stats: {} }, RTSP: { isRunning: false, isProcessing: false, totalRecords: 0, processedRecords: 0, logs: [], stats: {} }, MQTT: { isRunning: false, isProcessing: false, totalRecords: 0, processedRecords: 0, logs: [], stats: {} } });
 
-  const currentProtocol = ref<ProtocolType>('SNMP');
+const currentProtocol = ref<ProtocolType>('SNMP');
 
-  // 获取当前协议状态
-  const currentState = computed(() => protocolStates[currentProtocol.value]);
+// 获取当前协议状态 const currentState = computed(() => protocolStates[currentProtocol.value]);
 
-  // 生成唯一ID
-  function generateLogId(protocol: ProtocolType): string {
-    return `${protocol}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  }
+// 生成唯一ID function generateLogId(protocol: ProtocolType): string { return `${protocol}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`; }
 
-  // 添加日志（协议隔离）
-  function addLog(protocol: ProtocolType, logData: Omit<LogEntry, 'id' | 'protocol'>) {
-    const log: LogEntry = {
-      ...logData,
-      id: generateLogId(protocol),
-      protocol
-    };
+// 添加日志（协议隔离）function addLog(protocol: ProtocolType, logData: Omit<LogEntry, 'id' | 'protocol'>) { const log: LogEntry = { ...logData, id: generateLogId(protocol), protocol };
 
     const state = protocolStates[protocol];
     state.logs.push(log);
@@ -16896,15 +15911,10 @@ export function useProtocolDataManager() {
     }
 
     return log;
-  }
 
-  // 批量添加日志
-  function addBatchLogs(protocol: ProtocolType, logsData: Array<Omit<LogEntry, 'id' | 'protocol'>>) {
-    const logs = logsData.map(logData => ({
-      ...logData,
-      id: generateLogId(protocol),
-      protocol
-    }));
+}
+
+// 批量添加日志 function addBatchLogs(protocol: ProtocolType, logsData: Array<Omit<LogEntry, 'id' | 'protocol'>>) { const logs = logsData.map(logData => ({ ...logData, id: generateLogId(protocol), protocol }));
 
     const state = protocolStates[protocol];
     state.logs.push(...logs);
@@ -16915,35 +15925,19 @@ export function useProtocolDataManager() {
     }
 
     return logs;
-  }
 
-  // 清空指定协议的日志
-  function clearProtocolLogs(protocol: ProtocolType) {
-    protocolStates[protocol].logs = [];
-  }
+}
 
-  // 清空所有协议的日志
-  function clearAllLogs() {
-    Object.keys(protocolStates).forEach(protocol => {
-      protocolStates[protocol as ProtocolType].logs = [];
-    });
-  }
+// 清空指定协议的日志 function clearProtocolLogs(protocol: ProtocolType) { protocolStates[protocol].logs = []; }
 
-  // 更新协议状态
-  function updateProtocolState(protocol: ProtocolType, updates: Partial<ProtocolState>) {
-    Object.assign(protocolStates[protocol], updates);
-  }
+// 清空所有协议的日志 function clearAllLogs() { Object.keys(protocolStates).forEach(protocol => { protocolStates[protocol as ProtocolType].logs = []; }); }
 
-  // 切换协议
-  function switchProtocol(protocol: ProtocolType) {
-    currentProtocol.value = protocol;
-  }
+// 更新协议状态 function updateProtocolState(protocol: ProtocolType, updates: Partial<ProtocolState>) { Object.assign(protocolStates[protocol], updates); }
 
-  // 获取协议统计信息
-  function getProtocolStats(protocol: ProtocolType) {
-    const state = protocolStates[protocol];
-    const logs = state.logs;
-    
+// 切换协议 function switchProtocol(protocol: ProtocolType) { currentProtocol.value = protocol; }
+
+// 获取协议统计信息 function getProtocolStats(protocol: ProtocolType) { const state = protocolStates[protocol]; const logs = state.logs;
+
     return {
       total: logs.length,
       info: logs.filter(log => log.type === 'INFO').length,
@@ -16954,50 +15948,28 @@ export function useProtocolDataManager() {
       isProcessing: state.isProcessing,
       progress: state.totalRecords > 0 ? Math.round((state.processedRecords / state.totalRecords) * 100) : 0
     };
-  }
 
-  // 获取最近的日志
-  function getRecentLogs(protocol: ProtocolType, count: number = 100) {
-    const logs = protocolStates[protocol].logs;
-    return logs.slice(-count);
-  }
+}
 
-  // 搜索日志
-  function searchLogs(protocol: ProtocolType, keyword: string, type?: LogEntry['type']) {
-    const logs = protocolStates[protocol].logs;
-    return logs.filter(log => {
-      const matchesKeyword = log.content.toLowerCase().includes(keyword.toLowerCase());
-      const matchesType = !type || log.type === type;
-      return matchesKeyword && matchesType;
-    });
-  }
+// 获取最近的日志 function getRecentLogs(protocol: ProtocolType, count: number = 100) { const logs = protocolStates[protocol].logs; return logs.slice(-count); }
 
-  // 导出日志
-  function exportLogs(protocol: ProtocolType, format: 'json' | 'txt' = 'txt') {
-    const logs = protocolStates[protocol].logs;
-    
+// 搜索日志 function searchLogs(protocol: ProtocolType, keyword: string, type?: LogEntry['type']) { const logs = protocolStates[protocol].logs; return logs.filter(log => { const matchesKeyword = log.content.toLowerCase().includes(keyword.toLowerCase()); const matchesType = !type || log.type === type; return matchesKeyword && matchesType; }); }
+
+// 导出日志 function exportLogs(protocol: ProtocolType, format: 'json' | 'txt' = 'txt') { const logs = protocolStates[protocol].logs;
+
     if (format === 'json') {
       return JSON.stringify(logs, null, 2);
     } else {
-      return logs.map(log => 
+      return logs.map(log =>
         `[${log.timestamp}] [${log.type}] ${log.content}`
       ).join('\n');
     }
-  }
 
-  // 实时日志流（用于MQTT等需要实时更新的协议）
-  const realtimeStreams = new Map<ProtocolType, {
-    buffer: LogEntry[];
-    timer: number | null;
-    batchSize: number;
-    interval: number;
-  }>();
+}
 
-  // 开始实时日志流
-  function startRealtimeStream(protocol: ProtocolType, options = { batchSize: 20, interval: 50 }) {
-    if (realtimeStreams.has(protocol)) {
-      stopRealtimeStream(protocol);
-    }
+// 实时日志流（用于MQTT等需要实时更新的协议）const realtimeStreams = new Map<ProtocolType, { buffer: LogEntry[]; timer: number | null; batchSize: number; interval: number; }>();
+
+// 开始实时日志流 function startRealtimeStream(protocol: ProtocolType, options = { batchSize: 20, interval: 50 }) { if (realtimeStreams.has(protocol)) { stopRealtimeStream(protocol); }
 
     const stream = {
       buffer: [],
@@ -17021,52 +15993,16 @@ export function useProtocolDataManager() {
     }, stream.interval);
 
     realtimeStreams.set(protocol, stream);
-  }
 
-  // 添加到实时流缓冲区
-  function addToRealtimeStream(protocol: ProtocolType, logData: Omit<LogEntry, 'id' | 'protocol'>) {
-    const stream = realtimeStreams.get(protocol);
-    if (stream) {
-      const log: LogEntry = {
-        ...logData,
-        id: generateLogId(protocol),
-        protocol
-      };
-      stream.buffer.push(log);
-    } else {
-      // 如果没有启动实时流，直接添加
-      addLog(protocol, logData);
-    }
-  }
+}
 
-  // 停止实时日志流
-  function stopRealtimeStream(protocol: ProtocolType) {
-    const stream = realtimeStreams.get(protocol);
-    if (stream) {
-      if (stream.timer) {
-        clearInterval(stream.timer);
-      }
-      // 处理剩余的缓冲区日志
-      if (stream.buffer.length > 0) {
-        const state = protocolStates[protocol];
-        state.logs.push(...stream.buffer);
-      }
-      realtimeStreams.delete(protocol);
-    }
-  }
+// 添加到实时流缓冲区 function addToRealtimeStream(protocol: ProtocolType, logData: Omit<LogEntry, 'id' | 'protocol'>) { const stream = realtimeStreams.get(protocol); if (stream) { const log: LogEntry = { ...logData, id: generateLogId(protocol), protocol }; stream.buffer.push(log); } else { // 如果没有启动实时流，直接添加 addLog(protocol, logData); } }
 
-  // 停止所有实时流
-  function stopAllRealtimeStreams() {
-    realtimeStreams.forEach((_, protocol) => {
-      stopRealtimeStream(protocol);
-    });
-  }
+// 停止实时日志流 function stopRealtimeStream(protocol: ProtocolType) { const stream = realtimeStreams.get(protocol); if (stream) { if (stream.timer) { clearInterval(stream.timer); } // 处理剩余的缓冲区日志 if (stream.buffer.length > 0) { const state = protocolStates[protocol]; state.logs.push(...stream.buffer); } realtimeStreams.delete(protocol); } }
 
-  return {
-    // 状态
-    protocolStates,
-    currentProtocol,
-    currentState,
+// 停止所有实时流 function stopAllRealtimeStreams() { realtimeStreams.forEach((\_, protocol) => { stopRealtimeStream(protocol); }); }
+
+return { // 状态 protocolStates, currentProtocol, currentState,
 
     // 基础操作
     addLog,
@@ -17087,85 +16023,31 @@ export function useProtocolDataManager() {
     addToRealtimeStream,
     stopRealtimeStream,
     stopAllRealtimeStreams
-  };
-}
 
+}; }
 
-====================================================================================================
-文件 14: apps/web-antd/src/views/protocol-compliance/fuzz/composables/useSNMP.ts
-====================================================================================================
+==================================================================================================== 文件 14: apps/web-antd/src/views/protocol-compliance/fuzz/composables/useSNMP.ts ====================================================================================================
 
-/**
- * SNMP协议专用的composable
- * 包含SNMP_Fuzz相关的数据处理和UI逻辑
- */
+/\*\*
 
-import { ref, nextTick, type Ref } from 'vue';
-import type { FuzzPacket, SNMPStats, SNMPMessageStats } from './types';
+- SNMP协议专用的composable
+- 包含SNMP_Fuzz相关的数据处理和UI逻辑 \*/
 
-export function useSNMP() {
-  // SNMP统计数据
-  const protocolStats: Ref<SNMPStats> = ref({ v1: 0, v2c: 0, v3: 0 });
-  const messageTypeStats: Ref<SNMPMessageStats> = ref({ get: 0, set: 0, getnext: 0, getbulk: 0 });
-  
-  // 数据状态
-  const fuzzData = ref<FuzzPacket[]>([]);
-  const totalPacketsInFile = ref(0);
-  const fileTotalPackets = ref(0);
-  const fileSuccessCount = ref(0);
-  const fileTimeoutCount = ref(0);
-  const fileFailedCount = ref(0);
+import { ref, nextTick, type Ref } from 'vue'; import type { FuzzPacket, SNMPStats, SNMPMessageStats } from './types';
 
-  // 重置SNMP统计数据
-  function resetSNMPStats() {
-    protocolStats.value = { v1: 0, v2c: 0, v3: 0 };
-    messageTypeStats.value = { get: 0, set: 0, getnext: 0, getbulk: 0 };
-  }
+export function useSNMP() { // SNMP统计数据const protocolStats: Ref<SNMPStats> = ref({ v1: 0, v2c: 0, v3: 0 }); const messageTypeStats: Ref<SNMPMessageStats> = ref({ get: 0, set: 0, getnext: 0, getbulk: 0 });
 
-  // 生成默认测试数据
-  function generateDefaultFuzzData() {
-    return `[1] 版本=v1, 类型=get
-选择OIDs=['1.3.6.1.2.1.1.1.0']
-报文HEX: 302902010004067075626C6963A01C02040E8F83C502010002010030
-[发送尝试] 长度=43 字节
-[接收成功] 42 字节
-[2] 版本=v2c, 类型=set
-选择OIDs=['1.3.6.1.2.1.1.2.0']
-报文HEX: 304502010104067075626C6963A03802040E8F83C502010002010030
-[发送尝试] 长度=71 字节
-[接收超时]
-[3] 版本=v3, 类型=getnext
-选择OIDs=['1.3.6.1.2.1.1.3.0']
-报文HEX: 305502010304067075626C6963A04802040E8F83C502010002010030
-[发送尝试] 长度=87 字节
-[接收成功] 156 字节
-[4] 生成失败: 无效的OID格式
-[5] 版本=v1, 类型=getbulk
-选择OIDs=['1.3.6.1.2.1.1.4.0']
-报文HEX: 306502010004067075626C6963A05802040E8F83C502010002010030
-[发送尝试] 长度=103 字节
-[运行监控] 收到崩溃通知: 健康服务报告 VM 不可达
-[崩溃信息] 疑似崩溃数据包: 306502010004067075626C6963A05802040E8F83C502010002010030
-[崩溃信息] 崩溃队列信息导出: /home/hhh/下载/snmp_fuzz/snmp_github/snmp_fuzz/scan_result/crash_logs/20251014-110318
-[运行监控] 检测到崩溃，停止 fuzz 循环
-统计: {'v1': 3, 'v2c': 1, 'v3': 1}, {'get': 2, 'set': 1, 'getnext': 1, 'getbulk': 1}
-开始时间: 2025-01-14 11:03:18
-结束时间: 2025-01-14 11:03:25
-总耗时: 7.2 秒
-发送总数据包: 5
-平均发送速率: 0.69 包/秒`;
-  }
+// 数据状态 const fuzzData = ref<FuzzPacket[]>([]); const totalPacketsInFile = ref(0); const fileTotalPackets = ref(0); const fileSuccessCount = ref(0); const fileTimeoutCount = ref(0); const fileFailedCount = ref(0);
 
-  // 解析SNMP文本数据
-  function parseSNMPText(text: string): FuzzPacket[] {
-    if (!text || typeof text !== 'string') {
-      console.error('Invalid fuzz data format');
-      return [];
-    }
+// 重置SNMP统计数据function resetSNMPStats() { protocolStats.value = { v1: 0, v2c: 0, v3: 0 }; messageTypeStats.value = { get: 0, set: 0, getnext: 0, getbulk: 0 }; }
+
+// 生成默认测试数据 function generateDefaultFuzzData() { return `[1] 版本=v1, 类型=get 选择OIDs=['1.3.6.1.2.1.1.1.0'] 报文HEX: 302902010004067075626C6963A01C02040E8F83C502010002010030 [发送尝试] 长度=43 字节 [接收成功] 42 字节 [2] 版本=v2c, 类型=set 选择OIDs=['1.3.6.1.2.1.1.2.0'] 报文HEX: 304502010104067075626C6963A03802040E8F83C502010002010030 [发送尝试] 长度=71 字节 [接收超时] [3] 版本=v3, 类型=getnext 选择OIDs=['1.3.6.1.2.1.1.3.0'] 报文HEX: 305502010304067075626C6963A04802040E8F83C502010002010030 [发送尝试] 长度=87 字节 [接收成功] 156 字节 [4] 生成失败: 无效的OID格式 [5] 版本=v1, 类型=getbulk 选择OIDs=['1.3.6.1.2.1.1.4.0'] 报文HEX: 306502010004067075626C6963A05802040E8F83C502010002010030 [发送尝试] 长度=103 字节 [运行监控] 收到崩溃通知: 健康服务报告 VM 不可达 [崩溃信息] 疑似崩溃数据包: 306502010004067075626C6963A05802040E8F83C502010002010030 [崩溃信息] 崩溃队列信息导出: /home/hhh/下载/snmp_fuzz/snmp_github/snmp_fuzz/scan_result/crash_logs/20251014-110318 [运行监控] 检测到崩溃，停止 fuzz 循环 统计: {'v1': 3, 'v2c': 1, 'v3': 1}, {'get': 2, 'set': 1, 'getnext': 1, 'getbulk': 1} 开始时间: 2025-01-14 11:03:18 结束时间: 2025-01-14 11:03:25 总耗时: 7.2 秒 发送总数据包: 5 平均发送速率: 0.69 包/秒`; }
+
+// 解析SNMP文本数据function parseSNMPText(text: string): FuzzPacket[] { if (!text || typeof text !== 'string') { console.error('Invalid fuzz data format'); return []; }
 
     const lines = text.split('\n');
     console.log('解析文本总行数:', lines.length);
-    
+
     if (lines.length < 5) {
       console.error('Insufficient fuzz data');
       return [];
@@ -17182,7 +16064,7 @@ export function useSNMP() {
       if (packetMatch) {
         if (currentPacket) parsedData.push(currentPacket);
         const packetNumber = parseInt(packetMatch[1]);
-        
+
         // 调试信息：每100个包输出一次
         if (packetNumber % 100 === 0 || packetNumber <= 5) {
           console.log(`解析数据包 #${packetNumber}: 版本=${packetMatch[2]}, 类型=${packetMatch[3]}`);
@@ -17213,17 +16095,17 @@ export function useSNMP() {
           parsedData.push(currentPacket);
           currentPacket = null;
         } else {
-          parsedData.push({ 
-            id: failedId, 
-            version: 'unknown', 
-            type: 'unknown', 
-            oids: [], 
-            hex: '', 
-            result: 'failed', 
-            responseSize: 0, 
-            timestamp: new Date().toLocaleTimeString(), 
-            failed: true, 
-            failedReason: line 
+          parsedData.push({
+            id: failedId,
+            version: 'unknown',
+            type: 'unknown',
+            oids: [],
+            hex: '',
+            result: 'failed',
+            responseSize: 0,
+            timestamp: new Date().toLocaleTimeString(),
+            failed: true,
+            failedReason: line
           });
         }
         continue;
@@ -17255,7 +16137,7 @@ export function useSNMP() {
         }
         continue;
       }
-      
+
       if (line.includes('[接收超时]') && currentPacket) {
         currentPacket.result = 'timeout';
         continue;
@@ -17264,14 +16146,14 @@ export function useSNMP() {
       if (line.includes('[运行监控]')) {
         const isExactCrashNotice = line.includes('[运行监控] 收到崩溃通知: 健康服务报告 VM 不可达');
         if (isExactCrashNotice || line.includes('崩溃通知')) {
-          const crashEvent = { 
-            type: 'crash_notification', 
-            message: line, 
-            timestamp: new Date().toLocaleTimeString(), 
-            crashPacket: '', 
-            crashLogPath: '' 
+          const crashEvent = {
+            type: 'crash_notification',
+            message: line,
+            timestamp: new Date().toLocaleTimeString(),
+            crashPacket: '',
+            crashLogPath: ''
           };
-          
+
           for (let j = i + 1; j < lines.length && j < i + 30; j++) {
             const nextLine = lines[j].trim();
             if (nextLine.includes('[崩溃信息] 疑似崩溃数据包:')) {
@@ -17281,22 +16163,22 @@ export function useSNMP() {
             }
             if (crashEvent.crashPacket && crashEvent.crashLogPath) break;
           }
-          
-          parsedData.push({ 
-            id: 'crash_event', 
-            version: 'crash', 
-            type: 'crash', 
-            oids: [], 
-            hex: crashEvent.crashPacket, 
-            result: 'crash', 
-            responseSize: 0, 
-            timestamp: crashEvent.timestamp, 
-            crashEvent 
+
+          parsedData.push({
+            id: 'crash_event',
+            version: 'crash',
+            type: 'crash',
+            oids: [],
+            hex: crashEvent.crashPacket,
+            result: 'crash',
+            responseSize: 0,
+            timestamp: crashEvent.timestamp,
+            crashEvent
           });
-          
-          if (currentPacket) { 
-            currentPacket.result = 'crash'; 
-            (currentPacket as any).crashInfo = line; 
+
+          if (currentPacket) {
+            currentPacket.result = 'crash';
+            (currentPacket as any).crashInfo = line;
           }
         } else if (line.includes('检测到崩溃')) {
           if (currentPacket) (currentPacket as any).monitorInfo = line;
@@ -17306,7 +16188,7 @@ export function useSNMP() {
     }
 
     if (currentPacket) parsedData.push(currentPacket);
-    
+
     console.log('解析完成统计:');
     console.log('- 总数据包数:', parsedData.length);
     console.log('- 失败数据包数:', localFailedCount);
@@ -17321,16 +16203,16 @@ export function useSNMP() {
           const typeJson = objMatch[2].replace(/'/g, '"');
           const parsedVersion = JSON.parse(versionJson);
           const parsedType = JSON.parse(typeJson);
-          protocolStats.value = { 
-            v1: parsedVersion.v1 || 0, 
-            v2c: parsedVersion.v2c || 0, 
-            v3: parsedVersion.v3 || 0 
+          protocolStats.value = {
+            v1: parsedVersion.v1 || 0,
+            v2c: parsedVersion.v2c || 0,
+            v3: parsedVersion.v3 || 0
           };
-          messageTypeStats.value = { 
-            get: parsedType.get || 0, 
-            set: parsedType.set || 0, 
-            getnext: parsedType.getnext || 0, 
-            getbulk: parsedType.getbulk || 0 
+          messageTypeStats.value = {
+            get: parsedType.get || 0,
+            set: parsedType.set || 0,
+            getnext: parsedType.getnext || 0,
+            getbulk: parsedType.getbulk || 0
           };
         } catch (error) {
           console.warn('解析统计信息失败:', error);
@@ -17345,29 +16227,24 @@ export function useSNMP() {
     fileSuccessCount.value = parsedData.filter(p => p.result === 'success').length;
     fileTimeoutCount.value = parsedData.filter(p => p.result === 'timeout').length;
     fileFailedCount.value = localFailedCount;
-    
-    return parsedData;
-  }
 
-  // 处理SNMP数据包
-  function processSNMPPacket(packet: FuzzPacket, addLogToUI: (packet: FuzzPacket, isCrash: boolean) => void, updateCounters?: (result: string) => void) {
-    try {
-      // Update protocol stats
-      if (packet.version === 'v1') protocolStats.value.v1++;
-      else if (packet.version === 'v2c') protocolStats.value.v2c++;
-      else if (packet.version === 'v3') protocolStats.value.v3++;
-      
+    return parsedData;
+
+}
+
+// 处理SNMP数据包function processSNMPPacket(packet: FuzzPacket, addLogToUI: (packet: FuzzPacket, isCrash: boolean) => void, updateCounters?: (result: string) => void) { try { // Update protocol stats if (packet.version === 'v1') protocolStats.value.v1++; else if (packet.version === 'v2c') protocolStats.value.v2c++; else if (packet.version === 'v3') protocolStats.value.v3++;
+
       // Update message type stats
       if (packet.type === 'get') messageTypeStats.value.get++;
       else if (packet.type === 'set') messageTypeStats.value.set++;
       else if (packet.type === 'getnext') messageTypeStats.value.getnext++;
       else if (packet.type === 'getbulk') messageTypeStats.value.getbulk++;
-      
+
       // Update result counters through callback if provided
       if (updateCounters) {
         updateCounters(packet.result || 'unknown');
       }
-      
+
       // Add to UI log (sparse updates for performance)
       if (packet.result !== 'crash' && Math.random() < 0.1) { // 10% chance to show
         addLogToUI(packet, false);
@@ -17377,15 +16254,11 @@ export function useSNMP() {
     } catch (error) {
       console.warn('Error processing SNMP packet:', error);
     }
-  }
 
-  // SNMP专用的日志显示函数
-  function addSNMPLogToUI(packet: FuzzPacket, isCrash: boolean, logContainer: HTMLElement | null, showHistoryView: boolean, isRunning: boolean) {
-    // 检查DOM元素是否存在且在实时测试视图中
-    if (!logContainer || showHistoryView || !isRunning) {
-      return;
-    }
-    
+}
+
+// SNMP专用的日志显示函数function addSNMPLogToUI(packet: FuzzPacket, isCrash: boolean, logContainer: HTMLElement | null, showHistoryView: boolean, isRunning: boolean) { // 检查DOM元素是否存在且在实时测试视图中if (!logContainer || showHistoryView || !isRunning) { return; }
+
     // Use nextTick to ensure DOM is stable before manipulation
     nextTick(() => {
       try {
@@ -17393,10 +16266,10 @@ export function useSNMP() {
         if (!logContainer || !logContainer.appendChild || showHistoryView || !isRunning) {
           return;
         }
-        
+
         const div = document.createElement('div');
         div.className = isCrash ? 'crash-highlight' : 'packet-highlight';
-        
+
         if (isCrash) {
           div.innerHTML = `<span class="text-dark/50">[${packet.timestamp || ''}]</span> <span class="text-danger font-bold">CRASH DETECTED</span> <span class="text-danger">${packet.version?.toUpperCase() || 'UNKNOWN'}</span> <span class="text-danger">${packet.type?.toUpperCase() || 'UNKNOWN'}</span>`;
         } else {
@@ -17405,25 +16278,25 @@ export function useSNMP() {
           const time = packet.timestamp || '';
           const content = packet.oids?.[0] || '';
           const hex = (packet.hex || '').slice(0, 40);
-          const resultText = packet.result === 'success' ? `正常响应 (${packet.responseSize || 0}字节)` : 
-                            packet.result === 'timeout' ? '接收超时' : 
+          const resultText = packet.result === 'success' ? `正常响应 (${packet.responseSize || 0}字节)` :
+                            packet.result === 'timeout' ? '接收超时' :
                             packet.result === 'failed' ? '构造失败' : '未知状态';
-          const resultClass = packet.result === 'success' ? 'text-success' : 
-                             packet.result === 'timeout' ? 'text-warning' : 
+          const resultClass = packet.result === 'success' ? 'text-success' :
+                             packet.result === 'timeout' ? 'text-warning' :
                              packet.result === 'failed' ? 'text-danger' : 'text-warning';
-          
+
           div.innerHTML = `<span class="text-dark/50">[${time}]</span> <span class="text-primary">SNMP${protocol}</span> <span class="text-info">${op}</span> <span class="text-dark/70 truncate inline-block w-32" title="${content}">${content}</span> <span class="${resultClass} font-medium">${resultText}</span> <span class="text-dark/40">${hex}...</span>`;
         }
-        
+
         // Final check before DOM manipulation
         if (logContainer && logContainer.appendChild) {
           logContainer.appendChild(div);
-          
+
           // Safely update scroll position
           if (logContainer.scrollTop !== undefined) {
             logContainer.scrollTop = logContainer.scrollHeight;
           }
-          
+
           // Limit log entries for performance with safe checks
           if (logContainer.children && logContainer.children.length > 200) {
             const firstChild = logContainer.firstChild;
@@ -17436,86 +16309,28 @@ export function useSNMP() {
         console.warn('Failed to add SNMP log to UI:', error);
       }
     });
-  }
 
-  // SNMP测试启动函数
-  async function startSNMPTest(loop: () => void) {
-    // SNMP协议的原有逻辑
-    console.log('启动SNMP测试...');
-    loop();
-  }
-
-  return {
-    protocolStats,
-    messageTypeStats,
-    fuzzData,
-    totalPacketsInFile,
-    fileTotalPackets,
-    fileSuccessCount,
-    fileTimeoutCount,
-    fileFailedCount,
-    resetSNMPStats,
-    generateDefaultFuzzData,
-    parseSNMPText,
-    processSNMPPacket,
-    addSNMPLogToUI,
-    startSNMPTest
-  };
 }
 
+// SNMP测试启动函数async function startSNMPTest(loop: () => void) { // SNMP协议的原有逻辑console.log('启动SNMP测试...'); loop(); }
 
-====================================================================================================
-文件 15: apps/web-antd/src/views/protocol-compliance/fuzz/composables/useSOL.ts
-====================================================================================================
+return { protocolStats, messageTypeStats, fuzzData, totalPacketsInFile, fileTotalPackets, fileSuccessCount, fileTimeoutCount, fileFailedCount, resetSNMPStats, generateDefaultFuzzData, parseSNMPText, processSNMPPacket, addSNMPLogToUI, startSNMPTest }; }
 
-/**
- * SOL协议专用的composable
- * 包含AFLNET相关的数据处理和UI逻辑
- */
+==================================================================================================== 文件 15: apps/web-antd/src/views/protocol-compliance/fuzz/composables/useSOL.ts ====================================================================================================
 
-import { ref, type Ref } from 'vue';
-import type { RTSPStats, LogUIData } from './types';
-import { requestClient, dockerRequestClient } from '#/api/request';
+/\*\*
 
-export function useSOL() {
-  // SOL统计数据
-  const solStats: Ref<RTSPStats> = ref({
-    cycles_done: 0,
-    paths_total: 0,
-    cur_path: 0,
-    pending_total: 0,
-    pending_favs: 0,
-    map_size: '0%',
-    unique_crashes: 0,
-    unique_hangs: 0,
-    max_depth: 0,
-    execs_per_sec: 0,
-    n_nodes: 0,
-    n_edges: 0
-  });
+- SOL协议专用的composable
+- 包含AFLNET相关的数据处理和UI逻辑 \*/
 
-  // 重置SOL统计数据
-  function resetSOLStats() {
-    solStats.value = {
-      cycles_done: 0,
-      paths_total: 0,
-      cur_path: 0,
-      pending_total: 0,
-      pending_favs: 0,
-      map_size: '0%',
-      unique_crashes: 0,
-      unique_hangs: 0,
-      max_depth: 0,
-      execs_per_sec: 0,
-      n_nodes: 0,
-      n_edges: 0
-    };
-  }
+import { ref, type Ref } from 'vue'; import type { RTSPStats, LogUIData } from './types'; import { requestClient, dockerRequestClient } from '#/api/request';
 
-  // 处理SOL协议的AFL-NET日志行
-  function processSOLLogLine(line: string, packetCount: Ref<number>, successCount: Ref<number>, failedCount: Ref<number>, crashCount: Ref<number>, currentSpeed: Ref<number>) {
-    const timestamp = new Date().toLocaleTimeString();
-    
+export function useSOL() { // SOL统计数据const solStats: Ref<RTSPStats> = ref({ cycles_done: 0, paths_total: 0, cur_path: 0, pending_total: 0, pending_favs: 0, map_size: '0%', unique_crashes: 0, unique_hangs: 0, max_depth: 0, execs_per_sec: 0, n_nodes: 0, n_edges: 0 });
+
+// 重置SOL统计数据function resetSOLStats() { solStats.value = { cycles_done: 0, paths_total: 0, cur_path: 0, pending_total: 0, pending_favs: 0, map_size: '0%', unique_crashes: 0, unique_hangs: 0, max_depth: 0, execs_per_sec: 0, n_nodes: 0, n_edges: 0 }; }
+
+// 处理SOL协议的AFL-NET日志行function processSOLLogLine(line: string, packetCount: Ref<number>, successCount: Ref<number>, failedCount: Ref<number>, crashCount: Ref<number>, currentSpeed: Ref<number>) { const timestamp = new Date().toLocaleTimeString();
+
     // 处理注释行（参数说明）
     if (line.startsWith('#')) {
       return {
@@ -17525,20 +16340,20 @@ export function useSOL() {
         isHeader: true
       } as LogUIData;
     }
-    
+
     // 处理数据行
     if (line.includes(',')) {
       const parts = line.split(',').map(part => part.trim());
       if (parts.length >= 13) {
         const [
-          unix_time, cycles_done, cur_path, paths_total, pending_total, 
-          pending_favs, map_size, unique_crashes, unique_hangs, max_depth, 
+          unix_time, cycles_done, cur_path, paths_total, pending_total,
+          pending_favs, map_size, unique_crashes, unique_hangs, max_depth,
           execs_per_sec, n_nodes, n_edges
         ] = parts;
-        
+
         // 格式化显示AFL-NET统计信息
         const formattedContent = `Cycles: ${cycles_done} | Paths: ${cur_path}/${paths_total} | Pending: ${pending_total}(${pending_favs} favs) | Coverage: ${map_size} | Crashes: ${unique_crashes} | Hangs: ${unique_hangs} | Speed: ${execs_per_sec}/sec | Nodes: ${n_nodes} | Edges: ${n_edges}`;
-        
+
         // 更新SOL统计信息
         solStats.value = {
           cycles_done: parseInt(cycles_done),
@@ -17554,14 +16369,14 @@ export function useSOL() {
           n_nodes: parseInt(n_nodes),
           n_edges: parseInt(n_edges)
         };
-        
+
         // 更新通用统计信息
         packetCount.value = parseInt(cur_path);
         successCount.value = parseInt(paths_total) - parseInt(pending_total);
         failedCount.value = parseInt(unique_crashes);
         crashCount.value = parseInt(unique_crashes);
         currentSpeed.value = Math.round(parseFloat(execs_per_sec));
-        
+
         return {
           timestamp,
           type: 'STATS',
@@ -17584,44 +16399,35 @@ export function useSOL() {
         content: line
       } as LogUIData;
     }
-    
-    return null;
-  }
 
-  // 写入SOL脚本文件
-  async function writeSOLScript(scriptContent: string, protocolImplementations?: string[]) {
-    try {
-      const result = await requestClient.post('/protocol-compliance/write-script', {
-        content: scriptContent,
-        protocol: 'MQTT',  // SOL协议现在通过MQTT协议实现选择
-        protocolImplementations: protocolImplementations || []
-      });
-      return result;
-      
+    return null;
+
+}
+
+// 写入SOL脚本文件async function writeSOLScript(scriptContent: string, protocolImplementations?: string[]) { try { const result = await requestClient.post('/protocol-compliance/write-script', { content: scriptContent, protocol: 'MQTT', // SOL协议现在通过MQTT协议实现选择protocolImplementations: protocolImplementations || [] }); return result;
+
     } catch (error: any) {
       console.error('写入SOL脚本失败:', error);
       throw new Error(`写入脚本文件失败: ${error.message}`);
     }
-  }
 
-  // 执行SOL命令
-  async function executeSOLCommand(protocolImplementations?: string[]) {
-    console.log('[DEBUG] ========== executeSOLCommand 被调用 ==========');
-    console.log('[DEBUG] protocolImplementations:', protocolImplementations);
-    
+}
+
+// 执行SOL命令async function executeSOLCommand(protocolImplementations?: string[]) { console.log('[DEBUG] ========== executeSOLCommand 被调用 =========='); console.log('[DEBUG] protocolImplementations:', protocolImplementations);
+
     try {
       const requestData = {
         protocol: 'MQTT',  // SOL协议现在通过MQTT协议实现选择
         protocolImplementations: protocolImplementations || []
       };
-      
+
       console.log('[DEBUG] 发送请求到 /protocol-compliance/execute-command');
       console.log('[DEBUG] 请求数据:', requestData);
-      
+
       const result = await dockerRequestClient.post('/protocol-compliance/execute-command', requestData);
-      
+
       console.log('[DEBUG] API响应成功:', result);
-      
+
       // 由于响应拦截器的处理，数据可能直接在result中，也可能在result.data中
       const responseData = result.data || result;
       console.log('[DEBUG] 响应数据结构:', {
@@ -17631,22 +16437,19 @@ export function useSOL() {
         hasContainerId: !!responseData?.container_id,
         hasPid: !!responseData?.pid
       });
-      
+
       return result;
-      
+
     } catch (error: any) {
       console.error('[DEBUG] 执行SOL命令失败:', error);
       console.error('[DEBUG] 错误详情:', error.response?.data || error.message);
       throw new Error(`执行启动命令失败: ${error.message}`);
     }
-  }
 
-  // 停止SOL进程
-  async function stopSOLProcess(processId: string | number) {
-    if (!processId) {
-      return;
-    }
-    
+}
+
+// 停止SOL进程async function stopSOLProcess(processId: string | number) { if (!processId) { return; }
+
     try {
       const result = await requestClient.post('/protocol-compliance/stop-process', {
         pid: processId,
@@ -17657,22 +16460,21 @@ export function useSOL() {
       console.error('停止SOL进程失败:', error);
       throw error;
     }
-  }
 
-  // 启动前清理：停止现有容器并清理输出文件
-  async function preStartCleanupSOL() {
-    console.log('[DEBUG] ========== preStartCleanupSOL 被调用 ==========');
-    
+}
+
+// 启动前清理：停止现有容器并清理输出文件 async function preStartCleanupSOL() { console.log('[DEBUG] ========== preStartCleanupSOL 被调用 ==========');
+
     try {
       const requestData = {
         protocol: 'MQTT'  // SOL协议通过MQTT协议实现选择
       };
-      
+
       console.log('[DEBUG] 发送请求到 /protocol-compliance/pre-start-cleanup');
       console.log('[DEBUG] 请求数据:', requestData);
-      
+
       const result = await dockerRequestClient.post('/protocol-compliance/pre-start-cleanup', requestData);
-      
+
       console.log('[DEBUG] 启动前清理API响应成功:', result);
       return result;
     } catch (error) {
@@ -17680,29 +16482,27 @@ export function useSOL() {
       console.error('[DEBUG] 错误详情:', error.response?.data || error.message);
       throw error;
     }
-  }
 
-  // 停止SOL Docker容器（不清理输出文件）
-  async function stopSOLContainer(containerId: string) {
-    console.log('[DEBUG] ========== stopSOLContainer 被调用 ==========');
-    console.log('[DEBUG] 传入的容器ID:', containerId);
-    
+}
+
+// 停止SOL Docker容器（不清理输出文件）async function stopSOLContainer(containerId: string) { console.log('[DEBUG] ========== stopSOLContainer 被调用 =========='); console.log('[DEBUG] 传入的容器ID:', containerId);
+
     if (!containerId) {
       console.log('[DEBUG] 容器ID为空，直接返回');
       return;
     }
-    
+
     try {
       const requestData = {
         container_id: containerId,
         protocol: 'RTSP'  // 保持协议标识符为RTSP
       };
-      
+
       console.log('[DEBUG] 发送请求到 /protocol-compliance/stop-and-cleanup');
       console.log('[DEBUG] 请求数据:', requestData);
-      
+
       const result = await dockerRequestClient.post('/protocol-compliance/stop-and-cleanup', requestData);
-      
+
       console.log('[DEBUG] 停止容器API响应成功:', result);
       return result;
     } catch (error) {
@@ -17710,135 +16510,42 @@ export function useSOL() {
       console.error('[DEBUG] 错误详情:', error.response?.data || error.message);
       throw error;
     }
-  }
 
-  // 兼容性函数：保持原有的stopAndCleanupSOL接口
-  async function stopAndCleanupSOL(containerId: string) {
-    return stopSOLContainer(containerId);
-  }
-
-  return {
-    solStats,
-    resetSOLStats,
-    processSOLLogLine,
-    writeSOLScript,
-    executeSOLCommand,
-    stopSOLProcess,
-    preStartCleanupSOL,
-    stopSOLContainer,
-    stopAndCleanupSOL
-  };
 }
 
+// 兼容性函数：保持原有的stopAndCleanupSOL接口async function stopAndCleanupSOL(containerId: string) { return stopSOLContainer(containerId); }
 
-====================================================================================================
-文件 16: apps/backend-flask/protocol_compliance/__init__.py
-====================================================================================================
+return { solStats, resetSOLStats, processSOLLogLine, writeSOLScript, executeSOLCommand, stopSOLProcess, preStartCleanupSOL, stopSOLContainer, stopAndCleanupSOL }; }
+
+==================================================================================================== 文件 16: apps/backend-flask/protocol_compliance/**init**.py ====================================================================================================
 
 [空文件]
 
-
-====================================================================================================
-文件 17: apps/backend-flask/protocol_compliance/routes.py
-====================================================================================================
+==================================================================================================== 文件 17: apps/backend-flask/protocol_compliance/routes.py ====================================================================================================
 
 """Flask blueprints for the protocol compliance domain."""
 
-from __future__ import annotations
+from **future** import annotations
 
-import contextlib
-import json
-import logging
-import os
-import re
-import sqlite3
-import subprocess
-import threading
-import uuid
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, cast
+import contextlib import json import logging import os import re import sqlite3 import subprocess import threading import uuid from datetime import datetime, timezone from pathlib import Path from typing import Any, Dict, Iterable, List, Optional, cast
 
-import toml
-from flask import Blueprint, make_response, request, send_file
-from werkzeug.datastructures import FileStorage
+import toml from flask import Blueprint, make_response, request, send_file from werkzeug.datastructures import FileStorage
 
-try:
-    from ..utils.auth import verify_access_token
-    from ..utils.responses import (
-        error_response,
-        make_error_payload,
-        paginate,
-        success_response,
-        unauthorized,
-    )
-except ImportError:
-    from utils.auth import verify_access_token
-    from utils.responses import (
-        error_response,
-        make_error_payload,
-        paginate,
-        success_response,
-        unauthorized,
-    )
-from .analysis import (
-    delete_static_analysis_job,
-    extract_protocol_version,
-    get_static_analysis_job,
-    get_static_analysis_result,
-    list_static_analysis_history,
-    normalize_protocol_name,
-    submit_static_analysis_job,
-    try_extract_rules_summary,
-)
-from .assertion import (
-    get_assertion_history_diff_path,
-    get_assertion_history_entry,
-    get_assert_generation_job,
-    get_assert_generation_result,
-    get_assert_generation_zip_path,
-    submit_assert_generation_job,
-    submit_diff_parsing_job,
-    get_diff_parsing_job,
-    get_diff_parsing_result,
-    list_assertion_history,
-)
-from .store import STORE, TaskStatus
-from .pipeline_runner import (
-    PipelineExecutionError,
-    PipelineResultNotFoundError,
-    run_protocol_pipeline,
-)
+try: from ..utils.auth import verify_access_token from ..utils.responses import ( error_response, make_error_payload, paginate, success_response, unauthorized, ) except ImportError: from utils.auth import verify_access_token from utils.responses import ( error_response, make_error_payload, paginate, success_response, unauthorized, ) from .analysis import ( delete_static_analysis_job, extract_protocol_version, get_static_analysis_job, get_static_analysis_result, list_static_analysis_history, normalize_protocol_name, submit_static_analysis_job, try_extract_rules_summary, ) from .assertion import ( get_assertion_history_diff_path, get_assertion_history_entry, get_assert_generation_job, get_assert_generation_result, get_assert_generation_zip_path, submit_assert_generation_job, submit_diff_parsing_job, get_diff_parsing_job, get_diff_parsing_result, list_assertion_history, ) from .store import STORE, TaskStatus from .pipeline_runner import ( PipelineExecutionError, PipelineResultNotFoundError, run_protocol_pipeline, )
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = logging.getLogger(**name**)
 
-bp = Blueprint("protocol_compliance", __name__, url_prefix="/api/protocol-compliance")
-
+bp = Blueprint("protocol_compliance", **name**, url_prefix="/api/protocol-compliance")
 
 # Authentication -------------------------------------------------------------
 
-def _ensure_authenticated():
-    user = verify_access_token(request.headers.get("Authorization"))
-    if not user:
-        return None, unauthorized()
-    return user, None
-
+def \_ensure_authenticated(): user = verify_access_token(request.headers.get("Authorization")) if not user: return None, unauthorized() return user, None
 
 # Helpers -------------------------------------------------------------------
 
-def _to_int(value: Optional[str], fallback: int) -> int:
-    try:
-        parsed = int(value)
-    except (TypeError, ValueError):
-        return fallback
-    return parsed if parsed > 0 else fallback
+def \_to_int(value: Optional[str], fallback: int) -> int: try: parsed = int(value) except (TypeError, ValueError): return fallback return parsed if parsed > 0 else fallback
 
-
-def _normalize_status(raw: Optional[Iterable[str]]) -> Optional[list[TaskStatus]]:
-    if not raw:
-        return None
-    statuses: set[TaskStatus] = set()
-    allowed: set[TaskStatus] = {"completed", "failed", "processing", "queued"}
+def \_normalize_status(raw: Optional[Iterable[str]]) -> Optional[list[TaskStatus]]: if not raw: return None statuses: set[TaskStatus] = set() allowed: set[TaskStatus] = {"completed", "failed", "processing", "queued"}
 
     for item in raw:
         if not item:
@@ -17850,45 +16557,11 @@ def _normalize_status(raw: Optional[Iterable[str]]) -> Optional[list[TaskStatus]
 
     return list(statuses) if statuses else None
 
+def \_parse_tags(raw: Optional[str]) -> Optional[list[str]]: if not raw: return None try: parsed = json.loads(raw) except json.JSONDecodeError: return None if isinstance(parsed, list): tags = [item for item in parsed if isinstance(item, str)] return tags or None return None
 
-def _parse_tags(raw: Optional[str]) -> Optional[list[str]]:
-    if not raw:
-        return None
-    try:
-        parsed = json.loads(raw)
-    except json.JSONDecodeError:
-        return None
-    if isinstance(parsed, list):
-        tags = [item for item in parsed if isinstance(item, str)]
-        return tags or None
-    return None
+def \_read_upload(upload: FileStorage) -> tuple[str, Optional[bytes]]: filename = upload.filename or "upload.bin" data = upload.read() if upload else None if upload: with contextlib.suppress(Exception): upload.stream.seek(0) return filename, data
 
-
-def _read_upload(upload: FileStorage) -> tuple[str, Optional[bytes]]:
-    filename = upload.filename or "upload.bin"
-    data = upload.read() if upload else None
-    if upload:
-        with contextlib.suppress(Exception):
-            upload.stream.seek(0)
-    return filename, data
-
-
-def _extract_protocol_metadata_from_config(
-    raw: Optional[bytes], source_label: str
-) -> tuple[Optional[str], Optional[str]]:
-    if not raw:
-        LOGGER.debug("Config payload %s is empty; skipping protocol metadata extraction", source_label)
-        return None, None
-    try:
-        text = raw.decode("utf-8")
-    except UnicodeDecodeError as exc:
-        LOGGER.warning("Failed to decode %s as UTF-8 while extracting protocol metadata: %s", source_label, exc)
-        return None, None
-    try:
-        parsed = toml.loads(text)
-    except toml.TomlDecodeError as exc:
-        LOGGER.warning("Failed to parse %s as TOML while extracting protocol metadata: %s", source_label, exc)
-        return None, None
+def \_extract_protocol_metadata_from_config( raw: Optional[bytes], source_label: str ) -> tuple[Optional[str], Optional[str]]: if not raw: LOGGER.debug("Config payload %s is empty; skipping protocol metadata extraction", source_label) return None, None try: text = raw.decode("utf-8") except UnicodeDecodeError as exc: LOGGER.warning("Failed to decode %s as UTF-8 while extracting protocol metadata: %s", source_label, exc) return None, None try: parsed = toml.loads(text) except toml.TomlDecodeError as exc: LOGGER.warning("Failed to parse %s as TOML while extracting protocol metadata: %s", source_label, exc) return None, None
 
     project = parsed.get("project")
     if isinstance(project, dict):
@@ -17903,12 +16576,7 @@ def _extract_protocol_metadata_from_config(
     )
     return None, None
 
-
-def _collect_exception_details(exc: Exception, *, max_logs: int = 40) -> dict:
-    details = {"message": str(exc)}
-    extra = getattr(exc, "details", None)
-    if isinstance(extra, dict) and extra:
-        details.update(extra)
+def \_collect_exception_details(exc: Exception, \*, max_logs: int = 40) -> dict: details = {"message": str(exc)} extra = getattr(exc, "details", None) if isinstance(extra, dict) and extra: details.update(extra)
 
     logs = getattr(exc, "logs", None)
     if isinstance(logs, list) and logs:
@@ -17920,15 +16588,9 @@ def _collect_exception_details(exc: Exception, *, max_logs: int = 40) -> dict:
 
     return details
 
-
 # Routes --------------------------------------------------------------------
 
-
-@bp.route("/extract/run", methods=["POST"])
-def run_protocol_extract():
-    _, error = _ensure_authenticated()
-    if error:
-        return error
+@bp.route("/extract/run", methods=["POST"]) def run*protocol_extract(): *, error = \_ensure_authenticated() if error: return error
 
     html_upload = request.files.get("htmlFile")
     if not isinstance(html_upload, FileStorage):
@@ -17988,12 +16650,7 @@ def run_protocol_extract():
     )
     return make_response(payload, 200)
 
-
-@bp.route("/tasks", methods=["GET"])
-def list_tasks():
-    _, error = _ensure_authenticated()
-    if error:
-        return error
+@bp.route("/tasks", methods=["GET"]) def list*tasks(): *, error = \_ensure_authenticated() if error: return error
 
     page = _to_int(request.args.get("page"), 1)
     page_size = min(_to_int(request.args.get("pageSize"), 20), 50)
@@ -18019,12 +16676,7 @@ def list_tasks():
     )
     return payload
 
-
-@bp.route("/tasks", methods=["POST"])
-def create_task():
-    _, error = _ensure_authenticated()
-    if error:
-        return error
+@bp.route("/tasks", methods=["POST"]) def create*task(): *, error = \_ensure_authenticated() if error: return error
 
     if "file" not in request.files and not request.files:
         payload = error_response("请上传协议文档")
@@ -18066,12 +16718,7 @@ def create_task():
     payload = success_response(STORE.serialize_task(task, base_url))
     return payload
 
-
-@bp.route("/tasks/<task_id>/result", methods=["GET"])
-def download_result(task_id: str):
-    _, error = _ensure_authenticated()
-    if error:
-        return error
+@bp.route("/tasks/<task*id>/result", methods=["GET"]) def download_result(task_id: str): *, error = \_ensure_authenticated() if error: return error
 
     task = STORE.get_task(task_id)
     if not task:
@@ -18091,12 +16738,7 @@ def download_result(task_id: str):
     response.headers["Content-Disposition"] = f'attachment; filename="{file_name}"'
     return response
 
-
-@bp.route("/static-analysis", methods=["POST"])
-def static_analysis():
-    _, error = _ensure_authenticated()
-    if error:
-        return error
+@bp.route("/static-analysis", methods=["POST"]) def static*analysis(): *, error = \_ensure_authenticated() if error: return error
 
     if not request.files:
         return make_response(
@@ -18191,12 +16833,7 @@ def static_analysis():
     )
     return make_response(success_response(snapshot), 202)
 
-
-@bp.route("/static-analysis/history", methods=["GET"])
-def static_analysis_history():
-    _, error = _ensure_authenticated()
-    if error:
-        return error
+@bp.route("/static-analysis/history", methods=["GET"]) def static*analysis_history(): *, error = \_ensure_authenticated() if error: return error
 
     limit = _to_int(request.args.get("limit"), 50)
     limit = max(1, min(limit, 200))
@@ -18204,13 +16841,7 @@ def static_analysis_history():
     payload = success_response({"items": history, "limit": limit, "count": len(history)})
     return make_response(payload, 200)
 
-
-@bp.route("/static-analysis/history/<job_id>", methods=["DELETE"])
-def delete_static_analysis_history(job_id: str):
-    """Delete a static analysis job from the history."""
-    _, error = _ensure_authenticated()
-    if error:
-        return error
+@bp.route("/static-analysis/history/<job*id>", methods=["DELETE"]) def delete_static_analysis_history(job_id: str): """Delete a static analysis job from the history.""" *, error = \_ensure_authenticated() if error: return error
 
     if not job_id or not isinstance(job_id, str):
         return make_response(error_response("无效的任务 ID"), 400)
@@ -18224,12 +16855,7 @@ def delete_static_analysis_history(job_id: str):
         LOGGER.error("Failed to delete static analysis job %s: %s", job_id, exc)
         return make_response(error_response(f"删除失败：{str(exc)}"), 500)
 
-
-@bp.route("/assertions/history", methods=["GET"])
-def assertion_history():
-    _, error = _ensure_authenticated()
-    if error:
-        return error
+@bp.route("/assertions/history", methods=["GET"]) def assertion*history(): *, error = \_ensure_authenticated() if error: return error
 
     limit = _to_int(request.args.get("limit"), 50)
     limit = max(1, min(limit, 200))
@@ -18237,46 +16863,23 @@ def assertion_history():
     payload = {"items": items, "limit": limit, "count": len(items)}
     return make_response(success_response(payload), 200)
 
-
-@bp.route("/assertions/history/<job_id>", methods=["GET"])
-def assertion_history_entry(job_id: str):
-    _, error = _ensure_authenticated()
-    if error:
-        return error
+@bp.route("/assertions/history/<job*id>", methods=["GET"]) def assertion_history_entry(job_id: str): *, error = \_ensure_authenticated() if error: return error
 
     entry = get_assertion_history_entry(job_id)
     if not entry:
         return make_response(error_response("历史记录不存在"), 404)
     return make_response(success_response(entry), 200)
 
-
-@bp.route("/assertions/history/<job_id>/diff", methods=["GET"])
-def download_assertion_diff(job_id: str):
-    _, error = _ensure_authenticated()
-    if error:
-        return error
+@bp.route("/assertions/history/<job*id>/diff", methods=["GET"]) def download_assertion_diff(job_id: str): *, error = \_ensure_authenticated() if error: return error
 
     diff_path = get_assertion_history_diff_path(job_id)
     if not diff_path:
         return make_response(error_response("Diff 文件不存在"), 404)
     return send_file(diff_path, as_attachment=True, download_name=diff_path.name)
 
+def \_expand_path(raw: Optional[str]) -> Optional[Path]: if not raw or not isinstance(raw, str): return None try: return Path(raw).expanduser() except (OSError, ValueError): return None
 
-def _expand_path(raw: Optional[str]) -> Optional[Path]:
-    if not raw or not isinstance(raw, str):
-        return None
-    try:
-        return Path(raw).expanduser()
-    except (OSError, ValueError):
-        return None
-
-
-def _find_sqlite_file(
-    database_path: Optional[str],
-    workspace_path: Optional[str],
-) -> tuple[Optional[Path], list[str]]:
-    """Resolve the SQLite database path, collecting warnings."""
-    warnings: list[str] = []
+def \_find_sqlite_file( database_path: Optional[str], workspace_path: Optional[str], ) -> tuple[Optional[Path], list[str]]: """Resolve the SQLite database path, collecting warnings.""" warnings: list[str] = []
 
     candidate = _expand_path(database_path)
     if candidate and candidate.is_file():
@@ -18298,36 +16901,11 @@ def _find_sqlite_file(
 
     return None, warnings
 
+def \_parse_llm_response(payload: Any) -> Dict[str, Any]: if isinstance(payload, str): payload = payload.strip() if not payload or payload.lower() == "null": return {} try: decoded = json.loads(payload) except json.JSONDecodeError: return {"raw": payload} payload = decoded if isinstance(payload, dict): return payload return {}
 
-def _parse_llm_response(payload: Any) -> Dict[str, Any]:
-    if isinstance(payload, str):
-        payload = payload.strip()
-        if not payload or payload.lower() == "null":
-            return {}
-        try:
-            decoded = json.loads(payload)
-        except json.JSONDecodeError:
-            return {"raw": payload}
-        payload = decoded
-    if isinstance(payload, dict):
-        return payload
-    return {}
+def \_classify_rule_result(llm_payload: Dict[str, Any]) -> tuple[str, str]: result_text = str(llm_payload.get("result") or "").lower() if "violation" in result_text and "no violation" not in result_text: return "violation_found", "发现违规" if "no violation" in result_text: return "no_violation", "未发现违规" return "unknown", "未判定"
 
-
-def _classify_rule_result(llm_payload: Dict[str, Any]) -> tuple[str, str]:
-    result_text = str(llm_payload.get("result") or "").lower()
-    if "violation" in result_text and "no violation" not in result_text:
-        return "violation_found", "发现违规"
-    if "no violation" in result_text:
-        return "no_violation", "未发现违规"
-    return "unknown", "未判定"
-
-
-@bp.route("/static-analysis/database-insights", methods=["POST"])
-def static_analysis_database_insights():
-    _, error = _ensure_authenticated()
-    if error:
-        return error
+@bp.route("/static-analysis/database-insights", methods=["POST"]) def static*analysis_database_insights(): *, error = \_ensure_authenticated() if error: return error
 
     payload = request.get_json(silent=True)
     if payload is None:
@@ -18510,12 +17088,7 @@ def static_analysis_database_insights():
 
     return make_response(success_response(response_payload), 200)
 
-
-@bp.route("/static-analysis/<job_id>/progress", methods=["GET"])
-def static_analysis_progress(job_id: str):
-    _, error = _ensure_authenticated()
-    if error:
-        return error
+@bp.route("/static-analysis/<job*id>/progress", methods=["GET"]) def static_analysis_progress(job_id: str): *, error = \_ensure_authenticated() if error: return error
 
     # Support incremental event fetching via fromEventId query parameter
     from_event_id_raw = request.args.get("fromEventId")
@@ -18536,12 +17109,7 @@ def static_analysis_progress(job_id: str):
         return make_response(error_response("未找到静态分析任务"), 404)
     return make_response(success_response(snapshot), 200)
 
-
-@bp.route("/static-analysis/<job_id>/result", methods=["GET"])
-def static_analysis_result(job_id: str):
-    _, error = _ensure_authenticated()
-    if error:
-        return error
+@bp.route("/static-analysis/<job*id>/result", methods=["GET"]) def static_analysis_result(job_id: str): *, error = \_ensure_authenticated() if error: return error
 
     result = get_static_analysis_result(job_id)
     if result is None:
@@ -18555,12 +17123,7 @@ def static_analysis_result(job_id: str):
         )
     return make_response(success_response(result), 200)
 
-
-@bp.route("/assertion-generation", methods=["POST"])
-def assertion_generation():
-    _, error = _ensure_authenticated()
-    if error:
-        return error
+@bp.route("/assertion-generation", methods=["POST"]) def assertion*generation(): *, error = \_ensure_authenticated() if error: return error
 
     if not request.files:
         return make_response(error_response("请上传源码压缩包和违规数据库"), 400)
@@ -18609,24 +17172,14 @@ def assertion_generation():
     )
     return make_response(success_response(snapshot), 202)
 
-
-@bp.route("/assertion-generation/<job_id>/progress", methods=["GET"])
-def assertion_generation_progress(job_id: str):
-    _, error = _ensure_authenticated()
-    if error:
-        return error
+@bp.route("/assertion-generation/<job*id>/progress", methods=["GET"]) def assertion_generation_progress(job_id: str): *, error = \_ensure_authenticated() if error: return error
 
     snapshot = get_assert_generation_job(job_id)
     if not snapshot:
         return make_response(error_response("未找到断言生成任务"), 404)
     return make_response(success_response(snapshot), 200)
 
-
-@bp.route("/assertion-generation/<job_id>/result", methods=["GET"])
-def assertion_generation_result(job_id: str):
-    _, error = _ensure_authenticated()
-    if error:
-        return error
+@bp.route("/assertion-generation/<job*id>/result", methods=["GET"]) def assertion_generation_result(job_id: str): *, error = \_ensure_authenticated() if error: return error
 
     result = get_assert_generation_result(job_id)
     if result is None:
@@ -18640,12 +17193,7 @@ def assertion_generation_result(job_id: str):
         )
     return make_response(success_response(result), 200)
 
-
-@bp.route("/assertion-generation/<job_id>/download", methods=["GET"])
-def assertion_generation_download(job_id: str):
-    _, error = _ensure_authenticated()
-    if error:
-        return error
+@bp.route("/assertion-generation/<job*id>/download", methods=["GET"]) def assertion_generation_download(job_id: str): *, error = \_ensure_authenticated() if error: return error
 
     snapshot = get_assert_generation_job(job_id)
     if not snapshot:
@@ -18670,13 +17218,7 @@ def assertion_generation_download(job_id: str):
         max_age=0,
     )
 
-
-@bp.route("/assertion-generation/<job_id>/instrumentation-diff", methods=["GET"])
-def assertion_generation_instrumentation_diff(job_id: str):
-    """Fetch the instrumentation diff for a completed assertion generation job."""
-    _, error = _ensure_authenticated()
-    if error:
-        return error
+@bp.route("/assertion-generation/<job*id>/instrumentation-diff", methods=["GET"]) def assertion_generation_instrumentation_diff(job_id: str): """Fetch the instrumentation diff for a completed assertion generation job.""" *, error = \_ensure_authenticated() if error: return error
 
     result = get_assert_generation_result(job_id)
     if result is None:
@@ -18688,32 +17230,25 @@ def assertion_generation_instrumentation_diff(job_id: str):
             error_response("断言生成任务尚未完成", {"status": status}),
             409,
         )
-    
+
     # Extract instrumentation diff from result
     instrumentation = result.get("instrumentation")
     if not instrumentation or not isinstance(instrumentation, dict):
         return make_response(error_response("未找到 instrumentation 数据"), 404)
-    
+
     artifacts = instrumentation.get("artifacts")
     if not artifacts or not isinstance(artifacts, dict):
         return make_response(error_response("未找到 instrumentation artifacts"), 404)
-    
+
     diff_output = artifacts.get("diffOutput")
     if not diff_output or not isinstance(diff_output, dict):
         return make_response(error_response("未找到 instrumentation diff 输出"), 404)
-    
-    return make_response(success_response(diff_output), 200)
 
+    return make_response(success_response(diff_output), 200)
 
 # Diff Parsing Routes -----------------------------------------------------------
 
-
-@bp.route("/assertion-generation/<assert_job_id>/diff-parsing", methods=["POST"])
-def start_diff_parsing(assert_job_id: str):
-    """Start diff parsing for a completed assertion generation job."""
-    _, error = _ensure_authenticated()
-    if error:
-        return error
+@bp.route("/assertion-generation/<assert*job_id>/diff-parsing", methods=["POST"]) def start_diff_parsing(assert_job_id: str): """Start diff parsing for a completed assertion generation job.""" *, error = \_ensure_authenticated() if error: return error
 
     # Verify the parent assertion generation job exists
     assert_snapshot = get_assert_generation_job(assert_job_id)
@@ -18739,16 +17274,7 @@ def start_diff_parsing(assert_job_id: str):
     snapshot = submit_diff_parsing_job(assert_job_id)
     return make_response(success_response(snapshot), 202)
 
-
-@bp.route(
-    "/assertion-generation/<assert_job_id>/diff-parsing/<diff_job_id>/progress",
-    methods=["GET"],
-)
-def diff_parsing_progress(assert_job_id: str, diff_job_id: str):
-    """Get progress of a diff parsing job."""
-    _, error = _ensure_authenticated()
-    if error:
-        return error
+@bp.route( "/assertion-generation/<assert*job_id>/diff-parsing/<diff_job_id>/progress", methods=["GET"], ) def diff_parsing_progress(assert_job_id: str, diff_job_id: str): """Get progress of a diff parsing job.""" *, error = \_ensure_authenticated() if error: return error
 
     snapshot = get_diff_parsing_job(diff_job_id)
     if not snapshot:
@@ -18763,16 +17289,7 @@ def diff_parsing_progress(assert_job_id: str, diff_job_id: str):
 
     return make_response(success_response(snapshot), 200)
 
-
-@bp.route(
-    "/assertion-generation/<assert_job_id>/diff-parsing/<diff_job_id>/result",
-    methods=["GET"],
-)
-def diff_parsing_result(assert_job_id: str, diff_job_id: str):
-    """Get result of a completed diff parsing job."""
-    _, error = _ensure_authenticated()
-    if error:
-        return error
+@bp.route( "/assertion-generation/<assert*job_id>/diff-parsing/<diff_job_id>/result", methods=["GET"], ) def diff_parsing_result(assert_job_id: str, diff_job_id: str): """Get result of a completed diff parsing job.""" *, error = \_ensure_authenticated() if error: return error
 
     result = get_diff_parsing_result(diff_job_id)
     if result is None:
@@ -18795,42 +17312,23 @@ def diff_parsing_result(assert_job_id: str, diff_job_id: str):
 
     return make_response(success_response(result), 200)
 
-
-def _strip_extension(filename: str) -> str:
-    if "." not in filename:
-        return filename
-    return filename.rsplit(".", 1)[0]
-
+def \_strip_extension(filename: str) -> str: if "." not in filename: return filename return filename.rsplit(".", 1)[0]
 
 # Protocol Specific Routes -------------------------------------------------
 
 # SOL配置 - ProtocolGuard配置
-RTSP_CONFIG = {
-    "script_path": None,  # 不再需要脚本文件
-    "shell_command": "docker run -d --privileged -v /home/lab426_system/ProtocolGuardOutPut:/out/fuzz-output protocolguard:latest fuzz",  # ProtocolGuard启动命令（使用-d后台运行，移除--rm和-it）
-    "log_file_path": "/home/lab426_system/ProtocolGuardOutPut/plot_data"  # ProtocolGuard日志文件路径
-}
+
+RTSP_CONFIG = { "script_path": None, # 不再需要脚本文件 "shell_command": "docker run -d --privileged -v /home/lab426_system/ProtocolGuardOutPut:/out/fuzz-output protocolguard:latest fuzz", # ProtocolGuard启动命令（使用-d后台运行，移除--rm和-it）"log_file_path": "/home/lab426_system/ProtocolGuardOutPut/plot_data" # ProtocolGuard日志文件路径 }
 
 # MQTT协议配置 - MBFuzzer相关路径
-MQTT_CONFIG = {
-    "log_file_path": os.path.join(os.path.dirname(__file__), "mbfuzzer_logs", "fuzzing_report.txt"),  # MBFuzzer日志文件路径
-    "shell_command": "echo 'MBFuzzer模拟运行 - 传统MQTT broker模糊测试'",  # MBFuzzer启动命令（临时模拟）
-    "output_dir": os.path.join(os.path.dirname(__file__), "mbfuzzer_logs")  # MBFuzzer输出目录
-}
+
+MQTT_CONFIG = { "log_file_path": os.path.join(os.path.dirname(**file**), "mbfuzzer_logs", "fuzzing_report.txt"), # MBFuzzer日志文件路径 "shell_command": "echo 'MBFuzzer模拟运行 - 传统MQTT broker模糊测试'", # MBFuzzer启动命令（临时模拟）"output_dir": os.path.join(os.path.dirname(**file**), "mbfuzzer_logs") # MBFuzzer输出目录 }
 
 # SNMP协议配置 - SNMP Fuzzer相关路径
-SNMP_CONFIG = {
-    "log_file_path": os.path.join(os.path.dirname(__file__), "snmpfuzzer_logs", "fuzz_output.txt"),  # SNMP Fuzzer日志文件路径
-    "shell_command": "echo 'SNMP Fuzzer模拟运行'",  # SNMP Fuzzer启动命令（临时模拟）
-    "output_dir": os.path.join(os.path.dirname(__file__), "snmpfuzzer_logs")  # SNMP Fuzzer输出目录
-}
 
-@bp.route("/write-script", methods=["POST"])
-def write_script():
-    """写入脚本文件到指定路径"""
-    _, error = _ensure_authenticated()
-    if error:
-        return error
+SNMP_CONFIG = { "log_file_path": os.path.join(os.path.dirname(**file**), "snmpfuzzer_logs", "fuzz_output.txt"), # SNMP Fuzzer日志文件路径 "shell_command": "echo 'SNMP Fuzzer模拟运行'", # SNMP Fuzzer启动命令（临时模拟）"output_dir": os.path.join(os.path.dirname(**file**), "snmpfuzzer_logs") # SNMP Fuzzer输出目录 }
+
+@bp.route("/write-script", methods=["POST"]) def write*script(): """写入脚本文件到指定路径""" *, error = \_ensure_authenticated() if error: return error
 
     data = request.get_json()
     if not data:
@@ -18882,12 +17380,8 @@ def write_script():
     except Exception as e:
         return make_response(error_response(f"写入文件失败: {str(e)}"), 500)
 
+@bp.route("/execute-command", methods=["POST"]) def execute_command(): """执行shell命令启动程序""" print(f"[DEBUG] ========== execute-command API被调用 ==========")
 
-@bp.route("/execute-command", methods=["POST"])
-def execute_command():
-    """执行shell命令启动程序"""
-    print(f"[DEBUG] ========== execute-command API被调用 ==========")
-    
     _, error = _ensure_authenticated()
     if error:
         print(f"[DEBUG] 认证失败: {error}")
@@ -18895,14 +17389,14 @@ def execute_command():
 
     data = request.get_json()
     print(f"[DEBUG] 接收到的请求数据: {data}")
-    
+
     if not data:
         print(f"[DEBUG] 请求数据为空")
         return make_response(error_response("请求数据不能为空"), 400)
 
     protocol = data.get("protocol", "UNKNOWN")
     protocol_implementations = data.get("protocolImplementations", [])
-    
+
     print(f"[DEBUG] 解析参数 - 协议: {protocol}, 实现: {protocol_implementations}")
 
     # 根据协议获取配置
@@ -18936,7 +17430,7 @@ def execute_command():
         # 对于SOL的ProtocolGuard，使用后台运行方式
         # 检查是否是SOL实现（MQTT协议 + SOL实现 或者 原RTSP协议）
         is_sol_protocol = (protocol == "RTSP") or (protocol == "MQTT" and protocol_implementations and "SOL" in protocol_implementations)
-        
+
         if is_sol_protocol:
             # ProtocolGuard需要在后台运行，因为它是长时间运行的fuzzing任务
             # 直接执行docker命令并获取容器ID
@@ -18949,13 +17443,13 @@ def execute_command():
                     text=True,
                     timeout=30  # 30秒超时
                 )
-                
+
                 if result.returncode == 0:
                     container_id = result.stdout.strip()
                     if container_id and len(container_id) >= 12:  # Docker容器ID至少12位
                         protocol_name = "SOL" if protocol == "MQTT" else protocol
                         print(f"[DEBUG] {protocol_name} ProtocolGuard启动成功，容器ID: {container_id}")
-                        
+
                         # 验证容器是否真的在运行
                         import time
                         time.sleep(2)
@@ -18966,7 +17460,7 @@ def execute_command():
                             stderr=subprocess.PIPE,
                             text=True
                         )
-                        
+
                         if check_result.returncode == 0 and check_result.stdout.strip():
                             response_data = {
                                 "message": f"{protocol_name} ProtocolGuard启动成功，正在后台运行fuzzing任务",
@@ -18986,7 +17480,7 @@ def execute_command():
                     error_msg = result.stderr.strip() if result.stderr.strip() else "Docker命令执行失败"
                     print(f"[DEBUG] ProtocolGuard启动失败: {error_msg}")
                     return make_response(error_response(f"ProtocolGuard启动失败: {error_msg}"), 500)
-                    
+
             except subprocess.TimeoutExpired:
                 return make_response(error_response("Docker容器启动超时"), 500)
             except Exception as e:
@@ -19032,13 +17526,7 @@ def execute_command():
         print(f"[DEBUG] 异常: {str(e)}")  # 调试日志
         return make_response(error_response(f"执行命令失败: {str(e)}"), 500)
 
-
-@bp.route("/read-log", methods=["POST"])
-def read_log():
-    """实时读取日志文件内容"""
-    _, error = _ensure_authenticated()
-    if error:
-        return error
+@bp.route("/read-log", methods=["POST"]) def read*log(): """实时读取日志文件内容""" *, error = \_ensure_authenticated() if error: return error
 
     data = request.get_json()
     if not data:
@@ -19049,7 +17537,7 @@ def read_log():
 
     # 根据协议获取配置
     protocol_implementations = data.get("protocolImplementations", [])
-    
+
     if protocol == "MQTT":
         # MQTT协议支持双引擎配置
         if protocol_implementations and "SOL" in protocol_implementations:
@@ -19068,7 +17556,7 @@ def read_log():
     try:
         print(f"[DEBUG] 尝试读取{protocol}日志文件: {file_path}")
         print(f"[DEBUG] 上次读取位置: {last_position}")
-        
+
         # 检查目录是否存在
         log_dir = os.path.dirname(file_path)
         if not os.path.exists(log_dir):
@@ -19078,14 +17566,14 @@ def read_log():
                 "position": last_position,
                 "message": f"日志目录不存在: {log_dir}"
             })
-        
+
         # 列出目录中的文件
         try:
             files_in_dir = os.listdir(log_dir)
             print(f"[DEBUG] 日志目录中的文件: {files_in_dir}")
         except Exception as e:
             print(f"[DEBUG] 无法列出目录文件: {e}")
-        
+
         if not os.path.exists(file_path):
             print(f"[DEBUG] 日志文件不存在: {file_path}")
             return success_response({
@@ -19093,12 +17581,12 @@ def read_log():
                 "position": last_position,
                 "message": f"日志文件尚未创建: {file_path}"
             })
-        
+
         # 获取文件信息
         file_stat = os.stat(file_path)
         file_size = file_stat.st_size
         print(f"[DEBUG] 日志文件大小: {file_size} 字节")
-        
+
         with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
             # 移动到上次读取的位置
             f.seek(last_position)
@@ -19108,13 +17596,13 @@ def read_log():
 
             # 获取当前位置
             current_position = f.tell()
-        
+
         print(f"[DEBUG] 读取到新内容长度: {len(new_content)} 字符")
         print(f"[DEBUG] 新的读取位置: {current_position}")
-        
+
         if new_content:
             print(f"[DEBUG] 新内容预览: {new_content[:200]}...")
-        
+
         return success_response({
             "content": new_content,
             "position": current_position,
@@ -19127,30 +17615,24 @@ def read_log():
         print(f"[DEBUG] 读取日志文件异常: {e}")
         return make_response(error_response(f"读取日志文件失败: {str(e)}"), 500)
 
+@bp.route("/check-status", methods=["POST"]) def check*status(): """检查协议测试状态和文件系统""" *, error = \_ensure_authenticated() if error: return error
 
-@bp.route("/check-status", methods=["POST"])
-def check_status():
-    """检查协议测试状态和文件系统"""
-    _, error = _ensure_authenticated()
-    if error:
-        return error
-    
     data = request.get_json()
     if not data:
         return make_response(error_response("请求数据不能为空"), 400)
-    
+
     protocol = data.get("protocol", "UNKNOWN")
-    
+
     try:
         status_info = {
             "protocol": protocol,
             "timestamp": datetime.now().isoformat()
         }
-        
+
         if protocol == "MQTT":
             # MQTT协议支持双引擎配置，需要检查协议实现
             protocol_implementations = data.get("protocolImplementations", [])
-            
+
             if protocol_implementations and "SOL" in protocol_implementations:
                 # 检查SOL相关状态 (使用AFLNET引擎)
                 log_file_path = RTSP_CONFIG["log_file_path"]
@@ -19161,9 +17643,9 @@ def check_status():
                 log_file_path = MQTT_CONFIG["log_file_path"]
                 status_info["engine"] = "MBFuzzer"
                 status_info["implementation"] = protocol_implementations
-            
+
             log_dir = os.path.dirname(log_file_path)
-            
+
             # 检查目录和文件状态
             status_info.update({
                 "log_file_path": log_file_path,
@@ -19171,7 +17653,7 @@ def check_status():
                 "log_dir_exists": os.path.exists(log_dir),
                 "log_file_exists": os.path.exists(log_file_path)
             })
-            
+
             # 如果目录存在，列出文件
             if os.path.exists(log_dir):
                 try:
@@ -19179,7 +17661,7 @@ def check_status():
                     status_info["files_in_log_dir"] = files
                 except Exception as e:
                     status_info["files_in_log_dir"] = f"无法列出文件: {e}"
-            
+
             # 如果日志文件存在，获取文件信息
             if os.path.exists(log_file_path):
                 file_stat = os.stat(log_file_path)
@@ -19187,7 +17669,7 @@ def check_status():
                     "log_file_size": file_stat.st_size,
                     "log_file_mtime": datetime.fromtimestamp(file_stat.st_mtime).isoformat()
                 })
-            
+
             # 检查Docker容器状态
             try:
                 result = subprocess.run(
@@ -19198,30 +17680,24 @@ def check_status():
                     text=True,
                     timeout=10
                 )
-                
+
                 if result.returncode == 0:
                     status_info["docker_containers"] = result.stdout
                 else:
                     status_info["docker_error"] = result.stderr
-                    
+
             except Exception as e:
                 status_info["docker_error"] = str(e)
-        
+
         print(f"[DEBUG] 状态检查结果: {status_info}")
-        
+
         return success_response(status_info)
-        
+
     except Exception as e:
         print(f"[DEBUG] 状态检查异常: {e}")
         return make_response(error_response(f"状态检查失败: {str(e)}"), 500)
 
-
-@bp.route("/stop-process", methods=["POST"])
-def stop_process():
-    """停止指定进程"""
-    _, error = _ensure_authenticated()
-    if error:
-        return error
+@bp.route("/stop-process", methods=["POST"]) def stop*process(): """停止指定进程""" *, error = \_ensure_authenticated() if error: return error
 
     data = request.get_json()
     if not data:
@@ -19249,38 +17725,34 @@ def stop_process():
     except Exception as e:
         return make_response(error_response(f"停止进程失败: {str(e)}"), 500)
 
+@bp.route("/pre-start-cleanup", methods=["POST"]) def pre_start_cleanup(): """启动前清理：停止现有容器并清理输出文件""" print(f"[DEBUG] ========== 启动前清理API被调用 ==========")
 
-@bp.route("/pre-start-cleanup", methods=["POST"])
-def pre_start_cleanup():
-    """启动前清理：停止现有容器并清理输出文件"""
-    print(f"[DEBUG] ========== 启动前清理API被调用 ==========")
-    
     _, error = _ensure_authenticated()
     if error:
         print(f"[DEBUG] 认证失败: {error}")
         return error
-    
+
     data = request.get_json()
     print(f"[DEBUG] 接收到的请求数据: {data}")
-    
+
     if not data:
         print(f"[DEBUG] 请求数据为空")
         return make_response(error_response("请求数据不能为空"), 400)
-    
+
     protocol = data.get("protocol", "UNKNOWN")
-    
+
     print(f"[DEBUG] 解析参数 - 协议: {protocol}")
-    
+
     cleanup_results = {
         "containers_stopped": 0,
         "containers_removed": 0,
         "output_cleaned": False,
         "errors": []
     }
-    
+
     try:
         print(f"[DEBUG] 开始启动前清理 - 协议: {protocol}")
-        
+
         # 1. 查找并停止所有相关的Docker容器
         if protocol == "RTSP" or protocol == "MQTT":
             # 查找protocolguard容器
@@ -19291,11 +17763,11 @@ def pre_start_cleanup():
                 stderr=subprocess.PIPE,
                 text=True
             )
-            
+
             if find_result.returncode == 0 and find_result.stdout.strip():
                 container_ids = find_result.stdout.strip().split('\n')
                 print(f"[DEBUG] 找到 {len(container_ids)} 个运行中的protocolguard容器")
-                
+
                 for container_id in container_ids:
                     if container_id:
                         try:
@@ -19308,11 +17780,11 @@ def pre_start_cleanup():
                                 text=True,
                                 timeout=30
                             )
-                            
+
                             if stop_result.returncode == 0:
                                 cleanup_results["containers_stopped"] += 1
                                 print(f"[DEBUG] 容器停止成功: {container_id}")
-                                
+
                                 # 删除容器
                                 remove_result = subprocess.run(
                                     f"docker rm {container_id}",
@@ -19322,7 +17794,7 @@ def pre_start_cleanup():
                                     text=True,
                                     timeout=30
                                 )
-                                
+
                                 if remove_result.returncode == 0:
                                     cleanup_results["containers_removed"] += 1
                                     print(f"[DEBUG] 容器删除成功: {container_id}")
@@ -19332,18 +17804,18 @@ def pre_start_cleanup():
                             else:
                                 error_msg = stop_result.stderr.strip() or "停止容器失败"
                                 cleanup_results["errors"].append(f"停止容器失败 {container_id}: {error_msg}")
-                                
+
                         except subprocess.TimeoutExpired:
                             cleanup_results["errors"].append(f"操作容器超时: {container_id}")
                         except Exception as e:
                             cleanup_results["errors"].append(f"操作容器异常 {container_id}: {str(e)}")
             else:
                 print(f"[DEBUG] 没有找到运行中的protocolguard容器")
-        
+
         # 2. 清理输出文件夹
         if protocol == "RTSP" or protocol == "MQTT":
             output_dir = os.path.dirname(RTSP_CONFIG["log_file_path"])
-            
+
             # Linux安全检查：防止删除系统重要目录
             dangerous_paths = ['/', '/home', '/usr', '/var', '/etc', '/bin', '/sbin', '/lib', '/opt']
             if output_dir in dangerous_paths or len(output_dir.strip()) < 5:
@@ -19353,11 +17825,11 @@ def pre_start_cleanup():
                 try:
                     if os.path.exists(output_dir):
                         import shutil
-                        
+
                         # 删除output目录下的所有文件和子目录，但保留目录本身
                         cleaned_items = []
                         failed_items = []
-                        
+
                         for item in os.listdir(output_dir):
                             item_path = os.path.join(output_dir, item)
                             try:
@@ -19368,73 +17840,69 @@ def pre_start_cleanup():
                                 cleaned_items.append(item)
                             except Exception as e:
                                 failed_items.append(f"{item}: {str(e)}")
-                        
+
                         if cleaned_items:
                             cleanup_results["output_cleaned"] = True
                             print(f"[DEBUG] 输出目录清理成功，删除了 {len(cleaned_items)} 个项目")
-                        
+
                         if failed_items:
                             cleanup_results["errors"].extend([f"清理失败: {item}" for item in failed_items])
                     else:
                         print(f"[DEBUG] 输出目录不存在: {output_dir}")
                         cleanup_results["output_cleaned"] = True  # 目录不存在也算清理成功
-                        
+
                 except Exception as e:
                     cleanup_results["errors"].append(f"清理输出目录异常: {str(e)}")
                     print(f"[DEBUG] 清理输出目录异常: {e}")
-        
+
         print(f"[DEBUG] 启动前清理完成: {cleanup_results}")
-        
+
         return success_response({
             "message": f"启动前清理完成",
             "cleanup_results": cleanup_results
         })
-        
+
     except Exception as e:
         print(f"[DEBUG] 启动前清理异常: {e}")
         cleanup_results["errors"].append(f"清理过程异常: {str(e)}")
-        
+
         return success_response({
             "message": f"启动前清理部分完成",
             "cleanup_results": cleanup_results
         })
 
+@bp.route("/stop-and-cleanup", methods=["POST"]) def stop_and_cleanup(): """停止Docker容器并清理输出文件""" print(f"[DEBUG] ========== 停止和清理API被调用 ==========")
 
-@bp.route("/stop-and-cleanup", methods=["POST"])
-def stop_and_cleanup():
-    """停止Docker容器并清理输出文件"""
-    print(f"[DEBUG] ========== 停止和清理API被调用 ==========")
-    
     _, error = _ensure_authenticated()
     if error:
         print(f"[DEBUG] 认证失败: {error}")
         return error
-    
+
     data = request.get_json()
     print(f"[DEBUG] 接收到的请求数据: {data}")
-    
+
     if not data:
         print(f"[DEBUG] 请求数据为空")
         return make_response(error_response("请求数据不能为空"), 400)
-    
+
     container_id = data.get("container_id")
     protocol = data.get("protocol", "UNKNOWN")
-    
+
     print(f"[DEBUG] 解析参数 - 容器ID: {container_id}, 协议: {protocol}")
-    
+
     if not container_id:
         print(f"[DEBUG] 容器ID为空")
         return make_response(error_response("容器ID不能为空"), 400)
-    
+
     stop_results = {
         "container_stopped": False,
         "container_removed": False,
         "errors": []
     }
-    
+
     try:
         print(f"[DEBUG] 开始停止和清理{protocol}容器: {container_id}")
-        
+
         # 首先检查容器是否存在
         check_result = subprocess.run(
             f"docker ps -a -q --filter id={container_id}",
@@ -19443,13 +17911,13 @@ def stop_and_cleanup():
             stderr=subprocess.PIPE,
             text=True
         )
-        
+
         if check_result.returncode == 0 and check_result.stdout.strip():
             print(f"[DEBUG] 找到容器: {check_result.stdout.strip()}")
         else:
             print(f"[DEBUG] 容器不存在或查找失败: {check_result.stderr}")
             stop_results["errors"].append(f"容器不存在: {container_id}")
-        
+
         # 检查容器是否正在运行
         running_check = subprocess.run(
             f"docker ps -q --filter id={container_id}",
@@ -19458,12 +17926,12 @@ def stop_and_cleanup():
             stderr=subprocess.PIPE,
             text=True
         )
-        
+
         if running_check.returncode == 0 and running_check.stdout.strip():
             print(f"[DEBUG] 容器正在运行，需要停止: {running_check.stdout.strip()}")
         else:
             print(f"[DEBUG] 容器未在运行或已停止")
-        
+
         # 1. 停止Docker容器（使用更短的超时时间）
         try:
             stop_result = subprocess.run(
@@ -19474,7 +17942,7 @@ def stop_and_cleanup():
                 text=True,
                 timeout=15  # 总超时时间15秒
             )
-            
+
             if stop_result.returncode == 0:
                 stop_results["container_stopped"] = True
                 print(f"[DEBUG] 容器停止成功: {container_id}")
@@ -19482,14 +17950,14 @@ def stop_and_cleanup():
                 error_msg = stop_result.stderr.strip() or "停止容器失败"
                 stop_results["errors"].append(f"停止容器失败: {error_msg}")
                 print(f"[DEBUG] 停止容器失败: {error_msg}")
-                
+
         except subprocess.TimeoutExpired:
             stop_results["errors"].append("停止容器超时")
             print(f"[DEBUG] 停止容器超时")
         except Exception as e:
             stop_results["errors"].append(f"停止容器异常: {str(e)}")
             print(f"[DEBUG] 停止容器异常: {e}")
-        
+
         # 2. 删除Docker容器
         try:
             remove_result = subprocess.run(
@@ -19500,7 +17968,7 @@ def stop_and_cleanup():
                 text=True,
                 timeout=10  # 删除操作通常很快
             )
-            
+
             if remove_result.returncode == 0:
                 stop_results["container_removed"] = True
                 print(f"[DEBUG] 容器删除成功: {container_id}")
@@ -19508,40 +17976,40 @@ def stop_and_cleanup():
                 error_msg = remove_result.stderr.strip() or "删除容器失败"
                 stop_results["errors"].append(f"删除容器失败: {error_msg}")
                 print(f"[DEBUG] 删除容器失败: {error_msg}")
-                
+
         except subprocess.TimeoutExpired:
             stop_results["errors"].append("删除容器超时")
             print(f"[DEBUG] 删除容器超时")
         except Exception as e:
             stop_results["errors"].append(f"删除容器异常: {str(e)}")
             print(f"[DEBUG] 删除容器异常: {e}")
-        
+
         print(f"[DEBUG] 容器停止完成: {stop_results}")
-        
+
         # 构建响应消息
         success_count = sum([
             stop_results["container_stopped"],
             stop_results["container_removed"]
         ])
-        
+
         if success_count == 2:
             message = f"{protocol}容器已完全停止，输出文件已保留供查看"
         elif success_count > 0:
             message = f"{protocol}容器部分停止完成 ({success_count}/2)，输出文件已保留"
         else:
             message = f"{protocol}容器停止失败"
-        
+
         return success_response({
             "message": message,
             "container_id": container_id,
             "protocol": protocol,
             "stop_results": stop_results
         })
-        
+
     except Exception as e:
         print(f"[DEBUG] 停止过程异常: {e}")
         stop_results["errors"].append(f"停止过程异常: {str(e)}")
-        
+
         return success_response({
             "message": f"{protocol}容器停止部分完成",
             "container_id": container_id,
@@ -19549,16 +18017,9 @@ def stop_and_cleanup():
             "stop_results": stop_results
         })
 
-
 # Detection Results Routes ------------------------------------------------------
 
-
-@bp.route("/detection-results/<implementation_name>", methods=["GET"])
-def get_detection_results(implementation_name: str):
-    """获取指定协议实现的检测结果"""
-    _, error = _ensure_authenticated()
-    if error:
-        return error
+@bp.route("/detection-results/<implementation*name>", methods=["GET"]) def get_detection_results(implementation_name: str): """获取指定协议实现的检测结果""" *, error = \_ensure_authenticated() if error: return error
 
     # 数据库文件路径
     db_path = os.path.join(
@@ -19613,13 +18074,7 @@ def get_detection_results(implementation_name: str):
             500
         )
 
-
-@bp.route("/available-implementations", methods=["GET"])
-def list_available_implementations():
-    """获取所有可用的协议实现列表"""
-    _, error = _ensure_authenticated()
-    if error:
-        return error
+@bp.route("/available-implementations", methods=["GET"]) def list*available_implementations(): """获取所有可用的协议实现列表""" *, error = \_ensure_authenticated() if error: return error
 
     db_dir = os.path.join(os.path.dirname(__file__), "databases")
 
@@ -19636,13 +18091,7 @@ def list_available_implementations():
 
     return success_response({'items': implementations})
 
-
-@bp.route("/analysis-history", methods=["GET"])
-def get_analysis_history():
-    """获取历史记录"""
-    _, error = _ensure_authenticated()
-    if error:
-        return error
+@bp.route("/analysis-history", methods=["GET"]) def get*analysis_history(): """获取历史记录""" *, error = \_ensure_authenticated() if error: return error
 
     history_file = os.path.join(os.path.dirname(__file__), "query_history.json")
 
@@ -19659,13 +18108,7 @@ def get_analysis_history():
             500
         )
 
-
-@bp.route("/analysis-history", methods=["POST"])
-def add_analysis_history():
-    """添加历史记录"""
-    _, error = _ensure_authenticated()
-    if error:
-        return error
+@bp.route("/analysis-history", methods=["POST"]) def add*analysis_history(): """添加历史记录""" *, error = \_ensure_authenticated() if error: return error
 
     data = request.get_json()
     implementation_name = data.get('implementationName')
@@ -19747,126 +18190,46 @@ def add_analysis_history():
 
     return success_response({'message': '已添加到历史记录'})
 
-
-====================================================================================================
-文件 18: apps/backend-flask/protocol_compliance/pipeline_runner.py
-====================================================================================================
+==================================================================================================== 文件 18: apps/backend-flask/protocol_compliance/pipeline_runner.py ====================================================================================================
 
 """Utilities for invoking the stand-alone protocol extraction pipeline."""
 
-from __future__ import annotations
+from **future** import annotations
 
-import contextlib
-import json
-import re
-import subprocess
-import sys
-import uuid
-from dataclasses import dataclass
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterable, Sequence
+import contextlib import json import re import subprocess import sys import uuid from dataclasses import dataclass from pathlib import Path from typing import TYPE_CHECKING, Any, Iterable, Sequence
 
-if TYPE_CHECKING:  # 仅在类型检查时导入
-    from werkzeug.datastructures import FileStorage  # type: ignore[import]
-else:  # pragma: no cover - 运行时用宽松类型，避免依赖缺失
-    FileStorage = Any  # type: ignore[assignment]
+if TYPE_CHECKING: # 仅在类型检查时导入 from werkzeug.datastructures import FileStorage # type: ignore[import] else: # pragma: no cover - 运行时用宽松类型，避免依赖缺失 FileStorage = Any # type: ignore[assignment]
 
-
-class PipelineExecutionError(RuntimeError):
-    """Raised when the protocol pipeline exits with a non-zero status."""
+class PipelineExecutionError(RuntimeError): """Raised when the protocol pipeline exits with a non-zero status."""
 
     def __init__(self, message: str, *, stdout: str | None = None, stderr: str | None = None):
         super().__init__(message)
         self.stdout = stdout
         self.stderr = stderr
 
+class PipelineResultNotFoundError(RuntimeError): """Raised when the pipeline finishes but the expected result file is missing."""
 
-class PipelineResultNotFoundError(RuntimeError):
-    """Raised when the pipeline finishes but the expected result file is missing."""
-
-
-REPO_ROOT = Path(__file__).resolve().parents[3]
-PIPELINE_ROOT = (REPO_ROOT / "protocolProject-1").resolve()
-STORAGE_ROOT = PIPELINE_ROOT / "project_store"
-UPLOAD_ROOT = PIPELINE_ROOT / "uploads"
-
+REPO_ROOT = Path(**file**).resolve().parents[3] PIPELINE_ROOT = (REPO_ROOT / "protocolProject-1").resolve() STORAGE_ROOT = PIPELINE_ROOT / "project_store" UPLOAD_ROOT = PIPELINE_ROOT / "uploads"
 
 UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
 
+@dataclass(slots=True) class PipelineRuleItem: rule: str req_type: list[str] req_fields: list[str] res_type: list[str] res_fields: list[str] group: str | None = None
 
-@dataclass(slots=True)
-class PipelineRuleItem:
-    rule: str
-    req_type: list[str]
-    req_fields: list[str]
-    res_type: list[str]
-    res_fields: list[str]
-    group: str | None = None
+@dataclass(slots=True) class PipelineResult: protocol: str version: str store_dir: Path result_path: Path rules: list[PipelineRuleItem]
 
+\_TOKEN_SPLIT_RE = re.compile(r"\s*(?:,|;|/|\bor\b|\band\b)\s*", re.IGNORECASE)
 
-@dataclass(slots=True)
-class PipelineResult:
-    protocol: str
-    version: str
-    store_dir: Path
-    result_path: Path
-    rules: list[PipelineRuleItem]
+def \_ensure_pipeline_root() -> None: if not PIPELINE_ROOT.exists(): raise FileNotFoundError(f"pipeline root does not exist: {PIPELINE_ROOT}")
 
+def _sanitize_segment(value: str, fallback: str) -> str: stripped = re.sub(r"[^a-zA-Z0-9._-]+", "-", value.strip()) stripped = stripped.strip("-") return stripped or fallback
 
-_TOKEN_SPLIT_RE = re.compile(r"\s*(?:,|;|/|\bor\b|\band\b)\s*", re.IGNORECASE)
+def \_save_upload(upload: FileStorage) -> Path: filename = upload.filename or "protocol-document.html" suffix = Path(filename).suffix or ".html" token = uuid.uuid4().hex safe_name = \_sanitize_segment(Path(filename).stem, "protocol") target = UPLOAD_ROOT / f"{safe_name}-{token}{suffix}" upload.save(target) return target
 
+def \_normalize_list(values: Iterable[str]) -> list[str]: normalized: list[str] = [] for value in values: stripped = value.strip() if not stripped: continue normalized.append(stripped) return normalized
 
-def _ensure_pipeline_root() -> None:
-    if not PIPELINE_ROOT.exists():
-        raise FileNotFoundError(f"pipeline root does not exist: {PIPELINE_ROOT}")
+def \_ensure_list(payload: object) -> list[str]: if payload is None: return [] if isinstance(payload, list): return \_normalize_list(str(item) for item in payload if item is not None) if isinstance(payload, str): if not payload.strip(): return [] tokens = [segment for segment in _TOKEN_SPLIT_RE.split(payload) if segment] return \_normalize_list(tokens) or [payload.strip()] return []
 
-
-def _sanitize_segment(value: str, fallback: str) -> str:
-    stripped = re.sub(r"[^a-zA-Z0-9._-]+", "-", value.strip())
-    stripped = stripped.strip("-")
-    return stripped or fallback
-
-
-def _save_upload(upload: FileStorage) -> Path:
-    filename = upload.filename or "protocol-document.html"
-    suffix = Path(filename).suffix or ".html"
-    token = uuid.uuid4().hex
-    safe_name = _sanitize_segment(Path(filename).stem, "protocol")
-    target = UPLOAD_ROOT / f"{safe_name}-{token}{suffix}"
-    upload.save(target)
-    return target
-
-
-def _normalize_list(values: Iterable[str]) -> list[str]:
-    normalized: list[str] = []
-    for value in values:
-        stripped = value.strip()
-        if not stripped:
-            continue
-        normalized.append(stripped)
-    return normalized
-
-
-def _ensure_list(payload: object) -> list[str]:
-    if payload is None:
-        return []
-    if isinstance(payload, list):
-        return _normalize_list(str(item) for item in payload if item is not None)
-    if isinstance(payload, str):
-        if not payload.strip():
-            return []
-        tokens = [segment for segment in _TOKEN_SPLIT_RE.split(payload) if segment]
-        return _normalize_list(tokens) or [payload.strip()]
-    return []
-
-
-def _load_rules(result_path: Path) -> list[PipelineRuleItem]:
-    try:
-        payload = json.loads(result_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        raise PipelineResultNotFoundError(
-            f"无法解析规则文件 {result_path}: {exc}"
-        ) from exc
+def \_load_rules(result_path: Path) -> list[PipelineRuleItem]: try: payload = json.loads(result_path.read_text(encoding="utf-8")) except json.JSONDecodeError as exc: raise PipelineResultNotFoundError( f"无法解析规则文件 {result_path}: {exc}" ) from exc
 
     records: Sequence[dict] | dict
     if isinstance(payload, list):
@@ -19903,13 +18266,7 @@ def _load_rules(result_path: Path) -> list[PipelineRuleItem]:
         rule_items.append(item)
     return rule_items
 
-
-def _resolve_result_path(protocol: str, version: str) -> tuple[Path, Path]:
-    normalized_protocol = protocol.lower().strip()
-    normalized_version = version.replace(".", "_").replace(" ", "_").strip()
-    store_dir = STORAGE_ROOT / f"{normalized_protocol}_{normalized_version}"
-    if not store_dir.exists():
-        raise PipelineResultNotFoundError(f"未找到存储目录: {store_dir}")
+def _resolve_result_path(protocol: str, version: str) -> tuple[Path, Path]: normalized_protocol = protocol.lower().strip() normalized_version = version.replace(".", "_").replace(" ", "_").strip() store_dir = STORAGE_ROOT / f"{normalized_protocol}_{normalized_version}" if not store_dir.exists(): raise PipelineResultNotFoundError(f"未找到存储目录: {store_dir}")
 
     candidates = [
         store_dir / "ruleDir" / "processed_results.json",
@@ -19926,41 +18283,9 @@ def _resolve_result_path(protocol: str, version: str) -> tuple[Path, Path]:
 
     raise PipelineResultNotFoundError(f"未在 {store_dir} 中找到 processed_results.json 文件")
 
+def \_build_command( api_key: str, protocol: str, version: str, html_path: Path, \*, filter_headings: bool, ) -> list[str]: command = [ sys.executable, "main.py", "--apikey", api_key, "--protocol", protocol, "--version", version, "--html-file", str(html_path), ] if filter_headings: command.append("--filter_headings") return command
 
-def _build_command(
-    api_key: str,
-    protocol: str,
-    version: str,
-    html_path: Path,
-    *,
-    filter_headings: bool,
-) -> list[str]:
-    command = [
-        sys.executable,
-        "main.py",
-        "--apikey",
-        api_key,
-        "--protocol",
-        protocol,
-        "--version",
-        version,
-        "--html-file",
-        str(html_path),
-    ]
-    if filter_headings:
-        command.append("--filter_headings")
-    return command
-
-
-def run_protocol_pipeline(
-    *,
-    api_key: str,
-    protocol: str,
-    version: str,
-    html_upload: FileStorage,
-    filter_headings: bool = False,
-) -> PipelineResult:
-    """Execute the protocol extraction pipeline and load its results."""
+def run_protocol_pipeline( \*, api_key: str, protocol: str, version: str, html_upload: FileStorage, filter_headings: bool = False, ) -> PipelineResult: """Execute the protocol extraction pipeline and load its results."""
 
     _ensure_pipeline_root()
 
@@ -20016,75 +18341,31 @@ def run_protocol_pipeline(
         rules=rules,
     )
 
+def \_ensure_pipeline_dependencies() -> None: """Placeholder to keep backwards compatibility; dependencies需手动安装。""" return
 
-def _ensure_pipeline_dependencies() -> None:
-    """Placeholder to keep backwards compatibility; dependencies需手动安装。"""
-    return
-
-
-====================================================================================================
-文件 19: apps/backend-flask/protocol_compliance/analysis.py
-====================================================================================================
+==================================================================================================== 文件 19: apps/backend-flask/protocol_compliance/analysis.py ====================================================================================================
 
 """Static analysis helpers and ProtocolGuard Docker integration."""
 
-from __future__ import annotations
+from **future** import annotations
 
-import logging
-import random
-import threading
-import uuid
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from functools import lru_cache
-from io import BytesIO
-from typing import BinaryIO, Callable, Dict, List, Literal, Optional
+import logging import random import threading import uuid from dataclasses import dataclass, field from datetime import datetime, timezone from functools import lru_cache from io import BytesIO from typing import BinaryIO, Callable, Dict, List, Literal, Optional
 
-from .docker_runner import (
-    ProtocolGuardDockerError,
-    ProtocolGuardDockerRunner,
-    ProtocolGuardDockerSettings,
-    ProtocolGuardExecutionError,
-    ProtocolGuardNotAvailableError,
-)
-from .state_repository import analysis_state_repository
+from .docker_runner import ( ProtocolGuardDockerError, ProtocolGuardDockerRunner, ProtocolGuardDockerSettings, ProtocolGuardExecutionError, ProtocolGuardNotAvailableError, ) from .state_repository import analysis_state_repository
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = logging.getLogger(**name**)
 
-ComplianceStatus = str  # 'compliant' | 'needs_review' | 'non_compliant'
+ComplianceStatus = str # 'compliant' | 'needs_review' | 'non_compliant'
 
-
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
+def \_now_iso() -> str: return datetime.now(timezone.utc).isoformat()
 
 AnalysisJobStatus = Literal["queued", "running", "completed", "failed"]
 
+@dataclass class AnalysisProgressEvent: timestamp: str stage: str message: str event_id: Optional[int] = None # Event ID from database, None for in-memory events
 
-@dataclass
-class AnalysisProgressEvent:
-    timestamp: str
-    stage: str
-    message: str
-    event_id: Optional[int] = None  # Event ID from database, None for in-memory events
+@dataclass class AnalysisProgressState: job_id: str status: AnalysisJobStatus stage: str message: str created_at: str updated_at: str events: List[AnalysisProgressEvent] = field(default_factory=list) result: Optional[Dict[str, object]] = None error: Optional[str] = None details: Optional[Dict[str, object]] = None
 
-
-@dataclass
-class AnalysisProgressState:
-    job_id: str
-    status: AnalysisJobStatus
-    stage: str
-    message: str
-    created_at: str
-    updated_at: str
-    events: List[AnalysisProgressEvent] = field(default_factory=list)
-    result: Optional[Dict[str, object]] = None
-    error: Optional[str] = None
-    details: Optional[Dict[str, object]] = None
-
-
-class AnalysisProgressRegistry:
-    """Track live progress for static analysis jobs."""
+class AnalysisProgressRegistry: """Track live progress for static analysis jobs."""
 
     def __init__(self) -> None:
         self._states: Dict[str, AnalysisProgressState] = {}
@@ -20182,7 +18463,7 @@ class AnalysisProgressRegistry:
     ) -> Optional[Dict[str, object]]:
         """
         Return snapshot of job state with incremental events.
-        
+
         Always fetches events from database (which have IDs).
         If from_event_id is provided, only return events after that ID.
         If from_event_id is None, return all events from database.
@@ -20255,22 +18536,9 @@ class AnalysisProgressRegistry:
 
         return callback
 
-
 PROGRESS_REGISTRY = AnalysisProgressRegistry()
 
-
-def build_mock_analysis(
-    *,
-    code_file_name: str,
-    rules_file_name: str,
-    protocol_name: str,
-    notes: Optional[str],
-    rules_summary: Optional[str],
-) -> Dict[str, object]:
-    findings = [_build_finding(code_file_name) for _ in range(random.randint(4, 6))]
-    counts = {"compliant": 0, "needs_review": 0, "non_compliant": 0}
-    for finding in findings:
-        counts[finding["compliance"]] += 1
+def build*mock_analysis( \*, code_file_name: str, rules_file_name: str, protocol_name: str, notes: Optional[str], rules_summary: Optional[str], ) -> Dict[str, object]: findings = [\_build_finding(code_file_name) for * in range(random.randint(4, 6))] counts = {"compliant": 0, "needs_review": 0, "non_compliant": 0} for finding in findings: counts[finding["compliance"]] += 1
 
     if counts["non_compliant"]:
         overall_status: ComplianceStatus = "non_compliant"
@@ -20312,48 +18580,13 @@ def build_mock_analysis(
         "submittedAt": now,
     }
 
+def normalize_protocol_name(parsed_rules: Optional[dict], fallback: str) -> str: if not parsed_rules or not isinstance(parsed_rules, dict): return fallback for key in ("protocol", "protocolName", "title", "name"): value = parsed_rules.get(key) if isinstance(value, str): return value return fallback
 
-def normalize_protocol_name(parsed_rules: Optional[dict], fallback: str) -> str:
-    if not parsed_rules or not isinstance(parsed_rules, dict):
-        return fallback
-    for key in ("protocol", "protocolName", "title", "name"):
-        value = parsed_rules.get(key)
-        if isinstance(value, str):
-            return value
-    return fallback
+def extract_protocol_version(parsed_rules: Optional[dict], fallback: Optional[str] = None) -> Optional[str]: if not parsed_rules or not isinstance(parsed_rules, dict): return fallback for key in ("protocolVersion", "version", "protocol_version"): value = parsed_rules.get(key) if isinstance(value, str) and value.strip(): return value return fallback
 
+def try_extract_rules_summary(parsed_rules: Optional[dict]) -> Optional[str]: if not parsed_rules or not isinstance(parsed_rules, dict): return None candidate = parsed_rules.get("summary") or parsed_rules.get("description") if isinstance(candidate, str): return candidate rules = parsed_rules.get("rules") if isinstance(rules, list) and rules: first = rules[0] if isinstance(first, dict) and "requirement" in first: return f"包含 {len(rules)} 条规则，示例：{first.get('requirement')}" return None
 
-def extract_protocol_version(parsed_rules: Optional[dict], fallback: Optional[str] = None) -> Optional[str]:
-    if not parsed_rules or not isinstance(parsed_rules, dict):
-        return fallback
-    for key in ("protocolVersion", "version", "protocol_version"):
-        value = parsed_rules.get(key)
-        if isinstance(value, str) and value.strip():
-            return value
-    return fallback
-
-
-def try_extract_rules_summary(parsed_rules: Optional[dict]) -> Optional[str]:
-    if not parsed_rules or not isinstance(parsed_rules, dict):
-        return None
-    candidate = parsed_rules.get("summary") or parsed_rules.get("description")
-    if isinstance(candidate, str):
-        return candidate
-    rules = parsed_rules.get("rules")
-    if isinstance(rules, list) and rules:
-        first = rules[0]
-        if isinstance(first, dict) and "requirement" in first:
-            return f"包含 {len(rules)} 条规则，示例：{first.get('requirement')}"
-    return None
-
-
-def _build_finding(code_file_name: str) -> Dict[str, object]:
-    compliance = random.choice(["compliant", "needs_review", "non_compliant"])
-    line_start = random.randint(12, 320)
-    line_end = line_start + random.randint(2, 14)
-    recommendation = (
-        _random_sentence(12, 18) if compliance == "non_compliant" else None
-    )
+def \_build_finding(code_file_name: str) -> Dict[str, object]: compliance = random.choice(["compliant", "needs_review", "non_compliant"]) line_start = random.randint(12, 320) line_end = line_start + random.randint(2, 14) recommendation = ( \_random_sentence(12, 18) if compliance == "non_compliant" else None )
 
     return {
         "category": random.choice(["状态机约束", "消息字段校验", "握手流程", "错误处理"]),
@@ -20376,60 +18609,19 @@ def _build_finding(code_file_name: str) -> Dict[str, object]:
         },
     }
 
+def \_random_sentence(min_words: int = 8, max_words: int = 18) -> str: word_count = random.randint(min_words, max_words) words = random.choices(\_WORD_BANK, k=word_count) return " ".join(words)
 
-def _random_sentence(min_words: int = 8, max_words: int = 18) -> str:
-    word_count = random.randint(min_words, max_words)
-    words = random.choices(_WORD_BANK, k=word_count)
-    return " ".join(words)
+def _random_paragraph(sentences: int = 1) -> str: return " ".join(\_random_sentence(8, 15) for _ in range(sentences))
 
-
-def _random_paragraph(sentences: int = 1) -> str:
-    return " ".join(_random_sentence(8, 15) for _ in range(sentences))
-
-
-_WORD_BANK = [
-    "协议",
-    "握手",
-    "报文",
-    "验证",
-    "状态",
-    "同步",
-    "密钥",
-    "交换",
-    "流程",
-    "校验",
-    "加密",
-    "套件",
-    "确认",
-    "策略",
-    "超时",
-    "重传",
-    "检测",
-    "结果",
-    "安全",
-    "约束",
-    "分析",
-    "规则",
-    "字段",
-    "覆盖",
-    "路径",
-    "机制",
-]
-
+\_WORD_BANK = [ "协议", "握手", "报文", "验证", "状态", "同步", "密钥", "交换", "流程", "校验", "加密", "套件", "确认", "策略", "超时", "重传", "检测", "结果", "安全", "约束", "分析", "规则", "字段", "覆盖", "路径", "机制", ]
 
 # Docker integration ------------------------------------------------------------
 
+class AnalysisError(RuntimeError): """Base error for ProtocolGuard analysis orchestration."""
 
-class AnalysisError(RuntimeError):
-    """Base error for ProtocolGuard analysis orchestration."""
+class AnalysisNotReadyError(AnalysisError): """Raised when Docker integration is enabled but not available."""
 
-
-class AnalysisNotReadyError(AnalysisError):
-    """Raised when Docker integration is enabled but not available."""
-
-
-class AnalysisExecutionError(AnalysisError):
-    """Raised when the Docker pipeline fails."""
+class AnalysisExecutionError(AnalysisError): """Raised when the Docker pipeline fails."""
 
     def __init__(
         self,
@@ -20442,43 +18634,9 @@ class AnalysisExecutionError(AnalysisError):
         self.logs = logs or []
         self.details = details or {}
 
+@lru_cache(maxsize=1) def \_docker_settings() -> ProtocolGuardDockerSettings: return ProtocolGuardDockerSettings.from_env()
 
-@lru_cache(maxsize=1)
-def _docker_settings() -> ProtocolGuardDockerSettings:
-    return ProtocolGuardDockerSettings.from_env()
-
-
-def run_static_analysis(
-    *,
-    code_stream: BinaryIO,
-    code_file_name: str,
-    builder_stream: BinaryIO,
-    builder_file_name: str,
-    config_stream: BinaryIO,
-    config_file_name: str,
-    rules_stream: BinaryIO,
-    rules_file_name: str,
-    notes: Optional[str],
-    protocol_name: str,
-    protocol_version: Optional[str],
-    rules_summary: Optional[str],
-    job_id: Optional[str] = None,
-    progress_callback: Optional[Callable[[str, str, str], None]] = None,
-) -> Dict[str, object]:
-    """Dispatch static analysis either via Docker or the mock generator."""
-    job_identifier = job_id or str(uuid.uuid4())
-    settings = _docker_settings()
-    if not settings.enabled:
-        LOGGER.debug("ProtocolGuard Docker disabled; returning mock analysis.")
-        if progress_callback:
-            progress_callback(job_identifier, "mock", "Generating mock analysis response")
-        return build_mock_analysis(
-            code_file_name=code_file_name,
-            rules_file_name=rules_file_name,
-            protocol_name=protocol_name,
-            notes=notes,
-            rules_summary=rules_summary,
-        )
+def run_static_analysis( \*, code_stream: BinaryIO, code_file_name: str, builder_stream: BinaryIO, builder_file_name: str, config_stream: BinaryIO, config_file_name: str, rules_stream: BinaryIO, rules_file_name: str, notes: Optional[str], protocol_name: str, protocol_version: Optional[str], rules_summary: Optional[str], job_id: Optional[str] = None, progress_callback: Optional[Callable[[str, str, str], None]] = None, ) -> Dict[str, object]: """Dispatch static analysis either via Docker or the mock generator.""" job_identifier = job_id or str(uuid.uuid4()) settings = \_docker_settings() if not settings.enabled: LOGGER.debug("ProtocolGuard Docker disabled; returning mock analysis.") if progress_callback: progress_callback(job_identifier, "mock", "Generating mock analysis response") return build_mock_analysis( code_file_name=code_file_name, rules_file_name=rules_file_name, protocol_name=protocol_name, notes=notes, rules_summary=rules_summary, )
 
     try:
         runner = ProtocolGuardDockerRunner(settings)
@@ -20522,21 +18680,7 @@ def run_static_analysis(
         LOGGER.error("ProtocolGuard Docker error: %s", exc)
         raise AnalysisError(str(exc)) from exc
 
-
-def submit_static_analysis_job(
-    *,
-    code_payload: tuple[str, bytes],
-    builder_payload: tuple[str, bytes],
-    config_payload: tuple[str, bytes],
-    rules_payload: tuple[str, bytes],
-    notes: Optional[str],
-    protocol_name: str,
-    protocol_version: Optional[str],
-    rules_summary: Optional[str],
-) -> Dict[str, object]:
-    """Launch static analysis asynchronously and return the initial job snapshot."""
-    state = PROGRESS_REGISTRY.create_job()
-    job_id = state.job_id
+def submit_static_analysis_job( \*, code_payload: tuple[str, bytes], builder_payload: tuple[str, bytes], config_payload: tuple[str, bytes], rules_payload: tuple[str, bytes], notes: Optional[str], protocol_name: str, protocol_version: Optional[str], rules_summary: Optional[str], ) -> Dict[str, object]: """Launch static analysis asynchronously and return the initial job snapshot.""" state = PROGRESS_REGISTRY.create_job() job_id = state.job_id
 
     def _run_job() -> None:
         PROGRESS_REGISTRY.mark_running(job_id, "init", "Preparing analysis inputs")
@@ -20600,44 +18744,16 @@ def submit_static_analysis_job(
     assert snapshot is not None
     return snapshot
 
+def get_static_analysis_job( job_id: str, from_event_id: Optional[int] = None, ) -> Optional[Dict[str, object]]: """ Return the current snapshot for a running static analysis job.
 
-def get_static_analysis_job(
-    job_id: str,
-    from_event_id: Optional[int] = None,
-) -> Optional[Dict[str, object]]:
-    """
-    Return the current snapshot for a running static analysis job.
-    
     If from_event_id is provided, only return events after that ID (incremental update).
     Otherwise, return full snapshot with all events.
     """
     return PROGRESS_REGISTRY.snapshot(job_id, from_event_id=from_event_id)
 
+def get_static_analysis_result(job_id: str) -> Optional[Dict[str, object]]: """Return the final static analysis result if the job completed.""" snapshot = PROGRESS_REGISTRY.snapshot(job_id) if not snapshot: return None if snapshot.get("status") != "completed": return None result = snapshot.get("result") if isinstance(result, dict): return result return None
 
-def get_static_analysis_result(job_id: str) -> Optional[Dict[str, object]]:
-    """Return the final static analysis result if the job completed."""
-    snapshot = PROGRESS_REGISTRY.snapshot(job_id)
-    if not snapshot:
-        return None
-    if snapshot.get("status") != "completed":
-        return None
-    result = snapshot.get("result")
-    if isinstance(result, dict):
-        return result
-    return None
-
-
-def list_static_analysis_history(limit: int = 50) -> List[Dict[str, object]]:
-    """Return persisted static analysis job history entries."""
-    entries = analysis_state_repository.fetch_jobs(limit=limit)
-    history: List[Dict[str, object]] = []
-    for entry in entries:
-        result = entry.get("result")
-        result_dict = result if isinstance(result, dict) else None
-        model_response = result_dict.get("modelResponse") if isinstance(result_dict, dict) else None
-        metadata = model_response.get("metadata") if isinstance(model_response, dict) else None
-        summary = model_response.get("summary") if isinstance(model_response, dict) else None
-        inputs = result_dict.get("inputs") if isinstance(result_dict, dict) else None
+def list_static_analysis_history(limit: int = 50) -> List[Dict[str, object]]: """Return persisted static analysis job history entries.""" entries = analysis_state_repository.fetch_jobs(limit=limit) history: List[Dict[str, object]] = [] for entry in entries: result = entry.get("result") result_dict = result if isinstance(result, dict) else None model_response = result_dict.get("modelResponse") if isinstance(result_dict, dict) else None metadata = model_response.get("metadata") if isinstance(model_response, dict) else None summary = model_response.get("summary") if isinstance(model_response, dict) else None inputs = result_dict.get("inputs") if isinstance(result_dict, dict) else None
 
         protocol = None
         protocol_version = None
@@ -20708,92 +18824,40 @@ def list_static_analysis_history(limit: int = 50) -> List[Dict[str, object]]:
         )
     return history
 
+def delete_static_analysis_job(job_id: str) -> bool: """Delete a static analysis job from the database.
 
-def delete_static_analysis_job(job_id: str) -> bool:
-    """Delete a static analysis job from the database.
-    
     Returns True if the job was deleted, False if it didn't exist.
     Raises an exception if the deletion failed.
     """
     return analysis_state_repository.delete_job(job_id)
 
-
-====================================================================================================
-文件 20: apps/backend-flask/protocol_compliance/assertion.py
-====================================================================================================
+==================================================================================================== 文件 20: apps/backend-flask/protocol_compliance/assertion.py ====================================================================================================
 
 """Assertion generation helpers and Docker orchestration glue.
 
-Adds a follow-up Instrumentation operation after successful Assert generation.
-Also validates required environment variables for the instrumentation step.
-"""
+Adds a follow-up Instrumentation operation after successful Assert generation. Also validates required environment variables for the instrumentation step. """
 
-from __future__ import annotations
+from **future** import annotations
 
-import os
-import difflib
-import logging
-import re
-import threading
-import time
-import uuid
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from functools import lru_cache
-from io import BytesIO
-from pathlib import Path
-from typing import BinaryIO, Callable, Dict, List, Optional, Tuple
+import os import difflib import logging import re import threading import time import uuid from dataclasses import dataclass, field from datetime import datetime, timezone from functools import lru_cache from io import BytesIO from pathlib import Path from typing import BinaryIO, Callable, Dict, List, Optional, Tuple
 
-from .assertion_history_repository import ASSERTION_HISTORY_REPOSITORY
-from .docker_runner import (
-    ProtocolGuardDockerError,
-    ProtocolGuardDockerRunner,
-    ProtocolGuardDockerSettings,
-    ProtocolGuardExecutionError,
-    ProtocolGuardNotAvailableError,
-)
+from .assertion_history_repository import ASSERTION_HISTORY_REPOSITORY from .docker_runner import ( ProtocolGuardDockerError, ProtocolGuardDockerRunner, ProtocolGuardDockerSettings, ProtocolGuardExecutionError, ProtocolGuardNotAvailableError, )
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = logging.getLogger(**name**)
 
+def \_now_iso() -> str: return datetime.now(timezone.utc).isoformat()
 
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+AssertGenerationJobStatus = str # Literal['queued', 'running', 'completed', 'failed']
 
+@dataclass class AssertGenerationProgressEvent: timestamp: str stage: str message: str
 
-AssertGenerationJobStatus = str  # Literal['queued', 'running', 'completed', 'failed']
+@dataclass class AssertGenerationProgressState: job_id: str status: AssertGenerationJobStatus stage: str message: str created_at: str updated_at: str events: List[AssertGenerationProgressEvent] = field(default_factory=list) result: Optional[Dict[str, object]] = None error: Optional[str] = None details: Optional[Dict[str, object]] = None
 
+class AssertGenerationError(RuntimeError): """Base error for assertion generation orchestration."""
 
-@dataclass
-class AssertGenerationProgressEvent:
-    timestamp: str
-    stage: str
-    message: str
+class AssertGenerationNotReadyError(AssertGenerationError): """Raised when Docker integration is disabled or unavailable."""
 
-
-@dataclass
-class AssertGenerationProgressState:
-    job_id: str
-    status: AssertGenerationJobStatus
-    stage: str
-    message: str
-    created_at: str
-    updated_at: str
-    events: List[AssertGenerationProgressEvent] = field(default_factory=list)
-    result: Optional[Dict[str, object]] = None
-    error: Optional[str] = None
-    details: Optional[Dict[str, object]] = None
-
-
-class AssertGenerationError(RuntimeError):
-    """Base error for assertion generation orchestration."""
-
-
-class AssertGenerationNotReadyError(AssertGenerationError):
-    """Raised when Docker integration is disabled or unavailable."""
-
-
-class AssertGenerationExecutionError(AssertGenerationError):
-    """Raised when the assertion generation container fails."""
+class AssertGenerationExecutionError(AssertGenerationError): """Raised when the assertion generation container fails."""
 
     def __init__(
         self,
@@ -20806,9 +18870,7 @@ class AssertGenerationExecutionError(AssertGenerationError):
         self.logs = logs or []
         self.details = details or {}
 
-
-class AssertGenerationProgressRegistry:
-    """Track live progress for assertion generation jobs."""
+class AssertGenerationProgressRegistry: """Track live progress for assertion generation jobs."""
 
     def __init__(self) -> None:
         self._states: Dict[str, AssertGenerationProgressState] = {}
@@ -20931,21 +18993,17 @@ class AssertGenerationProgressRegistry:
             AssertGenerationProgressEvent(timestamp=timestamp, stage=stage or state.stage, message=message)
         )
 
-
 PROGRESS_REGISTRY = AssertGenerationProgressRegistry()
 
-
 # ----------------------------------------------------------------------------
+
 # Environment setup for instrumentation
+
 # ----------------------------------------------------------------------------
 
-REQUIRED_INSTRUMENTATION_ENVS = ("ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "OPENAI_API_KEY", "OPENAI_BASE_URL")
-INSTRUMENTATION_DIFF_FILENAME = "instrumentation.diff"
-INSTRUMENTATION_DIFF_MAX_PREVIEW_BYTES = 512 * 1024  # 512 KiB safety cap
+REQUIRED_INSTRUMENTATION_ENVS = ("ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "OPENAI_API_KEY", "OPENAI_BASE_URL") INSTRUMENTATION_DIFF_FILENAME = "instrumentation.diff" INSTRUMENTATION_DIFF_MAX_PREVIEW_BYTES = 512 \* 1024 # 512 KiB safety cap
 
-
-def _ensure_env_passthrough_for_instrumentation() -> None:
-    """Ensure ANTHROPIC_* vars are forwarded into analysis containers.
+def _ensure_env_passthrough_for_instrumentation() -> None: """Ensure ANTHROPIC_\* vars are forwarded into analysis containers.
 
     The Docker runner forwards variables listed in PG_ENV_VARS. Update it to
     include the required ANTHROPIC_* keys before settings are materialized.
@@ -20960,17 +19018,13 @@ def _ensure_env_passthrough_for_instrumentation() -> None:
     if changed:
         os.environ["PG_ENV_VARS"] = ",".join(parts)
 
-
-def _ensure_keep_artifacts_enabled() -> None:
-    """Keep artefacts so the follow-up instrumentation can reuse /workspace.
+def \_ensure_keep_artifacts_enabled() -> None: """Keep artefacts so the follow-up instrumentation can reuse /workspace.
 
     Assert emits state under /workspace which instrumentation consumes.
     """
     os.environ.setdefault("PG_KEEP_ARTIFACTS", "1")
 
-
-def _assert_required_instrumentation_env() -> None:
-    """Validate ANTHROPIC envs exist; raise if missing.
+def \_assert_required_instrumentation_env() -> None: """Validate ANTHROPIC envs exist; raise if missing.
 
     This check protects the instrumentation step. We do not eagerly exit the
     whole service on import; instead, fail fast when instrumentation runs.
@@ -20981,29 +19035,13 @@ def _assert_required_instrumentation_env() -> None:
             "Missing required environment variables for instrumentation: " + ", ".join(missing)
         )
 
-
 # Apply environment adjustments before docker settings are cached
-_ensure_env_passthrough_for_instrumentation()
-_ensure_keep_artifacts_enabled()
 
+\_ensure_env_passthrough_for_instrumentation() \_ensure_keep_artifacts_enabled()
 
-@lru_cache(maxsize=1)
-def _docker_settings() -> ProtocolGuardDockerSettings:
-    return ProtocolGuardDockerSettings.from_env()
+@lru_cache(maxsize=1) def \_docker_settings() -> ProtocolGuardDockerSettings: return ProtocolGuardDockerSettings.from_env()
 
-
-def run_assert_generation(
-    *,
-    code_stream: BinaryIO,
-    code_file_name: str,
-    database_stream: BinaryIO,
-    database_file_name: str,
-    build_instructions: Optional[str],
-    notes: Optional[str],
-    job_id: Optional[str] = None,
-    progress_callback: Optional[Callable[[str, str, str], None]] = None,
-) -> Dict[str, object]:
-    """Dispatch assertion generation via Docker followed by instrumentation.
+def run_assert_generation( \*, code_stream: BinaryIO, code_file_name: str, database_stream: BinaryIO, database_file_name: str, build_instructions: Optional[str], notes: Optional[str], job_id: Optional[str] = None, progress_callback: Optional[Callable[[str, str, str], None]] = None, ) -> Dict[str, object]: """Dispatch assertion generation via Docker followed by instrumentation.
 
     On success, triggers an instrumentation container using the same workspace
     and merges its artefacts into the returned result under the "instrumentation"
@@ -21091,18 +19129,7 @@ def run_assert_generation(
     except ProtocolGuardDockerError as exc:
         raise AssertGenerationError(str(exc)) from exc
 
-
-def _run_instrumentation_container(
-    *,
-    image: str,
-    network: Optional[str],
-    workspace: Path,
-    output: Path,
-    extra_args: Optional[List[str]] = None,
-    job_id: Optional[str] = None,
-    progress_callback: Optional[Callable[[str, str, str], None]] = None,
-) -> Dict[str, object]:
-    """Run the ProtocolGuard instrumentation container and collect results.
+def \_run_instrumentation_container( \*, image: str, network: Optional[str], workspace: Path, output: Path, extra_args: Optional[List[str]] = None, job_id: Optional[str] = None, progress_callback: Optional[Callable[[str, str, str], None]] = None, ) -> Dict[str, object]: """Run the ProtocolGuard instrumentation container and collect results.
 
     Uses the same image as assertion generation. Mounts the given workspace as
     /workspace and the output dir as /out. Requires ANTHROPIC_* env variables.
@@ -21299,15 +19326,7 @@ def _run_instrumentation_container(
 
     return details
 
-
-def submit_assert_generation_job(
-    *,
-    code_payload: Tuple[str, bytes],
-    database_payload: Tuple[str, bytes],
-    build_instructions: Optional[str],
-    notes: Optional[str],
-) -> Dict[str, object]:
-    """Launch assertion generation asynchronously and return initial snapshot."""
+def submit_assert_generation_job( \*, code_payload: Tuple[str, bytes], database_payload: Tuple[str, bytes], build_instructions: Optional[str], notes: Optional[str], ) -> Dict[str, object]: """Launch assertion generation asynchronously and return initial snapshot."""
 
     state = PROGRESS_REGISTRY.create_job()
     job_id = state.job_id
@@ -21372,117 +19391,33 @@ def submit_assert_generation_job(
     assert snapshot is not None
     return snapshot
 
+def get_assert_generation_job(job_id: str) -> Optional[Dict[str, object]]: return PROGRESS_REGISTRY.snapshot(job_id)
 
-def get_assert_generation_job(job_id: str) -> Optional[Dict[str, object]]:
-    return PROGRESS_REGISTRY.snapshot(job_id)
+def get_assert_generation_result(job_id: str) -> Optional[Dict[str, object]]: snapshot = PROGRESS_REGISTRY.snapshot(job_id) if not snapshot: return None if snapshot.get("status") != "completed": return None result = snapshot.get("result") if isinstance(result, dict): return result return None
 
+def get_assert_generation_zip_path(job_id: str) -> Optional[Path]: snapshot = PROGRESS_REGISTRY.snapshot(job_id) if not snapshot: return None result = snapshot.get("result") if not isinstance(result, dict): return None artifacts = result.get("artifacts") if not isinstance(artifacts, dict): return None raw_zip = artifacts.get("zipPath") if not raw_zip: return None zip_path = Path(raw_zip) if not zip_path.exists(): return None return zip_path
 
-def get_assert_generation_result(job_id: str) -> Optional[Dict[str, object]]:
-    snapshot = PROGRESS_REGISTRY.snapshot(job_id)
-    if not snapshot:
-        return None
-    if snapshot.get("status") != "completed":
-        return None
-    result = snapshot.get("result")
-    if isinstance(result, dict):
-        return result
-    return None
+def \_record_assertion_history_entry( \*, job_id: str, code_filename: str, database_filename: str, instrumentation_details: Dict[str, object], ) -> None: artifacts = instrumentation_details.get("artifacts") if isinstance(instrumentation_details, dict) else None if not isinstance(artifacts, dict): return diff_output = artifacts.get("diffOutput") if not isinstance(diff_output, dict): return raw_path = diff_output.get("path") if not isinstance(raw_path, str) or not raw_path: return diff_path = Path(raw_path) if not diff_path.exists(): LOGGER.warning("Instrumentation diff file %s missing for job %s", diff_path, job_id) return try: ASSERTION_HISTORY_REPOSITORY.record_job( job_id=job_id, diff_source_path=diff_path, code_filename=code_filename, database_filename=database_filename, ) except Exception as exc: # pragma: no cover - persistence best effort LOGGER.warning("Failed to persist assertion history for job %s: %s", job_id, exc)
 
+def list_assertion_history(limit: int = 50) -> List[Dict[str, object]]: return ASSERTION_HISTORY_REPOSITORY.list_history(limit=limit)
 
-def get_assert_generation_zip_path(job_id: str) -> Optional[Path]:
-    snapshot = PROGRESS_REGISTRY.snapshot(job_id)
-    if not snapshot:
-        return None
-    result = snapshot.get("result")
-    if not isinstance(result, dict):
-        return None
-    artifacts = result.get("artifacts")
-    if not isinstance(artifacts, dict):
-        return None
-    raw_zip = artifacts.get("zipPath")
-    if not raw_zip:
-        return None
-    zip_path = Path(raw_zip)
-    if not zip_path.exists():
-        return None
-    return zip_path
+def get_assertion_history_entry(job_id: str) -> Optional[Dict[str, object]]: return ASSERTION_HISTORY_REPOSITORY.get_entry(job_id)
 
-
-def _record_assertion_history_entry(
-    *,
-    job_id: str,
-    code_filename: str,
-    database_filename: str,
-    instrumentation_details: Dict[str, object],
-) -> None:
-    artifacts = instrumentation_details.get("artifacts") if isinstance(instrumentation_details, dict) else None
-    if not isinstance(artifacts, dict):
-        return
-    diff_output = artifacts.get("diffOutput")
-    if not isinstance(diff_output, dict):
-        return
-    raw_path = diff_output.get("path")
-    if not isinstance(raw_path, str) or not raw_path:
-        return
-    diff_path = Path(raw_path)
-    if not diff_path.exists():
-        LOGGER.warning("Instrumentation diff file %s missing for job %s", diff_path, job_id)
-        return
-    try:
-        ASSERTION_HISTORY_REPOSITORY.record_job(
-            job_id=job_id,
-            diff_source_path=diff_path,
-            code_filename=code_filename,
-            database_filename=database_filename,
-        )
-    except Exception as exc:  # pragma: no cover - persistence best effort
-        LOGGER.warning("Failed to persist assertion history for job %s: %s", job_id, exc)
-
-
-def list_assertion_history(limit: int = 50) -> List[Dict[str, object]]:
-    return ASSERTION_HISTORY_REPOSITORY.list_history(limit=limit)
-
-
-def get_assertion_history_entry(job_id: str) -> Optional[Dict[str, object]]:
-    return ASSERTION_HISTORY_REPOSITORY.get_entry(job_id)
-
-
-def get_assertion_history_diff_path(job_id: str) -> Optional[Path]:
-    return ASSERTION_HISTORY_REPOSITORY.resolve_diff_path(job_id)
-
+def get_assertion_history_diff_path(job_id: str) -> Optional[Path]: return ASSERTION_HISTORY_REPOSITORY.resolve_diff_path(job_id)
 
 # ============================================================================
+
 # Diff Parsing Workflow
+
 # ============================================================================
 
-DiffParsingJobStatus = str  # Literal['queued', 'running', 'completed', 'failed']
+DiffParsingJobStatus = str # Literal['queued', 'running', 'completed', 'failed']
 
+@dataclass class DiffParsingProgressEvent: timestamp: str stage: str message: str percentage: int
 
-@dataclass
-class DiffParsingProgressEvent:
-    timestamp: str
-    stage: str
-    message: str
-    percentage: int
+@dataclass class DiffParsingProgressState: job_id: str parent_job_id: str status: DiffParsingJobStatus stage: str message: str percentage: int created_at: str updated_at: str events: List[DiffParsingProgressEvent] = field(default_factory=list) result: Optional[Dict[str, object]] = None error: Optional[str] = None
 
-
-@dataclass
-class DiffParsingProgressState:
-    job_id: str
-    parent_job_id: str
-    status: DiffParsingJobStatus
-    stage: str
-    message: str
-    percentage: int
-    created_at: str
-    updated_at: str
-    events: List[DiffParsingProgressEvent] = field(default_factory=list)
-    result: Optional[Dict[str, object]] = None
-    error: Optional[str] = None
-
-
-class DiffParsingProgressRegistry:
-    """Track live progress for diff parsing jobs."""
+class DiffParsingProgressRegistry: """Track live progress for diff parsing jobs."""
 
     def __init__(self) -> None:
         self._states: Dict[str, DiffParsingProgressState] = {}
@@ -21615,131 +19550,92 @@ class DiffParsingProgressRegistry:
             )
         )
 
-
 DIFF_PARSING_REGISTRY = DiffParsingProgressRegistry()
 
-
-def _generate_mock_diff() -> Dict[str, object]:
-    """Generate a realistic mock diff for demonstration purposes."""
+def \_generate_mock_diff() -> Dict[str, object]: """Generate a realistic mock diff for demonstration purposes."""
 
     # Mock diff content as a string
     diff_content = """diff --git a/src/protocol/tls_handler.c b/src/protocol/tls_handler.c
-index 1a2b3c4..5d6e7f8 100644
---- a/src/protocol/tls_handler.c
-+++ b/src/protocol/tls_handler.c
-@@ -45,7 +45,7 @@ int verify_certificate(SSL *ssl, const char *hostname) {
-     X509 *cert = SSL_get_peer_certificate(ssl);
+
+index 1a2b3c4..5d6e7f8 100644 --- a/src/protocol/tls_handler.c +++ b/src/protocol/tls_handler.c @@ -45,7 +45,7 @@ int verify_certificate(SSL *ssl, const char *hostname) { X509 \*cert = SSL_get_peer_certificate(ssl);
 
      if (!cert) {
+
 -        fprintf(stderr, "No certificate presented\\n");
-+        log_error("No certificate presented by peer");
+
+*        log_error("No certificate presented by peer");
          return -1;
-     }
+  }
 
-@@ -67,12 +67,18 @@ int tls_handshake(connection_t *conn) {
+@@ -67,12 +67,18 @@ int tls_handshake(connection_t \*conn) { return -1; }
+
+- // Set verification mode
+- SSL_set_verify(conn->ssl, SSL_VERIFY_PEER, NULL);
+
+* // Set strict verification mode with callback
+* SSL_set_verify(conn->ssl, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, verify_callback);
+*
+* // Set minimum TLS version to 1.2
+* SSL_set_min_proto_version(conn->ssl, TLS1_2_VERSION);
+
+  // Perform handshake int ret = SSL_do_handshake(conn->ssl); if (ret != 1) {
+
+*        int ssl_error = SSL_get_error(conn->ssl, ret);
+*        log_error("TLS handshake failed with error code: %d", ssl_error);
+*        ERR_print_errors_fp(stderr);
          return -1;
-     }
+  }
 
--    // Set verification mode
--    SSL_set_verify(conn->ssl, SSL_VERIFY_PEER, NULL);
-+    // Set strict verification mode with callback
-+    SSL_set_verify(conn->ssl, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, verify_callback);
-+
-+    // Set minimum TLS version to 1.2
-+    SSL_set_min_proto_version(conn->ssl, TLS1_2_VERSION);
+diff --git a/src/protocol/assertions.c b/src/protocol/assertions.c new file mode 100644 index 0000000..9a8b7c1 --- /dev/null +++ b/src/protocol/assertions.c @@ -0,0 +1,52 @@ +#include "assertions.h" +#include <assert.h> +#include <string.h>
 
-     // Perform handshake
-     int ret = SSL_do_handshake(conn->ssl);
-     if (ret != 1) {
-+        int ssl_error = SSL_get_error(conn->ssl, ret);
-+        log_error("TLS handshake failed with error code: %d", ssl_error);
-+        ERR_print_errors_fp(stderr);
-         return -1;
-     }
+- +/\*\*
+- - Assert that TLS version is at least 1.2
+- */ +void assert_min_tls_version(SSL *ssl) {
+- int version = SSL_version(ssl);
+- assert(version >= TLS1_2_VERSION && "TLS version must be at least 1.2"); +}
+- +/\*\*
+- - Assert that certificate verification succeeded
+- */ +void assert_certificate_verified(SSL *ssl) {
+- long verify_result = SSL_get_verify_result(ssl);
+- assert(verify_result == X509_V_OK && "Certificate verification must succeed"); +}
+- +/\*\*
+- - Assert that cipher suite is secure
+- */ +void assert_secure_cipher(SSL *ssl) {
+- const SSL_CIPHER \*cipher = SSL_get_current_cipher(ssl);
+- assert(cipher != NULL && "Cipher suite must be negotiated");
+-
+- const char \*cipher_name = SSL_CIPHER_get_name(cipher);
+- // Ensure no weak ciphers (NULL, EXPORT, DES, MD5, etc.)
+- assert(strstr(cipher_name, "NULL") == NULL && "NULL cipher not allowed");
+- assert(strstr(cipher_name, "EXPORT") == NULL && "EXPORT cipher not allowed");
+- assert(strstr(cipher_name, "DES") == NULL && "DES cipher not allowed");
+- assert(strstr(cipher_name, "MD5") == NULL && "MD5 cipher not allowed"); +}
+- +/\*\*
+- - Assert that peer certificate is present
+- */ +void assert_peer_certificate_present(SSL *ssl) {
+- X509 \*cert = SSL_get_peer_certificate(ssl);
+- assert(cert != NULL && "Peer certificate must be present");
+- X509_free(cert); +}
+- +/\*\*
+- - Run all TLS protocol assertions
+- */ +void run_tls_assertions(SSL *ssl) {
+- assert_min_tls_version(ssl);
+- assert_certificate_verified(ssl);
+- assert_secure_cipher(ssl);
+- assert_peer_certificate_present(ssl); +} diff --git a/tests/test_tls_protocol.c b/tests/test_tls_protocol.c index a1b2c3d..e4f5g6h 100644 --- a/tests/test_tls_protocol.c +++ b/tests/test_tls_protocol.c @@ -15,6 +15,7 @@ #include "../src/protocol/tls_handler.h" +#include "../src/protocol/assertions.h" #include "test_helpers.h"
 
-diff --git a/src/protocol/assertions.c b/src/protocol/assertions.c
-new file mode 100644
-index 0000000..9a8b7c1
---- /dev/null
-+++ b/src/protocol/assertions.c
-@@ -0,0 +1,52 @@
-+#include "assertions.h"
-+#include <assert.h>
-+#include <string.h>
-+
-+/**
-+ * Assert that TLS version is at least 1.2
-+ */
-+void assert_min_tls_version(SSL *ssl) {
-+    int version = SSL_version(ssl);
-+    assert(version >= TLS1_2_VERSION && "TLS version must be at least 1.2");
-+}
-+
-+/**
-+ * Assert that certificate verification succeeded
-+ */
-+void assert_certificate_verified(SSL *ssl) {
-+    long verify_result = SSL_get_verify_result(ssl);
-+    assert(verify_result == X509_V_OK && "Certificate verification must succeed");
-+}
-+
-+/**
-+ * Assert that cipher suite is secure
-+ */
-+void assert_secure_cipher(SSL *ssl) {
-+    const SSL_CIPHER *cipher = SSL_get_current_cipher(ssl);
-+    assert(cipher != NULL && "Cipher suite must be negotiated");
-+
-+    const char *cipher_name = SSL_CIPHER_get_name(cipher);
-+    // Ensure no weak ciphers (NULL, EXPORT, DES, MD5, etc.)
-+    assert(strstr(cipher_name, "NULL") == NULL && "NULL cipher not allowed");
-+    assert(strstr(cipher_name, "EXPORT") == NULL && "EXPORT cipher not allowed");
-+    assert(strstr(cipher_name, "DES") == NULL && "DES cipher not allowed");
-+    assert(strstr(cipher_name, "MD5") == NULL && "MD5 cipher not allowed");
-+}
-+
-+/**
-+ * Assert that peer certificate is present
-+ */
-+void assert_peer_certificate_present(SSL *ssl) {
-+    X509 *cert = SSL_get_peer_certificate(ssl);
-+    assert(cert != NULL && "Peer certificate must be present");
-+    X509_free(cert);
-+}
-+
-+/**
-+ * Run all TLS protocol assertions
-+ */
-+void run_tls_assertions(SSL *ssl) {
-+    assert_min_tls_version(ssl);
-+    assert_certificate_verified(ssl);
-+    assert_secure_cipher(ssl);
-+    assert_peer_certificate_present(ssl);
-+}
-diff --git a/tests/test_tls_protocol.c b/tests/test_tls_protocol.c
-index a1b2c3d..e4f5g6h 100644
---- a/tests/test_tls_protocol.c
-+++ b/tests/test_tls_protocol.c
-@@ -15,6 +15,7 @@
- #include "../src/protocol/tls_handler.h"
-+#include "../src/protocol/assertions.h"
- #include "test_helpers.h"
-
- void test_basic_handshake() {
-@@ -28,7 +29,12 @@ void test_basic_handshake() {
+void test_basic_handshake() { @@ -28,7 +29,12 @@ void test_basic_handshake() {
 
      int result = tls_handshake(&conn);
      assert(result == 0);
-+
-+    // Run protocol compliance assertions
-+    run_tls_assertions(conn.ssl);
-+
-     cleanup_connection(&conn);
-+    printf("✓ Basic handshake test passed\\n");
- }
 
- void test_certificate_verification() {
-"""
+-
+- // Run protocol compliance assertions
+- run_tls_assertions(conn.ssl);
+-     cleanup_connection(&conn);
+- printf("✓ Basic handshake test passed\\n"); }
+
+void test_certificate_verification() { """
 
     # Parse diff into structured format
     files = [
@@ -21887,72 +19783,49 @@ index a1b2c3d..e4f5g6h 100644
         "generatedAt": _now_iso(),
     }
 
-
 # ============================================================================
+
 # Patch File Reading & Matching
+
 # ============================================================================
 
 # Define the path to the assert-mock directory
+
 # From: /home/xinrui/GitHub/vue-vben-admin/apps/backend-flask/protocol_compliance/assertion.py
-# To:   /home/xinrui/GitHub/assert-mock
-ASSERT_MOCK_DIR = Path(__file__).parent.parent.parent.parent.parent / "assert-mock"
+
+# To: /home/xinrui/GitHub/assert-mock
+
+ASSERT_MOCK_DIR = Path(**file**).parent.parent.parent.parent.parent / "assert-mock"
 
 # Available patch files
-AVAILABLE_PATCH_FILES = [
-    "wolfssl_assertion.patch",
-    "uftp_assertion.patch",
-    "tlse_assertion.patch",
-    "tinymqtt_assertion.patch",
-    "sol_assertion_changes.patch",
-    "pure_ftpd_assertion.patch",
-    "ndhs_assertion.patch",
-    "mosquitto_assertion.patch",
-    "libcoap_assertion.patch",
-    "freecoap_assertion.patch",
-]
 
+AVAILABLE_PATCH_FILES = [ "wolfssl_assertion.patch", "uftp_assertion.patch", "tlse_assertion.patch", "tinymqtt_assertion.patch", "sol_assertion_changes.patch", "pure_ftpd_assertion.patch", "ndhs_assertion.patch", "mosquitto_assertion.patch", "libcoap_assertion.patch", "freecoap_assertion.patch", ]
 
-def extract_protocol_name_from_database(database_filename: str) -> str:
-    """
-    Extract protocol name from database filename.
-    Examples:
-        sqlite_wolfssl.db -> wolfssl
-        sqlite_mosquitto.db -> mosquitto
-        violations.db -> violations
-    """
-    # Remove .db extension
-    name = database_filename.replace(".db", "")
-    
+def extract_protocol_name_from_database(database_filename: str) -> str: """ Extract protocol name from database filename. Examples: sqlite_wolfssl.db -> wolfssl sqlite_mosquitto.db -> mosquitto violations.db -> violations """ # Remove .db extension name = database_filename.replace(".db", "")
+
     # Remove sqlite_ prefix if present
     if name.startswith("sqlite_"):
         name = name[7:]  # len("sqlite_") = 7
-    
+
     return name.lower()
 
+def find_best_matching_patch_file(protocol_name: str, available_files: List[str]) -> Optional[str]: """ Find the best matching patch file using string similarity. Returns the filename with the highest similarity score, or None if no good match. """ if not protocol_name or not available_files: return None
 
-def find_best_matching_patch_file(protocol_name: str, available_files: List[str]) -> Optional[str]:
-    """
-    Find the best matching patch file using string similarity.
-    Returns the filename with the highest similarity score, or None if no good match.
-    """
-    if not protocol_name or not available_files:
-        return None
-    
     protocol_name_lower = protocol_name.lower()
     best_match = None
     best_score = 0.0
-    
+
     for filename in available_files:
         # Extract the base name from the patch file (e.g., "wolfssl" from "wolfssl_assertion.patch")
         base_name = filename.replace("_assertion.patch", "").replace("_assertion_changes.patch", "")
-        
+
         # Calculate similarity using SequenceMatcher
         similarity = difflib.SequenceMatcher(None, protocol_name_lower, base_name.lower()).ratio()
-        
+
         if similarity > best_score:
             best_score = similarity
             best_match = filename
-    
+
     # Only return a match if similarity is above 0.5 (50%)
     if best_score >= 0.5:
         LOGGER.info(
@@ -21962,7 +19835,7 @@ def find_best_matching_patch_file(protocol_name: str, available_files: List[str]
             best_score,
         )
         return best_match
-    
+
     LOGGER.warning(
         "No good match found for protocol '%s'. Best match was '%s' with similarity %.2f",
         protocol_name,
@@ -21971,29 +19844,21 @@ def find_best_matching_patch_file(protocol_name: str, available_files: List[str]
     )
     return None
 
+def parse_unified_diff(patch_content: str) -> Dict[str, object]: """ Parse a unified diff patch file into structured format. Returns a dictionary with 'diffContent', 'files', and 'summary'. """ files = [] current_file = None current_hunk = None
 
-def parse_unified_diff(patch_content: str) -> Dict[str, object]:
-    """
-    Parse a unified diff patch file into structured format.
-    Returns a dictionary with 'diffContent', 'files', and 'summary'.
-    """
-    files = []
-    current_file = None
-    current_hunk = None
-    
     lines = patch_content.split('\n')
     i = 0
-    
+
     while i < len(lines):
         line = lines[i]
-        
+
         # Match file header: diff --git a/... b/...
         if line.startswith('diff --git'):
             # Save previous file if exists
             if current_file and current_hunk:
                 current_file["hunks"].append(current_hunk)
                 files.append(current_file)
-            
+
             # Extract filenames
             match = re.search(r'a/(.*?)\s+b/(.*?)$', line)
             if match:
@@ -22005,7 +19870,7 @@ def parse_unified_diff(patch_content: str) -> Dict[str, object]:
                     "hunks": []
                 }
             current_hunk = None
-        
+
         # Match old file: --- a/...
         elif line.startswith('---'):
             if current_file is None:
@@ -22018,27 +19883,27 @@ def parse_unified_diff(patch_content: str) -> Dict[str, object]:
                         "deletions": 0,
                         "hunks": []
                     }
-        
+
         # Match new file: +++ b/...
         elif line.startswith('+++'):
             if current_file:
                 match = re.search(r'\+\+\+\s+b/(.*?)$', line)
                 if match:
                     current_file["to"] = match.group(1)
-        
+
         # Match hunk header: @@ -old_start,old_lines +new_start,new_lines @@
         elif line.startswith('@@'):
             # Save previous hunk if exists
             if current_hunk:
                 current_file["hunks"].append(current_hunk)
-            
+
             match = re.search(r'@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@', line)
             if match:
                 old_start = int(match.group(1))
                 old_lines = int(match.group(2)) if match.group(2) else 1
                 new_start = int(match.group(3))
                 new_lines = int(match.group(4)) if match.group(4) else 1
-                
+
                 current_hunk = {
                     "oldStart": old_start,
                     "oldLines": old_lines,
@@ -22046,7 +19911,7 @@ def parse_unified_diff(patch_content: str) -> Dict[str, object]:
                     "newLines": new_lines,
                     "lines": []
                 }
-        
+
         # Match diff content lines
         elif current_hunk is not None:
             if line.startswith('+') and not line.startswith('+++'):
@@ -22063,20 +19928,20 @@ def parse_unified_diff(patch_content: str) -> Dict[str, object]:
             else:
                 # Context line without leading space (treat as normal)
                 current_hunk["lines"].append({"type": "normal", "content": line})
-        
+
         i += 1
-    
+
     # Save last file and hunk
     if current_file:
         if current_hunk:
             current_file["hunks"].append(current_hunk)
         files.append(current_file)
-    
+
     # Calculate summary
     total_files = len(files)
     total_insertions = sum(f["additions"] for f in files)
     total_deletions = sum(f["deletions"] for f in files)
-    
+
     return {
         "diffContent": patch_content,
         "files": files,
@@ -22087,37 +19952,29 @@ def parse_unified_diff(patch_content: str) -> Dict[str, object]:
         },
     }
 
+def load_patch_from_database_name(database_filename: str) -> Optional[Dict[str, object]]: """ Load and parse a patch file based on the database filename. Returns parsed diff structure or None if no matching patch found. """ # Extract protocol name from database filename protocol_name = extract_protocol_name_from_database(database_filename) LOGGER.info("Extracted protocol name '%s' from database '%s'", protocol_name, database_filename)
 
-def load_patch_from_database_name(database_filename: str) -> Optional[Dict[str, object]]:
-    """
-    Load and parse a patch file based on the database filename.
-    Returns parsed diff structure or None if no matching patch found.
-    """
-    # Extract protocol name from database filename
-    protocol_name = extract_protocol_name_from_database(database_filename)
-    LOGGER.info("Extracted protocol name '%s' from database '%s'", protocol_name, database_filename)
-    
     # Find best matching patch file
     patch_filename = find_best_matching_patch_file(protocol_name, AVAILABLE_PATCH_FILES)
     if not patch_filename:
         LOGGER.warning("No matching patch file found for protocol '%s'", protocol_name)
         return None
-    
+
     # Construct full path to patch file
     patch_path = ASSERT_MOCK_DIR / patch_filename
-    
+
     # Check if file exists
     if not patch_path.exists():
         LOGGER.error("Patch file not found at path: %s", patch_path)
         return None
-    
+
     # Read patch file
     try:
         with open(patch_path, 'r', encoding='utf-8') as f:
             patch_content = f.read()
-        
+
         LOGGER.info("Successfully read patch file: %s (%d bytes)", patch_filename, len(patch_content))
-        
+
         # Parse the patch file
         parsed_diff = parse_unified_diff(patch_content)
         LOGGER.info(
@@ -22126,15 +19983,13 @@ def load_patch_from_database_name(database_filename: str) -> Optional[Dict[str, 
             parsed_diff["summary"]["insertions"],
             parsed_diff["summary"]["deletions"],
         )
-        
+
         return parsed_diff
     except Exception as e:
         LOGGER.exception("Error reading or parsing patch file %s: %s", patch_path, e)
         return None
 
-
-def submit_diff_parsing_job(parent_job_id: str) -> Dict[str, object]:
-    """Launch diff parsing asynchronously and return initial snapshot."""
+def submit_diff_parsing_job(parent_job_id: str) -> Dict[str, object]: """Launch diff parsing asynchronously and return initial snapshot."""
 
     state = DIFF_PARSING_REGISTRY.create_job(parent_job_id)
     job_id = state.job_id
@@ -22144,10 +19999,10 @@ def submit_diff_parsing_job(parent_job_id: str) -> Dict[str, object]:
             # Retrieve the parent assertion generation job to get database filename
             DIFF_PARSING_REGISTRY.mark_running(job_id, "init", "Starting diff parsing", 0)
             time.sleep(1)
-            
+
             DIFF_PARSING_REGISTRY.append_event(job_id, "load", "Loading assertion generation metadata", 10)
             parent_snapshot = get_assert_generation_job(parent_job_id)
-            
+
             database_filename = None
             if parent_snapshot:
                 result = parent_snapshot.get("result")
@@ -22155,22 +20010,22 @@ def submit_diff_parsing_job(parent_job_id: str) -> Dict[str, object]:
                     inputs = result.get("inputs")
                     if isinstance(inputs, dict):
                         database_filename = inputs.get("databaseFileName")
-            
+
             if not database_filename:
                 LOGGER.warning(
                     "Could not extract database filename from parent job %s, using fallback mock data",
                     parent_job_id
                 )
                 database_filename = "violations.db"  # Fallback
-            
+
             LOGGER.info("Diff parsing job %s: database filename = %s", job_id, database_filename)
-            
+
             # Try to load patch file from assert-mock directory
             DIFF_PARSING_REGISTRY.append_event(job_id, "match", "Matching database to patch file", 20)
             time.sleep(1)
-            
+
             parsed_diff = load_patch_from_database_name(database_filename)
-            
+
             if parsed_diff:
                 LOGGER.info("Successfully loaded real patch file for database: %s", database_filename)
                 DIFF_PARSING_REGISTRY.append_event(job_id, "parse", "Parsing unified diff format", 40)
@@ -22181,7 +20036,7 @@ def submit_diff_parsing_job(parent_job_id: str) -> Dict[str, object]:
                 time.sleep(1)
                 DIFF_PARSING_REGISTRY.append_event(job_id, "finalize", "Finalizing results", 95)
                 time.sleep(0.5)
-                
+
                 # Add metadata to the result
                 result = parsed_diff.copy()
                 result["jobId"] = job_id
@@ -22197,13 +20052,13 @@ def submit_diff_parsing_job(parent_job_id: str) -> Dict[str, object]:
                 time.sleep(2)
                 DIFF_PARSING_REGISTRY.append_event(job_id, "finalize", "Finalizing mock results", 90)
                 time.sleep(1)
-                
+
                 result = _generate_mock_diff()
                 result["metadata"] = {
                     "databaseFileName": database_filename,
                     "source": "mock_data"
                 }
-            
+
             DIFF_PARSING_REGISTRY.complete(job_id, result)
 
         except Exception as exc:  # pragma: no cover
@@ -22221,84 +20076,29 @@ def submit_diff_parsing_job(parent_job_id: str) -> Dict[str, object]:
     assert snapshot is not None
     return snapshot
 
+def get_diff_parsing_job(job_id: str) -> Optional[Dict[str, object]]: return DIFF_PARSING_REGISTRY.snapshot(job_id)
 
-def get_diff_parsing_job(job_id: str) -> Optional[Dict[str, object]]:
-    return DIFF_PARSING_REGISTRY.snapshot(job_id)
+def get_diff_parsing_result(job_id: str) -> Optional[Dict[str, object]]: snapshot = DIFF_PARSING_REGISTRY.snapshot(job_id) if not snapshot: return None if snapshot.get("status") != "completed": return None result = snapshot.get("result") if isinstance(result, dict): return result return None
 
-
-def get_diff_parsing_result(job_id: str) -> Optional[Dict[str, object]]:
-    snapshot = DIFF_PARSING_REGISTRY.snapshot(job_id)
-    if not snapshot:
-        return None
-    if snapshot.get("status") != "completed":
-        return None
-    result = snapshot.get("result")
-    if isinstance(result, dict):
-        return result
-    return None
-
-
-====================================================================================================
-文件 21: apps/backend-flask/protocol_compliance/assertion_history_repository.py
-====================================================================================================
+==================================================================================================== 文件 21: apps/backend-flask/protocol_compliance/assertion_history_repository.py ====================================================================================================
 
 """SQLite-backed history store for instrumentation diff artefacts."""
 
-from __future__ import annotations
+from **future** import annotations
 
-import logging
-import os
-import shutil
-import sqlite3
-import threading
-from contextlib import contextmanager
-from dataclasses import dataclass
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Dict, Iterator, List, Optional
+import logging import os import shutil import sqlite3 import threading from contextlib import contextmanager from dataclasses import dataclass from datetime import datetime, timezone from pathlib import Path from typing import Dict, Iterator, List, Optional
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = logging.getLogger(**name**)
 
+def \_now_iso() -> str: return datetime.now(timezone.utc).isoformat()
 
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+def \_default_state_directory() -> Path: raw_dir = os.environ.get("PROTOCOLGUARD_STATE_DIR") if raw_dir: try: return Path(raw_dir).expanduser().resolve() except (OSError, RuntimeError): LOGGER.warning("Invalid PROTOCOLGUARD_STATE_DIR %s; using package \_state directory", raw_dir) return Path(**file**).resolve().parent / "\_state"
 
+def \_default_db_path() -> Path: raw_name = os.environ.get("ASSERT_HISTORY_DB_NAME", "assertion_history.sqlite3") return (\_default_state_directory() / raw_name).resolve()
 
-def _default_state_directory() -> Path:
-    raw_dir = os.environ.get("PROTOCOLGUARD_STATE_DIR")
-    if raw_dir:
-        try:
-            return Path(raw_dir).expanduser().resolve()
-        except (OSError, RuntimeError):
-            LOGGER.warning("Invalid PROTOCOLGUARD_STATE_DIR %s; using package _state directory", raw_dir)
-    return Path(__file__).resolve().parent / "_state"
+def \_default_storage_dir() -> Path: raw_dir = os.environ.get("ASSERT_HISTORY_STORAGE_DIR") if raw_dir: try: return Path(raw_dir).expanduser().resolve() except (OSError, RuntimeError): LOGGER.warning("Invalid ASSERT_HISTORY_STORAGE_DIR %s; falling back to default location", raw_dir) return (\_default_state_directory() / "assertion_history").resolve()
 
-
-def _default_db_path() -> Path:
-    raw_name = os.environ.get("ASSERT_HISTORY_DB_NAME", "assertion_history.sqlite3")
-    return (_default_state_directory() / raw_name).resolve()
-
-
-def _default_storage_dir() -> Path:
-    raw_dir = os.environ.get("ASSERT_HISTORY_STORAGE_DIR")
-    if raw_dir:
-        try:
-            return Path(raw_dir).expanduser().resolve()
-        except (OSError, RuntimeError):
-            LOGGER.warning("Invalid ASSERT_HISTORY_STORAGE_DIR %s; falling back to default location", raw_dir)
-    return (_default_state_directory() / "assertion_history").resolve()
-
-
-@dataclass
-class AssertionHistoryEntry:
-    job_id: str
-    code_filename: Optional[str]
-    database_filename: Optional[str]
-    diff_path: Optional[str]
-    diff_filename: Optional[str]
-    created_at: str
-    updated_at: str
-    source: str
+@dataclass class AssertionHistoryEntry: job_id: str code_filename: Optional[str] database_filename: Optional[str] diff_path: Optional[str] diff_filename: Optional[str] created_at: str updated_at: str source: str
 
     def as_dict(self) -> Dict[str, Optional[str]]:
         return {
@@ -22312,9 +20112,7 @@ class AssertionHistoryEntry:
             "source": self.source,
         }
 
-
-class AssertionHistoryRepository:
-    """Persist instrumentation diff metadata for later retrieval."""
+class AssertionHistoryRepository: """Persist instrumentation diff metadata for later retrieval."""
 
     def __init__(
         self,
@@ -22555,38 +20353,25 @@ class AssertionHistoryRepository:
             source=row["source"],
         )
 
-
 ASSERTION_HISTORY_REPOSITORY = AssertionHistoryRepository()
 
-
-====================================================================================================
-文件 22: apps/backend-flask/protocol_compliance/assertion_history_util.py
-====================================================================================================
+==================================================================================================== 文件 22: apps/backend-flask/protocol_compliance/assertion_history_util.py ====================================================================================================
 
 """CLI helper to manually seed assertion history records.
 
-Usage examples:
-    python -m protocol_compliance.assertion_history_util \
-        --diff-file ./instrumentation.diff \
-        --job-id manual-001 \
-        --code-filename sample.tar.gz \
-        --database-filename sqlite_sample.db
-"""
+Usage examples: python -m protocol_compliance.assertion_history_util \
+ --diff-file ./instrumentation.diff \
+ --job-id manual-001 \
+ --code-filename sample.tar.gz \
+ --database-filename sqlite_sample.db """
 
-from __future__ import annotations
+from **future** import annotations
 
-import argparse
-import sys
-import uuid
-from pathlib import Path
-from typing import Optional
+import argparse import sys import uuid from pathlib import Path from typing import Optional
 
 # Support running as a module or as a standalone script.
-try:  # noqa: SIM105 - explicit guard for script execution
-    from .assertion_history_repository import AssertionHistoryRepository, ASSERTION_HISTORY_REPOSITORY
-except Exception:  # pragma: no cover - fallback for direct execution
-    import sys
-    from pathlib import Path
+
+try: # noqa: SIM105 - explicit guard for script execution from .assertion_history_repository import AssertionHistoryRepository, ASSERTION_HISTORY_REPOSITORY except Exception: # pragma: no cover - fallback for direct execution import sys from pathlib import Path
 
     CURRENT_DIR = Path(__file__).resolve().parent
     PACKAGE_ROOT = CURRENT_DIR.parent
@@ -22597,86 +20382,13 @@ except Exception:  # pragma: no cover - fallback for direct execution
         ASSERTION_HISTORY_REPOSITORY,
     )
 
+def \_positive_int(value: str) -> int: parsed = int(value) if parsed < 1: raise argparse.ArgumentTypeError("limit must be >= 1") return parsed
 
-def _positive_int(value: str) -> int:
-    parsed = int(value)
-    if parsed < 1:
-        raise argparse.ArgumentTypeError("limit must be >= 1")
-    return parsed
+def \_resolve_repo(db_path: Optional[str], storage_dir: Optional[str]) -> AssertionHistoryRepository: if not db_path and not storage_dir: return ASSERTION_HISTORY_REPOSITORY db = Path(db_path).expanduser() if db_path else None storage = Path(storage_dir).expanduser() if storage_dir else None return AssertionHistoryRepository(db_path=db, storage_dir=storage)
 
+def seed_history( \*, diff_file: Path, job_id: str, code_filename: Optional[str], database_filename: Optional[str], created_at: Optional[str], copy_diff: bool, db_path: Optional[str], storage_dir: Optional[str], ) -> Path: repo = \_resolve_repo(db_path, storage_dir) return repo.insert_manual_entry( job_id=job_id, diff_file=diff_file, code_filename=code_filename, database_filename=database_filename, created_at=created_at, copy_diff=copy_diff, )
 
-def _resolve_repo(db_path: Optional[str], storage_dir: Optional[str]) -> AssertionHistoryRepository:
-    if not db_path and not storage_dir:
-        return ASSERTION_HISTORY_REPOSITORY
-    db = Path(db_path).expanduser() if db_path else None
-    storage = Path(storage_dir).expanduser() if storage_dir else None
-    return AssertionHistoryRepository(db_path=db, storage_dir=storage)
-
-
-def seed_history(
-    *,
-    diff_file: Path,
-    job_id: str,
-    code_filename: Optional[str],
-    database_filename: Optional[str],
-    created_at: Optional[str],
-    copy_diff: bool,
-    db_path: Optional[str],
-    storage_dir: Optional[str],
-) -> Path:
-    repo = _resolve_repo(db_path, storage_dir)
-    return repo.insert_manual_entry(
-        job_id=job_id,
-        diff_file=diff_file,
-        code_filename=code_filename,
-        database_filename=database_filename,
-        created_at=created_at,
-        copy_diff=copy_diff,
-    )
-
-
-def main(argv: Optional[list[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description="Seed assertion history with a manual record")
-    parser.add_argument(
-        "--diff-file",
-        required=True,
-        help="Path to the instrumentation diff file to record",
-    )
-    parser.add_argument(
-        "--job-id",
-        default=None,
-        help="Job ID to record (default: random UUID)",
-    )
-    parser.add_argument(
-        "--code-filename",
-        default=None,
-        help="Original code archive filename to store alongside the record",
-    )
-    parser.add_argument(
-        "--database-filename",
-        default=None,
-        help="Original SQLite filename to store alongside the record",
-    )
-    parser.add_argument(
-        "--created-at",
-        default=None,
-        help="ISO8601 timestamp for record creation (default: now, UTC)",
-    )
-    parser.add_argument(
-        "--no-copy",
-        action="store_true",
-        help="Do not copy diff into history storage; reference the source file directly",
-    )
-    parser.add_argument(
-        "--db-path",
-        default=None,
-        help="Override database path (default: ASSERT_HISTORY_DB_NAME within PROTOCOLGUARD_STATE_DIR)",
-    )
-    parser.add_argument(
-        "--storage-dir",
-        default=None,
-        help="Override diff storage directory (default: assertion_history under PROTOCOLGUARD_STATE_DIR)",
-    )
+def main(argv: Optional[list[str]] = None) -> int: parser = argparse.ArgumentParser(description="Seed assertion history with a manual record") parser.add_argument( "--diff-file", required=True, help="Path to the instrumentation diff file to record", ) parser.add_argument( "--job-id", default=None, help="Job ID to record (default: random UUID)", ) parser.add_argument( "--code-filename", default=None, help="Original code archive filename to store alongside the record", ) parser.add_argument( "--database-filename", default=None, help="Original SQLite filename to store alongside the record", ) parser.add_argument( "--created-at", default=None, help="ISO8601 timestamp for record creation (default: now, UTC)", ) parser.add_argument( "--no-copy", action="store_true", help="Do not copy diff into history storage; reference the source file directly", ) parser.add_argument( "--db-path", default=None, help="Override database path (default: ASSERT_HISTORY_DB_NAME within PROTOCOLGUARD_STATE_DIR)", ) parser.add_argument( "--storage-dir", default=None, help="Override diff storage directory (default: assertion_history under PROTOCOLGUARD_STATE_DIR)", )
 
     parsed = parser.parse_args(argv)
 
@@ -22705,81 +20417,29 @@ def main(argv: Optional[list[str]] = None) -> int:
         print(f"Diff stored at: {destination}")
     return 0
 
+if **name** == "**main**": # pragma: no cover - CLI entrypoint sys.exit(main())
 
-if __name__ == "__main__":  # pragma: no cover - CLI entrypoint
-    sys.exit(main())
-
-
-====================================================================================================
-文件 23: apps/backend-flask/protocol_compliance/state_repository.py
-====================================================================================================
+==================================================================================================== 文件 23: apps/backend-flask/protocol_compliance/state_repository.py ====================================================================================================
 
 """SQLite-backed persistence for ProtocolGuard static analysis jobs."""
 
-from __future__ import annotations
+from **future** import annotations
 
-import json
-import logging
-import os
-import sqlite3
-import threading
-from contextlib import contextmanager, suppress
-from pathlib import Path
-from typing import Any, List, Mapping, Optional, Sequence
+import json import logging import os import sqlite3 import threading from contextlib import contextmanager, suppress from pathlib import Path from typing import Any, List, Mapping, Optional, Sequence
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = logging.getLogger(**name**)
 
+def \_default_state_directory() -> Path: raw_dir = os.environ.get("PROTOCOLGUARD_STATE_DIR") if raw_dir: try: base_dir = Path(raw_dir).expanduser().resolve() except (OSError, RuntimeError): LOGGER.warning("Invalid PROTOCOLGUARD_STATE_DIR %s; falling back to package directory", raw_dir) base_dir = Path(**file**).resolve().parent / "\_state" else: base_dir = Path(**file**).resolve().parent / "\_state" return base_dir
 
-def _default_state_directory() -> Path:
-    raw_dir = os.environ.get("PROTOCOLGUARD_STATE_DIR")
-    if raw_dir:
-        try:
-            base_dir = Path(raw_dir).expanduser().resolve()
-        except (OSError, RuntimeError):
-            LOGGER.warning("Invalid PROTOCOLGUARD_STATE_DIR %s; falling back to package directory", raw_dir)
-            base_dir = Path(__file__).resolve().parent / "_state"
-    else:
-        base_dir = Path(__file__).resolve().parent / "_state"
-    return base_dir
+def \_default_db_path() -> Path: raw_name = os.environ.get("PROTOCOLGUARD_STATE_DB_NAME", "analysis_state.sqlite3") base_dir = \_default_state_directory() return (base_dir / raw_name).resolve()
 
+def \_normalize_path(value: Optional[Any]) -> Optional[str]: if isinstance(value, (str, Path)): try: return str(Path(value).expanduser().resolve()) except (OSError, RuntimeError): return str(value) return None
 
-def _default_db_path() -> Path:
-    raw_name = os.environ.get("PROTOCOLGUARD_STATE_DB_NAME", "analysis_state.sqlite3")
-    base_dir = _default_state_directory()
-    return (base_dir / raw_name).resolve()
+def \_dump_json(value: Optional[Any]) -> Optional[str]: if value is None: return None try: return json.dumps(value, ensure_ascii=False, separators=(",", ":")) except (TypeError, ValueError) as exc: LOGGER.warning("Failed to serialize JSON payload for persistence: %s", exc) return None
 
+def \_load_json(value: Optional[str]) -> Optional[Any]: if not value: return None try: return json.loads(value) except (TypeError, ValueError) as exc: LOGGER.warning("Failed to deserialize JSON payload from persistence: %s", exc) return None
 
-def _normalize_path(value: Optional[Any]) -> Optional[str]:
-    if isinstance(value, (str, Path)):
-        try:
-            return str(Path(value).expanduser().resolve())
-        except (OSError, RuntimeError):
-            return str(value)
-    return None
-
-
-def _dump_json(value: Optional[Any]) -> Optional[str]:
-    if value is None:
-        return None
-    try:
-        return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
-    except (TypeError, ValueError) as exc:
-        LOGGER.warning("Failed to serialize JSON payload for persistence: %s", exc)
-        return None
-
-
-def _load_json(value: Optional[str]) -> Optional[Any]:
-    if not value:
-        return None
-    try:
-        return json.loads(value)
-    except (TypeError, ValueError) as exc:
-        LOGGER.warning("Failed to deserialize JSON payload from persistence: %s", exc)
-        return None
-
-
-class AnalysisStateRepository:
-    """Persist static analysis job metadata and artefact locations."""
+class AnalysisStateRepository: """Persist static analysis job metadata and artefact locations."""
 
     def __init__(self, db_path: Optional[Path] = None) -> None:
         self._db_path = Path(db_path).resolve() if db_path else _default_db_path()
@@ -23045,7 +20705,7 @@ class AnalysisStateRepository:
 
     def delete_job(self, job_id: str) -> bool:
         """Delete a job and its events from the database.
-        
+
         Returns True if the job was deleted, False if it didn't exist.
         """
         self._ensure_initialized()
@@ -23187,55 +20847,25 @@ class AnalysisStateRepository:
         except sqlite3.DatabaseError as exc:
             LOGGER.warning("Failed to persist analysis job state for %s: %s", payload.get("job_id"), exc)
 
+def \_create_repository() -> AnalysisStateRepository: return AnalysisStateRepository()
 
-def _create_repository() -> AnalysisStateRepository:
-    return AnalysisStateRepository()
+analysis_state_repository = \_create_repository()
 
-
-analysis_state_repository = _create_repository()
-
-
-====================================================================================================
-文件 24: apps/backend-flask/protocol_compliance/store.py
-====================================================================================================
+==================================================================================================== 文件 24: apps/backend-flask/protocol_compliance/store.py ====================================================================================================
 
 """In-memory Protocol Compliance task store with lifecycle simulation."""
 
-from __future__ import annotations
+from **future** import annotations
 
-import random
-import threading
-import uuid
-from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Dict, Iterable, List, Literal, Optional
-
+import random import threading import uuid from dataclasses import dataclass from datetime import datetime, timezone from typing import Dict, Iterable, List, Literal, Optional
 
 TaskStatus = Literal["completed", "failed", "processing", "queued"]
 
+def \_now_iso() -> str: return datetime.now(timezone.utc).isoformat()
 
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+@dataclass class ProtocolComplianceTask: id: str name: str document_name: str document_size: Optional[int] description: Optional[str] tags: Optional[List[str]] status: TaskStatus progress: int submitted_at: str updated_at: str completed_at: Optional[str] = None result_payload: Optional[Dict[str, object]] = None
 
-
-@dataclass
-class ProtocolComplianceTask:
-    id: str
-    name: str
-    document_name: str
-    document_size: Optional[int]
-    description: Optional[str]
-    tags: Optional[List[str]]
-    status: TaskStatus
-    progress: int
-    submitted_at: str
-    updated_at: str
-    completed_at: Optional[str] = None
-    result_payload: Optional[Dict[str, object]] = None
-
-
-class TaskStore:
-    """Maintain protocol compliance tasks and simulate async progression."""
+class TaskStore: """Maintain protocol compliance tasks and simulate async progression."""
 
     def __init__(self) -> None:
         self._tasks: List[ProtocolComplianceTask] = []
@@ -23398,170 +21028,53 @@ class TaskStore:
             "tags": task.tags or [],
         }
 
+def \_random_sentence(min_words: int = 8, max_words: int = 18) -> str: word_count = random.randint(min_words, max_words) words = random.choices(\_WORD_BANK, k=word_count) sentence = " ".join(words).capitalize() + "。" return sentence
 
-def _random_sentence(min_words: int = 8, max_words: int = 18) -> str:
-    word_count = random.randint(min_words, max_words)
-    words = random.choices(_WORD_BANK, k=word_count)
-    sentence = " ".join(words).capitalize() + "。"
-    return sentence
+def _random_paragraph(sentences: int = 3) -> str: return " ".join(\_random_sentence(8, 15) for _ in range(sentences))
 
-
-def _random_paragraph(sentences: int = 3) -> str:
-    return " ".join(_random_sentence(8, 15) for _ in range(sentences))
-
-
-_WORD_BANK = [
-    "协议",
-    "握手",
-    "报文",
-    "验证",
-    "状态",
-    "同步",
-    "密钥",
-    "交换",
-    "流程",
-    "校验",
-    "加密",
-    "套件",
-    "确认",
-    "策略",
-    "超时",
-    "重传",
-    "检测",
-    "结果",
-    "安全",
-    "约束",
-    "分析",
-    "规则",
-    "字段",
-    "覆盖",
-    "路径",
-    "机制",
-]
-
+\_WORD_BANK = [ "协议", "握手", "报文", "验证", "状态", "同步", "密钥", "交换", "流程", "校验", "加密", "套件", "确认", "策略", "超时", "重传", "检测", "结果", "安全", "约束", "分析", "规则", "字段", "覆盖", "路径", "机制", ]
 
 STORE = TaskStore()
 
-
-====================================================================================================
-文件 25: apps/backend-flask/protocol_compliance/docker_runner.py
-====================================================================================================
+==================================================================================================== 文件 25: apps/backend-flask/protocol_compliance/docker_runner.py ====================================================================================================
 
 """Compatibility shim for ProtocolGuard Docker runner internals.
 
-The heavy lifting now lives in ``protocol_compliance._docker_runner`` to keep the
-public import path stable for callers using ``protocol_compliance.docker_runner``.
-"""
+The heavy lifting now lives in `protocol_compliance._docker_runner` to keep the public import path stable for callers using `protocol_compliance.docker_runner`. """
 
-from ._docker_runner import (
-    ArtifactLayout,
-    DEFAULT_CONFIG_PACKET_TYPES,
-    ProtocolGuardDockerError,
-    ProtocolGuardDockerRunner,
-    ProtocolGuardDockerSettings,
-    ProtocolGuardExecutionError,
-    ProtocolGuardNotAvailableError,
-)
+from .\_docker_runner import ( ArtifactLayout, DEFAULT_CONFIG_PACKET_TYPES, ProtocolGuardDockerError, ProtocolGuardDockerRunner, ProtocolGuardDockerSettings, ProtocolGuardExecutionError, ProtocolGuardNotAvailableError, )
 
-__all__ = [
-    "ArtifactLayout",
-    "DEFAULT_CONFIG_PACKET_TYPES",
-    "ProtocolGuardDockerError",
-    "ProtocolGuardDockerRunner",
-    "ProtocolGuardDockerSettings",
-    "ProtocolGuardExecutionError",
-    "ProtocolGuardNotAvailableError",
-]
+**all** = [ "ArtifactLayout", "DEFAULT_CONFIG_PACKET_TYPES", "ProtocolGuardDockerError", "ProtocolGuardDockerRunner", "ProtocolGuardDockerSettings", "ProtocolGuardExecutionError", "ProtocolGuardNotAvailableError", ]
 
-
-====================================================================================================
-文件 26: apps/backend-flask/protocol_compliance/_docker_runner/__init__.py
-====================================================================================================
+==================================================================================================== 文件 26: apps/backend-flask/protocol_compliance/\_docker_runner/**init**.py ====================================================================================================
 
 """Docker orchestration helpers for ProtocolGuard static analysis."""
 
-from .config import ArtifactLayout, DEFAULT_CONFIG_PACKET_TYPES, ProtocolGuardDockerSettings
-from .errors import ProtocolGuardDockerError, ProtocolGuardExecutionError, ProtocolGuardNotAvailableError
-from .runner import ProtocolGuardDockerRunner
+from .config import ArtifactLayout, DEFAULT_CONFIG_PACKET_TYPES, ProtocolGuardDockerSettings from .errors import ProtocolGuardDockerError, ProtocolGuardExecutionError, ProtocolGuardNotAvailableError from .runner import ProtocolGuardDockerRunner
 
-__all__ = [
-    "ArtifactLayout",
-    "DEFAULT_CONFIG_PACKET_TYPES",
-    "ProtocolGuardDockerError",
-    "ProtocolGuardExecutionError",
-    "ProtocolGuardNotAvailableError",
-    "ProtocolGuardDockerRunner",
-    "ProtocolGuardDockerSettings",
-]
+**all** = [ "ArtifactLayout", "DEFAULT_CONFIG_PACKET_TYPES", "ProtocolGuardDockerError", "ProtocolGuardExecutionError", "ProtocolGuardNotAvailableError", "ProtocolGuardDockerRunner", "ProtocolGuardDockerSettings", ]
 
-
-====================================================================================================
-文件 27: apps/backend-flask/protocol_compliance/_docker_runner/config.py
-====================================================================================================
+==================================================================================================== 文件 27: apps/backend-flask/protocol_compliance/\_docker_runner/config.py ====================================================================================================
 
 """Configuration helpers for ProtocolGuard Docker integration."""
 
-from __future__ import annotations
+from **future** import annotations
 
-import os
-import shlex
-import tempfile
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+import os import shlex import tempfile from dataclasses import dataclass from pathlib import Path from typing import Dict, List, Optional, Sequence, Tuple
 
-__all__ = [
-    "ArtifactLayout",
-    "DEFAULT_CONFIG_PACKET_TYPES",
-    "ProtocolGuardDockerSettings",
-    "_default_runtime_root",
-    "_ensure_directory",
-    "_env_bool",
-    "_env_int",
-    "_split_env_list",
-]
+**all** = [ "ArtifactLayout", "DEFAULT_CONFIG_PACKET_TYPES", "ProtocolGuardDockerSettings", "_default_runtime_root", "_ensure_directory", "_env_bool", "_env_int", "_split_env_list", ]
 
+def \_env_bool(name: str, default: bool = False) -> bool: raw = os.environ.get(name) if raw is None: return default return raw.strip().lower() in {"1", "true", "yes", "on"}
 
-def _env_bool(name: str, default: bool = False) -> bool:
-    raw = os.environ.get(name)
-    if raw is None:
-        return default
-    return raw.strip().lower() in {"1", "true", "yes", "on"}
+def \_env_int(name: str, default: Optional[int] = None) -> Optional[int]: raw = os.environ.get(name) if raw is None or not raw.strip(): return default try: return int(raw) except ValueError: return default
 
+def \_split_env_list(name: str, default: Sequence[str] = ()) -> Tuple[str, ...]: raw = os.environ.get(name) if not raw: return tuple(default) items = [item.strip() for item in raw.split(",")] return tuple(item for item in items if item)
 
-def _env_int(name: str, default: Optional[int] = None) -> Optional[int]:
-    raw = os.environ.get(name)
-    if raw is None or not raw.strip():
-        return default
-    try:
-        return int(raw)
-    except ValueError:
-        return default
+def \_default_runtime_root() -> Path: base = os.environ.get("PG_RUNTIME_ROOT") if base: return Path(base).expanduser().resolve() return Path(tempfile.gettempdir()) / "protocolguard"
 
+def \_ensure_directory(path: Path) -> Path: path.mkdir(parents=True, exist_ok=True) return path
 
-def _split_env_list(name: str, default: Sequence[str] = ()) -> Tuple[str, ...]:
-    raw = os.environ.get(name)
-    if not raw:
-        return tuple(default)
-    items = [item.strip() for item in raw.split(",")]
-    return tuple(item for item in items if item)
-
-
-def _default_runtime_root() -> Path:
-    base = os.environ.get("PG_RUNTIME_ROOT")
-    if base:
-        return Path(base).expanduser().resolve()
-    return Path(tempfile.gettempdir()) / "protocolguard"
-
-
-def _ensure_directory(path: Path) -> Path:
-    path.mkdir(parents=True, exist_ok=True)
-    return path
-
-
-@dataclass(frozen=True)
-class ArtifactLayout:
-    """Relative paths inside the workspace for expected ProtocolGuard artefacts."""
+@dataclass(frozen=True) class ArtifactLayout: """Relative paths inside the workspace for expected ProtocolGuard artefacts."""
 
     bitcode: Path = Path("program.bc")
     build_log: Path = Path("build_log.txt")
@@ -23593,111 +21106,9 @@ class ArtifactLayout:
             binary_path=pick("PG_ARTIFACT_BINARY_PATH", cls.binary_path),
         )
 
+DEFAULT_CONFIG_PACKET_TYPES: Dict[str, List[str]] = { "mqtt_packet_type": [ "CONNECT", "CONNACK", "PUBLISH", "PUBACK", "PUBREC", "PUBREL", "PUBCOMP", "SUBSCRIBE", "SUBACK", "UNSUBSCRIBE", "UNSUBACK", "PINGREQ", "PINGRESP", "DISCONNECT", "AUTH", ], "dhcpv6_packet_type": [ "DHCP6_SOLICIT", "DHCP6_ADVERTISE", "DHCP6_REQUEST", "DHCP6_REPLY", "DHCP6_CONFIRM", "DHCP6_RELEASE", "DHCP6_DECLINE", "DHCP6_RENEW", "DHCP6_REBIND", "DHCP6_IREQ", "DHCP6_RECONFIGURE", "DHCP6_RELAYFORW", "DHCP6_RELAYREPL", ], "coap_packet_type": [ "CONFIRMABLE", "NON_CONFIRMABLE", "ACKNOWLEDGEMENT", "RESET", ], "ftp_packet_type": [ "USER", "PASS", "ACCT", "REIN", "QUIT", "PORT", "PASV", "TYPE", "STRU", "MODE", "RETR", "STOR", "APPE", "DELE", "RNFR", "RNTO", "ABOR", "CWD", "CDUP", "PWD", "MKD", "RMD", "LIST", "NLST", "SYST", "STAT", "FEAT", "HELP", "NOOP", "ALLO", "REST", "MLST", "MLSD", "OPTS", "EPSV", "EPRT", "AUTH", "ADAT", "CCC", "CONF", "ENC", "MIC", "PBSZ", "PROT", ], "tls13_message_type": [ "CLIENT_HELLO", "SERVER_HELLO", "NEW_SESSION_TICKET", "END_OF_EARLY_DATA", "ENCRYPTED_EXTENSIONS", "CERTIFICATE", "CERTIFICATE_REQUEST", "CERTIFICATE_VERIFY", "FINISHED", "KEY_UPDATE", "HELLO_RETRY_REQUEST", ], }
 
-DEFAULT_CONFIG_PACKET_TYPES: Dict[str, List[str]] = {
-    "mqtt_packet_type": [
-        "CONNECT",
-        "CONNACK",
-        "PUBLISH",
-        "PUBACK",
-        "PUBREC",
-        "PUBREL",
-        "PUBCOMP",
-        "SUBSCRIBE",
-        "SUBACK",
-        "UNSUBSCRIBE",
-        "UNSUBACK",
-        "PINGREQ",
-        "PINGRESP",
-        "DISCONNECT",
-        "AUTH",
-    ],
-    "dhcpv6_packet_type": [
-        "DHCP6_SOLICIT",
-        "DHCP6_ADVERTISE",
-        "DHCP6_REQUEST",
-        "DHCP6_REPLY",
-        "DHCP6_CONFIRM",
-        "DHCP6_RELEASE",
-        "DHCP6_DECLINE",
-        "DHCP6_RENEW",
-        "DHCP6_REBIND",
-        "DHCP6_IREQ",
-        "DHCP6_RECONFIGURE",
-        "DHCP6_RELAYFORW",
-        "DHCP6_RELAYREPL",
-    ],
-    "coap_packet_type": [
-        "CONFIRMABLE",
-        "NON_CONFIRMABLE",
-        "ACKNOWLEDGEMENT",
-        "RESET",
-    ],
-    "ftp_packet_type": [
-        "USER",
-        "PASS",
-        "ACCT",
-        "REIN",
-        "QUIT",
-        "PORT",
-        "PASV",
-        "TYPE",
-        "STRU",
-        "MODE",
-        "RETR",
-        "STOR",
-        "APPE",
-        "DELE",
-        "RNFR",
-        "RNTO",
-        "ABOR",
-        "CWD",
-        "CDUP",
-        "PWD",
-        "MKD",
-        "RMD",
-        "LIST",
-        "NLST",
-        "SYST",
-        "STAT",
-        "FEAT",
-        "HELP",
-        "NOOP",
-        "ALLO",
-        "REST",
-        "MLST",
-        "MLSD",
-        "OPTS",
-        "EPSV",
-        "EPRT",
-        "AUTH",
-        "ADAT",
-        "CCC",
-        "CONF",
-        "ENC",
-        "MIC",
-        "PBSZ",
-        "PROT",
-    ],
-    "tls13_message_type": [
-        "CLIENT_HELLO",
-        "SERVER_HELLO",
-        "NEW_SESSION_TICKET",
-        "END_OF_EARLY_DATA",
-        "ENCRYPTED_EXTENSIONS",
-        "CERTIFICATE",
-        "CERTIFICATE_REQUEST",
-        "CERTIFICATE_VERIFY",
-        "FINISHED",
-        "KEY_UPDATE",
-        "HELLO_RETRY_REQUEST",
-    ],
-}
-
-
-@dataclass(frozen=True)
-class ProtocolGuardDockerSettings:
-    """Runtime configuration for the Docker integration."""
+@dataclass(frozen=True) class ProtocolGuardDockerSettings: """Runtime configuration for the Docker integration."""
 
     enabled: bool
     analysis_image: str
@@ -23793,34 +21204,21 @@ class ProtocolGuardDockerSettings:
             debug_code_slice_mode=debug_code_slice_mode,
         )
 
-
-====================================================================================================
-文件 28: apps/backend-flask/protocol_compliance/_docker_runner/errors.py
-====================================================================================================
+==================================================================================================== 文件 28: apps/backend-flask/protocol_compliance/\_docker_runner/errors.py ====================================================================================================
 
 """Error types for ProtocolGuard Docker integration."""
 
-from __future__ import annotations
+from **future** import annotations
 
 from typing import List, Optional
 
-__all__ = [
-    "ProtocolGuardDockerError",
-    "ProtocolGuardExecutionError",
-    "ProtocolGuardNotAvailableError",
-]
+**all** = [ "ProtocolGuardDockerError", "ProtocolGuardExecutionError", "ProtocolGuardNotAvailableError", ]
 
+class ProtocolGuardDockerError(RuntimeError): """Base exception for Docker integration errors."""
 
-class ProtocolGuardDockerError(RuntimeError):
-    """Base exception for Docker integration errors."""
+class ProtocolGuardNotAvailableError(ProtocolGuardDockerError): """Raised when Docker SDK or engine is unavailable."""
 
-
-class ProtocolGuardNotAvailableError(ProtocolGuardDockerError):
-    """Raised when Docker SDK or engine is unavailable."""
-
-
-class ProtocolGuardExecutionError(ProtocolGuardDockerError):
-    """Raised when the container exits with a non-zero status."""
+class ProtocolGuardExecutionError(ProtocolGuardDockerError): """Raised when the container exits with a non-zero status."""
 
     def __init__(
         self,
@@ -23837,77 +21235,35 @@ class ProtocolGuardExecutionError(ProtocolGuardDockerError):
         self.image = image
         self.status = status
 
-
-====================================================================================================
-文件 29: apps/backend-flask/protocol_compliance/_docker_runner/job.py
-====================================================================================================
+==================================================================================================== 文件 29: apps/backend-flask/protocol_compliance/\_docker_runner/job.py ====================================================================================================
 
 """Filesystem helpers for ProtocolGuard Docker jobs."""
 
-from __future__ import annotations
+from **future** import annotations
 
-from dataclasses import dataclass
-from pathlib import Path
+from dataclasses import dataclass from pathlib import Path
 
-__all__ = ["JobPaths"]
+**all** = ["JobPaths"]
 
+@dataclass class JobPaths: job_id: str workspace: Path output: Path config_dir: Path config_file: Path log_file: Path
 
-@dataclass
-class JobPaths:
-    job_id: str
-    workspace: Path
-    output: Path
-    config_dir: Path
-    config_file: Path
-    log_file: Path
-
-
-====================================================================================================
-文件 30: apps/backend-flask/protocol_compliance/_docker_runner/runner.py
-====================================================================================================
+==================================================================================================== 文件 30: apps/backend-flask/protocol_compliance/\_docker_runner/runner.py ====================================================================================================
 
 """High-level runner that coordinates ProtocolGuard Docker workloads."""
 
-from __future__ import annotations
+from **future** import annotations
 
-import contextlib
-import json
-import logging
-import os
-import shlex
-import shutil
-import socket
-import subprocess
-import sqlite3
-import textwrap
-import tarfile
-import time
-import uuid
-import zipfile
-from copy import deepcopy
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import BinaryIO, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
+import contextlib import json import logging import os import shlex import shutil import socket import subprocess import sqlite3 import textwrap import tarfile import time import uuid import zipfile from copy import deepcopy from datetime import datetime, timezone from pathlib import Path from typing import BinaryIO, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import toml
 
-from .config import DEFAULT_CONFIG_PACKET_TYPES, ProtocolGuardDockerSettings, _ensure_directory, _env_int
-from .errors import ProtocolGuardDockerError, ProtocolGuardExecutionError, ProtocolGuardNotAvailableError
-from .job import JobPaths
+from .config import DEFAULT_CONFIG_PACKET_TYPES, ProtocolGuardDockerSettings, \_ensure_directory, \_env_int from .errors import ProtocolGuardDockerError, ProtocolGuardExecutionError, ProtocolGuardNotAvailableError from .job import JobPaths
 
-try:  # pragma: no cover - optional dependency
-    import docker
-    from docker.errors import DockerException, ImageNotFound
-except ModuleNotFoundError:  # pragma: no cover - optional dependency
-    docker = None  # type: ignore
-    DockerException = RuntimeError  # type: ignore
-    ImageNotFound = RuntimeError  # type: ignore
+try: # pragma: no cover - optional dependency import docker from docker.errors import DockerException, ImageNotFound except ModuleNotFoundError: # pragma: no cover - optional dependency docker = None # type: ignore DockerException = RuntimeError # type: ignore ImageNotFound = RuntimeError # type: ignore
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = logging.getLogger(**name**)
 
-
-class ProtocolGuardDockerRunner:
-    """High-level runner that coordinates builder + analysis containers."""
+class ProtocolGuardDockerRunner: """High-level runner that coordinates builder + analysis containers."""
 
     def __init__(self, settings: ProtocolGuardDockerSettings) -> None:
         self._settings = settings
@@ -24462,7 +21818,7 @@ class ProtocolGuardDockerRunner:
         env = {str(k): str(v) for k, v in os.environ.items()}
         env.setdefault("DOCKER_BUILDKIT", "1")
         env.setdefault("BUILDKIT_PROGRESS", "plain")
-        
+
         # Type 4: Proxy provided by the SHELL when Docker process runs
         # Set proxy environment variables if port 63333 is responsive
         if proxy_url:
@@ -24491,11 +21847,11 @@ class ProtocolGuardDockerRunner:
             command.append("--network=host")
             for key in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
                 command.extend(["--build-arg", f"{key}={proxy_url}"])
-        
+
         # Log comprehensive proxy status summary
         proxy_summary = self._build_proxy_summary(proxy_url)
         self._log_step(job_paths, "proxy", f"Proxy Configuration Summary:\n{proxy_summary}")
-        
+
         command.append(".")
         self._log_step(job_paths, "builder", f"Retrying builder image {tag} using docker CLI with BuildKit enabled")
         try:

@@ -71,7 +71,11 @@ export interface RuleOption extends ProtocolExtractRuleItem {
   msgType?: string;
 }
 
-export const STAGE_LIST: Array<{ key: WorkbenchStage; index: number; title: string }> = [
+export const STAGE_LIST: Array<{
+  key: WorkbenchStage;
+  index: number;
+  title: string;
+}> = [
   { key: 'rule_confirm', index: 1, title: '规则确认' },
   { key: 'code_locate', index: 2, title: '代码定位与一致性分析' },
   { key: 'assert_gen', index: 3, title: '断言生成' },
@@ -79,12 +83,18 @@ export const STAGE_LIST: Array<{ key: WorkbenchStage; index: number; title: stri
   { key: 'done', index: 5, title: '结果验证' },
 ];
 
-export const PROTOCOL_IMPLEMENTATIONS: Record<ProtocolKind, AnyImplementation[]> = {
+export const PROTOCOL_IMPLEMENTATIONS: Record<
+  ProtocolKind,
+  AnyImplementation[]
+> = {
   MQTT: ['SOL', 'Mosquitto', 'HiveMQ', 'VerneMQ', 'EMQX', 'FlashMQ', 'NanoMQ'],
   SNMP: ['系统固件'],
 };
 
-export const DEFAULT_TARGET: Record<ProtocolKind, { host: string; port: number }> = {
+export const DEFAULT_TARGET: Record<
+  ProtocolKind,
+  { host: string; port: number }
+> = {
   MQTT: { host: 'localhost', port: 1883 },
   SNMP: { host: 'localhost', port: 161 },
 };

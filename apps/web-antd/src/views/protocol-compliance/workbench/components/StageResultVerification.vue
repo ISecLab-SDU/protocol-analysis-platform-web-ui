@@ -47,7 +47,9 @@ interface RenderedDiffLine {
 const props = defineProps<Props>();
 const isPocDownloading = ref(false);
 
-const verdicts = computed(() => props.staticResult?.modelResponse?.verdicts ?? []);
+const verdicts = computed(
+  () => props.staticResult?.modelResponse?.verdicts ?? [],
+);
 const primaryVerdict = computed(() => {
   return (
     verdicts.value.find((verdict) => verdict.compliance === 'non_compliant') ??
@@ -77,7 +79,9 @@ const violationReason = computed(() => {
 });
 
 const evidenceFunctionSlices = computed(() => {
-  return (props.evidence?.functions ?? []).filter((fn) => fn.name.trim() && fn.codeRows.length > 0);
+  return (props.evidence?.functions ?? []).filter(
+    (fn) => fn.name.trim() && fn.codeRows.length > 0,
+  );
 });
 
 const effectiveDiffContent = computed(() => {
@@ -120,14 +124,17 @@ const crashLogPath = computed(() => {
     const cnMatch = text.match(/崩溃队列信息导出[:：]\s*(.+)$/);
     if (cnMatch?.[1]) return cnMatch[1].trim();
 
-    const aflMatch = text.match(/(?:crash(?:es)?|queue|poc)[^:：]*[:：]\s*(\/\S+)/i);
+    const aflMatch = text.match(
+      /(?:crash(?:es)?|queue|poc)[^:：]*[:：]\s*(\/\S+)/i,
+    );
     if (aflMatch?.[1]) return aflMatch[1].trim();
   }
   return '';
 });
 
 const fuzzerName = computed(() => {
-  if (props.protocolType === 'MQTT' && props.implementation === 'SOL') return 'AFLNET';
+  if (props.protocolType === 'MQTT' && props.implementation === 'SOL')
+    return 'AFLNET';
   if (props.protocolType === 'MQTT') return 'MBFuzzer';
   return 'AFLNET';
 });
@@ -179,7 +186,9 @@ function normalizeDiffContent(content: string) {
 
   const detailedDiffMatch = normalized.match(/^Detailed Diff:\s*$/m);
   if (detailedDiffMatch?.index !== undefined) {
-    return normalized.slice(detailedDiffMatch.index + detailedDiffMatch[0].length).trim();
+    return normalized
+      .slice(detailedDiffMatch.index + detailedDiffMatch[0].length)
+      .trim();
   }
 
   return normalized;
@@ -246,7 +255,10 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
               <Tag color="blue">{{ evidenceFunctionSlices.length }} 个函数</Tag>
             </div>
 
-            <div v-if="evidenceFunctionSlices.length > 0" class="function-source-frame">
+            <div
+              v-if="evidenceFunctionSlices.length > 0"
+              class="function-source-frame"
+            >
               <section
                 v-for="fn in evidenceFunctionSlices"
                 :key="fn.name"
@@ -282,7 +294,11 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
                 <span class="panel-kicker">断言生成结果</span>
                 <h3>插桩代码差异</h3>
               </div>
-              <Tag :color="assertResult || effectiveDiffContent ? 'success' : 'default'">
+              <Tag
+                :color="
+                  assertResult || effectiveDiffContent ? 'success' : 'default'
+                "
+              >
                 {{ assertionSummary }}
               </Tag>
             </div>
@@ -319,7 +335,9 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
           <div class="poc-body">
             <div>
               <span>POC 输出</span>
-              <strong>{{ stats.crashes > 0 ? '已生成可下载 POC 包' : '等待崩溃证据' }}</strong>
+              <strong>{{
+                stats.crashes > 0 ? '已生成可下载 POC 包' : '等待崩溃证据'
+              }}</strong>
             </div>
             <Button
               type="primary"

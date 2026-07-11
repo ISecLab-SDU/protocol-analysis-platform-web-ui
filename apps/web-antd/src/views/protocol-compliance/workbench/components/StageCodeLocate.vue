@@ -447,7 +447,6 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
   if (!fn.targetLine || fn.targetLine === '-') return path;
   return `${path}:${fn.targetLine}`;
 }
-
 </script>
 
 <template>

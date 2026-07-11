@@ -1,7 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
-import { Button, Card, Input, InputNumber, Select, SelectOption, Textarea, Upload } from 'ant-design-vue';
+import {
+  Button,
+  Card,
+  Input,
+  InputNumber,
+  Select,
+  SelectOption,
+  Textarea,
+  Upload,
+} from 'ant-design-vue';
 import { IconifyIcon } from '@vben/icons';
 
 import type { ProjectConfig } from '../types';
@@ -23,7 +32,9 @@ interface Emits {
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
-const implementationOptions = computed(() => PROTOCOL_IMPLEMENTATIONS[props.config.protocolType]);
+const implementationOptions = computed(
+  () => PROTOCOL_IMPLEMENTATIONS[props.config.protocolType],
+);
 
 function onProtocolChange(val: unknown) {
   if (val !== 'MQTT' && val !== 'SNMP') return;
@@ -59,10 +70,7 @@ function onImplementationChange(val: unknown) {
   );
 }
 
-function beforeUpload(
-  file: File,
-  field: 'archive' | 'rules',
-) {
+function beforeUpload(file: File, field: 'archive' | 'rules') {
   props.config[field] = file;
   return false;
 }
@@ -74,8 +82,8 @@ function removeFile(field: 'archive' | 'rules') {
 const canCommit = computed(() => {
   return Boolean(
     props.config.archive &&
-    props.config.rules &&
-    props.config.buildInstructions.trim()
+      props.config.rules &&
+      props.config.buildInstructions.trim(),
   );
 });
 </script>
@@ -86,7 +94,11 @@ const canCommit = computed(() => {
       <div class="setup-section">
         <div class="setup-label">源码压缩包 *</div>
         <Upload
-          :file-list="config.archive ? [{ uid: '-1', name: config.archive.name, status: 'done' }] : []"
+          :file-list="
+            config.archive
+              ? [{ uid: '-1', name: config.archive.name, status: 'done' }]
+              : []
+          "
           :before-upload="(file) => beforeUpload(file, 'archive')"
           :disabled="disabled"
           @remove="() => removeFile('archive')"

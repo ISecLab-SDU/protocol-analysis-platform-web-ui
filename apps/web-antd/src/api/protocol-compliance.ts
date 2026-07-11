@@ -446,16 +446,19 @@ export function runProtocolStaticAnalysis(
   if (config) {
     formData.append('config', config);
   }
-  console.info('[protocol-compliance] static analysis multipart config decision', {
-    codeArchive: codeArchive.name,
-    configFile: config?.name ?? null,
-    configUpload: Boolean(config),
-    decision: config ? 'upload-config-file' : 'backend-generate-config.toml',
-    projectName: projectName?.trim() || null,
-    protocolName: protocolName?.trim() || null,
-    protocolVersion: protocolVersion?.trim() || null,
-    rules: rules.name,
-  });
+  console.info(
+    '[protocol-compliance] static analysis multipart config decision',
+    {
+      codeArchive: codeArchive.name,
+      configFile: config?.name ?? null,
+      configUpload: Boolean(config),
+      decision: config ? 'upload-config-file' : 'backend-generate-config.toml',
+      projectName: projectName?.trim() || null,
+      protocolName: protocolName?.trim() || null,
+      protocolVersion: protocolVersion?.trim() || null,
+      rules: rules.name,
+    },
+  );
   if (notes?.trim()) {
     formData.append('notes', notes.trim());
   }

@@ -252,7 +252,7 @@ export async function fetchFormalGptProtocolDetail(protocolId: string) {
  */
 export async function runProtocolVerification(
   protocolId: string,
-  selectedProperties: string[]
+  selectedProperties: string[],
 ): Promise<VerificationResults> {
   const response = await fetch(`${BASE_PATH}/verify`, {
     method: 'POST',

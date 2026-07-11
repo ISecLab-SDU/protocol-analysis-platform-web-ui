@@ -1540,7 +1540,8 @@ watch(
                       </Typography.Text>
                       <pre
                         class="overflow-x-auto rounded bg-gray-50 p-3 text-sm text-gray-700"
-                        >{{ item.codeSnippet }}</pre>
+                        >{{ item.codeSnippet }}</pre
+                      >
                     </div>
                   </Card>
                 </List.Item>
@@ -1579,7 +1580,8 @@ watch(
                       <span
                         v-if="item.isLeaf"
                         class="node-icon mr-2 text-indigo-500"
-                        >📄</span>
+                        >📄</span
+                      >
                       <span class="node-title flex-1 truncate text-gray-800">{{
                         item.title
                       }}</span>

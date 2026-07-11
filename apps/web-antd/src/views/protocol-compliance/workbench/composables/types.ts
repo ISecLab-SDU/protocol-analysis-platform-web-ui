@@ -38,7 +38,7 @@ export interface HistoryResult {
   failedCount: number;
   crashCount: number;
   successRate: number;
-  
+
   // SNMP协议专用数据
   protocolStats?: {
     v1: number;
@@ -51,29 +51,29 @@ export interface HistoryResult {
     getnext: number;
     getbulk: number;
   };
-  
+
   // SOL协议专用统计
   rtspStats?: RTSPStats;
-  
+
   // MQTT协议专用统计
   mqttStats?: MQTTStats;
-  
+
   hasCrash: boolean;
   crashDetails?: any;
-  
+
   // 协议特定的扩展数据
   protocolSpecificData?: {
     // SNMP特定数据
     oidCoverage?: number;
     communityStrings?: string[];
     targetDeviceInfo?: string;
-    
+
     // SOL特定数据
     pathCoverage?: number;
     stateTransitions?: number;
     maxDepth?: number;
     uniqueHangs?: number;
-    
+
     // MQTT特定数据
     clientRequestCount?: number;
     brokerRequestCount?: number;
@@ -129,7 +129,7 @@ export interface MQTTStats {
   valid_connect_number: number;
   duplicate_connect_diff?: number;
   total_differences?: number;
-  
+
   client_messages: MQTTMessageStats;
   broker_messages: MQTTMessageStats;
   duplicate_diffs: MQTTMessageStats;
@@ -194,14 +194,14 @@ export type ProtocolType = 'SNMP' | 'MQTT';
 export type FuzzEngineType = 'SNMP_Fuzz' | 'AFLNET' | 'MBFuzzer';
 
 // 协议实现类型
-export type ProtocolImplementationType = 
-  | '系统固件'  // SNMP_Fuzz 默认
-  | 'SOL协议'   // MQTT + AFLNET 选项 (SOL协议实现)
-  | 'HiveMQ'    // MQTT + MBFuzzer 选项
-  | 'VerneMQ'   // MQTT + MBFuzzer 选项
-  | 'EMQX'      // MQTT + MBFuzzer 选项
-  | 'FlashMQ'   // MQTT + MBFuzzer 选项
-  | 'NanoMQ'    // MQTT + MBFuzzer 选项
+export type ProtocolImplementationType =
+  | '系统固件' // SNMP_Fuzz 默认
+  | 'SOL协议' // MQTT + AFLNET 选项 (SOL协议实现)
+  | 'HiveMQ' // MQTT + MBFuzzer 选项
+  | 'VerneMQ' // MQTT + MBFuzzer 选项
+  | 'EMQX' // MQTT + MBFuzzer 选项
+  | 'FlashMQ' // MQTT + MBFuzzer 选项
+  | 'NanoMQ' // MQTT + MBFuzzer 选项
   | 'Mosquitto'; // MQTT + MBFuzzer 选项
 
 // 协议实现配置接口

@@ -95,13 +95,15 @@ function getStatsItems(text: string) {
         key.includes('pending') ||
         key.includes('挂起') ||
         key.includes('待处理')
-      ) tone = 'warn';
+      )
+        tone = 'warn';
       else if (
         key.includes('coverage') ||
         key.includes('speed') ||
         key.includes('覆盖率') ||
         key.includes('执行速度')
-      ) tone = 'success';
+      )
+        tone = 'success';
       else if (key.includes('path') || key.includes('路径')) tone = 'primary';
       return { label: getStatsLabel(label), tone, value };
     })
@@ -128,7 +130,9 @@ onMounted(scrollToBottom);
         :class="getLogClass(log.level)"
       >
         <span class="log-time">[{{ getTimestamp(log.text) }}]</span>
-        <template v-if="log.level === 'STATS' && getStatsItems(log.text).length > 0">
+        <template
+          v-if="log.level === 'STATS' && getStatsItems(log.text).length > 0"
+        >
           <span class="log-level">{{ getLevelLabel(log.level) }}</span>
           <span class="log-stats">
             <span

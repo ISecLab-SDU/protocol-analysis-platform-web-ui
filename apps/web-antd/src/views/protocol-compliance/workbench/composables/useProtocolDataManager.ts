@@ -33,7 +33,7 @@ export function useProtocolDataManager() {
       totalRecords: 0,
       processedRecords: 0,
       logs: [],
-      stats: {}
+      stats: {},
     },
     RTSP: {
       isRunning: false,
@@ -41,7 +41,7 @@ export function useProtocolDataManager() {
       totalRecords: 0,
       processedRecords: 0,
       logs: [],
-      stats: {}
+      stats: {},
     },
     MQTT: {
       isRunning: false,
@@ -49,8 +49,8 @@ export function useProtocolDataManager() {
       totalRecords: 0,
       processedRecords: 0,
       logs: [],
-      stats: {}
-    }
+      stats: {},
+    },
   });
 
   const currentProtocol = ref<ProtocolType>('SNMP');
@@ -64,11 +64,14 @@ export function useProtocolDataManager() {
   }
 
   // 添加日志（协议隔离）
-  function addLog(protocol: ProtocolType, logData: Omit<LogEntry, 'id' | 'protocol'>) {
+  function addLog(
+    protocol: ProtocolType,
+    logData: Omit<LogEntry, 'id' | 'protocol'>,
+  ) {
     const log: LogEntry = {
       ...logData,
       id: generateLogId(protocol),
-      protocol
+      protocol,
     };
 
     const state = protocolStates[protocol];
@@ -83,11 +86,14 @@ export function useProtocolDataManager() {
   }
 
   // 批量添加日志
-  function addBatchLogs(protocol: ProtocolType, logsData: Array<Omit<LogEntry, 'id' | 'protocol'>>) {
-    const logs = logsData.map(logData => ({
+  function addBatchLogs(
+    protocol: ProtocolType,
+    logsData: Array<Omit<LogEntry, 'id' | 'protocol'>>,
+  ) {
+    const logs = logsData.map((logData) => ({
       ...logData,
       id: generateLogId(protocol),
-      protocol
+      protocol,
     }));
 
     const state = protocolStates[protocol];
@@ -108,13 +114,16 @@ export function useProtocolDataManager() {
 
   // 清空所有协议的日志
   function clearAllLogs() {
-    Object.keys(protocolStates).forEach(protocol => {
+    Object.keys(protocolStates).forEach((protocol) => {
       protocolStates[protocol as ProtocolType].logs = [];
     });
   }
 
   // 更新协议状态
-  function updateProtocolState(protocol: ProtocolType, updates: Partial<ProtocolState>) {
+  function updateProtocolState(
+    protocol: ProtocolType,
+    updates: Partial<ProtocolState>,
+  ) {
     Object.assign(protocolStates[protocol], updates);
   }
 
@@ -127,16 +136,19 @@ export function useProtocolDataManager() {
   function getProtocolStats(protocol: ProtocolType) {
     const state = protocolStates[protocol];
     const logs = state.logs;
-    
+
     return {
       total: logs.length,
-      info: logs.filter(log => log.type === 'INFO').length,
-      error: logs.filter(log => log.type === 'ERROR').length,
-      warning: logs.filter(log => log.type === 'WARNING').length,
-      success: logs.filter(log => log.type === 'SUCCESS').length,
+      info: logs.filter((log) => log.type === 'INFO').length,
+      error: logs.filter((log) => log.type === 'ERROR').length,
+      warning: logs.filter((log) => log.type === 'WARNING').length,
+      success: logs.filter((log) => log.type === 'SUCCESS').length,
       isRunning: state.isRunning,
       isProcessing: state.isProcessing,
-      progress: state.totalRecords > 0 ? Math.round((state.processedRecords / state.totalRecords) * 100) : 0
+      progress:
+        state.totalRecords > 0
+          ? Math.round((state.processedRecords / state.totalRecords) * 100)
+          : 0,
     };
   }
 
@@ -147,10 +159,16 @@ export function useProtocolDataManager() {
   }
 
   // 搜索日志
-  function searchLogs(protocol: ProtocolType, keyword: string, type?: LogEntry['type']) {
+  function searchLogs(
+    protocol: ProtocolType,
+    keyword: string,
+    type?: LogEntry['type'],
+  ) {
     const logs = protocolStates[protocol].logs;
-    return logs.filter(log => {
-      const matchesKeyword = log.content.toLowerCase().includes(keyword.toLowerCase());
+    return logs.filter((log) => {
+      const matchesKeyword = log.content
+        .toLowerCase()
+        .includes(keyword.toLowerCase());
       const matchesType = !type || log.type === type;
       return matchesKeyword && matchesType;
     });
@@ -159,26 +177,32 @@ export function useProtocolDataManager() {
   // 导出日志
   function exportLogs(protocol: ProtocolType, format: 'json' | 'txt' = 'txt') {
     const logs = protocolStates[protocol].logs;
-    
+
     if (format === 'json') {
       return JSON.stringify(logs, null, 2);
     } else {
-      return logs.map(log => 
-        `[${log.timestamp}] [${log.type}] ${log.content}`
-      ).join('\n');
+      return logs
+        .map((log) => `[${log.timestamp}] [${log.type}] ${log.content}`)
+        .join('\n');
     }
   }
 
   // 实时日志流（用于MQTT等需要实时更新的协议）
-  const realtimeStreams = new Map<ProtocolType, {
-    buffer: LogEntry[];
-    timer: number | null;
-    batchSize: number;
-    interval: number;
-  }>();
+  const realtimeStreams = new Map<
+    ProtocolType,
+    {
+      buffer: LogEntry[];
+      timer: number | null;
+      batchSize: number;
+      interval: number;
+    }
+  >();
 
   // 开始实时日志流
-  function startRealtimeStream(protocol: ProtocolType, options = { batchSize: 20, interval: 50 }) {
+  function startRealtimeStream(
+    protocol: ProtocolType,
+    options = { batchSize: 20, interval: 50 },
+  ) {
     if (realtimeStreams.has(protocol)) {
       stopRealtimeStream(protocol);
     }
@@ -187,7 +211,7 @@ export function useProtocolDataManager() {
       buffer: [],
       timer: null,
       batchSize: options.batchSize,
-      interval: options.interval
+      interval: options.interval,
     };
 
     // 定时批量处理缓冲区的日志
@@ -208,13 +232,16 @@ export function useProtocolDataManager() {
   }
 
   // 添加到实时流缓冲区
-  function addToRealtimeStream(protocol: ProtocolType, logData: Omit<LogEntry, 'id' | 'protocol'>) {
+  function addToRealtimeStream(
+    protocol: ProtocolType,
+    logData: Omit<LogEntry, 'id' | 'protocol'>,
+  ) {
     const stream = realtimeStreams.get(protocol);
     if (stream) {
       const log: LogEntry = {
         ...logData,
         id: generateLogId(protocol),
-        protocol
+        protocol,
       };
       stream.buffer.push(log);
     } else {
@@ -270,6 +297,6 @@ export function useProtocolDataManager() {
     startRealtimeStream,
     addToRealtimeStream,
     stopRealtimeStream,
-    stopAllRealtimeStreams
+    stopAllRealtimeStreams,
   };
 }

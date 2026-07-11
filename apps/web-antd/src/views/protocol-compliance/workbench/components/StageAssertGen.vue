@@ -471,7 +471,6 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
   if (text.startsWith('-')) return 'delete';
   return 'context';
 }
-
 </script>
 
 <template>

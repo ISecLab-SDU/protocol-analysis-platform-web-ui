@@ -69,7 +69,9 @@ function normalizeRulesPayload(data: any, sourceLabel: string) {
       req_type: rule.req_type ?? [],
       res_fields: normalizeList(rule.res_fields),
       res_type: rule.res_type ?? [],
-      rule: String(rule.rule || rule.requirement || rule.description || '').trim(),
+      rule: String(
+        rule.rule || rule.requirement || rule.description || '',
+      ).trim(),
     }))
     .filter((rule) => rule.rule);
 }
@@ -165,12 +167,20 @@ watch(
     >
       <template #bodyCell="{ column, record }">
         <template v-if="column.dataIndex === 'req_type'">
-          <Tag v-for="(field, i) in normalizeList(record.req_type)" :key="i" color="green">
+          <Tag
+            v-for="(field, i) in normalizeList(record.req_type)"
+            :key="i"
+            color="green"
+          >
             {{ field }}
           </Tag>
         </template>
         <template v-else-if="column.dataIndex === 'res_type'">
-          <Tag v-for="(field, i) in normalizeList(record.res_type)" :key="i" color="orange">
+          <Tag
+            v-for="(field, i) in normalizeList(record.res_type)"
+            :key="i"
+            color="orange"
+          >
             {{ field }}
           </Tag>
         </template>
