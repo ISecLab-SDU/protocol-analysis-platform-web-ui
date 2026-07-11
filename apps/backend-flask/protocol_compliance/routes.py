@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, cast
 
-from flask import Blueprint, make_response, request, send_file
+from flask import Blueprint, make_response, request
 from werkzeug.datastructures import FileStorage
 
 from utils.auth import verify_access_token
@@ -29,15 +29,11 @@ from .analysis import (
     submit_static_analysis_job,
     try_extract_rules_summary,
 )
-from .assertion import (
-    get_assertion_history_diff_path,
-    get_assertion_history_entry,
-    list_assertion_history,
-)
 from .assertion_database import (
     _candidate_sqlite_roots_for_job as _candidate_sqlite_roots_for_job_impl,
     _resolve_assertion_database_path as _resolve_assertion_database_path_impl,
 )
+from .assertion_history_routes import register_assertion_history_routes
 from .assertion_routes import register_assertion_routes
 from .aflnet import (
     RTSP_CONFIG as RTSP_CONFIG,
@@ -219,6 +215,15 @@ list_tasks = _task_route_handlers["list_tasks"]
 create_task = _task_route_handlers["create_task"]
 download_result = _task_route_handlers["download_result"]
 
+_assertion_history_route_handlers = register_assertion_history_routes(
+    bp,
+    _ensure_authenticated,
+    to_int=_to_int,
+)
+assertion_history = _assertion_history_route_handlers["assertion_history"]
+assertion_history_entry = _assertion_history_route_handlers["assertion_history_entry"]
+download_assertion_diff = _assertion_history_route_handlers["download_assertion_diff"]
+
 
 # Helpers -------------------------------------------------------------------
 
@@ -353,43 +358,6 @@ def delete_static_analysis_history(job_id: str):
     except Exception as exc:
         LOGGER.exception("Failed to delete static analysis job %s", job_id)
         return make_response(error_response(f"删除失败：{str(exc)}"), 500)
-
-
-@bp.route("/assertions/history", methods=["GET"])
-def assertion_history():
-    _, error = _ensure_authenticated()
-    if error:
-        return error
-
-    limit = _to_int(request.args.get("limit"), 50)
-    limit = max(1, min(limit, 200))
-    items = list_assertion_history(limit=limit)
-    payload = {"items": items, "limit": limit, "count": len(items)}
-    return make_response(success_response(payload), 200)
-
-
-@bp.route("/assertions/history/<job_id>", methods=["GET"])
-def assertion_history_entry(job_id: str):
-    _, error = _ensure_authenticated()
-    if error:
-        return error
-
-    entry = get_assertion_history_entry(job_id)
-    if not entry:
-        return make_response(error_response("历史记录不存在"), 404)
-    return make_response(success_response(entry), 200)
-
-
-@bp.route("/assertions/history/<job_id>/diff", methods=["GET"])
-def download_assertion_diff(job_id: str):
-    _, error = _ensure_authenticated()
-    if error:
-        return error
-
-    diff_path = get_assertion_history_diff_path(job_id)
-    if not diff_path:
-        return make_response(error_response("Diff 文件不存在"), 404)
-    return send_file(diff_path, as_attachment=True, download_name=diff_path.name)
 
 
 def _row_history_time_marker(
