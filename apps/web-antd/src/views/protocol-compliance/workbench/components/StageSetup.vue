@@ -29,6 +29,7 @@ interface Props {
 
 interface Emits {
   (e: 'commit'): void;
+  (e: 'update:config', value: ProjectConfig): void;
 }
 
 const props = defineProps<Props>();
@@ -38,19 +39,31 @@ const implementationOptions = computed(
   () => PROTOCOL_IMPLEMENTATIONS[props.config.protocolType],
 );
 
+function patchConfig(patch: Partial<ProjectConfig>) {
+  emit('update:config', {
+    ...props.config,
+    ...patch,
+  });
+}
+
 function onProtocolChange(val: unknown) {
   if (val !== 'MQTT' && val !== 'SNMP') return;
-  props.config.protocolType = val;
-  props.config.protocolVersion = val === 'MQTT' ? '3.1.1' : 'v2c/v3';
-  props.config.implementation = PROTOCOL_IMPLEMENTATIONS[val][0]!;
-  props.config.targetHost = DEFAULT_TARGET[val].host;
-  props.config.targetPort = DEFAULT_TARGET[val].port;
-  props.config.fuzzScript = buildDefaultFuzzScript(
-    props.config.protocolType,
-    props.config.implementation,
-    props.config.targetHost,
-    props.config.targetPort,
-  );
+  const implementation = PROTOCOL_IMPLEMENTATIONS[val][0]!;
+  const targetHost = DEFAULT_TARGET[val].host;
+  const targetPort = DEFAULT_TARGET[val].port;
+  patchConfig({
+    fuzzScript: buildDefaultFuzzScript(
+      val,
+      implementation,
+      targetHost,
+      targetPort,
+    ),
+    implementation,
+    protocolType: val,
+    protocolVersion: val === 'MQTT' ? '3.1.1' : 'v2c/v3',
+    targetHost,
+    targetPort,
+  });
 }
 
 function onImplementationChange(val: unknown) {
@@ -63,22 +76,24 @@ function onImplementationChange(val: unknown) {
     return;
   }
   const implementation = val as ProjectConfig['implementation'];
-  props.config.implementation = implementation;
-  props.config.fuzzScript = buildDefaultFuzzScript(
-    props.config.protocolType,
+  patchConfig({
+    fuzzScript: buildDefaultFuzzScript(
+      props.config.protocolType,
+      implementation,
+      props.config.targetHost,
+      props.config.targetPort,
+    ),
     implementation,
-    props.config.targetHost,
-    props.config.targetPort,
-  );
+  });
 }
 
 function beforeUpload(file: File, field: 'archive' | 'rules') {
-  props.config[field] = file;
+  patchConfig({ [field]: file });
   return false;
 }
 
 function removeFile(field: 'archive' | 'rules') {
-  props.config[field] = null;
+  patchConfig({ [field]: null });
 }
 
 const canCommit = computed(() => {
@@ -135,9 +150,10 @@ const canCommit = computed(() => {
       <div class="setup-section">
         <div class="setup-label">编译命令 *</div>
         <Input
-          v-model:value="config.buildInstructions"
+          :value="config.buildInstructions"
           placeholder="例如: make all"
           :disabled="disabled"
+          @update:value="(value) => patchConfig({ buildInstructions: value })"
         />
       </div>
 
@@ -156,9 +172,10 @@ const canCommit = computed(() => {
       <div class="setup-section">
         <div class="setup-label">协议版本</div>
         <Input
-          v-model:value="config.protocolVersion"
+          :value="config.protocolVersion"
           placeholder="3.1.1"
           :disabled="disabled"
+          @update:value="(value) => patchConfig({ protocolVersion: value })"
         />
       </div>
 
@@ -182,30 +199,33 @@ const canCommit = computed(() => {
       <div class="setup-section">
         <div class="setup-label">目标主机</div>
         <Input
-          v-model:value="config.targetHost"
+          :value="config.targetHost"
           placeholder="localhost"
           :disabled="disabled"
+          @update:value="(value) => patchConfig({ targetHost: value })"
         />
       </div>
 
       <div class="setup-section">
         <div class="setup-label">目标端口</div>
         <InputNumber
-          v-model:value="config.targetPort"
+          :value="config.targetPort"
           :min="1"
           :max="65535"
           :disabled="disabled"
           style="width: 100%"
+          @update:value="(value) => patchConfig({ targetPort: value ?? 1 })"
         />
       </div>
 
       <div class="setup-section setup-section--full">
         <div class="setup-label">Fuzz 脚本</div>
         <Textarea
-          v-model:value="config.fuzzScript"
+          :value="config.fuzzScript"
           :rows="4"
           placeholder="默认 Fuzz 脚本内容"
           :disabled="disabled"
+          @update:value="(value) => patchConfig({ fuzzScript: value })"
         />
       </div>
     </div>

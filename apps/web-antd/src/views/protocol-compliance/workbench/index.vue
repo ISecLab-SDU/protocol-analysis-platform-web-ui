@@ -1337,7 +1337,7 @@ async function handleLoadDemoConfig() {
             <section class="workbench-content">
               <StageSetup
                 v-if="activeStageView === 'setup'"
-                :config="projectConfig"
+                v-model:config="projectConfig"
                 :disabled="isRunning"
                 @commit="commitSetup"
               />
