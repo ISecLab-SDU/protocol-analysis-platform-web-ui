@@ -14,6 +14,63 @@ if str(BACKEND_ROOT) not in sys.path:
 from protocol_compliance import routes  # noqa: E402
 
 
+def test_aflnet_artifact_routes_keep_legacy_endpoint_names() -> None:
+    app = Flask(__name__)
+    app.register_blueprint(routes.bp)
+
+    aflnet_rules = {
+        rule.rule: rule.endpoint
+        for rule in app.url_map.iter_rules()
+        if "aflnet-result" in rule.rule
+    }
+
+    assert aflnet_rules == {
+        "/api/protocol-compliance/fuzzing/aflnet-result/download": (
+            "protocol_compliance.download_aflnet_result"
+        ),
+        "/api/protocol-compliance/fuzzing/aflnet-result/snapshot": (
+            "protocol_compliance.snapshot_aflnet_result"
+        ),
+        "/api/protocol-compliance/fuzzing/aflnet-result/artifacts/<artifact_id>/download": (
+            "protocol_compliance.download_aflnet_result_artifact"
+        ),
+    }
+
+
+def test_legacy_fuzz_routes_keep_legacy_endpoint_names() -> None:
+    app = Flask(__name__)
+    app.register_blueprint(routes.bp)
+
+    legacy_fuzz_rules = {
+        rule.rule: rule.endpoint
+        for rule in app.url_map.iter_rules()
+        if rule.rule
+        in {
+            "/api/protocol-compliance/check-status",
+            "/api/protocol-compliance/execute-command",
+            "/api/protocol-compliance/pre-start-cleanup",
+            "/api/protocol-compliance/read-log",
+            "/api/protocol-compliance/stop-and-cleanup",
+            "/api/protocol-compliance/stop-process",
+            "/api/protocol-compliance/write-script",
+        }
+    }
+
+    assert legacy_fuzz_rules == {
+        "/api/protocol-compliance/check-status": "protocol_compliance.check_status",
+        "/api/protocol-compliance/execute-command": "protocol_compliance.execute_command",
+        "/api/protocol-compliance/pre-start-cleanup": (
+            "protocol_compliance.pre_start_cleanup"
+        ),
+        "/api/protocol-compliance/read-log": "protocol_compliance.read_log",
+        "/api/protocol-compliance/stop-and-cleanup": (
+            "protocol_compliance.stop_and_cleanup"
+        ),
+        "/api/protocol-compliance/stop-process": "protocol_compliance.stop_process",
+        "/api/protocol-compliance/write-script": "protocol_compliance.write_script",
+    }
+
+
 def test_execute_command_passes_host_identity_to_protocolguard_container(monkeypatch, tmp_path: Path) -> None:
     app = Flask(__name__)
     app.register_blueprint(routes.bp)

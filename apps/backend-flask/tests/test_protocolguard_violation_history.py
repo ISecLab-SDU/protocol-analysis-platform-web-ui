@@ -79,6 +79,49 @@ def _app(monkeypatch) -> Flask:
     return app
 
 
+def test_static_analysis_history_routes_keep_legacy_endpoint_names() -> None:
+    app = Flask(__name__)
+    app.register_blueprint(routes.bp)
+
+    history_rules = {
+        (rule.rule, tuple(sorted(rule.methods - {"HEAD", "OPTIONS"}))): rule.endpoint
+        for rule in app.url_map.iter_rules()
+        if rule.rule
+        in {
+            "/api/protocol-compliance/static-analysis/database-overview",
+            "/api/protocol-compliance/static-analysis/violation-history",
+            "/api/protocol-compliance/static-analysis/violation-history/<item_id>",
+        }
+    }
+
+    assert history_rules == {
+        (
+            "/api/protocol-compliance/static-analysis/database-overview",
+            ("GET",),
+        ): (
+            "protocol_compliance.static_analysis_database_overview"
+        ),
+        (
+            "/api/protocol-compliance/static-analysis/violation-history",
+            ("GET",),
+        ): (
+            "protocol_compliance.static_analysis_violation_history"
+        ),
+        (
+            "/api/protocol-compliance/static-analysis/violation-history",
+            ("POST",),
+        ): (
+            "protocol_compliance.upsert_static_analysis_violation_history"
+        ),
+        (
+            "/api/protocol-compliance/static-analysis/violation-history/<item_id>",
+            ("DELETE",),
+        ): (
+            "protocol_compliance.delete_static_analysis_violation_history"
+        ),
+    }
+
+
 def test_violation_history_prefers_database_ids_for_database_backed_jobs(
     monkeypatch,
     tmp_path: Path,
@@ -593,3 +636,70 @@ def test_upsert_violation_history_uses_writable_copy_for_readonly_database(
     assert len(items) == 1
     assert items[0]["databasePath"] == str(copied_db_path)
     assert items[0]["reason"] == "verified from workbench"
+
+
+def test_violation_history_hides_builtin_sources_when_job_sources_exist_by_default(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("PROTOCOLGUARD_STATE_DIR", str(tmp_path / "state"))
+    job_db = tmp_path / "sqlite_Job.db"
+    builtin_db = tmp_path / "sqlite_Builtin.db"
+    _create_rule_database(job_db, rule_desc="job rule")
+    _create_rule_database(builtin_db, rule_desc="builtin rule")
+    entry = _history_entry(job_db, rule_desc="job rule")
+
+    monkeypatch.setattr(
+        routes,
+        "list_static_analysis_history",
+        lambda limit=50, include_result=False: [entry],
+    )
+    monkeypatch.setattr(
+        routes,
+        "_iter_static_analysis_database_sources",
+        lambda job_limit, include_builtin=True: (
+            [
+                {
+                    "path": job_db,
+                    "sourceType": "job",
+                    "jobId": "job-with-database",
+                    "protocolName": "MQTT",
+                    "createdAt": entry["createdAt"],
+                    "updatedAt": entry["updatedAt"],
+                },
+                *(
+                    [
+                        {
+                            "path": builtin_db,
+                            "sourceType": "builtin",
+                            "jobId": None,
+                            "protocolName": None,
+                            "createdAt": None,
+                            "updatedAt": None,
+                        }
+                    ]
+                    if include_builtin
+                    else []
+                ),
+            ],
+            [],
+        ),
+    )
+
+    client = _app(monkeypatch).test_client()
+    default_response = client.get(
+        "/api/protocol-compliance/static-analysis/violation-history"
+    )
+    explicit_response = client.get(
+        "/api/protocol-compliance/static-analysis/violation-history?includeBuiltin=true"
+    )
+
+    assert default_response.status_code == 200
+    assert [
+        item["ruleDesc"] for item in default_response.get_json()["data"]["items"]
+    ] == ["job rule"]
+
+    assert explicit_response.status_code == 200
+    assert {
+        item["ruleDesc"] for item in explicit_response.get_json()["data"]["items"]
+    } == {"job rule", "builtin rule"}
