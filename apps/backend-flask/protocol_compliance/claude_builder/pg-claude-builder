@@ -1,0 +1,199 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+log() {
+  printf '[pg-builder][%s] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"
+}
+
+log_section() {
+  log "========== $* =========="
+}
+
+log_file_preview() {
+  local path="$1"
+  local label="$2"
+  local max_lines="${3:-120}"
+
+  if [[ ! -f "$path" ]]; then
+    log "$label missing at $path"
+    return
+  fi
+
+  log "$label at $path ($(wc -c < "$path") bytes)"
+  sed -n "1,${max_lines}p" "$path" | sed "s/^/[pg-builder][$label] /"
+}
+
+fail() {
+  log "ERROR: $*"
+  exit 1
+}
+
+HOST_UID="${PG_HOST_UID:-}"
+HOST_GID="${PG_HOST_GID:-}"
+
+cleanup_ownership() {
+  if [[ -n "$HOST_UID" && -n "$HOST_GID" ]]; then
+    chown -R "$HOST_UID:$HOST_GID" /workspace /out 2>/dev/null || true
+  fi
+}
+trap cleanup_ownership EXIT
+
+configure_claude() {
+  local token="${ANTHROPIC_API_KEY:-${ANTHROPIC_AUTH_TOKEN:-}}"
+  local base_url="${ANTHROPIC_BASE_URL:-}"
+
+  [[ -n "$token" ]] || fail "ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN is required"
+  [[ -n "$base_url" ]] || fail "ANTHROPIC_BASE_URL is required"
+
+  mkdir -p /root/.claude
+  cat > /root/.claude/settings.json <<EOF
+{
+  "env": {
+    "ANTHROPIC_AUTH_TOKEN": "${token}",
+    "ANTHROPIC_BASE_URL": "${base_url}",
+    "IS_SANDBOX": "1",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
+  },
+  "permissions": {
+    "allow": [],
+    "deny": []
+  }
+}
+EOF
+  log "Claude Code settings written; credentials are not printed"
+  log "Claude Code base URL is configured; credential values are redacted"
+}
+
+write_prompt() {
+  cat > /workspace/claude_builder_prompt.md <<'EOF'
+You are running inside a disposable Docker container for ProtocolGuard static analysis.
+
+Your job is to compile the uploaded C/C++ protocol implementation and place LLVM build artefacts where the Flask backend expects them. Work autonomously by inspecting files, trying builds, reading errors, and fixing the build commands until the required artefacts exist. Do not ask the user questions.
+
+Log your internal workflow in a concise action journal. Before every meaningful action, print one of these markers:
+- `[claude-step] <short goal>` when you decide the next goal.
+- `[claude-command] <command>` before running a shell command.
+- `[claude-observation] <what changed or what failed>` after inspecting command output.
+- `[claude-config] <how config.toml/rule_config.json affect the build>` when reading configuration.
+- `[claude-artifact] <path and status>` when producing or validating an artifact.
+
+Also write the same journal to `/workspace/claude_action_journal.log`.
+
+Container facts:
+- The current directory is `/workspace`.
+- A source archive is mounted in `/workspace`; it is usually `sol.tar`, but inspect the directory instead of assuming.
+- `/workspace/config.toml` and `/workspace/rule_config.json` are provided by Flask.
+- The installed LLVM toolchain is LLVM/Clang 14. `gclang`, `gclang++`, `get-bc`, `llvm-dis-14`, `cmake`, `make`, `ninja`, `tree`, and `file` are available.
+- Use `gclang`/`gclang++` so `get-bc` can extract bitcode.
+- Prefer Debug builds with `-g -O0 -Xclang -disable-O0-optnone -fno-discard-value-names`.
+
+Required final artefacts:
+- `/workspace/program.bc`
+- `/workspace/program.ll`
+- `/workspace/build_log.txt`
+- `/workspace/inputs/rules.json`
+- `/workspace/inputs/config.toml`
+- The compiled executable copied to `/workspace/program` when possible.
+- Preserve or copy `.cf_*.json` files under the source tree when they exist; for the sol sample they should be under `/workspace/project/sol/src/` if available.
+
+Recommended procedure:
+1. Print a concise inventory with `pwd`, `ls -la /workspace`, and `tree -a -L 3 /workspace`.
+2. Extract the source archive into `/workspace/project` if it is not already extracted.
+3. Identify the actual project root by locating `CMakeLists.txt`, `configure`, `Makefile`, or other build files.
+4. For CMake projects, create a clean build directory and run CMake with `gclang`/`gclang++`. Then run the build with verbose output and tee all output to `/workspace/build_log.txt`.
+5. Run `get-bc` on the produced executable or linked binary. Copy the resulting `.bc` file to `/workspace/program.bc`, and run `llvm-dis-14 /workspace/program.bc -o /workspace/program.ll`.
+6. Copy `rule_config.json` to `/workspace/inputs/rules.json` and `config.toml` to `/workspace/inputs/config.toml`.
+7. Copy useful build outputs, `.db` files, callgraph reports, and function summaries back under `/workspace` without deleting the project directory.
+8. Before exiting, verify the required files with `ls -la` and `file`.
+
+Do not fabricate placeholder bitcode. If a required artefact cannot be produced, leave the full attempted command output in `/workspace/build_log.txt` and exit non-zero.
+EOF
+  log "Claude builder prompt written to /workspace/claude_builder_prompt.md"
+  log "Claude builder prompt sha256: $(sha256sum /workspace/claude_builder_prompt.md | awk '{print $1}')"
+  log_file_preview /workspace/claude_builder_prompt.md "prompt-preview" 80
+}
+
+log_workspace_inputs() {
+  log_section "workspace inputs before Claude Code"
+  log "Working directory: $(pwd)"
+  log "Mounted workspace inventory"
+  find /workspace -maxdepth 3 -mindepth 1 -printf '[pg-builder][workspace] %y %p\n' | sort
+  log_file_preview /workspace/config.toml "config.toml" 200
+  log_file_preview /workspace/rule_config.json "rule_config.json" 120
+  if compgen -G "/workspace/*.tar" >/dev/null; then
+    for archive in /workspace/*.tar; do
+      log "Source archive candidate: $archive ($(wc -c < "$archive") bytes)"
+      tar -tf "$archive" | sed -n '1,80p' | sed 's/^/[pg-builder][archive] /' || true
+    done
+  else
+    log "No /workspace/*.tar source archive was found before Claude Code"
+  fi
+}
+
+run_claude() {
+  log_workspace_inputs
+  log "Checking Claude Code CLI"
+  claude --version
+
+  write_prompt
+  log "Starting Claude builder agent"
+  set +e
+  IS_SANDBOX=1 claude -p "$(cat /workspace/claude_builder_prompt.md)" \
+    --dangerously-skip-permissions \
+    --allow-dangerously-skip-permissions \
+    2>&1 | tee /workspace/claude_builder.log
+  local claude_status="${PIPESTATUS[0]}"
+  set -e
+  log "Claude builder agent exited with status ${claude_status}"
+  if [[ -f /workspace/claude_action_journal.log ]]; then
+    log_file_preview /workspace/claude_action_journal.log "claude-action-journal" 200
+  else
+    log "Claude action journal was not created"
+  fi
+  return "$claude_status"
+}
+
+fallback_validation() {
+  log_section "post-Claude artifact validation"
+  mkdir -p /workspace/inputs
+  if [[ -f /workspace/rule_config.json ]]; then
+    cp /workspace/rule_config.json /workspace/inputs/rules.json
+    log "[claude-artifact] copied /workspace/rule_config.json to /workspace/inputs/rules.json"
+  fi
+  if [[ -f /workspace/config.toml ]]; then
+    cp /workspace/config.toml /workspace/inputs/config.toml
+    log "[claude-artifact] copied /workspace/config.toml to /workspace/inputs/config.toml"
+  fi
+
+  [[ -f /workspace/program.bc ]] || fail "Missing /workspace/program.bc after Claude builder run"
+  [[ -f /workspace/program.ll ]] || llvm-dis-14 /workspace/program.bc -o /workspace/program.ll
+  [[ -f /workspace/build_log.txt ]] || cp /workspace/claude_builder.log /workspace/build_log.txt
+
+  for artifact in \
+    /workspace/program.bc \
+    /workspace/program.ll \
+    /workspace/build_log.txt \
+    /workspace/inputs/rules.json \
+    /workspace/inputs/config.toml; do
+    if [[ -e "$artifact" ]]; then
+      log "[claude-artifact] validated $artifact ($(wc -c < "$artifact") bytes)"
+      file "$artifact" | sed 's/^/[pg-builder][artifact-file] /'
+    else
+      log "[claude-artifact] missing $artifact"
+    fi
+  done
+
+  log "Final workspace snapshot"
+  ls -la /workspace
+  find /workspace -maxdepth 4 -type f \( -name 'program.bc' -o -name 'program.ll' -o -name 'build_log.txt' -o -name '*.db' -o -name '.cf_*.json' \) -print
+}
+
+main() {
+  log "ProtocolGuard Claude builder started"
+  configure_claude
+  run_claude
+  fallback_validation
+  log "ProtocolGuard Claude builder completed"
+}
+
+main "$@"

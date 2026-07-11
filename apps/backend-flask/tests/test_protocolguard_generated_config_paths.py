@@ -23,6 +23,7 @@ def _executor(tmp_path: Path) -> AgentExecutor:
         workspace_root=tmp_path,
         max_runtime=60,
         env_passthrough=(),
+        builder_image="protocolguard-claude-builder:test",
     )
     return executor
 
@@ -91,7 +92,10 @@ def test_run_compilation_reports_generated_config_content(tmp_path: Path) -> Non
     executor = _executor(tmp_path)
     executor.compiler = _FakeCompiler()
     executor._docker_available = True
+    executor._builder_image = "protocolguard-claude-builder:test"
     executor.compiler.docker = _FakeDocker()
+    executor._run_claude_builder_container = lambda *args, **kwargs: []
+    executor._validate_builder_outputs = lambda *args, **kwargs: None
     executor._run_analysis_container = lambda *args, **kwargs: None
     source_file = tmp_path / "main.c"
     source_file.write_text("int main(void) { return 0; }\n", encoding="utf-8")
