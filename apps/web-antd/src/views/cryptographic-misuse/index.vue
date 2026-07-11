@@ -8,7 +8,6 @@ import { IconifyIcon } from '@vben/icons';
 import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
 // 导入需要运行时的组件和函数
-import { message, Popconfirm } from 'ant-design-vue';
 import {
   Badge,
   Button,
@@ -18,6 +17,8 @@ import {
   Layout,
   List,
   Menu,
+  message,
+  Popconfirm,
   Progress,
   Row,
   Tag,
@@ -206,11 +207,6 @@ const loadHistoryRecords = async () => {
   }
 };
 
-// 保存历史记录到后端API
-const saveHistoryRecords = async () => {
-  // 这个函数不再需要直接调用，因为saveToHistory和deleteHistoryRecord会直接调用API
-};
-
 // 保存当前分析结果到后端API
 const saveToHistory = async () => {
   if (!file.value || analysisResults.value.length === 0) return;
@@ -220,8 +216,8 @@ const saveToHistory = async () => {
     fileName: file.value.name,
     fileSize: file.value.size,
     analysisTime: new Date(),
-    results: JSON.parse(JSON.stringify(analysisResults.value)),
-    treeData: JSON.parse(JSON.stringify(treeData.value)),
+    results: structuredClone(analysisResults.value),
+    treeData: structuredClone(treeData.value),
   };
 
   try {
@@ -242,8 +238,8 @@ const loadFromHistory = async (recordId: string) => {
     const record = historyRecords.value.find((r) => r.id === recordId);
     if (record) {
       selectedHistoryId.value = recordId;
-      analysisResults.value = JSON.parse(JSON.stringify(record.results));
-      treeData.value = JSON.parse(JSON.stringify(record.treeData));
+      analysisResults.value = structuredClone(record.results);
+      treeData.value = structuredClone(record.treeData);
       analysisComplete.value = true;
       navItems[3].disabled = false; // 启用分析结果导航
       handleNavChange('analysis-results');
@@ -616,7 +612,6 @@ const handleAnalyze = async () => {
     if (responseData.code === 0 && responseData.data?.functions) {
       // 直接使用后端返回的分析结果
       analysisResults.value = responseData.data.functions;
-      console.log('分析结果:', analysisResults.value);
 
       // 生成树状图数据
       treeData.value = generateTreeData();

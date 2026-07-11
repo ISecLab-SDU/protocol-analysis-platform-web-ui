@@ -3,6 +3,8 @@ import type { HistoryRecord, ProtocolIRItem } from '#/api/formal-gpt';
 
 import { computed, onMounted, ref, watch } from 'vue';
 
+import { message, Modal } from 'ant-design-vue';
+
 import {
   fetchFormalGptHistory,
   fetchFormalGptProtocolDetail,
@@ -221,12 +223,10 @@ export default {
       // 匹配协议名称
       for (const [protocol, keywords] of Object.entries(protocolKeywords)) {
         if (keywords.some((keyword) => nameWithoutExt.includes(keyword))) {
-          console.log(`✅ 文件名 "${fileName}" 匹配到协议: ${protocol}`);
           return protocol;
         }
       }
 
-      console.log(`⚠️ 文件名 "${fileName}" 未匹配到任何协议`);
       return null;
     };
 
@@ -253,14 +253,11 @@ export default {
       ];
 
       try {
-        console.log('📤 准备上传文件:', file.name);
-
         // 1. 上传文件
         const uploadResult = await uploadProtocolFile(file);
-        console.log('✅ 文件上传成功:', uploadResult);
 
         currentFileId.value = uploadResult.fileId;
-        const fileSize = file.size || generateRandomFileSize();
+        const fileSize = file.size > 0 ? file.size : generateRandomFileSize();
         uploadedFile.value = {
           name: uploadResult.fileName,
           size: fileSize,
@@ -276,10 +273,7 @@ export default {
           await new Promise((resolve) => setTimeout(resolve, intervalTime));
         }
 
-        // 3. 根据文件名匹配协议数据
-        console.log('📥 匹配协议数据...');
         const protocolName = matchProtocolByFileName(file.name);
-        console.log('🔍 识别到协议:', protocolName);
 
         const historyData = await fetchFormalGptHistory();
 
@@ -299,8 +293,6 @@ export default {
 
           // 如果没有匹配到，使用第一条记录作为默认
           const demoProtocol = matchedProtocol || historyData[0];
-
-          console.log('✅ 使用协议数据:', demoProtocol.fileName);
 
           // 🔴 更新 currentFileId 为匹配到的协议ID
           currentFileId.value = demoProtocol.id;
@@ -334,16 +326,14 @@ export default {
           // 🔴 将临时记录添加到历史记录列表顶部
           uploadHistory.value = [tempRecord, ...uploadHistory.value];
 
-          console.log('✅ 临时历史记录已创建:', tempRecord);
-
           // 跳转到时序图步骤
           currentStep.value = 1;
         } else {
-          alert('文件上传成功,但未获取到协议数据');
+          message.warning('文件上传成功,但未获取到协议数据');
         }
       } catch (error) {
         console.error('❌ 操作失败:', error);
-        alert(`操作失败: ${error.message || '未知错误'}`);
+        message.error(`操作失败: ${error.message || '未知错误'}`);
         uploadedFile.value = null;
       } finally {
         isParsing.value = false;
@@ -352,12 +342,10 @@ export default {
 
     // 修改loadHistoryFromBackend方法
     const loadHistoryFromBackend = async () => {
-      console.log('📡 开始加载历史记录...');
       isLoadingHistory.value = true;
 
       try {
         const data = await fetchFormalGptHistory();
-        console.log('✅ 历史记录加载成功:', data);
 
         // 生成有时间间隔的日期
         const historicalDates = generateHistoricalDates(data.length);
@@ -365,9 +353,8 @@ export default {
         // 处理历史记录数据，补充缺失的文件大小和时间
         const processedData = data.map((item, index) => {
           const fileSize = item.fileSize || generateRandomFileSize();
-          const uploadTime = item.uploadTime
-            ? item.uploadTime
-            : historicalDates[index].toLocaleString();
+          const uploadTime =
+            item.uploadTime || historicalDates[index].toLocaleString();
 
           return {
             ...item,
@@ -383,11 +370,6 @@ export default {
 
         // 🔴 合并临时记录和后端记录（临时记录在前）
         uploadHistory.value = [...tempRecords, ...processedData];
-
-        console.log(
-          '✅ 历史记录已更新，包含临时记录:',
-          uploadHistory.value.length,
-        );
       } catch (error) {
         console.error('❌ 加载历史记录失败:', error);
         // 🔴 加载失败时，仍然保留临时记录
@@ -402,9 +384,6 @@ export default {
 
     // 修改loadHistoryRecord方法
     const loadHistoryRecord = async (record: HistoryRecord) => {
-      console.log('========================================');
-      console.log('📄 开始加载协议:', record.id);
-
       resetAllStates();
 
       currentFileId.value = record.id;
@@ -430,13 +409,8 @@ export default {
             )
           : record.selectedProperties || [];
 
-      console.log('✅ 验证结果:', verificationResults.value);
-
       // 跳转到时序图步骤
       currentStep.value = 1;
-
-      console.log('📄 跳转到步骤:', currentStep.value);
-      console.log('========================================');
     };
 
     const resetAllStates = () => {
@@ -477,12 +451,12 @@ export default {
 
     const copyIR = () => {
       navigator.clipboard.writeText(JSON.stringify(protocolIR.value, null, 2));
-      alert('IR数据已复制到剪贴板');
+      message.success('IR数据已复制到剪贴板');
     };
 
     const copyCode = () => {
       navigator.clipboard.writeText(proverifCode.value);
-      alert('ProVerif代码已复制到剪贴板');
+      message.success('ProVerif代码已复制到剪贴板');
     };
 
     const downloadCode = () => {
@@ -525,8 +499,6 @@ export default {
       ];
 
       try {
-        console.log('📥 开始读取验证结果，协议ID:', currentFileId.value);
-
         // 模拟加载进度
         const totalSteps = 4;
         const intervalTime = 500;
@@ -565,23 +537,19 @@ export default {
           if (tempRecord) {
             tempRecord.verificationResults = protocolDetail.verificationResults;
             tempRecord.selectedProperties = selectedProperties.value;
-            console.log('✅ 临时历史记录已更新验证结果');
           }
-
-          console.log('✅ 验证结果加载成功:', verificationResults.value);
         } else {
           throw new Error('未找到验证结果数据');
         }
       } catch (error) {
         console.error('❌ 读取验证结果失败:', error);
-        alert(`读取验证结果失败: ${error.message || '未知错误'}`);
+        message.error(`读取验证结果失败: ${error.message || '未知错误'}`);
       } finally {
         isVerifying.value = false;
       }
     };
 
     watch(currentStep, (newStep) => {
-      console.log('👀 步骤变化:', newStep);
       if (newStep === 3 && uploadHistory.value.length === 0) {
         // 历史记录变为步骤3
         loadHistoryFromBackend();
@@ -589,7 +557,6 @@ export default {
     });
 
     onMounted(() => {
-      console.log('🚀 组件已挂载');
       currentStep.value = 3; // 默认显示历史记录
     });
 
@@ -598,17 +565,19 @@ export default {
       // 阻止事件冒泡，防止触发loadHistoryRecord
       event.stopPropagation();
 
-      // 确认删除
-      if (confirm('确定要删除这条历史记录吗？')) {
-        uploadHistory.value = uploadHistory.value.filter(
-          (record) => record.id !== recordId,
-        );
+      Modal.confirm({
+        title: '确定要删除这条历史记录吗？',
+        onOk: () => {
+          uploadHistory.value = uploadHistory.value.filter(
+            (record) => record.id !== recordId,
+          );
 
-        // 如果删除的是当前选中的记录，重置状态
-        if (currentFileId.value === recordId) {
-          resetAllStates();
-        }
-      }
+          // 如果删除的是当前选中的记录，重置状态
+          if (currentFileId.value === recordId) {
+            resetAllStates();
+          }
+        },
+      });
     };
 
     return {
@@ -1029,7 +998,7 @@ export default {
                 </div>
 
                 <!-- Operation Boxes -->
-                <div v-for="(step, idx) in protocolIR" :key="step.id">
+                <div v-for="step in protocolIR" :key="step.id">
                   <!-- Timeline Dot -->
                   <div
                     v-if="
@@ -1101,7 +1070,7 @@ export default {
                   width: `${MESSAGE_WIDTH}px`,
                 }"
               >
-                <div v-for="(step, idx) in protocolIR" :key="step.id">
+                <div v-for="step in protocolIR" :key="step.id">
                   <div
                     v-if="getOperationType(step.id) === 'message'"
                     class="absolute flex flex-col items-center"
@@ -1283,7 +1252,7 @@ export default {
                 </div>
 
                 <!-- Operation Boxes -->
-                <div v-for="(step, idx) in protocolIR" :key="step.id">
+                <div v-for="step in protocolIR" :key="step.id">
                   <!-- Timeline Dot -->
                   <div
                     v-if="
