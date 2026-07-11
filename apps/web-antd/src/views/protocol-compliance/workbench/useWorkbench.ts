@@ -1263,7 +1263,10 @@ function normalizeCodeLine(raw: string) {
 function parseNumberedCodeLine(line: string) {
   const trimmedStart = line.trimStart();
   let digitEnd = 0;
-  while (digitEnd < trimmedStart.length && /\d/.test(trimmedStart[digitEnd])) {
+  while (
+    digitEnd < trimmedStart.length &&
+    /\d/.test(trimmedStart.charAt(digitEnd))
+  ) {
     digitEnd += 1;
   }
   if (digitEnd === 0 || digitEnd > 7) return null;
