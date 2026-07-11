@@ -6,6 +6,7 @@ import type {
 } from 'vee-validate';
 
 import type { ComponentPublicInstance } from 'vue';
+import type { Ref } from 'vue';
 
 import type { Recordable } from '@vben-core/typings';
 
@@ -594,3 +595,9 @@ export class FormApi {
     }
   }
 }
+
+export type ExtendedFormApi = FormApi & {
+  useStore: <T = NoInfer<VbenFormProps>>(
+    selector?: (state: NoInfer<VbenFormProps>) => T,
+  ) => Readonly<Ref<T>>;
+};
