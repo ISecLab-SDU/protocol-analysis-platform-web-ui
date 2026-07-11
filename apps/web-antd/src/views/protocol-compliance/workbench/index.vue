@@ -46,6 +46,7 @@ const {
   startedAt,
   isStopping,
   isTransitioning,
+  isAwaitingAssertConfirmation,
   demoModeActive,
   errorMessage,
   projectConfig,
@@ -62,6 +63,7 @@ const {
   fuzzStats,
   fuzzSpeedSeries,
   commitSetup,
+  confirmAssertGeneration,
   backToSetup,
   selectStageView,
   startPipeline,
@@ -76,7 +78,8 @@ const isRunning = computed(() => {
     stageStatus.code_locate === 'running' ||
     stageStatus.assert_gen === 'running' ||
     stageStatus.fuzz === 'running' ||
-    isTransitioning.value
+    isTransitioning.value ||
+    isAwaitingAssertConfirmation.value
   );
 });
 
@@ -1309,6 +1312,19 @@ async function handleLoadDemoConfig() {
                 @click="handleLoadDemoConfig"
               >
                 演示模式
+              </Button>
+              <Button
+                v-if="isAwaitingAssertConfirmation"
+                class="confirm-assert-button"
+                size="small"
+                type="primary"
+                :disabled="!staticResult"
+                @click="confirmAssertGeneration"
+              >
+                进入断言生成
+                <template #icon>
+                  <IconifyIcon icon="mdi:arrow-right" />
+                </template>
               </Button>
             </section>
 
