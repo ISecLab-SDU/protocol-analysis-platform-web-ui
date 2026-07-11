@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import re
+import shlex
 import shutil
 import sqlite3
 import subprocess
@@ -3372,8 +3373,10 @@ def _strip_extension(filename: str) -> str:
 # SOL配置 - ProtocolGuard配置
 RTSP_CONFIG = {
     "script_path": None,  # 不再需要脚本文件
-    "shell_command": "docker run -d --privileged -v /home/wenhao/protocol-analysis-platform-easy-upload/fuzz-output:/out/fuzz-output protocolguard:latest fuzz",  # ProtocolGuard启动命令（使用-d后台运行，移除--rm和-it）
-    "log_file_path": "/home/wenhao/protocol-analysis-platform-easy-upload/fuzz-output/plot_data"  # ProtocolGuard日志文件路径
+    "container_output_dir": "/out/fuzz-output",
+    "log_file_name": "plot_data",
+    "image": "protocolguard:latest",
+    "command": "fuzz",
 }
 
 # MQTT协议配置 - MBFuzzer相关路径
@@ -3407,7 +3410,50 @@ def _is_path_inside(path: Path, allowed_roots: list[Path]) -> bool:
 
 
 def _aflnet_output_root() -> Path:
-    return Path(os.environ.get("AFLNET_OUTPUT_ROOT") or os.path.dirname(cast(str, RTSP_CONFIG["log_file_path"])))
+    configured = os.environ.get("AFLNET_OUTPUT_ROOT")
+    if configured:
+        return Path(configured).expanduser()
+    runtime_root = Path(os.environ.get("PG_RUNTIME_ROOT", "/tmp/protocolguard")).expanduser()
+    output_root = Path(os.environ.get("PG_OUTPUT_ROOT", runtime_root / "outputs")).expanduser()
+    return output_root.parent / "fuzz-output"
+
+
+def _aflnet_log_file_name() -> str:
+    return cast(str, RTSP_CONFIG["log_file_name"])
+
+
+def _aflnet_container_output_dir() -> str:
+    return cast(str, RTSP_CONFIG["container_output_dir"])
+
+
+def _process_identity_value(env_name: str, fallback: int) -> str:
+    configured = os.environ.get(env_name)
+    if configured and configured.isdigit():
+        return configured
+    return str(fallback)
+
+
+def _aflnet_container_host_identity_flags() -> str:
+    uid = _process_identity_value("PG_HOST_UID", os.getuid())
+    gid = _process_identity_value("PG_HOST_GID", os.getgid())
+    return f"-e PG_HOST_UID={uid} -e PG_HOST_GID={gid}"
+
+
+def _aflnet_shell_command() -> str:
+    output_root = _aflnet_output_root()
+    output_root.mkdir(parents=True, exist_ok=True)
+    mount = f"{output_root}:{_aflnet_container_output_dir()}"
+    return " ".join([
+        "docker",
+        "run",
+        "-d",
+        "--privileged",
+        _aflnet_container_host_identity_flags(),
+        "-v",
+        shlex.quote(mount),
+        shlex.quote(cast(str, RTSP_CONFIG["image"])),
+        shlex.quote(cast(str, RTSP_CONFIG["command"])),
+    ])
 
 
 def _repo_root() -> Path:
@@ -3458,7 +3504,7 @@ def _aflnet_log_file_for_source(source: str = "primary") -> Path:
     if source == "fallback":
         filename = os.environ.get("AFLNET_FALLBACK_LOG_FILE_NAME", "plot_data")
         return _aflnet_fallback_output_root() / filename
-    return Path(cast(str, RTSP_CONFIG["log_file_path"])).expanduser()
+    return _aflnet_output_root() / _aflnet_log_file_name()
 
 
 def _resolve_aflnet_output_source(data: Optional[Dict[str, Any]] = None) -> str:
@@ -3784,7 +3830,7 @@ def execute_command():
         # MQTT协议支持双引擎配置
         if protocol_implementations and "SOL" in protocol_implementations:
             # SOL使用AFLNET引擎 (原RTSP配置)
-            command = cast(str, RTSP_CONFIG["shell_command"])
+            command = _aflnet_shell_command()
             LOGGER.debug("MQTT协议使用SOL实现(AFLNET引擎): %s", protocol_implementations)
         else:
             # 传统MQTT broker使用MBFuzzer引擎
@@ -4275,7 +4321,7 @@ def pre_start_cleanup():
 
         # 2. 清理输出文件夹
         if protocol == "RTSP" or protocol == "MQTT":
-            output_dir = os.path.dirname(cast(str, RTSP_CONFIG["log_file_path"]))
+            output_dir = str(_aflnet_output_root())
             fallback_output_dir = str(_aflnet_fallback_output_root().resolve())
 
             # Linux安全检查：防止删除系统重要目录
