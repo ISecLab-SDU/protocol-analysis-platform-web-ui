@@ -50,20 +50,19 @@ function onImplementationChange(val: ProjectConfig['implementation']) {
 
 function beforeUpload(
   file: File,
-  field: 'archive' | 'builder' | 'config' | 'rules',
+  field: 'archive' | 'config' | 'rules',
 ) {
   props.config[field] = file;
   return false;
 }
 
-function removeFile(field: 'archive' | 'builder' | 'config' | 'rules') {
+function removeFile(field: 'archive' | 'config' | 'rules') {
   props.config[field] = null;
 }
 
 const canCommit = computed(() => {
   return Boolean(
     props.config.archive &&
-    props.config.builder &&
     props.config.config &&
     props.config.rules &&
     props.config.buildInstructions.trim()
@@ -81,21 +80,6 @@ const canCommit = computed(() => {
           :before-upload="(file) => beforeUpload(file, 'archive')"
           :disabled="disabled"
           @remove="() => removeFile('archive')"
-        >
-          <Button :disabled="disabled">
-            <template #icon><IconifyIcon icon="mdi:upload" /></template>
-            选择文件
-          </Button>
-        </Upload>
-      </div>
-
-      <div class="setup-section">
-        <div class="setup-label">Builder Dockerfile *</div>
-        <Upload
-          :file-list="config.builder ? [{ uid: '-2', name: config.builder.name, status: 'done' }] : []"
-          :before-upload="(file) => beforeUpload(file, 'builder')"
-          :disabled="disabled"
-          @remove="() => removeFile('builder')"
         >
           <Button :disabled="disabled">
             <template #icon><IconifyIcon icon="mdi:upload" /></template>

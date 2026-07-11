@@ -9,6 +9,7 @@ import time
 from openai import OpenAI
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
+from typing import Any, cast
 
 # ---------- 配置读取 ----------
 script_dir = Path(__file__).parent.parent
@@ -177,7 +178,10 @@ def run_enhance_rule(config, api_key, protocol, version):
         return prompt_text, sentence  # 失败返回原句子
 
     # 并发处理
-    sentences_to_enhance = conforms_df[["Heading", "Sentence"]].values.tolist()
+    sentences_to_enhance = [
+        (str(row["Heading"]), str(row["Sentence"]))
+        for _, row in cast(Any, conforms_df).iterrows()
+    ]
     enhanced_results = []
 
     with ThreadPoolExecutor(max_workers=this_workers) as executor:

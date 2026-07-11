@@ -8,7 +8,7 @@ BACKEND_ROOT = Path(__file__).resolve().parents[1]
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
-from protocol_compliance.static_analysis_result_checker import (
+from protocol_compliance.static_analysis_result_checker import (  # noqa: E402
     check_static_analysis_database,
 )
 

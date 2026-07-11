@@ -25,6 +25,7 @@ import toml
 from .config import DEFAULT_CONFIG_PACKET_TYPES, ProtocolGuardDockerSettings, _ensure_directory, _env_int
 from .errors import ProtocolGuardDockerError, ProtocolGuardExecutionError, ProtocolGuardNotAvailableError
 from .job import JobPaths
+from ..job_logging import JobStageLogger
 
 docker: Any
 DockerException: type[Exception]
@@ -61,6 +62,13 @@ class ProtocolGuardDockerRunner:
         self._progress_callback: Optional[Callable[[str, str, str], None]] = None
         self._current_workspace_snapshots: List[Dict[str, str]] = []
 
+    def _logger(self, job_paths: JobPaths) -> JobStageLogger:
+        return JobStageLogger(
+            job_id=job_paths.job_id,
+            logger=LOGGER,
+            progress_callback=self._progress_callback,
+        )
+
     def _log_step(
         self,
         job_paths: JobPaths,
@@ -68,8 +76,16 @@ class ProtocolGuardDockerRunner:
         message: str,
         *,
         level: int = logging.INFO,
+        context: Optional[Mapping[str, object]] = None,
     ) -> None:
-        LOGGER.log(level, "[job %s][%s] %s", job_paths.job_id, stage, message)
+        LOGGER.log(
+            level,
+            "[job %s][%s] %s",
+            job_paths.job_id,
+            stage,
+            message,
+            extra={"protocolguard_context": dict(context or {})},
+        )
         if self._progress_callback:
             try:
                 self._progress_callback(job_paths.job_id, stage, message)
@@ -101,17 +117,20 @@ class ProtocolGuardDockerRunner:
         job_id = job_id or str(uuid.uuid4())
         job_paths = self._prepare_job_paths(job_id)
         self._progress_callback = progress_callback
+        logger = self._logger(job_paths)
         self._current_workspace_snapshots = []
 
-        self._log_step(job_paths, "init", "Starting ProtocolGuard static analysis job")
+        with logger.state(stage="init"):
+            logger.info("Starting ProtocolGuard static analysis job")
 
         built_builder_image: Optional[str] = None
 
         try:
-            self._log_step(job_paths, "workspace", "Staging workspace directories")
-            self._stage_workspace(job_paths)
-            self._ensure_workspace_structure(job_paths)
-            self._log_step(job_paths, "workspace", "Workspace directories prepared")
+            with logger.state(stage="workspace", workspace=job_paths.workspace):
+                logger.info("Staging workspace directories")
+                self._stage_workspace(job_paths)
+                self._ensure_workspace_structure(job_paths)
+                logger.info("Workspace directories prepared")
 
             uploads_dir = job_paths.workspace / "uploads"
             code_filename_real = code_filename or "source-archive"
@@ -121,108 +140,149 @@ class ProtocolGuardDockerRunner:
             config_filename_real = config_filename or "config.toml"
 
             project_dir = job_paths.workspace / "project"
-            self._log_step(job_paths, "workspace", "Preparing project directory for source archive")
-            self._reset_directory(project_dir)
-            self._extract_archive(code_path, project_dir)
-            if not any(project_dir.iterdir()):
-                raise ProtocolGuardDockerError(
-                    "Source archive did not contain any files. Please verify the uploaded archive."
-                )
-            self._log_step(job_paths, "workspace", "Source archive extracted")
+            with logger.state(stage="workspace", project_dir=project_dir, code_archive=code_path):
+                logger.info("Preparing project directory for source archive")
+                self._reset_directory(project_dir)
+                self._extract_archive(code_path, project_dir)
 
-            dockerfile_path = project_dir / builder_filename_real
-            self._log_step(job_paths, "inputs", "Writing builder Dockerfile to workspace")
-            self._write_stream(dockerfile_path, builder_stream)
+                if not any(project_dir.iterdir()):
+                    raise ProtocolGuardDockerError(
+                        "Source archive did not contain any files. Please verify the uploaded archive."
+                    )
+                logger.info("Source archive extracted")
+
+            with logger.state(stage="inputs", project_dir=project_dir):
+                code_archive_in_project = project_dir / code_filename_real
+                shutil.copy2(code_path, code_archive_in_project)
+                logger.info(
+                    "Copied code archive to project context: %s",
+                    code_archive_in_project,
+                    source=code_path,
+                    destination=code_archive_in_project,
+                )
+
+                dockerfile_path = project_dir / builder_filename_real
+                logger.info("Writing builder Dockerfile to workspace", path=dockerfile_path)
+                self._write_stream(dockerfile_path, builder_stream)
+
+                rules_path = self._stage_rules_file(job_paths, rules_stream)
+                rules_path_in_project = project_dir / "inputs" / "rules.json"
+                rules_path_in_project.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(rules_path, rules_path_in_project)
+                logger.info(
+                    "Copied rules file to project context: %s",
+                    rules_path_in_project,
+                    source=rules_path,
+                    destination=rules_path_in_project,
+                )
+
+                rule_config_path_in_project = project_dir / "rule_config.json"
+                shutil.copy2(rules_path, rule_config_path_in_project)
+                logger.info(
+                    "Copied rule_config.json to project root: %s",
+                    rule_config_path_in_project,
+                    source=rules_path,
+                    destination=rule_config_path_in_project,
+                )
+
+            with logger.state(stage="config", config_file=job_paths.config_file):
+                logger.info("Loading and preparing config file", source=config_filename_real)
+                config_data = self._load_config(config_stream, config_filename)
+                prepared_config = self._prepare_config(
+                    config_data=config_data,
+                    job_paths=job_paths,
+                    protocol_name=protocol_name,
+                    protocol_version=protocol_version,
+                )
+                self._write_config(job_paths.config_file, prepared_config)
+                logger.info("Config file written to workspace")
+
+            with logger.state(stage="inputs", project_dir=project_dir):
+                config_path_in_project = project_dir / "config.toml"
+                self._write_config(config_path_in_project, prepared_config)
+                logger.info(
+                    "Copied prepared config file to project context: %s",
+                    config_path_in_project,
+                    destination=config_path_in_project,
+                )
 
             builder_image = None
-            if builder_stream:
-                self._log_step(job_paths, "builder", "Building builder image from uploaded Dockerfile")
-                builder_image = self._build_builder_image(
-                    job_paths=job_paths,
-                    context_dir=project_dir,
-                    dockerfile_path=dockerfile_path,
-                )
-                built_builder_image = builder_image
-            elif self._settings.builder_image:
-                self._log_step(job_paths, "builder", "Using default builder image from environment")
-                builder_image = self._settings.builder_image
-            else:
-                raise ProtocolGuardDockerError(
-                    "Builder Dockerfile not provided and no default builder image configured."
-                )
+            with logger.state(stage="builder", project_dir=project_dir):
+                if builder_stream:
+                    logger.info("Building builder image from uploaded Dockerfile", dockerfile=dockerfile_path)
+                    builder_image = self._build_builder_image(
+                        job_paths=job_paths,
+                        context_dir=project_dir,
+                        dockerfile_path=dockerfile_path,
+                    )
+                    built_builder_image = builder_image
+                elif self._settings.builder_image:
+                    logger.info("Using default builder image from environment", image=self._settings.builder_image)
+                    builder_image = self._settings.builder_image
+                else:
+                    raise ProtocolGuardDockerError(
+                        "Builder Dockerfile not provided and no default builder image configured."
+                    )
 
-            rules_path = self._stage_rules_file(job_paths, rules_stream)
             LOGGER.debug("Staged code archive at %s, project at %s, rules at %s", code_path, project_dir, rules_path)
 
-            self._log_step(job_paths, "config", "Loading and preparing config file")
-            config_data = self._load_config(config_stream, config_filename)
-            prepared_config = self._prepare_config(
-                config_data=config_data,
-                job_paths=job_paths,
-                protocol_name=protocol_name,
-                protocol_version=protocol_version,
-            )
-            self._write_config(job_paths.config_file, prepared_config)
-            self._log_step(job_paths, "config", "Config file written to workspace")
-
             if builder_image:
-                self._log_step(job_paths, "builder", f"Running builder container image {builder_image}")
-                self._run_builder(
-                    job_paths,
-                    image=builder_image,
-                    command=self._settings.builder_command,
+                with logger.state(stage="builder", image=builder_image):
+                    logger.info("Running builder container image %s", builder_image)
+                    self._run_builder(
+                        job_paths,
+                        image=builder_image,
+                        command=self._settings.builder_command,
+                    )
+                    logger.info("Builder container completed")
+
+            with logger.state(stage="validation"):
+                logger.info("Validating required artefacts exist before analysis")
+                self._validate_required_inputs(job_paths)
+                logger.info("All required artefacts present")
+
+            with logger.state(stage="analysis", image=self._settings.analysis_image):
+                logger.info("Launching analysis container image %s", self._settings.analysis_image)
+                logs = self._run_analysis(job_paths, command=self._settings.analysis_command)
+                logger.info("Analysis container completed successfully")
+
+            with logger.state(stage="results", output=job_paths.output):
+                logger.info("Collecting analysis results and metadata")
+                result = self._collect_results(
+                    job_paths=job_paths,
+                    start_time=start,
+                    code_filename=Path(code_filename_real).name,
+                    builder_filename=Path(builder_filename_real).name,
+                    config_filename=Path(config_filename_real).name,
+                    notes=notes,
+                    rules_summary=rules_summary,
+                    rules_filename=Path(rules_filename_real).name,
+                    protocol_name=protocol_name,
+                    protocol_version=protocol_version,
+                    docker_logs=logs,
+                    workspace_snapshots=self._current_workspace_snapshots,
                 )
-                self._log_step(job_paths, "builder", "Builder container completed")
-
-            self._log_step(job_paths, "validation", "Validating required artefacts exist before analysis")
-            self._validate_required_inputs(job_paths)
-            self._log_step(job_paths, "validation", "All required artefacts present")
-
-            self._log_step(
-                job_paths,
-                "analysis",
-                f"Launching analysis container image {self._settings.analysis_image}",
-            )
-            logs = self._run_analysis(job_paths, command=self._settings.analysis_command)
-            self._log_step(job_paths, "analysis", "Analysis container completed successfully")
-
-            self._log_step(job_paths, "results", "Collecting analysis results and metadata")
-            result = self._collect_results(
-                job_paths=job_paths,
-                start_time=start,
-                code_filename=Path(code_filename_real).name,
-                builder_filename=Path(builder_filename_real).name,
-                config_filename=Path(config_filename_real).name,
-                notes=notes,
-                rules_summary=rules_summary,
-                rules_filename=Path(rules_filename_real).name,
-                protocol_name=protocol_name,
-                protocol_version=protocol_version,
-                docker_logs=logs,
-                workspace_snapshots=self._current_workspace_snapshots,
-            )
-            self._log_step(job_paths, "results", "ProtocolGuard job completed successfully")
+                logger.info("ProtocolGuard job completed successfully")
             return result
         except Exception:
-            self._log_step(job_paths, "error", "ProtocolGuard job failed", level=logging.ERROR)
+            with logger.state(stage="error"):
+                logger.log(logging.ERROR, "ProtocolGuard job failed")
             LOGGER.exception("ProtocolGuard job %s failed", job_id)
             raise
         finally:
             self._progress_callback = None
             self._current_workspace_snapshots = []
-            if built_builder_image:
-                if self._settings.keep_builder_images:
-                    self._log_step(
-                        job_paths,
-                        "cleanup",
-                        f"Retaining builder image {built_builder_image} for Docker cache reuse",
-                    )
-                else:
-                    self._log_step(job_paths, "cleanup", f"Removing temporary builder image {built_builder_image}")
-                    self._remove_builder_image(built_builder_image)
-            if not self._settings.keep_artifacts:
-                self._log_step(job_paths, "cleanup", "Cleaning up workspace artefacts")
-                self._cleanup_job(job_paths)
+            with logger.state(stage="cleanup", workspace=job_paths.workspace):
+                if built_builder_image:
+                    with logger.state(image=built_builder_image):
+                        if self._settings.keep_builder_images:
+                            logger.info("Retaining builder image %s for Docker cache reuse", built_builder_image)
+                        else:
+                            logger.info("Removing temporary builder image %s", built_builder_image)
+                            self._remove_builder_image(built_builder_image)
+                if not self._settings.keep_artifacts:
+                    logger.info("Cleaning up workspace artefacts")
+                    self._cleanup_job(job_paths)
             self._rotate_runtime_artifacts(active_job_id=job_paths.job_id)
 
     def run_assert_generation(
@@ -243,9 +303,11 @@ class ProtocolGuardDockerRunner:
         job_id = job_id or str(uuid.uuid4())
         job_paths = self._prepare_job_paths(job_id)
         self._progress_callback = progress_callback
+        logger = self._logger(job_paths)
         self._current_workspace_snapshots = []
 
-        self._log_step(job_paths, "init", "Starting ProtocolGuard assertion generation job")
+        with logger.state(stage="init"):
+            logger.info("Starting ProtocolGuard assertion generation job")
 
         if not build_instructions or not build_instructions.strip():
             raise ProtocolGuardDockerError("Build instructions are required for assertion generation")
@@ -253,58 +315,61 @@ class ProtocolGuardDockerRunner:
         command = ["assert", "--compile-command", build_instructions.strip()]
 
         try:
-            self._log_step(job_paths, "workspace", "Preparing workspace directories")
-            self._reset_directory(job_paths.workspace)
-            self._stage_workspace(job_paths)
+            with logger.state(stage="workspace", workspace=job_paths.workspace):
+                logger.info("Preparing workspace directories")
+                self._reset_directory(job_paths.workspace)
+                self._stage_workspace(job_paths)
 
-            uploads_dir = job_paths.workspace / "uploads"
-            project_dir = job_paths.workspace / "project"
-            uploads_dir.mkdir(parents=True, exist_ok=True)
-            project_dir.mkdir(parents=True, exist_ok=True)
+                uploads_dir = job_paths.workspace / "uploads"
+                project_dir = job_paths.workspace / "project"
+                uploads_dir.mkdir(parents=True, exist_ok=True)
+                project_dir.mkdir(parents=True, exist_ok=True)
 
-            code_filename_real = code_filename or "source-archive"
-            self._log_step(job_paths, "workspace", "Persisting uploaded source archive")
-            code_path = self._write_stream(uploads_dir / code_filename_real, code_stream)
+                code_filename_real = code_filename or "source-archive"
+                with logger.state(uploads_dir=uploads_dir):
+                    logger.info("Persisting uploaded source archive", filename=code_filename_real)
+                    code_path = self._write_stream(uploads_dir / code_filename_real, code_stream)
 
-            self._log_step(job_paths, "workspace", "Extracting source archive into /workspace/project")
-            self._reset_directory(project_dir)
-            self._extract_archive(code_path, project_dir)
-            if not any(project_dir.iterdir()):
-                raise ProtocolGuardDockerError(
-                    "Source archive did not contain any files. Please verify the uploaded archive."
+                with logger.state(project_dir=project_dir):
+                    logger.info("Extracting source archive into /workspace/project")
+                    self._reset_directory(project_dir)
+                    self._extract_archive(code_path, project_dir)
+                    if not any(project_dir.iterdir()):
+                        raise ProtocolGuardDockerError(
+                            "Source archive did not contain any files. Please verify the uploaded archive."
+                        )
+                    logger.info("Source archive extracted into project directory")
+
+                database_filename_real = database_filename or "violations.db"
+                database_destination = job_paths.workspace / "violations.db"
+                logger.info(
+                    "Staging analysis result data for assertion generation",
+                    destination=database_destination,
                 )
-            self._log_step(job_paths, "workspace", "Source archive extracted into project directory")
+                self._write_stream(database_destination, database_stream)
+                if not database_destination.exists() or database_destination.stat().st_size == 0:
+                    raise ProtocolGuardDockerError("Uploaded database file is empty. Please verify the input.")
 
-            database_filename_real = database_filename or "violations.db"
-            database_destination = job_paths.workspace / "violations.db"
-            self._log_step(job_paths, "workspace", "Staging analysis result data for assertion generation")
-            self._write_stream(database_destination, database_stream)
-            if not database_destination.exists() or database_destination.stat().st_size == 0:
-                raise ProtocolGuardDockerError("Uploaded database file is empty. Please verify the input.")
+                build_instructions_text = build_instructions.strip() if build_instructions else ""
+                if build_instructions_text:
+                    instructions_path = job_paths.workspace / "build_instructions.txt"
+                    instructions_path.write_text(build_instructions_text, encoding="utf-8")
+                    logger.info("Build instructions written to build_instructions.txt", path=instructions_path)
+                else:
+                    logger.info("No build instructions provided; skipping file write")
 
-            build_instructions_text = build_instructions.strip() if build_instructions else ""
-            if build_instructions_text:
-                instructions_path = job_paths.workspace / "build_instructions.txt"
-                instructions_path.write_text(build_instructions_text, encoding="utf-8")
-                self._log_step(job_paths, "workspace", "Build instructions written to build_instructions.txt")
-            else:
-                self._log_step(job_paths, "workspace", "No build instructions provided; skipping file write")
-
-            notes_text = notes.strip() if notes else ""
-            if notes_text:
-                notes_path = job_paths.workspace / "notes.txt"
-                notes_path.write_text(notes_text, encoding="utf-8")
-                self._log_step(job_paths, "workspace", "Notes written to notes.txt")
+                notes_text = notes.strip() if notes else ""
+                if notes_text:
+                    notes_path = job_paths.workspace / "notes.txt"
+                    notes_path.write_text(notes_text, encoding="utf-8")
+                    logger.info("Notes written to notes.txt", path=notes_path)
 
             self._snapshot_workspace(job_paths, stage="prepared")
 
-            self._log_step(
-                job_paths,
-                "analysis",
-                f"Launching assertion generation container image {self._settings.analysis_image}",
-            )
-            logs = self._run_analysis(job_paths, command=command)
-            self._log_step(job_paths, "analysis", "Assertion generation container completed successfully")
+            with logger.state(stage="analysis", image=self._settings.analysis_image):
+                logger.info("Launching assertion generation container image %s", self._settings.analysis_image)
+                logs = self._run_analysis(job_paths, command=command)
+                logger.info("Assertion generation container completed successfully")
 
             assert_tasks_dir = job_paths.output / "assert_tasks"
             if not assert_tasks_dir.exists() or not assert_tasks_dir.is_dir():
@@ -315,49 +380,55 @@ class ProtocolGuardDockerRunner:
                     status=0,
                 )
 
-            zip_destination = job_paths.output / "assert_tasks.zip"
-            self._log_step(job_paths, "results", "Packaging assert_tasks artefacts into ZIP archive")
-            self._zip_directory(assert_tasks_dir, zip_destination)
+            with logger.state(stage="results", output=job_paths.output):
+                zip_destination = job_paths.output / "assert_tasks.zip"
+                logger.info(
+                    "Packaging assert_tasks artefacts into ZIP archive",
+                    source=assert_tasks_dir,
+                    destination=zip_destination,
+                )
+                self._zip_directory(assert_tasks_dir, zip_destination)
 
-            self._snapshot_workspace(job_paths, stage="post-run")
+                self._snapshot_workspace(job_paths, stage="post-run")
 
-            workspace_snapshots = [dict(snapshot) for snapshot in self._current_workspace_snapshots]
-            duration_ms = int((time.time() - start) * 1000)
-            now_iso = datetime.now(timezone.utc).isoformat()
-            assertion_count = self._count_files(assert_tasks_dir)
-            protocol_name = self._settings.default_protocol_name
+                workspace_snapshots = [dict(snapshot) for snapshot in self._current_workspace_snapshots]
+                duration_ms = int((time.time() - start) * 1000)
+                now_iso = datetime.now(timezone.utc).isoformat()
+                assertion_count = self._count_files(assert_tasks_dir)
+                protocol_name = self._settings.default_protocol_name
 
-            result: Dict[str, object] = {
-                "jobId": job_paths.job_id,
-                "generatedAt": now_iso,
-                "assertionCount": assertion_count,
-                "protocolName": protocol_name,
-                "inputs": {
-                    "codeFileName": Path(code_filename_real).name,
-                    "databaseFileName": Path(database_filename_real).name,
-                    "buildInstructions": build_instructions_text or None,
-                    "notes": notes_text or None,
-                },
-                "artifacts": {
-                    "workspace": str(job_paths.workspace),
-                    "output": str(job_paths.output),
-                    "logs": str(job_paths.log_file),
-                    "zipPath": str(zip_destination),
-                    "database": str(database_destination),
-                    "workspaceSnapshots": workspace_snapshots,
-                },
-                "docker": {
-                    "image": self._settings.analysis_image,
-                    "command": list(command),
-                    "logs": logs,
-                    "durationMs": duration_ms,
-                },
-            }
+                result: Dict[str, object] = {
+                    "jobId": job_paths.job_id,
+                    "generatedAt": now_iso,
+                    "assertionCount": assertion_count,
+                    "protocolName": protocol_name,
+                    "inputs": {
+                        "codeFileName": Path(code_filename_real).name,
+                        "databaseFileName": Path(database_filename_real).name,
+                        "buildInstructions": build_instructions_text or None,
+                        "notes": notes_text or None,
+                    },
+                    "artifacts": {
+                        "workspace": str(job_paths.workspace),
+                        "output": str(job_paths.output),
+                        "logs": str(job_paths.log_file),
+                        "zipPath": str(zip_destination),
+                        "database": str(database_destination),
+                        "workspaceSnapshots": workspace_snapshots,
+                    },
+                    "docker": {
+                        "image": self._settings.analysis_image,
+                        "command": list(command),
+                        "logs": logs,
+                        "durationMs": duration_ms,
+                    },
+                }
 
-            self._log_step(job_paths, "results", "Assertion generation completed successfully")
+                logger.info("Assertion generation completed successfully", assertion_count=assertion_count)
             return result
         except Exception:
-            self._log_step(job_paths, "error", "Assertion generation job failed", level=logging.ERROR)
+            with logger.state(stage="error"):
+                logger.log(logging.ERROR, "Assertion generation job failed")
             LOGGER.exception("ProtocolGuard assertion generation job %s failed", job_id)
             raise
         finally:
@@ -618,6 +689,7 @@ class ProtocolGuardDockerRunner:
             "docker",
             "build",
             "--progress=plain",
+            "--network=host",
             "--file",
             str(dockerfile_rel),
             "--tag",
@@ -629,7 +701,6 @@ class ProtocolGuardDockerRunner:
                 "proxy",
                 f"[Type 1] Setting Docker CLI build-args (HTTP_PROXY, HTTPS_PROXY, http_proxy, https_proxy) = {proxy_url}",
             )
-            command.append("--network=host")
             for key in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
                 command.extend(["--build-arg", f"{key}={proxy_url}"])
         
@@ -652,19 +723,23 @@ class ProtocolGuardDockerRunner:
             raise ProtocolGuardDockerError(f"Failed to invoke docker CLI for builder image build: {exc}") from exc
 
         assert process.stdout is not None
+        build_log_lines: List[str] = []
         with job_paths.log_file.open("a", encoding="utf-8") as log_file:
             try:
                 for line in process.stdout:
                     text = line.rstrip()
                     if text:
+                        build_log_lines.append(text)
                         log_file.write(text + "\n")
                         self._log_step(job_paths, "builder-log", text)
             finally:
                 process.stdout.close()
         exit_code = process.wait()
         if exit_code != 0:
+            last_lines = "\n".join(build_log_lines[-30:]) if build_log_lines else "(no log output)"
             raise ProtocolGuardDockerError(
-                f"Docker CLI build failed for builder image {tag} with exit code {exit_code}."
+                f"Docker CLI build failed for builder image {tag} with exit code {exit_code}.\n"
+                f"Last 30 lines of build output:\n{last_lines}"
             )
         self._log_step(job_paths, "builder", f"docker CLI build completed for {tag}")
         return tag
@@ -1153,32 +1228,33 @@ class ProtocolGuardDockerRunner:
     def _find_database(self, job_paths: JobPaths) -> Optional[Path]:
         # 优先搜索已知的database子目录
         database_dir = job_paths.output / "database"
-        LOGGER.warning(f"[查找数据库] 优先搜索 database 子目录: {database_dir}")
+        LOGGER.debug("[查找数据库] 优先搜索 database 子目录: %s", database_dir)
         if database_dir.exists():
             candidates = list(database_dir.glob("*.db"))
-            LOGGER.warning(f"[查找数据库] 在 {database_dir} 找到 {len(candidates)} 个 .db 文件: {candidates}")
+            LOGGER.debug("[查找数据库] 在 %s 找到 %d 个 .db 文件: %s", database_dir, len(candidates), candidates)
             if candidates:
-                LOGGER.warning(f"[查找数据库] 选择数据库: {candidates[0]}")
+                LOGGER.debug("[查找数据库] 选择数据库: %s", candidates[0])
                 return candidates[0]
 
         # 回退到递归搜索output目录
-        LOGGER.warning(f"[查找数据库] 递归搜索 output 目录: {job_paths.output}")
+        LOGGER.debug("[查找数据库] 递归搜索 output 目录: %s", job_paths.output)
         candidates = list(job_paths.output.rglob("*.db"))
-        LOGGER.warning(f"[查找数据库] 在 output 找到 {len(candidates)} 个 .db 文件: {candidates}")
+        LOGGER.debug("[查找数据库] 在 output 找到 %d 个 .db 文件: %s", len(candidates), candidates)
 
         if not candidates:
-            LOGGER.warning(f"[查找数据库] 递归搜索 workspace 目录: {job_paths.workspace}")
+            LOGGER.debug("[查找数据库] 递归搜索 workspace 目录: %s", job_paths.workspace)
             candidates = list(job_paths.workspace.rglob("*.db"))
-            LOGGER.warning(f"[查找数据库] 在 workspace 找到 {len(candidates)} 个 .db 文件: {candidates}")
+            LOGGER.debug("[查找数据库] 在 workspace 找到 %d 个 .db 文件: %s", len(candidates), candidates)
 
         if not candidates:
             LOGGER.error(
-                f"[查找数据库] 未找到数据库文件！Output: {job_paths.output}, "
-                f"Workspace: {job_paths.workspace}"
+                "[查找数据库] 未找到数据库文件！Output: %s, Workspace: %s",
+                job_paths.output,
+                job_paths.workspace,
             )
             return None
 
-        LOGGER.warning(f"[查找数据库] 最终选择数据库: {candidates[0]}")
+        LOGGER.info("[查找数据库] 最终选择数据库: %s", candidates[0])
         return candidates[0]
 
     def _persist_database_artifact(self, job_paths: JobPaths, db_path: Path) -> Path:
@@ -1229,7 +1305,7 @@ class ProtocolGuardDockerRunner:
             try:
                 cursor.execute("PRAGMA table_info(rule_code_snippet)")
                 columns = [str(row[1]) for row in cursor.fetchall()]
-                LOGGER.warning(
+                LOGGER.debug(
                     "*** ProtocolGuard rule_code_snippet static collect: db=%s columns=%s ***",
                     db_path,
                     columns,
@@ -1241,7 +1317,7 @@ class ProtocolGuardDockerRunner:
 
             rows = cursor.fetchall()
 
-        LOGGER.warning(
+        LOGGER.debug(
             "*** ProtocolGuard rule_code_snippet static collect: db=%s row_count=%d ***",
             db_path,
             len(rows),
@@ -1250,7 +1326,7 @@ class ProtocolGuardDockerRunner:
         for index, (row_id, rule_desc, code_snippet, llm_response) in enumerate(rows, start=1):
             code_snippet_text = code_snippet if isinstance(code_snippet, str) else ""
             llm_response_text = llm_response if isinstance(llm_response, str) else ""
-            LOGGER.warning(
+            LOGGER.debug(
                 (
                     "*** ProtocolGuard rule_code_snippet static collect row=%s "
                     "rule_len=%d code_snippet_len=%d llm_response_len=%d "
@@ -1485,7 +1561,7 @@ class ProtocolGuardDockerRunner:
             if path.is_symlink() or not path.exists() or not path.is_dir():
                 continue
             try:
-                shutil.rmtree(path)
+                shutil.rmtree(path, ignore_errors=True)
                 LOGGER.info("Deleted ProtocolGuard runtime artefacts for job %s: %s", job_id, path)
             except Exception as exc:  # pragma: no cover - defensive cleanup guard
                 LOGGER.warning("Failed to delete ProtocolGuard runtime path %s for job %s: %s", path, job_id, exc)

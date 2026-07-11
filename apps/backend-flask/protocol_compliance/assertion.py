@@ -15,7 +15,6 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 from typing import Any, BinaryIO, Callable, Dict, List, Optional, Tuple, cast
@@ -28,6 +27,7 @@ from .docker_runner import (
     ProtocolGuardExecutionError,
     ProtocolGuardNotAvailableError,
 )
+from .job_logging import JobStageLogger, ProgressCallback
 
 LOGGER = logging.getLogger(__name__)
 
@@ -37,6 +37,7 @@ def _now_iso() -> str:
 
 
 AssertGenerationJobStatus = str  # Literal['queued', 'running', 'completed', 'failed']
+AssertGenerationResult = Dict[str, object]
 
 
 @dataclass
@@ -90,6 +91,9 @@ class AssertGenerationProgressRegistry:
         self._states: Dict[str, AssertGenerationProgressState] = {}
         self._lock = threading.Lock()
 
+    def _job_logger(self, job_id: str) -> JobStageLogger:
+        return JobStageLogger(job_id=job_id, logger=LOGGER)
+
     def create_job(self) -> AssertGenerationProgressState:
         job_id = str(uuid.uuid4())
         now = _now_iso()
@@ -106,6 +110,7 @@ class AssertGenerationProgressRegistry:
         )
         with self._lock:
             self._states[job_id] = state
+        self._job_logger(job_id).info("Job queued", stage="queued", status="queued")
         return state
 
     def mark_running(self, job_id: str, stage: str, message: str) -> None:
@@ -115,6 +120,7 @@ class AssertGenerationProgressRegistry:
                 return
             state.status = "running"
             self._append_event(state, stage, message)
+            self._job_logger(job_id).info(message, stage=stage, status="running")
 
     def append_event(self, job_id: str, stage: str, message: str) -> None:
         with self._lock:
@@ -122,6 +128,7 @@ class AssertGenerationProgressRegistry:
             if not state:
                 return
             self._append_event(state, stage, message)
+            self._job_logger(job_id).info(message, stage=stage, status=state.status)
 
     def complete(self, job_id: str, result: Dict[str, object]) -> None:
         with self._lock:
@@ -131,6 +138,11 @@ class AssertGenerationProgressRegistry:
             state.status = "completed"
             state.result = result
             self._append_event(state, "completed", "Assertion generation completed successfully")
+            self._job_logger(job_id).info(
+                "Assertion generation completed successfully",
+                stage="completed",
+                status="completed",
+            )
 
     def fail(
         self,
@@ -149,6 +161,12 @@ class AssertGenerationProgressRegistry:
             state.error = error or message
             state.details = details
             self._append_event(state, stage, message)
+            self._job_logger(job_id).error(
+                message,
+                stage=stage,
+                status="failed",
+                error=state.error,
+            )
 
     def snapshot(self, job_id: str) -> Optional[Dict[str, object]]:
         with self._lock:
@@ -243,10 +261,13 @@ def _assert_required_instrumentation_env() -> None:
     This check protects the instrumentation step. We do not eagerly exit the
     whole service on import; instead, fail fast when instrumentation runs.
     """
-    missing = [name for name in REQUIRED_INSTRUMENTATION_ENVS if not os.environ.get(name)]
-    if missing:
+    has_openai = os.environ.get("OPENAI_API_KEY") and os.environ.get("OPENAI_BASE_URL")
+    has_anthropic = os.environ.get("ANTHROPIC_API_KEY") and os.environ.get("ANTHROPIC_BASE_URL")
+
+    if not has_openai and not has_anthropic:
         raise AssertGenerationNotReadyError(
-            "Missing required environment variables for instrumentation: " + ", ".join(missing)
+            "Missing required environment variables for instrumentation. "
+            "Please set either OPENAI_API_KEY + OPENAI_BASE_URL or ANTHROPIC_API_KEY + ANTHROPIC_BASE_URL."
         )
 
 
@@ -257,30 +278,23 @@ def _container_host_identity_env() -> Dict[str, str]:
     }
 
 
-# Apply environment adjustments before docker settings are cached
-_ensure_env_passthrough_for_instrumentation()
-
-
-@lru_cache(maxsize=1)
 def _docker_settings() -> ProtocolGuardDockerSettings:
     return ProtocolGuardDockerSettings.from_env()
 
 
 def run_assert_generation(
-    *,
     code_stream: BinaryIO,
     code_file_name: str,
     database_stream: BinaryIO,
     database_file_name: str,
     build_instructions: Optional[str],
     notes: Optional[str],
-    job_id: Optional[str] = None,
-    progress_callback: Optional[Callable[[str, str, str], None]] = None,
-) -> Dict[str, object]:
-    """Dispatch assertion generation via Docker followed by instrumentation.
+    job_id: Optional[str],
+    progress_callback: Optional[ProgressCallback] = None,
+) -> AssertGenerationResult:
+    """Run assertion generation and instrumentation on the provided code.
 
-    On success, triggers an instrumentation container using the same workspace
-    and merges its artefacts into the returned result under the "instrumentation"
+    Returns an AssertGenerationResult with instrumentation details under the "instrumentation"
     key.
     """
 
@@ -354,9 +368,11 @@ def run_assert_generation(
         except AssertGenerationError:
             raise
         except Exception as exc:
+            LOGGER.exception("Instrumentation step failed")
             raise AssertGenerationError(f"Instrumentation step failed: {exc}") from exc
         return base_result
     except ProtocolGuardExecutionError as exc:
+        LOGGER.exception("ProtocolGuard assertion generation execution failed")
         details: Dict[str, object] = {
             "image": getattr(exc, "image", None),
             "status": getattr(exc, "status", None),
@@ -369,6 +385,7 @@ def run_assert_generation(
             details=details,
         ) from exc
     except ProtocolGuardDockerError as exc:
+        LOGGER.exception("ProtocolGuard assertion generation Docker error")
         raise AssertGenerationError(str(exc)) from exc
 
 
@@ -1332,6 +1349,9 @@ def parse_unified_diff(patch_content: str) -> Dict[str, object]:
         
         # Match diff content lines
         elif current_hunk is not None:
+            if current_file is None:
+                i += 1
+                continue
             if line.startswith('+') and not line.startswith('+++'):
                 current_hunk["lines"].append({"type": "add", "content": line[1:]})
                 current_file["additions"] += 1

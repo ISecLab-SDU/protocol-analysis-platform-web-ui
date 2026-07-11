@@ -11,10 +11,13 @@ Usage examples:
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 import uuid
 from pathlib import Path
 from typing import Optional, cast
+
+LOGGER = logging.getLogger(__name__)
 
 # Support running as a module or as a standalone script.
 try:  # noqa: SIM105 - explicit guard for script execution
@@ -135,9 +138,9 @@ def main(argv: Optional[list[str]] = None) -> int:
         parser.error(str(exc))
         return 1
 
-    print(f"Recorded job {job_id}")
+    LOGGER.info("Recorded job %s", job_id)
     if destination:
-        print(f"Diff stored at: {destination}")
+        LOGGER.info("Diff stored at: %s", destination)
     return 0
 
 

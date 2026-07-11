@@ -102,7 +102,7 @@ def process_sentences(config):
                     pbar.update(1)
 
     # 保存结果
-    df = pd.DataFrame(df_data, columns=["章节", "原句", "修正"])
+    df = pd.DataFrame(df_data, columns=pd.Index(["章节", "原句", "修正"]))
     df.to_excel(config["paths"]["output_excel"], index=False)
 
     with open(config["paths"]["output_json"], "w", encoding='utf-8') as f:
