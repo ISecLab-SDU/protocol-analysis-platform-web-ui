@@ -25,7 +25,8 @@ const emit = defineEmits<Emits>();
 
 const implementationOptions = computed(() => PROTOCOL_IMPLEMENTATIONS[props.config.protocolType]);
 
-function onProtocolChange(val: 'MQTT' | 'SNMP') {
+function onProtocolChange(val: unknown) {
+  if (val !== 'MQTT' && val !== 'SNMP') return;
   props.config.protocolType = val;
   props.config.protocolVersion = val === 'MQTT' ? '3.1.1' : 'v2c/v3';
   props.config.implementation = PROTOCOL_IMPLEMENTATIONS[val][0]!;
@@ -39,11 +40,20 @@ function onProtocolChange(val: 'MQTT' | 'SNMP') {
   );
 }
 
-function onImplementationChange(val: ProjectConfig['implementation']) {
-  props.config.implementation = val;
+function onImplementationChange(val: unknown) {
+  if (
+    typeof val !== 'string' ||
+    !PROTOCOL_IMPLEMENTATIONS[props.config.protocolType].includes(
+      val as ProjectConfig['implementation'],
+    )
+  ) {
+    return;
+  }
+  const implementation = val as ProjectConfig['implementation'];
+  props.config.implementation = implementation;
   props.config.fuzzScript = buildDefaultFuzzScript(
     props.config.protocolType,
-    props.config.implementation,
+    implementation,
     props.config.targetHost,
     props.config.targetPort,
   );
