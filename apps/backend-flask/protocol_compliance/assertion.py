@@ -30,6 +30,7 @@ from .docker_runner import (
 from .job_logging import JobStageLogger, ProgressCallback
 
 LOGGER = logging.getLogger(__name__)
+ASSERTION_COUNT_KEY = "assertionCount"
 
 
 def _now_iso() -> str:
@@ -319,6 +320,22 @@ def run_assert_generation(
             job_id=job_identifier,
             progress_callback=progress_callback,
         )
+        assertion_count = base_result.get(ASSERTION_COUNT_KEY) if isinstance(base_result, dict) else None
+        if assertion_count == 0:
+            if progress_callback:
+                progress_callback(
+                    job_identifier,
+                    "instrumentation",
+                    "Skipping instrumentation because assertion generation produced no tasks",
+                )
+            base_result["instrumentation"] = _skipped_instrumentation_details(
+                "assertion generation produced no tasks",
+            )
+            runner.cleanup_assertion_intermediates(
+                job_id=job_identifier,
+            )
+            return base_result
+
         # Follow-up: run instrumentation using the prepared workspace/output.
         try:
             if progress_callback:
@@ -387,6 +404,26 @@ def run_assert_generation(
     except ProtocolGuardDockerError as exc:
         LOGGER.exception("ProtocolGuard assertion generation Docker error")
         raise AssertGenerationError(str(exc)) from exc
+
+
+def _skipped_instrumentation_details(reason: str) -> Dict[str, object]:
+    return {
+        "skipped": True,
+        "reason": reason,
+        "artifacts": {
+            "instrumentedCodePath": None,
+            "diffFiles": [],
+            "diffOutput": {
+                "available": False,
+                "path": None,
+                "size": 0,
+                "content": None,
+                "truncated": False,
+            },
+        },
+        "logs": [],
+        "completedAt": _now_iso(),
+    }
 
 
 def _run_instrumentation_container(
