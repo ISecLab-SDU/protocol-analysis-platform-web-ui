@@ -40,6 +40,8 @@ trap cleanup_ownership EXIT
 
 configure_claude() {
   local token="${ANTHROPIC_API_KEY:-${ANTHROPIC_AUTH_TOKEN:-}}"
+  local api_key="${ANTHROPIC_API_KEY:-$token}"
+  local auth_token="${ANTHROPIC_AUTH_TOKEN:-$token}"
   local base_url="${ANTHROPIC_BASE_URL:-}"
 
   [[ -n "$token" ]] || fail "ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN is required"
@@ -49,7 +51,8 @@ configure_claude() {
   cat > /root/.claude/settings.json <<EOF
 {
   "env": {
-    "ANTHROPIC_AUTH_TOKEN": "${token}",
+    "ANTHROPIC_API_KEY": "${api_key}",
+    "ANTHROPIC_AUTH_TOKEN": "${auth_token}",
     "ANTHROPIC_BASE_URL": "${base_url}",
     "IS_SANDBOX": "1",
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
@@ -70,14 +73,9 @@ You are running inside a disposable Docker container for ProtocolGuard static an
 
 Your job is to compile the uploaded C/C++ protocol implementation and place LLVM build artefacts where the Flask backend expects them. Work autonomously by inspecting files, trying builds, reading errors, and fixing the build commands until the required artefacts exist. Do not ask the user questions.
 
-Log your internal workflow in a concise action journal. Before every meaningful action, print one of these markers:
-- `[claude-step] <short goal>` when you decide the next goal.
-- `[claude-command] <command>` before running a shell command.
-- `[claude-observation] <what changed or what failed>` after inspecting command output.
-- `[claude-config] <how config.toml/rule_config.json affect the build>` when reading configuration.
-- `[claude-artifact] <path and status>` when producing or validating an artifact.
-
-Also write the same journal to `/workspace/claude_action_journal.log`.
+The host backend reads your real Agent SDK typed stream, including tool-use
+events, so you do not need to write progress files or print machine-readable
+markers. Keep any explanatory text concise and focused on decisions and results.
 
 Container facts:
 - The current directory is `/workspace`.
@@ -132,23 +130,25 @@ log_workspace_inputs() {
 
 run_claude() {
   log_workspace_inputs
-  log "Checking Claude Code CLI"
+  log "Checking Claude Code CLI and Agent SDK"
   claude --version
+  python3 - <<'PY'
+import claude_agent_sdk
+print(f"claude-agent-sdk {claude_agent_sdk.__version__}")
+PY
 
   write_prompt
-  log "Starting Claude builder agent"
+  log "Starting Claude builder agent through Agent SDK typed stream"
   set +e
-  IS_SANDBOX=1 claude -p "$(cat /workspace/claude_builder_prompt.md)" \
-    --dangerously-skip-permissions \
-    --allow-dangerously-skip-permissions \
+  IS_SANDBOX=1 python3 /usr/local/bin/pg_claude_builder_sdk.py \
     2>&1 | tee /workspace/claude_builder.log
   local claude_status="${PIPESTATUS[0]}"
   set -e
   log "Claude builder agent exited with status ${claude_status}"
-  if [[ -f /workspace/claude_action_journal.log ]]; then
-    log_file_preview /workspace/claude_action_journal.log "claude-action-journal" 200
+  if [[ -f /workspace/claude_builder_events.jsonl ]]; then
+    log_file_preview /workspace/claude_builder_events.jsonl "claude-sdk-events" 200
   else
-    log "Claude action journal was not created"
+    log "Claude SDK event stream was not persisted"
   fi
   return "$claude_status"
 }

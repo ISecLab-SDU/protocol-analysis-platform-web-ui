@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import sys
 import tarfile
+import types
 from pathlib import Path
 from typing import Any, cast
 
@@ -11,8 +12,29 @@ if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
 from protocol_compliance import compiler as compiler_module  # noqa: E402
+
+if "claude_agent_sdk" not in sys.modules:
+    fake_claude_agent_sdk = types.ModuleType("claude_agent_sdk")
+    for name in (
+        "AssistantMessage",
+        "ClaudeAgentOptions",
+        "ResultMessage",
+        "StreamEvent",
+        "SystemMessage",
+        "TextBlock",
+        "ToolResultBlock",
+        "ToolUseBlock",
+    ):
+        setattr(fake_claude_agent_sdk, name, type(name, (), {}))
+    fake_claude_agent_sdk.query = None
+    sys.modules["claude_agent_sdk"] = fake_claude_agent_sdk
+
 from protocol_compliance.compiler import CompilerController  # noqa: E402
 from protocol_compliance.compiler import AgentExecutor, AgentExecutorSettings  # noqa: E402
+from protocol_compliance.claude_builder.pg_claude_builder_sdk import (  # noqa: E402
+    CLAUDE_CLI_PATH,
+    _build_claude_environment,
+)
 
 
 class FakeLLM:
@@ -299,3 +321,86 @@ def test_agent_executor_streams_analysis_container_logs(
         "analysis-log",
         "[LLM Query] Succeeded in 31 ms. Model: deepseek-v3.",
     ) in events
+
+
+def test_agent_executor_extracts_claude_sdk_progress_json() -> None:
+    line = (
+        'PG_PROGRESS_JSON {"stage":"claude-command",'
+        '"message":"Bash: cmake -S . -B build",'
+        '"tool":"Bash"}'
+    )
+
+    assert AgentExecutor._extract_progress_line(line, "builder-log") == (
+        "claude-command",
+        "Bash: cmake -S . -B build",
+    )
+
+
+def test_agent_executor_falls_back_for_invalid_claude_sdk_progress_json() -> None:
+    line = "PG_PROGRESS_JSON {not-json"
+
+    stage, message = AgentExecutor._extract_progress_line(line, "builder-log")
+
+    assert stage == "claude-status"
+    assert message == line
+
+
+def test_run_logged_command_emits_claude_sdk_progress_json(
+    tmp_path: Path,
+) -> None:
+    settings = AgentExecutorSettings(
+        enabled=True,
+        api_key="anthropic-key",
+        base_url="",
+        model="unused",
+        workspace_root=tmp_path,
+        max_runtime=60,
+        env_passthrough=(),
+        builder_image="protocolguard-claude-builder:test",
+    )
+    executor = AgentExecutor(settings)
+    events: list[tuple[str, str, str]] = []
+    command = [
+        sys.executable,
+        "-c",
+        (
+            "print("
+            "'PG_PROGRESS_JSON "
+            "{\"stage\":\"claude-write\",\"message\":\"Write: /workspace/program.bc\"}'"
+            ")"
+        ),
+    ]
+
+    logs = executor._run_logged_command(
+        command,
+        cwd=tmp_path,
+        log_path=tmp_path / "command.log",
+        progress_callback=lambda job_id, stage, message: events.append((job_id, stage, message)),
+        job_identifier="job-sdk",
+        stage="builder-log",
+        timeout=10,
+    )
+
+    assert logs == [
+        'PG_PROGRESS_JSON {"stage":"claude-write","message":"Write: /workspace/program.bc"}'
+    ]
+    assert events == [("job-sdk", "claude-write", "Write: /workspace/program.bc")]
+
+
+def test_claude_sdk_environment_passes_all_anthropic_credentials(
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "api-key")
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "auth-token")
+    monkeypatch.setenv("ANTHROPIC_BASE_URL", "http://gateway.example")
+
+    env = _build_claude_environment()
+
+    assert env["ANTHROPIC_API_KEY"] == "api-key"
+    assert env["ANTHROPIC_AUTH_TOKEN"] == "auth-token"
+    assert env["ANTHROPIC_BASE_URL"] == "http://gateway.example"
+
+
+def test_claude_sdk_uses_system_cli_instead_of_bundled_cli() -> None:
+    assert CLAUDE_CLI_PATH
+    assert "_bundled" not in CLAUDE_CLI_PATH
