@@ -1,5 +1,9 @@
 <script lang="ts">
-import type { HistoryRecord, ProtocolIRItem } from '#/api/formal-gpt';
+import type {
+  HistoryRecord,
+  ProtocolIRItem,
+  VerificationResults,
+} from '#/api/formal-gpt';
 
 import { computed, onMounted, ref, watch } from 'vue';
 
@@ -67,7 +71,7 @@ const generateRandomFileSize = () => {
 
 // 生成有时间间隔的历史记录时间
 const generateHistoricalDates = (count: number) => {
-  const dates = [];
+  const dates: Date[] = [];
   const now = new Date();
 
   // 从最新的时间开始，依次往前推
@@ -81,19 +85,38 @@ const generateHistoricalDates = (count: number) => {
   return dates;
 };
 
+type UploadedProtocolFile = File | { name: string; size: number };
+
+type FormalHistoryRecord = Omit<HistoryRecord, 'sequenceData'> & {
+  isTemporary?: boolean;
+  originalProtocolId?: string;
+  protocolName?: string;
+  sequenceData?: unknown;
+};
+
+interface StepPosition {
+  id: string;
+  index: number;
+  top: number;
+}
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export default {
   name: 'ProtocolVerification',
   setup() {
     const currentStep = ref(0);
-    const uploadedFile = ref(null);
-    const selectedProperties = ref([]);
+    const uploadedFile = ref<null | UploadedProtocolFile>(null);
+    const selectedProperties = ref<string[]>([]);
     const isParsing = ref(false);
     const parsingProgress = ref(0);
-    const currentFileId = ref(null);
+    const currentFileId = ref<null | string>(null);
     const protocolIR = ref<ProtocolIRItem[]>([]);
     const proverifCode = ref('');
-    const verificationResults = ref(null);
-    const uploadHistory = ref<HistoryRecord[]>([]);
+    const verificationResults = ref<null | VerificationResults>(null);
+    const uploadHistory = ref<FormalHistoryRecord[]>([]);
     const isVerifying = ref(false);
     const isLoadingHistory = ref(false);
     const selectedStep = ref<null | ProtocolIRItem>(null);
@@ -106,7 +129,7 @@ export default {
     const ARROW_WIDTH = 250;
 
     const stepPositions = computed(() => {
-      const positions = [];
+      const positions: StepPosition[] = [];
       let currentY = 40; // Start with some padding from top
       const verticalGap = 1; // Gap between rows
       const operationHeight = 48; // Estimated height of operation boxes
@@ -147,10 +170,10 @@ export default {
       if (stepPositions.value.length === 0) return 300;
       const lastPosition = stepPositions.value[stepPositions.value.length - 1];
       // Add minimal padding at bottom for the last element
-      return lastPosition.top + 60;
+      return lastPosition ? lastPosition.top + 60 : 300;
     });
 
-    const getStepPosition = (stepId) => {
+    const getStepPosition = (stepId: string) => {
       const position = stepPositions.value.find((p) => p.id === stepId);
       return position ? position.top : 0;
     };
@@ -205,7 +228,7 @@ export default {
     };
 
     // 修正 matchProtocolByFileName 函数
-    const matchProtocolByFileName = (fileName) => {
+    const matchProtocolByFileName = (fileName: string) => {
       // 提取文件名中的关键词（去除扩展名和特殊字符）
       const nameWithoutExt = fileName
         .toLowerCase()
@@ -231,8 +254,9 @@ export default {
     };
 
     // 修改handleFileUpload方法
-    const handleFileUpload = async (e) => {
-      const file = e.target.files[0];
+    const handleFileUpload = async (e: Event) => {
+      const input = e.target as HTMLInputElement;
+      const file = input.files?.[0];
 
       if (!file) {
         return;
@@ -268,14 +292,15 @@ export default {
         const intervalTime = 600;
 
         for (let i = 0; i < totalSteps; i++) {
-          parsingStatus.value = parsingStates[i];
+          parsingStatus.value = parsingStates[i] ?? '';
           parsingProgress.value = (i + 1) * (100 / totalSteps);
           await new Promise((resolve) => setTimeout(resolve, intervalTime));
         }
 
         const protocolName = matchProtocolByFileName(file.name);
 
-        const historyData = await fetchFormalGptHistory();
+        const historyData =
+          (await fetchFormalGptHistory()) as FormalHistoryRecord[];
 
         if (historyData && historyData.length > 0) {
           // 尝试根据协议名称匹配
@@ -286,13 +311,16 @@ export default {
               (item) =>
                 item.fileName.toLowerCase().includes(protocolName) ||
                 item.id.toLowerCase() === protocolName ||
-                (item.protocolName &&
-                  item.protocolName.toLowerCase() === protocolName),
+                item.protocolName?.toLowerCase() === protocolName,
             );
           }
 
           // 如果没有匹配到，使用第一条记录作为默认
           const demoProtocol = matchedProtocol || historyData[0];
+          if (!demoProtocol) {
+            message.warning('文件上传成功,但未获取到协议数据');
+            return;
+          }
 
           // 🔴 更新 currentFileId 为匹配到的协议ID
           currentFileId.value = demoProtocol.id;
@@ -319,6 +347,7 @@ export default {
             proverifCode: demoProtocol.proverifCode || '',
             verificationResults: null, // 初始没有验证结果
             selectedProperties: [],
+            sequenceData: null,
             isTemporary: true, // 标记为临时记录
             originalProtocolId: demoProtocol.id, // 保存原始协议ID，用于后续加载验证结果
           };
@@ -333,7 +362,7 @@ export default {
         }
       } catch (error) {
         console.error('❌ 操作失败:', error);
-        message.error(`操作失败: ${error.message || '未知错误'}`);
+        message.error(`操作失败: ${getErrorMessage(error)}`);
         uploadedFile.value = null;
       } finally {
         isParsing.value = false;
@@ -345,7 +374,7 @@ export default {
       isLoadingHistory.value = true;
 
       try {
-        const data = await fetchFormalGptHistory();
+        const data = (await fetchFormalGptHistory()) as FormalHistoryRecord[];
 
         // 生成有时间间隔的日期
         const historicalDates = generateHistoricalDates(data.length);
@@ -354,7 +383,9 @@ export default {
         const processedData = data.map((item, index) => {
           const fileSize = item.fileSize || generateRandomFileSize();
           const uploadTime =
-            item.uploadTime || historicalDates[index].toLocaleString();
+            item.uploadTime ||
+            historicalDates[index]?.toLocaleString() ||
+            new Date().toLocaleString();
 
           return {
             ...item,
@@ -383,7 +414,7 @@ export default {
     };
 
     // 修改loadHistoryRecord方法
-    const loadHistoryRecord = async (record: HistoryRecord) => {
+    const loadHistoryRecord = async (record: FormalHistoryRecord) => {
       resetAllStates();
 
       currentFileId.value = record.id;
@@ -430,20 +461,20 @@ export default {
       }
     };
 
-    const navigateToStep = (index) => {
+    const navigateToStep = (index: number) => {
       if (index === 3 || index <= currentStep.value || uploadedFile.value) {
         // 历史记录变为步骤3
         currentStep.value = index;
       }
     };
 
-    const getOperationType = (id) => {
+    const getOperationType = (id: string) => {
       if (id.includes('message')) return 'message';
       if (id.includes('validate')) return 'validate';
       return 'calculate';
     };
 
-    const formatFileSize = (bytes) => {
+    const formatFileSize = (bytes: number) => {
       if (bytes < 1024) return `${bytes} B`;
       if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
       return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
@@ -469,19 +500,19 @@ export default {
       URL.revokeObjectURL(url);
     };
 
-    const toggleProperty = (propertyId) => {
+    const toggleProperty = (propertyId: string) => {
       selectedProperties.value = selectedProperties.value.includes(propertyId)
         ? selectedProperties.value.filter((id) => id !== propertyId)
         : [...selectedProperties.value, propertyId];
     };
 
-    const removeProperty = (propertyId) => {
+    const removeProperty = (propertyId: string) => {
       selectedProperties.value = selectedProperties.value.filter(
         (id) => id !== propertyId,
       );
     };
 
-    const getPropertyName = (propertyId) => {
+    const getPropertyName = (propertyId: string) => {
       const property = securityProperties.find((p) => p.id === propertyId);
       return property ? property.name : '';
     };
@@ -504,7 +535,7 @@ export default {
         const intervalTime = 500;
 
         for (let i = 0; i < totalSteps; i++) {
-          verificationStatus.value = verificationStates[i];
+          verificationStatus.value = verificationStates[i] ?? '';
           await new Promise((resolve) => setTimeout(resolve, intervalTime));
         }
 
@@ -517,25 +548,29 @@ export default {
         // 🔴 如果是临时记录，使用原始协议ID读取验证结果
         const protocolIdToFetch =
           tempRecord?.originalProtocolId || currentFileId.value;
+        if (!protocolIdToFetch) {
+          throw new Error('未找到协议ID');
+        }
 
         // 从后端读取当前协议的详细信息（包含验证结果）
         const protocolDetail =
           await fetchFormalGptProtocolDetail(protocolIdToFetch);
 
         if (protocolDetail && protocolDetail.verificationResults) {
-          verificationResults.value = protocolDetail.verificationResults;
+          const verification =
+            protocolDetail.verificationResults as VerificationResults;
+          verificationResults.value = verification;
 
           // 自动提取已验证的属性
-          if (protocolDetail.verificationResults.security_properties) {
-            selectedProperties.value =
-              protocolDetail.verificationResults.security_properties.map(
-                (p) => p.property,
-              );
+          if (verification.security_properties) {
+            selectedProperties.value = verification.security_properties.map(
+              (p) => p.property,
+            );
           }
 
           // 🔴 更新临时历史记录的验证结果
           if (tempRecord) {
-            tempRecord.verificationResults = protocolDetail.verificationResults;
+            tempRecord.verificationResults = verification;
             tempRecord.selectedProperties = selectedProperties.value;
           }
         } else {
@@ -543,7 +578,7 @@ export default {
         }
       } catch (error) {
         console.error('❌ 读取验证结果失败:', error);
-        message.error(`读取验证结果失败: ${error.message || '未知错误'}`);
+        message.error(`读取验证结果失败: ${getErrorMessage(error)}`);
       } finally {
         isVerifying.value = false;
       }
@@ -561,7 +596,7 @@ export default {
     });
 
     // 添加删除历史记录的方法
-    const deleteHistoryRecord = (recordId, event) => {
+    const deleteHistoryRecord = (recordId: string, event: Event) => {
       // 阻止事件冒泡，防止触发loadHistoryRecord
       event.stopPropagation();
 
