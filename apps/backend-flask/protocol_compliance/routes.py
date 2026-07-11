@@ -87,6 +87,7 @@ from .static_analysis_models import (
     _verdict_violation_details,
 )
 from .static_analysis_insights import StaticAnalysisDatabaseInsightsHandler
+from .static_analysis_insight_routes import register_static_analysis_insight_routes
 from .static_analysis_history_routes import register_static_analysis_history_routes
 from .static_analysis_job_routes import register_static_analysis_job_routes
 from .static_analysis_overview import (
@@ -756,7 +757,10 @@ upsert_static_analysis_violation_history = _static_analysis_history_route_handle
     "upsert_static_analysis_violation_history"
 ]
 
-
-@bp.route("/static-analysis/database-insights", methods=["POST"])
-def static_analysis_database_insights():
-    return _static_analysis_database_insights_handler()()
+_static_analysis_insight_route_handlers = register_static_analysis_insight_routes(
+    bp,
+    _static_analysis_database_insights_handler,
+)
+static_analysis_database_insights = _static_analysis_insight_route_handlers[
+    "static_analysis_database_insights"
+]
