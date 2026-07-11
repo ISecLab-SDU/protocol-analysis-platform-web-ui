@@ -77,7 +77,7 @@ from .static_analysis_models import (
 )
 from .static_analysis_insights import StaticAnalysisDatabaseInsightsHandler
 from .static_analysis_insight_routes import create_static_analysis_insight_handlers
-from .static_analysis_history_routes import register_static_analysis_history_routes
+from .static_analysis_history_routes import create_static_analysis_history_handlers
 from .static_analysis_job_routes import create_static_analysis_job_handlers
 from .static_analysis_overview import (
     _read_overview_from_analysis_result,
@@ -650,8 +650,7 @@ def _static_analysis_database_insights_handler() -> StaticAnalysisDatabaseInsigh
     )
 
 
-_static_analysis_history_route_handlers = register_static_analysis_history_routes(
-    bp,
+_static_analysis_history_handlers = create_static_analysis_history_handlers(
     lambda: _ensure_authenticated(),
     build_violation_history_item_id=_build_violation_history_item_id,
     dedupe_key=_dedupe_key,
@@ -701,18 +700,28 @@ _static_analysis_history_route_handlers = register_static_analysis_history_route
     to_int=_to_int,
     visible_violation_history_limit=VISIBLE_VIOLATION_HISTORY_LIMIT,
 )
-static_analysis_database_overview = _static_analysis_history_route_handlers[
-    "static_analysis_database_overview"
-]
-static_analysis_violation_history = _static_analysis_history_route_handlers[
-    "static_analysis_violation_history"
-]
-delete_static_analysis_violation_history = _static_analysis_history_route_handlers[
-    "delete_static_analysis_violation_history"
-]
-upsert_static_analysis_violation_history = _static_analysis_history_route_handlers[
-    "upsert_static_analysis_violation_history"
-]
+
+
+@bp.route("/static-analysis/database-overview", methods=["GET"])
+def static_analysis_database_overview():
+    return _static_analysis_history_handlers["static_analysis_database_overview"]()
+
+
+@bp.route("/static-analysis/violation-history", methods=["GET"])
+def static_analysis_violation_history():
+    return _static_analysis_history_handlers["static_analysis_violation_history"]()
+
+
+@bp.route("/static-analysis/violation-history/<item_id>", methods=["DELETE"])
+def delete_static_analysis_violation_history(item_id: str):
+    return _static_analysis_history_handlers[
+        "delete_static_analysis_violation_history"
+    ](item_id)
+
+
+@bp.route("/static-analysis/violation-history", methods=["POST"])
+def upsert_static_analysis_violation_history():
+    return _static_analysis_history_handlers["upsert_static_analysis_violation_history"]()
 
 _static_analysis_insight_handlers = create_static_analysis_insight_handlers(
     _static_analysis_database_insights_handler,

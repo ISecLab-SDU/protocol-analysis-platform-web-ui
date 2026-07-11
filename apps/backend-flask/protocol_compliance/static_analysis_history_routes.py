@@ -1,4 +1,4 @@
-"""Static-analysis overview and violation-history route registration."""
+"""Static-analysis overview and violation-history request handlers."""
 
 from __future__ import annotations
 
@@ -10,15 +10,14 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, cast
 
-from flask import Blueprint, make_response, request
+from flask import make_response, request
 
 from utils.responses import error_response, success_response
 
 LOGGER = logging.getLogger(__name__)
 
 
-def register_static_analysis_history_routes(
-    bp: Blueprint,
+def create_static_analysis_history_handlers(
     ensure_authenticated: Callable[[], tuple[object, object]],
     *,
     build_violation_history_item_id: Callable[..., str],
@@ -47,7 +46,6 @@ def register_static_analysis_history_routes(
     to_int: Callable[[object, int], int],
     visible_violation_history_limit: int,
 ) -> dict[str, Callable[..., object]]:
-    @bp.route("/static-analysis/database-overview", methods=["GET"])
     def static_analysis_database_overview():
         _, error = ensure_authenticated()
         if error:
@@ -208,7 +206,6 @@ def register_static_analysis_history_routes(
             payload["warnings"] = warnings
         return success_response(payload)
 
-    @bp.route("/static-analysis/violation-history", methods=["GET"])
     def static_analysis_violation_history():
         _, error = ensure_authenticated()
         if error:
@@ -352,7 +349,6 @@ def register_static_analysis_history_routes(
             payload["warnings"] = warnings
         return success_response(payload)
 
-    @bp.route("/static-analysis/violation-history/<item_id>", methods=["DELETE"])
     def delete_static_analysis_violation_history(item_id: str):
         _, error = ensure_authenticated()
         if error:
@@ -452,7 +448,6 @@ def register_static_analysis_history_routes(
             detail["warnings"] = warnings
         return make_response(error_response("历史记录不存在", detail), 404)
 
-    @bp.route("/static-analysis/violation-history", methods=["POST"])
     def upsert_static_analysis_violation_history():
         _, error = ensure_authenticated()
         if error:
