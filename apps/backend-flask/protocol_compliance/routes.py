@@ -78,7 +78,7 @@ from .static_analysis_models import (
 from .static_analysis_insights import StaticAnalysisDatabaseInsightsHandler
 from .static_analysis_insight_routes import create_static_analysis_insight_handlers
 from .static_analysis_history_routes import register_static_analysis_history_routes
-from .static_analysis_job_routes import register_static_analysis_job_routes
+from .static_analysis_job_routes import create_static_analysis_job_handlers
 from .static_analysis_overview import (
     _read_overview_from_analysis_result,
     _read_overview_from_database,
@@ -161,15 +161,24 @@ def snapshot_aflnet_result():
 def download_aflnet_result_artifact(artifact_id: str):
     return _aflnet_handlers["download_aflnet_result_artifact"](artifact_id)
 
-_static_analysis_job_route_handlers = register_static_analysis_job_routes(
-    bp,
+_static_analysis_job_handlers = create_static_analysis_job_handlers(
     _ensure_authenticated,
 )
-static_analysis_progress = _static_analysis_job_route_handlers["static_analysis_progress"]
-static_analysis_result = _static_analysis_job_route_handlers["static_analysis_result"]
-download_static_analysis_database = _static_analysis_job_route_handlers[
-    "download_static_analysis_database"
-]
+
+
+@bp.route("/static-analysis/<job_id>/progress", methods=["GET"])
+def static_analysis_progress(job_id: str):
+    return _static_analysis_job_handlers["static_analysis_progress"](job_id)
+
+
+@bp.route("/static-analysis/<job_id>/result", methods=["GET"])
+def static_analysis_result(job_id: str):
+    return _static_analysis_job_handlers["static_analysis_result"](job_id)
+
+
+@bp.route("/static-analysis/<job_id>/artifact/database", methods=["GET"])
+def download_static_analysis_database(job_id: str):
+    return _static_analysis_job_handlers["download_static_analysis_database"](job_id)
 
 _legacy_analysis_route_handlers = register_legacy_analysis_routes(
     bp,

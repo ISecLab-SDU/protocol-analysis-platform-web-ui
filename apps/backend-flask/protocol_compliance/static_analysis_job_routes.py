@@ -1,4 +1,4 @@
-"""Static-analysis job route registration."""
+"""Static-analysis job request handlers."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 from typing import Callable, Optional
 
-from flask import Blueprint, make_response, request, send_file
+from flask import make_response, request, send_file
 
 from utils.responses import error_response, success_response
 
@@ -16,11 +16,9 @@ from .analysis import get_static_analysis_job, get_static_analysis_result
 LOGGER = logging.getLogger(__name__)
 
 
-def register_static_analysis_job_routes(
-    bp: Blueprint,
+def create_static_analysis_job_handlers(
     ensure_authenticated: Callable[[], tuple[object, object]],
 ) -> dict[str, Callable[..., object]]:
-    @bp.route("/static-analysis/<job_id>/progress", methods=["GET"])
     def static_analysis_progress(job_id: str):
         _, error = ensure_authenticated()
         if error:
@@ -43,7 +41,6 @@ def register_static_analysis_job_routes(
             return make_response(error_response("未找到静态分析任务"), 404)
         return make_response(success_response(snapshot), 200)
 
-    @bp.route("/static-analysis/<job_id>/result", methods=["GET"])
     def static_analysis_result(job_id: str):
         _, error = ensure_authenticated()
         if error:
@@ -61,7 +58,6 @@ def register_static_analysis_job_routes(
             )
         return make_response(success_response(result), 200)
 
-    @bp.route("/static-analysis/<job_id>/artifact/database", methods=["GET"])
     def download_static_analysis_database(job_id: str):
         LOGGER.info("[下载数据库] 请求下载任务 %s 的数据库文件", job_id)
         _, error = ensure_authenticated()
