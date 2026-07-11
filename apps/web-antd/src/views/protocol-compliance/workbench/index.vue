@@ -1,4 +1,11 @@
 <script setup lang="ts">
+import type {
+  ProtocolDatabaseOverviewStats,
+  ProtocolDatabaseOverviewSummary,
+  ProtocolStaticAnalysisRuleResultStatus,
+  ProtocolViolationHistoryEntry,
+} from '#/api/protocol-compliance';
+
 import {
   computed,
   nextTick,
@@ -14,12 +21,6 @@ import { IconifyIcon } from '@vben/icons';
 
 import { Button, message, Popconfirm, Select, Tag } from 'ant-design-vue';
 
-import type {
-  ProtocolDatabaseOverviewStats,
-  ProtocolDatabaseOverviewSummary,
-  ProtocolStaticAnalysisRuleResultStatus,
-  ProtocolViolationHistoryEntry,
-} from '#/api/protocol-compliance';
 import {
   deleteProtocolViolationHistory,
   fetchProtocolDatabaseOverview,
@@ -30,8 +31,8 @@ import StageAssertGen from './components/StageAssertGen.vue';
 import StageCodeLocate from './components/StageCodeLocate.vue';
 import StageFuzz from './components/StageFuzz.vue';
 import StageResultVerification from './components/StageResultVerification.vue';
-import StageRuleExtract from './components/StageRuleExtract.vue';
 import StageRuleConfirm from './components/StageRuleConfirm.vue';
+import StageRuleExtract from './components/StageRuleExtract.vue';
 import StageSetup from './components/StageSetup.vue';
 import { STAGE_LIST } from './types';
 import { useWorkbench } from './useWorkbench';
@@ -94,7 +95,7 @@ const currentRuleText = computed(() => {
 });
 
 const currentRuleId = computed(() => {
-  const optionId = (selectedRule.value as { id?: string } | null)?.id;
+  const optionId = (selectedRule.value as null | { id?: string })?.id;
   const matched = currentRuleText.value.match(/\[(MQTT-[^\]]+)\]/i)?.[1];
   return matched || optionId || '未选择';
 });
@@ -831,7 +832,7 @@ async function handleLoadDemoConfig() {
             <IconifyIcon icon="mdi:shield-check-outline" />
           </div>
           <div class="brand-name">ProtocolGuard</div>
-          <div class="topbar-divider" />
+          <div class="topbar-divider"></div>
           <div class="topbar-section">{{ activeSideNavLabel }}</div>
         </div>
 
@@ -840,7 +841,7 @@ async function handleLoadDemoConfig() {
             class="runtime-status"
             :class="{ 'runtime-status--idle': !isRunning }"
           >
-            <span class="status-dot" />
+            <span class="status-dot"></span>
             <span>{{ isRunning ? '运行中' : '空闲' }}</span>
           </div>
           <div
@@ -992,19 +993,19 @@ async function handleLoadDemoConfig() {
               </div>
 
               <div class="overview-hero-art" aria-hidden="true">
-                <div class="hero-art-plane hero-art-plane--back" />
+                <div class="hero-art-plane hero-art-plane--back"></div>
                 <div class="hero-art-plane">
                   <div class="hero-art-document">
                     <IconifyIcon icon="mdi:shield-check" />
-                    <span />
-                    <span />
-                    <span />
+                    <span></span>
+                    <span></span>
+                    <span></span>
                   </div>
-                  <div class="hero-art-magnifier" />
+                  <div class="hero-art-magnifier"></div>
                 </div>
-                <i class="hero-art-cube hero-art-cube--one" />
-                <i class="hero-art-cube hero-art-cube--two" />
-                <i class="hero-art-cube hero-art-cube--three" />
+                <i class="hero-art-cube hero-art-cube--one"></i>
+                <i class="hero-art-cube hero-art-cube--two"></i>
+                <i class="hero-art-cube hero-art-cube--three"></i>
               </div>
             </header>
 
@@ -1070,7 +1071,7 @@ async function handleLoadDemoConfig() {
                         <strong>{{ formatNumber(item.ruleResults) }} 条</strong>
                       </div>
                       <div class="score-track">
-                        <i class="score-track__ok" />
+                        <i class="score-track__ok"></i>
                       </div>
                     </div>
                     <div class="protocol-meta">
@@ -1132,7 +1133,7 @@ async function handleLoadDemoConfig() {
                               maxImplementationViolation,
                             ),
                           }"
-                        />
+                        ></em>
                       </i>
                     </span>
                     <span>{{ formatNumber(item.violationLocations) }}</span>
@@ -1203,8 +1204,8 @@ async function handleLoadDemoConfig() {
               :disabled="isRunning"
               :protocol-type="projectConfig.protocolType"
               :rules-file="projectConfig.rules"
-              @applyRules="handleApplyExtractedRules"
-              @goWorkbench="handleRuleExtractGoWorkbench"
+              @apply-rules="handleApplyExtractedRules"
+              @go-workbench="handleRuleExtractGoWorkbench"
             />
           </section>
 
@@ -1226,9 +1227,9 @@ async function handleLoadDemoConfig() {
                 @click="switchRule"
               >
                 切换规则
-                <template #icon
-                  ><IconifyIcon icon="mdi:chevron-down"
-                /></template>
+                <template #icon>
+                  <IconifyIcon icon="mdi:chevron-down" />
+                </template>
               </Button>
             </header>
 
@@ -1289,7 +1290,7 @@ async function handleLoadDemoConfig() {
                 v-if="shouldShowBannerProgress"
                 class="workbench-banner-fill"
                 aria-hidden="true"
-              />
+              ></span>
               <IconifyIcon
                 class="workbench-banner-icon"
                 icon="mdi:information-outline"
@@ -1645,7 +1646,7 @@ async function handleLoadDemoConfig() {
             </section>
           </section>
 
-          <section v-else class="overview-blank" />
+          <section v-else class="overview-blank"></section>
         </main>
       </div>
     </div>

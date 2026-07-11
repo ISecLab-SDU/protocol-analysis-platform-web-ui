@@ -4,22 +4,22 @@
 
 // 基础数据包接口
 export interface FuzzPacket {
-  id: number | 'crash_event';
+  id: 'crash_event' | number;
   version: string;
   type: string;
   oids: string[];
   hex: string;
-  result: 'success' | 'timeout' | 'failed' | 'crash' | 'unknown';
+  result: 'crash' | 'failed' | 'success' | 'timeout' | 'unknown';
   responseSize?: number;
   timestamp?: string;
   failed?: boolean;
   failedReason?: string;
   crashEvent?: {
-    type: string;
+    crashLogPath: string;
+    crashPacket: string;
     message: string;
     timestamp: string;
-    crashPacket: string;
-    crashLogPath: string;
+    type: string;
   };
 }
 
@@ -27,7 +27,7 @@ export interface FuzzPacket {
 export interface HistoryResult {
   id: string;
   timestamp: string;
-  protocol: 'SNMP' | 'MQTT';
+  protocol: 'MQTT' | 'SNMP';
   fuzzEngine: string;
   targetHost: string;
   targetPort: number;
@@ -47,9 +47,9 @@ export interface HistoryResult {
   };
   messageTypeStats?: {
     get: number;
-    set: number;
-    getnext: number;
     getbulk: number;
+    getnext: number;
+    set: number;
   };
 
   // SOL协议专用统计
@@ -63,26 +63,26 @@ export interface HistoryResult {
 
   // 协议特定的扩展数据
   protocolSpecificData?: {
+    brokerRequestCount?: number;
+    // MQTT特定数据
+    clientRequestCount?: number;
+    communityStrings?: string[];
+
+    diffNumber?: number;
+    duplicateConnectDiff?: number;
+    duplicateDiffNumber?: number;
+    fuzzingEndTime?: string;
+
+    fuzzingStartTime?: string;
+    maxDepth?: number;
     // SNMP特定数据
     oidCoverage?: number;
-    communityStrings?: string[];
-    targetDeviceInfo?: string;
-
     // SOL特定数据
     pathCoverage?: number;
     stateTransitions?: number;
-    maxDepth?: number;
+    targetDeviceInfo?: string;
     uniqueHangs?: number;
-
-    // MQTT特定数据
-    clientRequestCount?: number;
-    brokerRequestCount?: number;
-    diffNumber?: number;
-    duplicateDiffNumber?: number;
     validConnectNumber?: number;
-    duplicateConnectDiff?: number;
-    fuzzingStartTime?: string;
-    fuzzingEndTime?: string;
   };
 }
 
@@ -157,14 +157,14 @@ export interface MQTTMessageStats {
 }
 
 export interface MQTTDifferentialReport {
-  protocol_version: number | null;
-  type: string | null;
-  field: string | null;
+  protocol_version: null | number;
+  type: null | string;
+  field: null | string;
   diff_range_broker: string[];
-  msg_type: string | null;
-  direction: string | null;
-  file_path: string | null;
-  capture_time: string | null;
+  msg_type: null | string;
+  direction: null | string;
+  file_path: null | string;
+  capture_time: null | string;
 }
 
 export interface MQTTBrokerIssues {
@@ -179,7 +179,7 @@ export interface MQTTBrokerIssues {
 // 日志UI数据接口
 export interface LogUIData {
   timestamp: string;
-  type: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR' | 'HEADER' | 'STATS';
+  type: 'ERROR' | 'HEADER' | 'INFO' | 'STATS' | 'SUCCESS' | 'WARNING';
   content: string;
   isHeader?: boolean;
   rawData?: any;
@@ -188,21 +188,21 @@ export interface LogUIData {
 }
 
 // 协议类型
-export type ProtocolType = 'SNMP' | 'MQTT';
+export type ProtocolType = 'MQTT' | 'SNMP';
 
 // Fuzz引擎类型
-export type FuzzEngineType = 'SNMP_Fuzz' | 'AFLNET' | 'MBFuzzer';
+export type FuzzEngineType = 'AFLNET' | 'MBFuzzer' | 'SNMP_Fuzz';
 
 // 协议实现类型
 export type ProtocolImplementationType =
-  | '系统固件' // SNMP_Fuzz 默认
-  | 'SOL协议' // MQTT + AFLNET 选项 (SOL协议实现)
-  | 'HiveMQ' // MQTT + MBFuzzer 选项
-  | 'VerneMQ' // MQTT + MBFuzzer 选项
   | 'EMQX' // MQTT + MBFuzzer 选项
   | 'FlashMQ' // MQTT + MBFuzzer 选项
+  | 'HiveMQ' // MQTT + MBFuzzer 选项
+  | 'Mosquitto' // MQTT + MBFuzzer 选项
   | 'NanoMQ' // MQTT + MBFuzzer 选项
-  | 'Mosquitto'; // MQTT + MBFuzzer 选项
+  | 'SOL协议' // MQTT + AFLNET 选项 (SOL协议实现)
+  | 'VerneMQ' // MQTT + MBFuzzer 选项
+  | '系统固件'; // SNMP_Fuzz 默认
 
 // 协议实现配置接口
 export interface ProtocolImplementationConfig {

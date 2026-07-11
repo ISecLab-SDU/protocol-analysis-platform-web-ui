@@ -48,7 +48,7 @@ function getTimestamp(text: string) {
 
 function getPlainLogText(text: string) {
   return text
-    .replace(/^[^\[]*(?=\[\d{2}:\d{2}:\d{2}\])/, '')
+    .replace(/^[^[]*(?=\[\d{2}:\d{2}:\d{2}\])/, '')
     .replace(/\[\d{2}:\d{2}:\d{2}\]\s*/, '')
     .trim();
 }

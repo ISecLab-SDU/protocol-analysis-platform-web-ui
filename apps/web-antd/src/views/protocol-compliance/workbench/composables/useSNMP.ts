@@ -3,8 +3,11 @@
  * 包含SNMP_Fuzz相关的数据处理和UI逻辑
  */
 
-import { ref, nextTick, type Ref } from 'vue';
-import type { FuzzPacket, SNMPStats, SNMPMessageStats } from './types';
+import type { Ref } from 'vue';
+
+import type { FuzzPacket, SNMPMessageStats, SNMPStats } from './types';
+
+import { nextTick, ref } from 'vue';
 
 export function useSNMP() {
   // SNMP统计数据
@@ -91,7 +94,7 @@ export function useSNMP() {
       );
       if (packetMatch) {
         if (currentPacket) parsedData.push(currentPacket);
-        const packetNumber = parseInt(packetMatch[1]);
+        const packetNumber = Number.parseInt(packetMatch[1]);
 
         // 调试信息：每100个包输出一次
         if (packetNumber % 100 === 0 || packetNumber <= 5) {
@@ -115,7 +118,7 @@ export function useSNMP() {
 
       const failedMatch = line.match(/^\[(\d+)\]\s+生成失败:/);
       if (failedMatch) {
-        const failedId = parseInt(failedMatch[1]);
+        const failedId = Number.parseInt(failedMatch[1]);
         localFailedCount++;
         if (currentPacket && currentPacket.id === failedId) {
           currentPacket.result = 'failed';
@@ -146,7 +149,7 @@ export function useSNMP() {
         if (oidMatch)
           currentPacket.oids = oidMatch[1]
             .split(',')
-            .map((oid) => oid.trim().replace(/'/g, ''));
+            .map((oid) => oid.trim().replaceAll("'", ''));
         continue;
       }
 
@@ -158,14 +161,15 @@ export function useSNMP() {
 
       if (line.includes('[发送尝试]') && currentPacket) {
         const sizeMatch = line.match(/长度=(\d+)\s*字节/);
-        if (sizeMatch) (currentPacket as any).sendSize = parseInt(sizeMatch[1]);
+        if (sizeMatch)
+          (currentPacket as any).sendSize = Number.parseInt(sizeMatch[1]);
         continue;
       }
 
       if (line.includes('[接收成功]') && currentPacket) {
         const sizeMatch = line.match(/(\d+)\s*字节/);
         if (sizeMatch) {
-          currentPacket.responseSize = parseInt(sizeMatch[1]);
+          currentPacket.responseSize = Number.parseInt(sizeMatch[1]);
           currentPacket.result = 'success';
         }
         continue;
@@ -221,9 +225,8 @@ export function useSNMP() {
             currentPacket.result = 'crash';
             (currentPacket as any).crashInfo = line;
           }
-        } else if (line.includes('检测到崩溃')) {
-          if (currentPacket) (currentPacket as any).monitorInfo = line;
-        }
+        } else if (line.includes('检测到崩溃') && currentPacket)
+          (currentPacket as any).monitorInfo = line;
         continue;
       }
     }
@@ -240,8 +243,8 @@ export function useSNMP() {
       const objMatch = statsLine.match(/统计:\s*(\{[^}]+\})\s*,\s*(\{[^}]+\})/);
       if (objMatch) {
         try {
-          const versionJson = objMatch[1].replace(/'/g, '"');
-          const typeJson = objMatch[2].replace(/'/g, '"');
+          const versionJson = objMatch[1].replaceAll("'", '"');
+          const typeJson = objMatch[2].replaceAll("'", '"');
           const parsedVersion = JSON.parse(versionJson);
           const parsedType = JSON.parse(typeJson);
           protocolStats.value = {
@@ -286,15 +289,46 @@ export function useSNMP() {
   ) {
     try {
       // Update protocol stats
-      if (packet.version === 'v1') protocolStats.value.v1++;
-      else if (packet.version === 'v2c') protocolStats.value.v2c++;
-      else if (packet.version === 'v3') protocolStats.value.v3++;
+      switch (packet.version) {
+        case 'v1': {
+          protocolStats.value.v1++;
+          break;
+        }
+        case 'v2c': {
+          protocolStats.value.v2c++;
+          break;
+        }
+        case 'v3': {
+          {
+            protocolStats.value.v3++;
+            // No default
+          }
+          break;
+        }
+      }
 
       // Update message type stats
-      if (packet.type === 'get') messageTypeStats.value.get++;
-      else if (packet.type === 'set') messageTypeStats.value.set++;
-      else if (packet.type === 'getnext') messageTypeStats.value.getnext++;
-      else if (packet.type === 'getbulk') messageTypeStats.value.getbulk++;
+      switch (packet.type) {
+        case 'get': {
+          messageTypeStats.value.get++;
+          break;
+        }
+        case 'getbulk': {
+          {
+            messageTypeStats.value.getbulk++;
+            // No default
+          }
+          break;
+        }
+        case 'getnext': {
+          messageTypeStats.value.getnext++;
+          break;
+        }
+        case 'set': {
+          messageTypeStats.value.set++;
+          break;
+        }
+      }
 
       // Update result counters through callback if provided
       if (updateCounters) {
@@ -372,7 +406,7 @@ export function useSNMP() {
 
         // Final check before DOM manipulation
         if (logContainer && logContainer.appendChild) {
-          logContainer.appendChild(div);
+          logContainer.append(div);
 
           // Safely update scroll position
           if (logContainer.scrollTop !== undefined) {
@@ -383,7 +417,7 @@ export function useSNMP() {
           if (logContainer.children && logContainer.children.length > 200) {
             const firstChild = logContainer.firstChild;
             if (firstChild && logContainer.removeChild) {
-              logContainer.removeChild(firstChild);
+              firstChild.remove();
             }
           }
         }

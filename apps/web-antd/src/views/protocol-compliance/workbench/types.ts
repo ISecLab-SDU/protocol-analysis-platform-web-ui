@@ -1,14 +1,14 @@
 import type { ProtocolExtractRuleItem } from '#/api/protocol-compliance';
 
 export type WorkbenchStage =
-  | 'setup'
-  | 'rule_confirm'
-  | 'code_locate'
   | 'assert_gen'
+  | 'code_locate'
+  | 'done'
   | 'fuzz'
-  | 'done';
+  | 'rule_confirm'
+  | 'setup';
 
-export type StageStatus = 'idle' | 'running' | 'done' | 'error' | 'skipped';
+export type StageStatus = 'done' | 'error' | 'idle' | 'running' | 'skipped';
 
 export type ProtocolKind = 'MQTT' | 'SNMP';
 
@@ -41,13 +41,13 @@ export interface CodeLocateEvidence {
 }
 
 export type MQTTImplementation =
-  | 'SOL'
-  | 'HiveMQ'
-  | 'VerneMQ'
   | 'EMQX'
   | 'FlashMQ'
+  | 'HiveMQ'
+  | 'Mosquitto'
   | 'NanoMQ'
-  | 'Mosquitto';
+  | 'SOL'
+  | 'VerneMQ';
 
 export type SNMPImplementation = '系统固件';
 
@@ -72,8 +72,8 @@ export interface RuleOption extends ProtocolExtractRuleItem {
 }
 
 export const STAGE_LIST: Array<{
-  key: WorkbenchStage;
   index: number;
+  key: WorkbenchStage;
   title: string;
 }> = [
   { key: 'rule_confirm', index: 1, title: '规则确认' },
@@ -130,10 +130,10 @@ target_port=${targetPort}
 
 export const BUILTIN_RULESET_INDEX: Array<{
   key: string;
+  path: string;
   protocol: ProtocolKind;
   protocolLabel: string;
   version: string;
-  path: string;
 }> = [
   {
     key: 'MQTTv3_1_1',

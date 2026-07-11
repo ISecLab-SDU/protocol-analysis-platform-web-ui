@@ -1,5 +1,9 @@
 <script setup lang="ts">
+import type { ProjectConfig } from '../types';
+
 import { computed } from 'vue';
+
+import { IconifyIcon } from '@vben/icons';
 
 import {
   Button,
@@ -11,9 +15,7 @@ import {
   Textarea,
   Upload,
 } from 'ant-design-vue';
-import { IconifyIcon } from '@vben/icons';
 
-import type { ProjectConfig } from '../types';
 import {
   buildDefaultFuzzScript,
   DEFAULT_TARGET,

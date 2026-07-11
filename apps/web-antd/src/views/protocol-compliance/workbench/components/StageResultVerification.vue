@@ -1,17 +1,19 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-
-import { Button, Card, Empty, message, Tag } from 'ant-design-vue';
-import { IconifyIcon } from '@vben/icons';
+import type { CodeLocateEvidence, CodeLocateFunctionSlice } from '../types';
 
 import type {
   ProtocolAssertGenerationResult,
   ProtocolExtractRuleItem,
   ProtocolStaticAnalysisResult,
 } from '#/api/protocol-compliance';
-import { downloadAflNetPoc } from '#/api/protocol-compliance';
 
-import type { CodeLocateEvidence, CodeLocateFunctionSlice } from '../types';
+import { computed, ref } from 'vue';
+
+import { IconifyIcon } from '@vben/icons';
+
+import { Button, Card, Empty, message, Tag } from 'ant-design-vue';
+
+import { downloadAflNetPoc } from '#/api/protocol-compliance';
 
 interface FuzzLogEntry {
   id: number;
@@ -21,7 +23,7 @@ interface FuzzLogEntry {
 
 interface Props {
   assertDiffContent: string;
-  assertResult: ProtocolAssertGenerationResult | null;
+  assertResult: null | ProtocolAssertGenerationResult;
   evidence: CodeLocateEvidence | null;
   implementation: string;
   logs: FuzzLogEntry[];
@@ -124,9 +126,7 @@ const crashLogPath = computed(() => {
     const cnMatch = text.match(/崩溃队列信息导出[:：]\s*(.+)$/);
     if (cnMatch?.[1]) return cnMatch[1].trim();
 
-    const aflMatch = text.match(
-      /(?:crash(?:es)?|queue|poc)[^:：]*[:：]\s*(\/\S+)/i,
-    );
+    const aflMatch = text.match(/(?:crash|queue|poc)[^:：]*[:：]\s*(\/\S+)/i);
     if (aflMatch?.[1]) return aflMatch[1].trim();
   }
   return '';
@@ -158,16 +158,16 @@ async function handleDownloadPoc() {
     const link = document.createElement('a');
     const timestamp = new Date()
       .toISOString()
-      .replace(/[:.]/g, '-')
+      .replaceAll(/[:.]/g, '-')
       .slice(0, 19);
     link.href = url;
     link.download = `${props.implementation || 'aflnet'}-poc-${timestamp}.zip`;
-    document.body.appendChild(link);
+    document.body.append(link);
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
-  } catch (err: any) {
-    message.error(err?.message || 'POC 下载失败，请检查 AFLNET 输出目录');
+  } catch (error: any) {
+    message.error(error?.message || 'POC 下载失败，请检查 AFLNET 输出目录');
   } finally {
     isPocDownloading.value = false;
   }

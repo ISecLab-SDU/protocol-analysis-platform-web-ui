@@ -1,3 +1,7 @@
+<script lang="ts" setup>
+// 占位符组件，用于尚未实现的功能模块
+</script>
+
 <template>
   <div class="menu-placeholder">
     <div class="placeholder-content">
@@ -7,10 +11,6 @@
     </div>
   </div>
 </template>
-
-<script lang="ts" setup>
-// 占位符组件，用于尚未实现的功能模块
-</script>
 
 <style scoped>
 .menu-placeholder {

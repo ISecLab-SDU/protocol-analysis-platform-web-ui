@@ -2,14 +2,14 @@
  * 协议数据管理器 - 隔离不同协议的数据和状态
  */
 
-import { ref, reactive, computed } from 'vue';
+import { computed, reactive, ref } from 'vue';
 
-export type ProtocolType = 'SNMP' | 'MQTT';
+export type ProtocolType = 'MQTT' | 'SNMP';
 
 export interface LogEntry {
   id: string;
   timestamp: string;
-  type: 'INFO' | 'ERROR' | 'WARNING' | 'SUCCESS';
+  type: 'ERROR' | 'INFO' | 'SUCCESS' | 'WARNING';
   content: string;
   protocol: ProtocolType;
   raw?: any; // 原始数据
@@ -60,7 +60,7 @@ export function useProtocolDataManager() {
 
   // 生成唯一ID
   function generateLogId(protocol: ProtocolType): string {
-    return `${protocol}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return `${protocol}-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
   }
 
   // 添加日志（协议隔离）
@@ -78,8 +78,8 @@ export function useProtocolDataManager() {
     state.logs.push(log);
 
     // 限制日志数量，避免内存泄漏（保留最新的10000条）
-    if (state.logs.length > 10000) {
-      state.logs.splice(0, state.logs.length - 10000);
+    if (state.logs.length > 10_000) {
+      state.logs.splice(0, state.logs.length - 10_000);
     }
 
     return log;
@@ -100,8 +100,8 @@ export function useProtocolDataManager() {
     state.logs.push(...logs);
 
     // 限制日志数量
-    if (state.logs.length > 10000) {
-      state.logs.splice(0, state.logs.length - 10000);
+    if (state.logs.length > 10_000) {
+      state.logs.splice(0, state.logs.length - 10_000);
     }
 
     return logs;
@@ -178,23 +178,21 @@ export function useProtocolDataManager() {
   function exportLogs(protocol: ProtocolType, format: 'json' | 'txt' = 'txt') {
     const logs = protocolStates[protocol].logs;
 
-    if (format === 'json') {
-      return JSON.stringify(logs, null, 2);
-    } else {
-      return logs
-        .map((log) => `[${log.timestamp}] [${log.type}] ${log.content}`)
-        .join('\n');
-    }
+    return format === 'json'
+      ? JSON.stringify(logs, null, 2)
+      : logs
+          .map((log) => `[${log.timestamp}] [${log.type}] ${log.content}`)
+          .join('\n');
   }
 
   // 实时日志流（用于MQTT等需要实时更新的协议）
   const realtimeStreams = new Map<
     ProtocolType,
     {
-      buffer: LogEntry[];
-      timer: number | null;
       batchSize: number;
+      buffer: LogEntry[];
       interval: number;
+      timer: null | number;
     }
   >();
 
@@ -222,8 +220,8 @@ export function useProtocolDataManager() {
         state.logs.push(...batch);
 
         // 限制日志数量
-        if (state.logs.length > 10000) {
-          state.logs.splice(0, state.logs.length - 10000);
+        if (state.logs.length > 10_000) {
+          state.logs.splice(0, state.logs.length - 10_000);
         }
       }
     }, stream.interval);

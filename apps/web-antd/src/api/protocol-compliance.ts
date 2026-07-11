@@ -96,7 +96,7 @@ export interface ProtocolStaticAnalysisCheck {
     reason: string;
     result?: unknown;
     rowId: number;
-    ruleDesc?: string | null;
+    ruleDesc?: null | string;
   }>;
   noViolationCount: number;
   shouldSkipDownstream: boolean;
@@ -107,11 +107,11 @@ export interface ProtocolStaticAnalysisCheck {
 export interface ProtocolStaticAnalysisResult {
   analysisId: string;
   artifacts?: {
-    config?: string | null;
-    database?: string | null;
-    logs?: string | null;
-    output?: string | null;
-    workspace?: string | null;
+    config?: null | string;
+    database?: null | string;
+    logs?: null | string;
+    output?: null | string;
+    workspace?: null | string;
     workspaceSnapshots?: Array<{ path?: string; stage?: string }>;
   };
   durationMs: number;
@@ -142,10 +142,10 @@ export interface RunProtocolStaticAnalysisPayload {
 }
 
 export type ProtocolStaticAnalysisJobStatus =
-  | 'queued'
-  | 'running'
   | 'completed'
-  | 'failed';
+  | 'failed'
+  | 'queued'
+  | 'running';
 
 export interface ProtocolStaticAnalysisProgressEvent {
   id?: number;
@@ -156,45 +156,45 @@ export interface ProtocolStaticAnalysisProgressEvent {
 
 export interface ProtocolStaticAnalysisJob {
   createdAt: string;
-  details?: Record<string, unknown> | null;
-  error?: string | null;
+  details?: null | Record<string, unknown>;
+  error?: null | string;
   events: ProtocolStaticAnalysisProgressEvent[];
   jobId: string;
   message: string;
-  result?: ProtocolStaticAnalysisResult | null;
+  result?: null | ProtocolStaticAnalysisResult;
   stage: string;
   status: ProtocolStaticAnalysisJobStatus;
   updatedAt: string;
 }
 
 export interface ProtocolStaticAnalysisHistoryEntry {
-  analysisId?: string | null;
-  completedAt?: string | null;
-  configPath?: string | null;
-  codeFileName?: string | null;
+  analysisId?: null | string;
+  completedAt?: null | string;
+  configPath?: null | string;
+  codeFileName?: null | string;
   createdAt: string;
-  databasePath?: string | null;
-  details?: Record<string, unknown> | null;
-  durationMs?: number | null;
-  error?: string | null;
+  databasePath?: null | string;
+  details?: null | Record<string, unknown>;
+  durationMs?: null | number;
+  error?: null | string;
   jobId: string;
-  logsPath?: string | null;
+  logsPath?: null | string;
   message: string;
-  model?: string | null;
-  modelVersion?: string | null;
-  overallStatus?: ProtocolStaticAnalysisComplianceStatus | null;
-  outputPath?: string | null;
-  protocolName?: string | null;
-  protocolVersion?: string | null;
-  ruleSet?: string | null;
-  rulesFileName?: string | null;
+  model?: null | string;
+  modelVersion?: null | string;
+  overallStatus?: null | ProtocolStaticAnalysisComplianceStatus;
+  outputPath?: null | string;
+  protocolName?: null | string;
+  protocolVersion?: null | string;
+  ruleSet?: null | string;
+  rulesFileName?: null | string;
   stage: string;
   status: ProtocolStaticAnalysisJobStatus;
-  submittedAt?: string | null;
-  summary?: ProtocolStaticAnalysisSummary | null;
+  submittedAt?: null | string;
+  summary?: null | ProtocolStaticAnalysisSummary;
   updatedAt: string;
-  workspacePath?: string | null;
-  workspaceSnapshots?: { path?: string; stage?: string }[] | null;
+  workspacePath?: null | string;
+  workspaceSnapshots?: null | { path?: string; stage?: string }[];
 }
 
 export interface FetchProtocolStaticAnalysisHistoryParams {
@@ -208,21 +208,21 @@ export interface FetchProtocolStaticAnalysisHistoryResponse {
 }
 
 export type ProtocolStaticAnalysisRuleResultStatus =
-  | 'violation_found'
   | 'no_violation'
-  | 'unknown';
+  | 'unknown'
+  | 'violation_found';
 
 export interface ProtocolStaticAnalysisRuleViolationDetail {
-  codeLines?: number[] | null;
-  filename?: string | null;
-  functionName?: string | null;
+  codeLines?: null | number[];
+  filename?: null | string;
+  functionName?: null | string;
 }
 
 export interface ProtocolStaticAnalysisDatabaseRuleInsight {
-  callGraph?: string | null;
-  codeSnippet?: string | null;
+  callGraph?: null | string;
+  codeSnippet?: null | string;
   llmRaw?: unknown;
-  reason?: string | null;
+  reason?: null | string;
   result: ProtocolStaticAnalysisRuleResultStatus;
   resultLabel: string;
   ruleDesc: string;
@@ -230,11 +230,11 @@ export interface ProtocolStaticAnalysisDatabaseRuleInsight {
 }
 
 export interface ProtocolStaticAnalysisDatabaseInsights {
-  databasePath?: string | null;
+  databasePath?: null | string;
   extractedAt: string;
   findings: ProtocolStaticAnalysisDatabaseRuleInsight[];
   warnings?: string[];
-  workspacePath?: string | null;
+  workspacePath?: null | string;
 }
 
 export interface FetchProtocolStaticAnalysisDatabaseInsightsPayload {
@@ -246,24 +246,24 @@ export interface FetchProtocolStaticAnalysisDatabaseInsightsPayload {
 export type ProtocolViolationHistorySourceType = 'builtin' | 'job';
 
 export interface ProtocolViolationHistoryEntry {
-  callGraph?: string | null;
-  codeSnippet?: string | null;
-  createdAt?: string | null;
+  callGraph?: null | string;
+  codeSnippet?: null | string;
+  createdAt?: null | string;
   databaseName: string;
-  databasePath?: string | null;
-  extractedAt?: string | null;
+  databasePath?: null | string;
+  extractedAt?: null | string;
   id: string;
   implementationName: string;
-  jobId?: string | null;
+  jobId?: null | string;
   llmRaw?: unknown;
   protocolName: string;
-  reason?: string | null;
+  reason?: null | string;
   result: ProtocolStaticAnalysisRuleResultStatus;
   resultLabel: string;
   ruleDesc: string;
   sourceType: ProtocolViolationHistorySourceType;
-  updatedAt?: string | null;
-  violations?: ProtocolStaticAnalysisRuleViolationDetail[] | null;
+  updatedAt?: null | string;
+  violations?: null | ProtocolStaticAnalysisRuleViolationDetail[];
 }
 
 export interface FetchProtocolViolationHistoryParams {
@@ -290,14 +290,14 @@ export interface DeleteProtocolViolationHistoryResponse {
 }
 
 export interface DeleteProtocolViolationHistoryPayload {
-  callGraph?: string | null;
-  codeSnippet?: string | null;
+  callGraph?: null | string;
+  codeSnippet?: null | string;
   databaseName?: string;
-  databasePath?: string | null;
-  reason?: string | null;
+  databasePath?: null | string;
+  reason?: null | string;
   ruleDesc?: string;
-  violations?: ProtocolStaticAnalysisRuleViolationDetail[] | null;
-  workspacePath?: string | null;
+  violations?: null | ProtocolStaticAnalysisRuleViolationDetail[];
+  workspacePath?: null | string;
 }
 
 export interface UpsertProtocolViolationHistoryPayload {
@@ -654,10 +654,10 @@ export function deleteProtocolStaticAnalysisJob(jobId: string) {
 
 // Assertion Generation Types and APIs
 export type ProtocolAssertGenerationJobStatus =
-  | 'queued'
-  | 'running'
   | 'completed'
-  | 'failed';
+  | 'failed'
+  | 'queued'
+  | 'running';
 
 export interface ProtocolAssertGenerationProgressEvent {
   message: string;
@@ -678,7 +678,7 @@ export interface ProtocolAssertGenerationArtifactInfo {
   logs?: string;
   output?: string;
   workspace?: string;
-  workspaceSnapshots?: Array<{ stage?: string; path?: string }>;
+  workspaceSnapshots?: Array<{ path?: string; stage?: string }>;
   zipPath?: string;
 }
 
@@ -691,8 +691,8 @@ export interface ProtocolAssertGenerationDockerInfo {
 
 export interface ProtocolInstrumentationDiffOutput {
   available: boolean;
-  content?: string | null;
-  path?: string | null;
+  content?: null | string;
+  path?: null | string;
   size?: number;
   truncated?: boolean;
 }
@@ -700,7 +700,7 @@ export interface ProtocolInstrumentationDiffOutput {
 export interface ProtocolInstrumentationArtifacts {
   diffFiles?: string[];
   diffOutput?: ProtocolInstrumentationDiffOutput;
-  instrumentedCodePath?: string | null;
+  instrumentedCodePath?: null | string;
 }
 
 export interface ProtocolInstrumentationDockerInfo {
@@ -820,13 +820,13 @@ export async function downloadProtocolAssertGenerationResult(jobId: string) {
 
 export interface ProtocolAssertionHistoryEntry {
   jobId: string;
-  codeFilename?: string | null;
-  databaseFilename?: string | null;
-  diffPath?: string | null;
-  diffFilename?: string | null;
+  codeFilename?: null | string;
+  databaseFilename?: null | string;
+  diffPath?: null | string;
+  diffFilename?: null | string;
   createdAt: string;
   updatedAt: string;
-  source?: string | null;
+  source?: null | string;
 }
 
 export interface ProtocolAssertionHistoryResponse {
@@ -866,10 +866,10 @@ export async function downloadProtocolAssertionDiff(jobId: string) {
 
 // Diff Parsing Types and APIs
 export type ProtocolDiffParsingJobStatus =
-  | 'queued'
-  | 'running'
   | 'completed'
-  | 'failed';
+  | 'failed'
+  | 'queued'
+  | 'running';
 
 export interface DiffHunk {
   newLines: number;
@@ -896,9 +896,9 @@ export interface ProtocolDiffParsingResult {
   generatedAt: string;
   jobId: string;
   summary: {
+    deletions: number;
     filesChanged: number;
     insertions: number;
-    deletions: number;
   };
 }
 
@@ -949,7 +949,7 @@ export function fetchProtocolDiffParsingResult(
 }
 
 // 停止进程
-export function stopProcess(data: { pid: string | number; protocol: string }) {
+export function stopProcess(data: { pid: number | string; protocol: string }) {
   return requestClient.post('/protocol-compliance/stop-process', data);
 }
 
@@ -1014,7 +1014,7 @@ export interface RunProtocolExtractPayload {
 
 export interface ProtocolExtractRuleItem {
   description?: string;
-  group?: string | null;
+  group?: null | string;
   req_fields: string[];
   req_type: string | string[];
   res_fields: string[];

@@ -3,7 +3,7 @@
  * italic, underline, etc.) and ignores cursor/erase sequences.
  */
 
-const ESC = String.fromCharCode(0x1b);
+const ESC = String.fromCharCode(0x1B);
 
 const ANSI_STANDARD_COLORS = [
   '#000000',
@@ -294,7 +294,7 @@ export function ansiToHtml(raw: string): string {
   return result;
 }
 
-export function formatBytes(size?: number | null): string {
+export function formatBytes(size?: null | number): string {
   if (size == null || !Number.isFinite(size)) return '-';
   if (size < 1024) return `${size} B`;
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;

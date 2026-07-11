@@ -1,13 +1,12 @@
 <script lang="ts">
-import { computed, ref, watch, onMounted } from 'vue';
-
 import type { HistoryRecord, ProtocolIRItem } from '#/api/formal-gpt';
+
+import { computed, onMounted, ref, watch } from 'vue';
 
 import {
   fetchFormalGptHistory,
-  uploadProtocolFile,
   fetchFormalGptProtocolDetail,
-  transformIRDataForSequence,
+  uploadProtocolFile,
 } from '#/api/formal-gpt';
 
 // 调整步骤：合并安全属性和ProVerif步骤
@@ -61,7 +60,7 @@ const securityProperties = [
 const generateRandomFileSize = () => {
   // 10KB = 10 * 1024 = 10240 bytes
   // 2MB = 2 * 1024 * 1024 = 2097152 bytes
-  return Math.floor(Math.random() * (2097152 - 10240 + 1)) + 10240;
+  return Math.floor(Math.random() * (2_097_152 - 10_240 + 1)) + 10_240;
 };
 
 // 生成有时间间隔的历史记录时间
@@ -95,7 +94,7 @@ export default {
     const uploadHistory = ref<HistoryRecord[]>([]);
     const isVerifying = ref(false);
     const isLoadingHistory = ref(false);
-    const selectedStep = ref<ProtocolIRItem | null>(null);
+    const selectedStep = ref<null | ProtocolIRItem>(null);
     // 添加解析和验证的状态文本
     const parsingStatus = ref('准备解析文档...');
     const verificationStatus = ref('准备验证安全属性...');
@@ -121,7 +120,7 @@ export default {
           positions.push({
             id: step.id,
             top: centerY,
-            index: index,
+            index,
           });
 
           currentY += messageSpacing + verticalGap;
@@ -132,7 +131,7 @@ export default {
           positions.push({
             id: step.id,
             top: centerY,
-            index: index,
+            index,
           });
 
           currentY += operationHeight + verticalGap;
@@ -169,9 +168,7 @@ export default {
         if (step.receiver) receivers.add(step.receiver);
       });
 
-      const allParties = Array.from(
-        new Set([...operators, ...senders, ...receivers]),
-      );
+      const allParties = [...new Set([...operators, ...receivers, ...senders])];
 
       return {
         partyA: allParties[0] || 'A',
@@ -324,7 +321,7 @@ export default {
           const tempRecord = {
             id: `temp-${Date.now()}`, // 生成临时ID
             fileName: uploadResult.fileName,
-            fileSize: fileSize,
+            fileSize,
             uploadTime: new Date().toLocaleString(),
             protocolIR: demoProtocol.protocolIR || [],
             proverifCode: demoProtocol.proverifCode || '',
@@ -425,15 +422,13 @@ export default {
       verificationResults.value = record.verificationResults || null;
 
       // 🔴 自动提取已验证的属性
-      if (
+      selectedProperties.value =
         record.verificationResults &&
         record.verificationResults.security_properties
-      ) {
-        selectedProperties.value =
-          record.verificationResults.security_properties.map((p) => p.property);
-      } else {
-        selectedProperties.value = record.selectedProperties || [];
-      }
+          ? record.verificationResults.security_properties.map(
+              (p) => p.property,
+            )
+          : record.selectedProperties || [];
 
       console.log('✅ 验证结果:', verificationResults.value);
 
@@ -945,7 +940,7 @@ export default {
               </div>
               <div
                 class="relative flex w-full flex-col items-center"
-                :style="{ height: totalHeight + 'px' }"
+                :style="{ height: `${totalHeight}px` }"
               >
                 <!-- Timeline -->
                 <div
@@ -963,7 +958,7 @@ export default {
                   class="absolute z-20 max-w-[400px] rounded-lg border border-gray-200 bg-white p-4 shadow-lg"
                   :style="{
                     right: 'calc(50% + 120px)',
-                    top: getStepPosition(selectedStep.id) + 'px',
+                    top: `${getStepPosition(selectedStep.id)}px`,
                     transform: 'translateY(-50%)',
                   }"
                 >
@@ -1001,7 +996,7 @@ export default {
                   class="absolute z-20 max-w-[400px] rounded-lg border border-gray-200 bg-white p-4 shadow-lg"
                   :style="{
                     right: 'calc(50% + 120px)',
-                    top: getStepPosition(selectedStep.id) + 'px',
+                    top: `${getStepPosition(selectedStep.id)}px`,
                     transform: 'translateY(-50%)',
                   }"
                 >
@@ -1042,7 +1037,7 @@ export default {
                       getOperationType(step.id) !== 'message'
                     "
                     class="absolute left-[50%] z-10 h-3 w-3 -translate-x-1/2 transform rounded-full border-2 border-white bg-blue-500 shadow-sm"
-                    :style="{ top: getStepPosition(step.id) + 'px' }"
+                    :style="{ top: `${getStepPosition(step.id)}px` }"
                   ></div>
 
                   <!-- Operation Box -->
@@ -1063,7 +1058,7 @@ export default {
                     ]"
                     :style="{
                       left: 'calc(50% + 15px)',
-                      top: getStepPosition(step.id) + 'px',
+                      top: `${getStepPosition(step.id)}px`,
                       transform: 'translateY(-50%)',
                       maxWidth: '500px',
                       minWidth: '300px',
@@ -1102,8 +1097,8 @@ export default {
               <div
                 class="relative flex justify-center"
                 :style="{
-                  height: totalHeight + 'px',
-                  width: MESSAGE_WIDTH + 'px',
+                  height: `${totalHeight}px`,
+                  width: `${MESSAGE_WIDTH}px`,
                 }"
               >
                 <div v-for="(step, idx) in protocolIR" :key="step.id">
@@ -1111,8 +1106,8 @@ export default {
                     v-if="getOperationType(step.id) === 'message'"
                     class="absolute flex flex-col items-center"
                     :style="{
-                      top: getStepPosition(step.id) + 'px',
-                      width: MESSAGE_WIDTH + 'px',
+                      top: `${getStepPosition(step.id)}px`,
+                      width: `${MESSAGE_WIDTH}px`,
                       left: '50%',
                       transform: 'translate(-50%, -50%)',
                     }"
@@ -1122,7 +1117,7 @@ export default {
                       @click="handleStepClick(step)"
                       class="mb-1 cursor-pointer whitespace-nowrap rounded-lg border-l-4 border-blue-500 bg-gradient-to-r from-blue-50 to-blue-100 px-3 py-1.5 text-xs shadow-md transition-transform hover:scale-105"
                       :style="{
-                        maxWidth: MESSAGE_WIDTH + 'px',
+                        maxWidth: `${MESSAGE_WIDTH}px`,
                         minWidth: '200px',
                       }"
                       :class="[
@@ -1148,12 +1143,12 @@ export default {
                     <div class="relative flex items-center justify-center">
                       <div
                         class="relative flex h-3 items-center"
-                        :style="{ width: ARROW_WIDTH + 'px' }"
+                        :style="{ width: `${ARROW_WIDTH}px` }"
                       >
                         <div
                           class="absolute h-1 rounded-full"
                           :style="{
-                            width: ARROW_WIDTH + 'px',
+                            width: `${ARROW_WIDTH}px`,
                             background:
                               step.sender === participantNames.partyA
                                 ? 'linear-gradient(to right, #60a5fa, #93c5fd)'
@@ -1199,7 +1194,7 @@ export default {
               </div>
               <div
                 class="relative flex w-full flex-col items-center"
-                :style="{ height: totalHeight + 'px' }"
+                :style="{ height: `${totalHeight}px` }"
               >
                 <!-- Timeline -->
                 <div
@@ -1217,7 +1212,7 @@ export default {
                   class="absolute z-20 max-w-[400px] rounded-lg border border-gray-200 bg-white p-4 shadow-lg"
                   :style="{
                     left: 'calc(50% + 120px)',
-                    top: getStepPosition(selectedStep.id) + 'px',
+                    top: `${getStepPosition(selectedStep.id)}px`,
                     transform: 'translateY(-50%)',
                   }"
                 >
@@ -1255,7 +1250,7 @@ export default {
                   class="absolute z-20 max-w-[400px] rounded-lg border border-gray-200 bg-white p-4 shadow-lg"
                   :style="{
                     left: 'calc(50% + 120px)',
-                    top: getStepPosition(selectedStep.id) + 'px',
+                    top: `${getStepPosition(selectedStep.id)}px`,
                     transform: 'translateY(-50%)',
                   }"
                 >
@@ -1296,7 +1291,7 @@ export default {
                       getOperationType(step.id) !== 'message'
                     "
                     class="absolute left-[50%] z-10 h-3 w-3 -translate-x-1/2 transform rounded-full border-2 border-white bg-blue-500 shadow-sm"
-                    :style="{ top: getStepPosition(step.id) + 'px' }"
+                    :style="{ top: `${getStepPosition(step.id)}px` }"
                   ></div>
 
                   <!-- Operation Box -->
@@ -1317,7 +1312,7 @@ export default {
                     ]"
                     :style="{
                       right: 'calc(50% + 10px)',
-                      top: getStepPosition(step.id) + 'px',
+                      top: `${getStepPosition(step.id)}px`,
                       transform: 'translateY(-50%)',
                       maxWidth: '500px',
                       minWidth: '300px',

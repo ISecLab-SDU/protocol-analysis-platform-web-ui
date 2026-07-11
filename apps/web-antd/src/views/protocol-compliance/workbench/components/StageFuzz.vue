@@ -1,10 +1,11 @@
 <script setup lang="ts">
+import type { ProtocolExtractRuleItem } from '#/api/protocol-compliance';
+
 import { computed } from 'vue';
 
-import { Card, Tag } from 'ant-design-vue';
 import { IconifyIcon } from '@vben/icons';
 
-import type { ProtocolExtractRuleItem } from '#/api/protocol-compliance';
+import { Card, Tag } from 'ant-design-vue';
 
 import ProtocolLogViewer from './ProtocolLogViewer.vue';
 
@@ -130,9 +131,9 @@ function formatRate(value: number) {
       <aside class="panel panel--monitor">
         <div class="panel-header panel-header--compact">
           <h3>运行监控</h3>
-          <Tag :color="running ? 'processing' : 'default'">{{
-            monitorStatusText
-          }}</Tag>
+          <Tag :color="running ? 'processing' : 'default'">
+            {{ monitorStatusText }}
+          </Tag>
         </div>
 
         <div class="alert-metrics">

@@ -1,5 +1,11 @@
-import { computed, nextTick, reactive, ref } from 'vue';
-import { message } from 'ant-design-vue';
+import type {
+  CodeLocateEvidence,
+  CodeLocateFunctionSlice,
+  CodeLocateRow,
+  ProjectConfig,
+  StageStatus,
+  WorkbenchStage,
+} from './types';
 
 import type {
   ProtocolAssertGenerationJob,
@@ -10,14 +16,18 @@ import type {
   ProtocolStaticAnalysisResult,
 } from '#/api/protocol-compliance';
 
+import { computed, nextTick, reactive, ref } from 'vue';
+
+import { message } from 'ant-design-vue';
+
 import {
   checkStatus,
   downloadAflNetPocArtifact,
   executeCommand,
-  fetchProtocolStaticAnalysisDatabaseInsights,
   fetchProtocolAssertGenerationProgress,
   fetchProtocolAssertGenerationResult,
   fetchProtocolInstrumentationDiff,
+  fetchProtocolStaticAnalysisDatabaseInsights,
   fetchProtocolStaticAnalysisProgress,
   fetchProtocolStaticAnalysisResult,
   preStartCleanup,
@@ -31,17 +41,7 @@ import {
   writeScript,
 } from '#/api/protocol-compliance';
 
-import {
-  type CodeLocateEvidence,
-  type CodeLocateFunctionSlice,
-  type CodeLocateRow,
-  buildDefaultFuzzScript,
-  DEFAULT_TARGET,
-  type ProjectConfig,
-  type StageStatus,
-  STAGE_LIST,
-  type WorkbenchStage,
-} from './types';
+import { buildDefaultFuzzScript, DEFAULT_TARGET, STAGE_LIST } from './types';
 import { ansiToHtml, normalizeList } from './utils';
 
 const stage = ref<WorkbenchStage>('setup');
@@ -102,10 +102,10 @@ const assertDiffContent = ref('');
 const fuzzPid = ref<null | string>(null);
 const fuzzContainerId = ref<null | string>(null);
 const aflNetPocPath = ref('');
-type FuzzLogLevel = 'INFO' | 'WARN' | 'ERROR' | 'STATS';
+type FuzzLogLevel = 'ERROR' | 'INFO' | 'STATS' | 'WARN';
 type AflNetOutputSource = 'fallback' | 'primary';
 
-const fuzzLogs = ref<Array<{ id: number; text: string; level: FuzzLogLevel }>>(
+const fuzzLogs = ref<Array<{ id: number; level: FuzzLogLevel; text: string }>>(
   [],
 );
 const resultHistory = ref<
@@ -135,7 +135,6 @@ const resultHistory = ref<
     pocSnapshotStatus: 'failed' | 'idle' | 'ready' | 'saving';
     protocolType: string;
     ruleText: string;
-    status: 'crash' | 'no-crash' | 'stopped';
     stats: {
       coverage: number;
       crashes: number;
@@ -149,6 +148,7 @@ const resultHistory = ref<
       pendingTotal: number;
       speed: number;
     };
+    status: 'crash' | 'no-crash' | 'stopped';
     targetFile: string;
     targetLine: string;
     violationReason: string;
@@ -180,7 +180,7 @@ let assertPollTimer: null | ReturnType<typeof setInterval> = null;
 let fuzzPollTimer: null | ReturnType<typeof setInterval> = null;
 let fallbackReplayTimer: null | ReturnType<typeof setTimeout> = null;
 let transitionTimer: null | ReturnType<typeof setTimeout> = null;
-let transitionResolver: null | ((shouldContinue: boolean) => void) = null;
+let transitionResolver: ((shouldContinue: boolean) => void) | null = null;
 let fuzzLogIdSeq = 0;
 let pipelineRunId = 0;
 let lastFuzzLogGrowthAt = 0;
@@ -222,7 +222,7 @@ const DEMO_INPUT_FILES: Array<{
   { field: 'rules', mimeType: 'application/json', name: 'rule_config.json' },
 ];
 
-function clearTimer(holder: 'static' | 'assert' | 'fuzz' | 'elapsed') {
+function clearTimer(holder: 'assert' | 'elapsed' | 'fuzz' | 'static') {
   if (holder === 'static' && staticPollTimer) {
     clearInterval(staticPollTimer);
     staticPollTimer = null;
@@ -375,7 +375,7 @@ function parseCountNumber(value: string) {
   return parsed === null ? null : Math.max(0, Math.trunc(parsed));
 }
 
-function parseAflNetStatsCsv(line: string): ParsedAflNetStats | null {
+function parseAflNetStatsCsv(line: string): null | ParsedAflNetStats {
   const source = stripFuzzLogPrefix(line).replace(/^#\s*/, '');
   const values = source.split(',').map((item) => item.trim());
   if (values.length < 10) return null;
@@ -426,7 +426,7 @@ function parseAflNetStatsCsv(line: string): ParsedAflNetStats | null {
     speed: parseFiniteNumber(execsPerSec),
   };
 
-  if (Object.values(parsed).some((value) => value === null)) return null;
+  if (Object.values(parsed).includes(null)) return null;
   return parsed as ParsedAflNetStats;
 }
 
@@ -550,7 +550,7 @@ function getCrashLogPathFromFuzzLogs() {
     if (cnMatch?.[1]) return cnMatch[1].trim();
 
     const aflMatch = log.text.match(
-      /(?:crash(?:es)?|queue|poc)[^:：]*[:：]\s*(\/\S+)/i,
+      /(?:crash|queue|poc)[^:：]*[:：]\s*(\/\S+)/i,
     );
     if (aflMatch?.[1]) return aflMatch[1].trim();
   }
@@ -592,11 +592,11 @@ async function snapshotResultPocArtifact(historyId: string) {
       current.pocArtifactId = artifact.artifactId;
       current.pocArtifactSize = artifact.fileSize;
       current.pocSnapshotStatus = 'ready';
-    } catch (err: any) {
+    } catch (error: any) {
       const current = resultHistory.value.find((item) => item.id === historyId);
       if (current) current.pocSnapshotStatus = 'failed';
       appendFuzzLog(
-        `POC 归档失败，历史下载不可用: ${err?.message || err}`,
+        `POC 归档失败，历史下载不可用: ${error?.message || error}`,
         'WARN',
       );
     }
@@ -627,12 +627,12 @@ async function downloadHistoryPocArtifact(historyId: string) {
     const link = document.createElement('a');
     link.href = url;
     link.download = `${entry.implementation || 'aflnet'}-history-poc-${entry.pocArtifactId}.zip`;
-    document.body.appendChild(link);
+    document.body.append(link);
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
-  } catch (err: any) {
-    message.error(err?.message || '历史 POC 下载失败');
+  } catch (error: any) {
+    message.error(error?.message || '历史 POC 下载失败');
   } finally {
     downloadingPocArtifactId.value = null;
   }
@@ -721,8 +721,8 @@ async function persistViolationHistoryFromWorkbench(
     });
     appendFuzzLog('已将当前结果验证结论写入违规历史数据库', 'INFO');
     window.dispatchEvent(new CustomEvent('protocol-violation-history-updated'));
-  } catch (err: any) {
-    appendFuzzLog(`写入违规历史失败: ${err?.message || err}`, 'WARN');
+  } catch (error: any) {
+    appendFuzzLog(`写入违规历史失败: ${error?.message || error}`, 'WARN');
   }
 }
 
@@ -809,13 +809,13 @@ function appendResultHistoryRecord(reason: 'crash' | 'no-crash' | 'stopped') {
 }
 
 function isCrashDiscoveryLine(line: string) {
-  const crashCountMatch = line.match(/(?:unique_)?crash(?:es)?[^\d]*(\d+)/i);
+  const crashCountMatch = line.match(/(?:unique_)?crash\D*(\d+)/i);
   if (crashCountMatch?.[1]) {
     const crashCount = Number(crashCountMatch[1]);
     return Number.isFinite(crashCount) && crashCount > 0;
   }
 
-  const cnCrashCountMatch = line.match(/崩溃[^\d]*(\d+)/);
+  const cnCrashCountMatch = line.match(/崩溃\D*(\d+)/);
   if (cnCrashCountMatch?.[1]) {
     const crashCount = Number(cnCrashCountMatch[1]);
     return Number.isFinite(crashCount) && crashCount > 0;
@@ -849,10 +849,10 @@ async function stopFuzzProcessForCrashVerification(runId: number) {
     if (isCurrentPipelineRun(runId)) {
       appendFuzzLog('已停止当前 Fuzzer，保留崩溃证据用于结果验证', 'INFO');
     }
-  } catch (err: any) {
+  } catch (error: any) {
     if (isCurrentPipelineRun(runId)) {
       appendFuzzLog(
-        `停止 Fuzzer 失败，请人工确认进程状态: ${err?.message || err}`,
+        `停止 Fuzzer 失败，请人工确认进程状态: ${error?.message || error}`,
         'WARN',
       );
     }
@@ -1143,11 +1143,11 @@ async function checkAndFallbackStaleSolAflNetFuzzer() {
     }
 
     await switchToFallbackFuzzOutput(runId);
-  } catch (err: any) {
+  } catch (error: any) {
     if (!isCurrentPipelineRun(runId)) return;
     console.warn(
       '[workbench] SOL/AFLNET status check failed',
-      err?.message || err,
+      error?.message || error,
     );
     lastFuzzLogGrowthAt = Date.now();
   } finally {
@@ -1162,11 +1162,11 @@ function buildRulesFile(): File {
   const grouped: Record<
     string,
     Array<{
-      rule: string;
-      req_type: string;
       req_fields: string[];
-      res_type: string;
+      req_type: string;
       res_fields: string[];
+      res_type: string;
+      rule: string;
     }>
   > = {};
   const rule = selectedRule.value;
@@ -1206,7 +1206,7 @@ function shortenPath(path: string) {
   const trimmed = path.trim();
   if (!trimmed) return '';
   const normalized = trimmed.replaceAll('\\', '/');
-  return normalized.split('/').filter(Boolean).pop() || trimmed;
+  return normalized.split('/').findLast(Boolean) || trimmed;
 }
 
 function formatLineRange(lines: number[]) {
@@ -1260,9 +1260,9 @@ function parseCodeSnippetToEvidence(
     resultLabel?: string;
     ruleText?: string;
     source?: string;
-    targetFile?: string | null;
+    targetFile?: null | string;
     violationLines?: number[];
-    violationReason?: string | null;
+    violationReason?: null | string;
   } = {},
 ): CodeLocateEvidence | null {
   const functions = new Map<string, CodeLocateFunctionSlice>();
@@ -1456,10 +1456,10 @@ async function refreshCodeLocateEvidenceFromResult(
     const insight = findBestInsight(findings);
     if (!insight) return;
     mergeCodeLocateEvidence(buildEvidenceFromInsight(insight, findings), true);
-  } catch (err: any) {
+  } catch (error: any) {
     console.warn(
       '[workbench] code locate insights unavailable',
-      err?.message || err,
+      error?.message || error,
     );
   }
 }
@@ -1553,8 +1553,8 @@ async function loadDemoConfig() {
     stageMessage.value = '演示模式已加载，请选择一条规则后启动自动化分析流程';
     message.success('演示模式配置已加载');
     return true;
-  } catch (err: any) {
-    message.error(err?.message || '演示模式配置加载失败');
+  } catch (error: any) {
+    message.error(error?.message || '演示模式配置加载失败');
     return false;
   }
 }
@@ -1620,10 +1620,10 @@ async function pollStaticAnalysis(jobId: string, runId: number) {
         clearTimer('static');
         markStageError('code_locate', snapshot.error || '静态分析失败');
       }
-    } catch (err: any) {
+    } catch (error: any) {
       if (!isCurrentPipelineRun(runId)) return;
       clearTimer('static');
-      markStageError('code_locate', err?.message || '静态分析进度查询失败');
+      markStageError('code_locate', error?.message || '静态分析进度查询失败');
     }
   }, 1500);
 }
@@ -1670,10 +1670,10 @@ async function pollAssertGen(jobId: string, runId: number) {
         clearTimer('assert');
         markStageError('assert_gen', snapshot.error || '断言生成失败');
       }
-    } catch (err: any) {
+    } catch (error: any) {
       if (!isCurrentPipelineRun(runId)) return;
       clearTimer('assert');
-      markStageError('assert_gen', err?.message || '断言生成进度查询失败');
+      markStageError('assert_gen', error?.message || '断言生成进度查询失败');
     }
   }, 1500);
 }
@@ -1734,9 +1734,9 @@ async function runStaticAnalysisStep(runId: number) {
     } else {
       await pollStaticAnalysis(job.jobId, runId);
     }
-  } catch (err: any) {
+  } catch (error: any) {
     if (!isCurrentPipelineRun(runId)) return;
-    markStageError('code_locate', err?.message || '静态分析启动失败');
+    markStageError('code_locate', error?.message || '静态分析启动失败');
   }
 }
 
@@ -1790,9 +1790,9 @@ async function runAssertGenStep(runId: number) {
     } else {
       await pollAssertGen(job.jobId, runId);
     }
-  } catch (err: any) {
+  } catch (error: any) {
     if (!isCurrentPipelineRun(runId)) return;
-    markStageError('assert_gen', err?.message || '断言生成启动失败');
+    markStageError('assert_gen', error?.message || '断言生成启动失败');
   }
 }
 
@@ -1812,13 +1812,13 @@ function parseStatsLine(line: string) {
     return;
   }
 
-  const cycleMatch = trimmed.match(/cycles?(?:_done)?[^\d]*(\d+)/i);
+  const cycleMatch = trimmed.match(/cycle\D*(\d+)/i);
   if (cycleMatch?.[1]) {
     const val = Number(cycleMatch[1]);
     if (Number.isFinite(val) && val > fuzzStats.cycles) fuzzStats.cycles = val;
   }
 
-  const pathPairMatch = trimmed.match(/paths?[^\d]*(\d+)\s*\/\s*(\d+)/i);
+  const pathPairMatch = trimmed.match(/path\D*(\d+)\s*\/\s*(\d+)/i);
   if (pathPairMatch?.[1] && pathPairMatch?.[2]) {
     const current = Number(pathPairMatch[1]);
     const total = Number(pathPairMatch[2]);
@@ -1829,16 +1829,14 @@ function parseStatsLine(line: string) {
     }
   }
 
-  const execMatch = trimmed.match(
-    /execs?(?:_total|_per_sec)?[^\d]*(\d+(?:\.\d+)?)/i,
-  );
+  const execMatch = trimmed.match(/exec\D*(\d+(?:\.\d+)?)/i);
   if (execMatch?.[1]) {
     const val = Number(execMatch[1]);
     if (Number.isFinite(val) && val > fuzzStats.executions) {
       fuzzStats.executions = Math.floor(val);
     }
   }
-  const pathMatch = trimmed.match(/paths?(?:_total)?[^\d]*(\d+)/i);
+  const pathMatch = trimmed.match(/path\D*(\d+)/i);
   if (pathMatch?.[1]) {
     const val = Number(pathMatch[1]);
     if (!pathPairMatch && Number.isFinite(val) && val > fuzzStats.paths) {
@@ -1847,7 +1845,7 @@ function parseStatsLine(line: string) {
     }
   }
   const pendingMatch = trimmed.match(
-    /pending[^\d]*(\d+)(?:\s*\(\s*(\d+)\s*favs?\s*\))?/i,
+    /pending\D*(\d+)(?:\s*\(\s*(\d+)\s*favs?\s*\))?/i,
   );
   if (pendingMatch?.[1]) {
     const val = Number(pendingMatch[1]);
@@ -1858,24 +1856,24 @@ function parseStatsLine(line: string) {
     if (Number.isFinite(val)) fuzzStats.pendingFavs = val;
   }
   const coverageMatch = trimmed.match(
-    /(?:coverage|map_size)[^\d]*(\d+(?:\.\d+)?)/i,
+    /(?:coverage|map_size)\D*(\d+(?:\.\d+)?)/i,
   );
   if (coverageMatch?.[1]) {
     const val = Number(coverageMatch[1]);
     if (Number.isFinite(val)) fuzzStats.coverage = val;
   }
-  const crashMatch = trimmed.match(/(?:unique_)?crash(?:es)?[^\d]*(\d+)/i);
+  const crashMatch = trimmed.match(/(?:unique_)?crash\D*(\d+)/i);
   if (crashMatch?.[1]) {
     const val = Number(crashMatch[1]);
     if (Number.isFinite(val) && val > fuzzStats.crashes)
       fuzzStats.crashes = val;
   }
-  const hangMatch = trimmed.match(/(?:unique_)?hang(?:s)?[^\d]*(\d+)/i);
+  const hangMatch = trimmed.match(/(?:unique_)?hang\D*(\d+)/i);
   if (hangMatch?.[1]) {
     const val = Number(hangMatch[1]);
     if (Number.isFinite(val) && val > fuzzStats.hangs) fuzzStats.hangs = val;
   }
-  const speedMatch = trimmed.match(/speed[^\d]*(\d+(?:\.\d+)?)/i);
+  const speedMatch = trimmed.match(/speed\D*(\d+(?:\.\d+)?)/i);
   if (speedMatch?.[1]) {
     const val = Number(speedMatch[1]);
     if (Number.isFinite(val)) {
@@ -1884,20 +1882,18 @@ function parseStatsLine(line: string) {
       if (fuzzSpeedSeries.value.length > 60) fuzzSpeedSeries.value.shift();
     }
   }
-  const depthMatch = trimmed.match(
-    /(?:max_depth|max\s*depth|depth)[^\d]*(\d+)/i,
-  );
+  const depthMatch = trimmed.match(/(?:max_depth|max\s*depth|depth)\D*(\d+)/i);
   if (depthMatch?.[1]) {
     const val = Number(depthMatch[1]);
     if (Number.isFinite(val) && val > fuzzStats.maxDepth)
       fuzzStats.maxDepth = val;
   }
-  const nodesMatch = trimmed.match(/nodes?[^\d]*(\d+)/i);
+  const nodesMatch = trimmed.match(/node\D*(\d+)/i);
   if (nodesMatch?.[1]) {
     const val = Number(nodesMatch[1]);
     if (Number.isFinite(val)) fuzzStats.nodes = val;
   }
-  const edgesMatch = trimmed.match(/edges?[^\d]*(\d+)/i);
+  const edgesMatch = trimmed.match(/edge\D*(\d+)/i);
   if (edgesMatch?.[1]) {
     const val = Number(edgesMatch[1]);
     if (Number.isFinite(val)) fuzzStats.edges = val;
@@ -1967,15 +1963,15 @@ async function readFuzzLogs(
       return;
     }
     await checkAndFallbackStaleSolAflNetFuzzer();
-  } catch (err: any) {
+  } catch (error: any) {
     // Non-fatal: keep polling until user stops
-    console.warn('[workbench] readLog error', err?.message || err);
+    console.warn('[workbench] readLog error', error?.message || error);
     if (
       options.replayFallback &&
       (!options.runId || isCurrentPipelineRun(options.runId))
     ) {
       appendFuzzLog(
-        `读取仓库 fuzz-output 备份数据失败: ${err?.message || err}`,
+        `读取仓库 fuzz-output 备份数据失败: ${error?.message || error}`,
         'ERROR',
       );
       finishFuzzFromCurrentOutput('fallback');
@@ -2039,13 +2035,13 @@ async function runFuzzStep(runId: number) {
     stageMessage.value = '模糊测试运行中，点击"停止"结束';
     void readFuzzLogs();
     fuzzPollTimer = setInterval(readFuzzLogs, 1000);
-  } catch (err: any) {
+  } catch (error: any) {
     if (!isCurrentPipelineRun(runId)) return;
     if (isSolAflNetFuzzing.value) {
       await switchToFallbackFuzzOutput(runId);
       return;
     }
-    markStageError('fuzz', err?.message || '模糊测试启动失败');
+    markStageError('fuzz', error?.message || '模糊测试启动失败');
   }
 }
 
@@ -2113,8 +2109,8 @@ async function stopPipeline() {
             protocol: protocolKindForApi.value,
           } as any);
         }
-      } catch (err: any) {
-        console.warn('[workbench] stop fuzz failed', err?.message || err);
+      } catch (error: any) {
+        console.warn('[workbench] stop fuzz failed', error?.message || error);
       }
       fuzzPid.value = null;
       fuzzContainerId.value = null;

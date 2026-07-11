@@ -3,9 +3,13 @@
  * 包含AFLNET相关的数据处理和UI逻辑
  */
 
-import { ref, type Ref } from 'vue';
-import type { RTSPStats, LogUIData } from './types';
-import { requestClient, dockerRequestClient } from '#/api/request';
+import type { Ref } from 'vue';
+
+import type { LogUIData, RTSPStats } from './types';
+
+import { ref } from 'vue';
+
+import { dockerRequestClient, requestClient } from '#/api/request';
 
 export function useSOL() {
   // SOL统计数据
@@ -88,38 +92,39 @@ export function useSOL() {
 
         // 更新SOL统计信息
         solStats.value = {
-          cycles_done: parseInt(cycles_done),
-          paths_total: parseInt(paths_total),
-          cur_path: parseInt(cur_path),
-          pending_total: parseInt(pending_total),
-          pending_favs: parseInt(pending_favs),
-          map_size: map_size,
-          unique_crashes: parseInt(unique_crashes),
-          unique_hangs: parseInt(unique_hangs),
-          max_depth: parseInt(max_depth),
-          execs_per_sec: parseFloat(execs_per_sec),
-          n_nodes: parseInt(n_nodes),
-          n_edges: parseInt(n_edges),
+          cycles_done: Number.parseInt(cycles_done),
+          paths_total: Number.parseInt(paths_total),
+          cur_path: Number.parseInt(cur_path),
+          pending_total: Number.parseInt(pending_total),
+          pending_favs: Number.parseInt(pending_favs),
+          map_size,
+          unique_crashes: Number.parseInt(unique_crashes),
+          unique_hangs: Number.parseInt(unique_hangs),
+          max_depth: Number.parseInt(max_depth),
+          execs_per_sec: Number.parseFloat(execs_per_sec),
+          n_nodes: Number.parseInt(n_nodes),
+          n_edges: Number.parseInt(n_edges),
         };
 
         // 更新通用统计信息
-        packetCount.value = parseInt(cur_path);
-        successCount.value = parseInt(paths_total) - parseInt(pending_total);
-        failedCount.value = parseInt(unique_crashes);
-        crashCount.value = parseInt(unique_crashes);
-        currentSpeed.value = Math.round(parseFloat(execs_per_sec));
+        packetCount.value = Number.parseInt(cur_path);
+        successCount.value =
+          Number.parseInt(paths_total) - Number.parseInt(pending_total);
+        failedCount.value = Number.parseInt(unique_crashes);
+        crashCount.value = Number.parseInt(unique_crashes);
+        currentSpeed.value = Math.round(Number.parseFloat(execs_per_sec));
 
         return {
           timestamp,
           type: 'STATS',
           content: formattedContent,
           rawData: {
-            cycles_done: parseInt(cycles_done),
-            paths_total: parseInt(paths_total),
-            cur_path: parseInt(cur_path),
-            pending_total: parseInt(pending_total),
-            unique_crashes: parseInt(unique_crashes),
-            execs_per_sec: parseFloat(execs_per_sec),
+            cycles_done: Number.parseInt(cycles_done),
+            paths_total: Number.parseInt(paths_total),
+            cur_path: Number.parseInt(cur_path),
+            pending_total: Number.parseInt(pending_total),
+            unique_crashes: Number.parseInt(unique_crashes),
+            execs_per_sec: Number.parseFloat(execs_per_sec),
           },
         } as LogUIData;
       }
@@ -182,7 +187,7 @@ export function useSOL() {
       console.log('[DEBUG] 响应数据结构:', {
         status: result.status,
         data: result.data,
-        responseData: responseData,
+        responseData,
         hasContainerId: !!responseData?.container_id,
         hasPid: !!responseData?.pid,
       });
@@ -196,7 +201,7 @@ export function useSOL() {
   }
 
   // 停止SOL进程
-  async function stopSOLProcess(processId: string | number) {
+  async function stopSOLProcess(processId: number | string) {
     if (!processId) {
       return;
     }

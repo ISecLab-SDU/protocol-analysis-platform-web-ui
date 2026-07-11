@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
-
-import { Button, Card, Empty, message, Table, Tag } from 'ant-design-vue';
-import { IconifyIcon } from '@vben/icons';
+import type { ProtocolKind, RuleOption } from '../types';
 
 import type { ProtocolExtractRuleItem } from '#/api/protocol-compliance';
 
-import type { ProtocolKind, RuleOption } from '../types';
+import { computed, ref, watch } from 'vue';
+
+import { IconifyIcon } from '@vben/icons';
+
+import { Button, Card, Empty, message, Table, Tag } from 'ant-design-vue';
+
 import { BUILTIN_RULESET_INDEX } from '../types';
 import { normalizeList } from '../utils';
 
@@ -105,13 +107,9 @@ async function loadRules() {
 
     const flatRules: RuleOption[] = normalizeRulesPayload(data, sourceLabel);
     rules.value = flatRules;
-    if (flatRules.length > 0) {
-      selectedRowKeys.value = [flatRules[0]!.id!];
-    } else {
-      selectedRowKeys.value = [];
-    }
-  } catch (err: any) {
-    message.error(`加载规则失败: ${err?.message || err}`);
+    selectedRowKeys.value = flatRules.length > 0 ? [flatRules[0]!.id!] : [];
+  } catch (error: any) {
+    message.error(`加载规则失败: ${error?.message || error}`);
   } finally {
     loading.value = false;
   }
