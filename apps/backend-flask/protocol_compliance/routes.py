@@ -24,7 +24,7 @@ from .assertion_database import (
     _candidate_sqlite_roots_for_job as _candidate_sqlite_roots_for_job_impl,
     _resolve_assertion_database_path as _resolve_assertion_database_path_impl,
 )
-from .assertion_history_routes import register_assertion_history_routes
+from .assertion_history_routes import create_assertion_history_handlers
 from .assertion_routes import register_assertion_routes
 from .aflnet import (
     RTSP_CONFIG as RTSP_CONFIG,
@@ -217,14 +217,25 @@ def create_task():
 def download_result(task_id: str):
     return _task_handlers["download_result"](task_id)
 
-_assertion_history_route_handlers = register_assertion_history_routes(
-    bp,
+_assertion_history_handlers = create_assertion_history_handlers(
     _ensure_authenticated,
     to_int=_to_int,
 )
-assertion_history = _assertion_history_route_handlers["assertion_history"]
-assertion_history_entry = _assertion_history_route_handlers["assertion_history_entry"]
-download_assertion_diff = _assertion_history_route_handlers["download_assertion_diff"]
+
+
+@bp.route("/assertions/history", methods=["GET"])
+def assertion_history():
+    return _assertion_history_handlers["assertion_history"]()
+
+
+@bp.route("/assertions/history/<job_id>", methods=["GET"])
+def assertion_history_entry(job_id: str):
+    return _assertion_history_handlers["assertion_history_entry"](job_id)
+
+
+@bp.route("/assertions/history/<job_id>/diff", methods=["GET"])
+def download_assertion_diff(job_id: str):
+    return _assertion_history_handlers["download_assertion_diff"](job_id)
 
 _static_analysis_submission_route_handlers = register_static_analysis_submission_routes(
     bp,

@@ -1,10 +1,10 @@
-"""Assertion history route registration."""
+"""Assertion history request handlers."""
 
 from __future__ import annotations
 
 from typing import Callable
 
-from flask import Blueprint, make_response, request, send_file
+from flask import make_response, request, send_file
 
 from utils.responses import error_response, success_response
 
@@ -15,13 +15,11 @@ from .assertion import (
 )
 
 
-def register_assertion_history_routes(
-    bp: Blueprint,
+def create_assertion_history_handlers(
     ensure_authenticated: Callable[[], tuple[object, object]],
     *,
     to_int: Callable[[object, int], int],
 ) -> dict[str, Callable[..., object]]:
-    @bp.route("/assertions/history", methods=["GET"])
     def assertion_history():
         _, error = ensure_authenticated()
         if error:
@@ -33,7 +31,6 @@ def register_assertion_history_routes(
         payload = {"items": items, "limit": limit, "count": len(items)}
         return make_response(success_response(payload), 200)
 
-    @bp.route("/assertions/history/<job_id>", methods=["GET"])
     def assertion_history_entry(job_id: str):
         _, error = ensure_authenticated()
         if error:
@@ -44,7 +41,6 @@ def register_assertion_history_routes(
             return make_response(error_response("历史记录不存在"), 404)
         return make_response(success_response(entry), 200)
 
-    @bp.route("/assertions/history/<job_id>/diff", methods=["GET"])
     def download_assertion_diff(job_id: str):
         _, error = ensure_authenticated()
         if error:
