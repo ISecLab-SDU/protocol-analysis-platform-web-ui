@@ -71,7 +71,7 @@ def test_app_logging_config_uses_protocol_compliance_prefix() -> None:
     assert protocol_logger.level == logging.DEBUG
     assert nested_logger.getEffectiveLevel() == logging.DEBUG
     assert logging.getLogger().getEffectiveLevel() == logging.INFO
-    assert logging.getLogger("werkzeug").getEffectiveLevel() == logging.INFO
+    assert logging.getLogger("werkzeug").getEffectiveLevel() == logging.WARNING
 
 
 def test_job_stage_logger_emits_backend_and_frontend_logs(caplog: pytest.LogCaptureFixture) -> None:
