@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+from logging.handlers import WatchedFileHandler
+import threading
 from typing import Any, cast
 import sys
 import types
@@ -83,6 +85,7 @@ def test_app_logging_config_uses_protocol_compliance_prefix(
     logging.shutdown()
 
     assert "file logging probe" in log_file.read_text(encoding="utf-8")
+    assert any(isinstance(handler, WatchedFileHandler) for handler in logging.getLogger().handlers)
 
 
 def test_job_stage_logger_emits_backend_and_frontend_logs(caplog: pytest.LogCaptureFixture) -> None:
@@ -191,3 +194,38 @@ def test_runner_lifecycle_progress_order_is_preserved(
             "Removing temporary builder image protocolguard-builder:job-lifecycle",
         ),
     ]
+
+
+def test_runner_relay_runtime_analysis_log_file(
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    settings = _settings(monkeypatch, tmp_path)
+    runner = _runner(settings)
+    job_paths = _job_paths(settings, "job-analysis-log")
+    runtime_log = job_paths.workspace / "analysis_log.txt"
+    destination = job_paths.output / "analysis.log"
+    stop_event = threading.Event()
+    write_lock = threading.Lock()
+    events: list[tuple[str, str, str]] = []
+    runner._progress_callback = lambda job_id, stage, message: events.append((job_id, stage, message))
+
+    runtime_log.write_text(
+        "Running match-pass with configuration\n"
+        "[LLM Query] Succeeded in 31 ms. Model: deepseek-v3.\n",
+        encoding="utf-8",
+    )
+    stop_event.set()
+
+    with destination.open("a", encoding="utf-8") as output:
+        with caplog.at_level(logging.INFO, logger="protocol_compliance._docker_runner.runner"):
+            runner._relay_runtime_log_file(job_paths, runtime_log, output, write_lock, stop_event)
+
+    assert "Running match-pass with configuration" in destination.read_text(encoding="utf-8")
+    assert "[LLM Query] Succeeded in 31 ms. Model: deepseek-v3." in caplog.text
+    assert (
+        "job-analysis-log",
+        "analysis-log",
+        "[LLM Query] Succeeded in 31 ms. Model: deepseek-v3.",
+    ) in events

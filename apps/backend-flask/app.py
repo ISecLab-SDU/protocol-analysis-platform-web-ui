@@ -39,7 +39,7 @@ def _configure_logging() -> None:
                     "level": "DEBUG",
                 },
                 "tmp_file": {
-                    "class": "logging.FileHandler",
+                    "class": "logging.handlers.WatchedFileHandler",
                     "encoding": "utf-8",
                     "filename": log_file,
                     "formatter": "default",
