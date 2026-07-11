@@ -2,7 +2,10 @@ import type { VxeGridInstance } from 'vxe-table';
 
 import type { Ref } from 'vue';
 
-import type { BaseFormComponentType, ExtendedFormApi } from '@vben-core/form-ui';
+import type {
+  BaseFormComponentType,
+  ExtendedFormApi,
+} from '@vben-core/form-ui';
 
 import type { VxeGridProps } from './types';
 

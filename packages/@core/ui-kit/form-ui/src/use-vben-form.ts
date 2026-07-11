@@ -1,7 +1,4 @@
-import type {
-  BaseFormComponentType,
-  VbenFormProps,
-} from './types';
+import type { BaseFormComponentType, VbenFormProps } from './types';
 
 import { defineComponent, h, isReactive, onBeforeUnmount, watch } from 'vue';
 
