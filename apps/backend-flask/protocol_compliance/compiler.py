@@ -12,7 +12,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, BinaryIO, Callable, Dict, List, Optional, Tuple
+from typing import Any, BinaryIO, Callable, Dict, List, Optional, Sequence, Tuple
 from openai import OpenAI
 
 from protocol_compliance.job_logging import JobStageLogger
@@ -45,12 +45,13 @@ class AgentExecutorSettings:
     workspace_root: Path
     max_runtime: int
     env_passthrough: tuple
+    builder_image: str
 
     @classmethod
     def from_env(cls) -> "AgentExecutorSettings":
-        api_key = os.environ.get("OPENAI_API_KEY")
-        enabled = bool(api_key)
-        base_url = os.environ.get("OPENAI_BASE_URL") or ""
+        api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN") or ""
+        enabled = bool(api_key) or bool(os.environ.get("PG_CLAUDE_BUILDER_IMAGE"))
+        base_url = os.environ.get("ANTHROPIC_BASE_URL") or ""
         model = os.environ.get("PG_AGENT_MODEL", "deepseek-v3")
 
         runtime_root = Path(os.environ.get("PG_RUNTIME_ROOT", tempfile.gettempdir() + "/protocolguard"))
@@ -58,17 +59,25 @@ class AgentExecutorSettings:
 
         max_runtime = int(os.environ.get("PG_AGENT_MAX_RUNTIME", "3600"))
 
-        env_passthrough_str = os.environ.get("PG_ENV_VARS", "OPENAI_API_KEY")
+        env_passthrough_str = os.environ.get(
+            "PG_ENV_VARS",
+            "OPENAI_API_KEY,OPENAI_BASE_URL,ANTHROPIC_API_KEY,ANTHROPIC_AUTH_TOKEN,ANTHROPIC_BASE_URL",
+        )
         env_passthrough = tuple(item.strip() for item in env_passthrough_str.split(",") if item.strip())
+        builder_image = os.environ.get("PG_CLAUDE_BUILDER_IMAGE") or os.environ.get(
+            "PG_BUILDER_IMAGE",
+            "protocolguard-claude-builder:latest",
+        )
 
         return cls(
             enabled=enabled,
-            api_key=api_key or "",
+            api_key=api_key,
             base_url=base_url,
             model=model,
             workspace_root=workspace_root,
             max_runtime=max_runtime,
-            env_passthrough=env_passthrough
+            env_passthrough=env_passthrough,
+            builder_image=builder_image,
         )
 
 
@@ -819,19 +828,10 @@ class AgentExecutor:
         if not settings.enabled:
             raise AgentNotAvailableError("Agent executor is not enabled")
 
-        try:
-            self.compiler = CompilerController(
-                max_runtime=settings.max_runtime,
-                api_key=settings.api_key,
-                base_url=settings.base_url,
-                model=settings.model
-            )
-        except ValueError as e:
-            raise AgentNotAvailableError(str(e)) from e
-
         self._docker_available = self._check_docker()
         self._analysis_image = os.environ.get("PG_ANALYSIS_IMAGE", "protocolguard:latest")
         self._analysis_command = os.environ.get("PG_ANALYSIS_COMMAND", "static").split()
+        self._builder_image = settings.builder_image
 
     def _check_docker(self) -> bool:
         try:
@@ -839,6 +839,175 @@ class AgentExecutor:
             return result.returncode == 0
         except (subprocess.CalledProcessError, FileNotFoundError, TimeoutError):
             return False
+
+    def _build_passthrough_environment(self) -> Dict[str, str]:
+        env: Dict[str, str] = {}
+        for name in self.settings.env_passthrough:
+            value = os.environ.get(name)
+            if value is not None:
+                env[name] = value
+        env["PG_HOST_UID"] = str(os.getuid())
+        env["PG_HOST_GID"] = str(os.getgid())
+        return env
+
+    def _docker_env_args(self) -> List[str]:
+        args: List[str] = []
+        for name in self.settings.env_passthrough:
+            if os.environ.get(name) is not None:
+                args.extend(["-e", name])
+        args.extend(["-e", f"PG_HOST_UID={os.getuid()}"])
+        args.extend(["-e", f"PG_HOST_GID={os.getgid()}"])
+        args.extend(["-e", "IS_SANDBOX=1"])
+        return args
+
+    @staticmethod
+    def _redact_command(command: Sequence[str]) -> List[str]:
+        redacted: List[str] = []
+        previous_was_env_flag = False
+        for item in command:
+            if previous_was_env_flag:
+                name = item.split("=", 1)[0]
+                if name in {
+                    "ANTHROPIC_API_KEY",
+                    "ANTHROPIC_AUTH_TOKEN",
+                    "ANTHROPIC_BASE_URL",
+                    "OPENAI_API_KEY",
+                    "OPENAI_BASE_URL",
+                }:
+                    redacted.append(f"{name}=<redacted>" if "=" in item else name)
+                else:
+                    redacted.append(item)
+                previous_was_env_flag = False
+                continue
+            redacted.append(item)
+            previous_was_env_flag = item in {"-e", "--env"}
+        return redacted
+
+    def _run_logged_command(
+        self,
+        command: Sequence[str],
+        *,
+        cwd: Path,
+        log_path: Path,
+        progress_callback: Optional[Callable[[str, str, str], None]],
+        job_identifier: str,
+        stage: str,
+        timeout: Optional[int] = None,
+    ) -> List[str]:
+        logger.debug("[*] Command: %s", " ".join(self._redact_command(command)))
+        try:
+            process = subprocess.Popen(
+                list(command),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                cwd=str(cwd),
+            )
+        except OSError as exc:
+            raise AgentExecutionError(f"Failed to start command: {exc}") from exc
+
+        if process.stdout is None:
+            raise AgentExecutionError("Command did not expose stdout")
+
+        lines: List[str] = []
+        with log_path.open("a", encoding="utf-8") as log_file:
+            for raw_line in iter(process.stdout.readline, ""):
+                line = raw_line.rstrip()
+                lines.append(line)
+                log_file.write(line + "\n")
+                if line:
+                    logger.debug("[%s] %s", stage.upper(), line)
+                    if progress_callback:
+                        progress_callback(job_identifier, stage, line[:500])
+
+        try:
+            process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired as exc:
+            process.kill()
+            raise AgentExecutionError(
+                f"{stage} command timed out after {timeout} seconds",
+                logs=lines,
+                details={"command": list(command), "workspace": str(cwd)},
+            ) from exc
+
+        if process.returncode != 0:
+            raise AgentExecutionError(
+                f"{stage} command exited with status {process.returncode}",
+                logs=lines,
+                details={
+                    "command": list(command),
+                    "workspace": str(cwd),
+                    "logExcerpt": "\n".join(lines[-40:]),
+                },
+            )
+        return lines
+
+    def _run_claude_builder_container(
+        self,
+        workspace_dir: Path,
+        job_identifier: str,
+        progress_callback: Optional[Callable[[str, str, str], None]],
+    ) -> List[str]:
+        if not self._docker_available:
+            raise AgentNotAvailableError("Docker is required for the Claude builder compiler")
+
+        output_dir = self.settings.workspace_root.parent / "outputs" / job_identifier
+        output_dir.mkdir(parents=True, exist_ok=True)
+        log_path = workspace_dir / "build_log.txt"
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+
+        if progress_callback:
+            progress_callback(job_identifier, "builder", f"Starting Claude builder image {self._builder_image}")
+
+        command = [
+            "docker",
+            "run",
+            "--rm",
+            "-v",
+            f"{workspace_dir}:/workspace",
+            "-v",
+            f"{output_dir}:/out",
+            "--network=host",
+            *self._docker_env_args(),
+            self._builder_image,
+        ]
+
+        return self._run_logged_command(
+            command,
+            cwd=workspace_dir,
+            log_path=log_path,
+            progress_callback=progress_callback,
+            job_identifier=job_identifier,
+            stage="builder-log",
+            timeout=self.settings.max_runtime,
+        )
+
+    def _validate_builder_outputs(self, workspace_dir: Path) -> None:
+        required = {
+            "bitcode": workspace_dir / "program.bc",
+            "LLVM IR": workspace_dir / "program.ll",
+            "build log": workspace_dir / "build_log.txt",
+            "rules": workspace_dir / "inputs" / "rules.json",
+        }
+        missing = [label for label, path in required.items() if not path.exists()]
+        if missing:
+            raise AgentExecutionError(
+                f"Claude builder completed but required artefacts are missing: {', '.join(missing)}",
+                details={
+                    "workspace": str(workspace_dir),
+                    "missing": missing,
+                    "contents": [str(path.relative_to(workspace_dir)) for path in workspace_dir.rglob("*")][:200],
+                },
+            )
+
+        for path in workspace_dir.rglob("*"):
+            try:
+                if path.is_dir():
+                    path.chmod(0o755)
+                else:
+                    path.chmod(0o644)
+            except Exception:
+                pass
 
     def _run_analysis_container(self, workspace_dir: Path, job_identifier: str, progress_callback=None):
         if not self._docker_available:
@@ -999,19 +1168,9 @@ class AgentExecutor:
             "--network=host",
         ]
 
-        api_key = os.environ.get("OPENAI_API_KEY")
-        base_url = os.environ.get("OPENAI_BASE_URL")
-
-        command.extend(["-e", f"OPENAI_API_KEY={api_key}"])
-        command.extend(["-e", f"OPENAI_BASE_URL={base_url}"])
-        command.extend(["-e", f"ANTHROPIC_API_KEY={api_key}"])
-        command.extend(["-e", f"ANTHROPIC_BASE_URL={base_url}"])
-        command.extend(["-e", f"PG_HOST_UID={os.getuid()}"])
-        command.extend(["-e", f"PG_HOST_GID={os.getgid()}"])
-        logger.debug("[*] Passing OPENAI_API_KEY to container")
-        logger.debug("[*] Passing OPENAI_BASE_URL to container")
-        logger.debug("[*] Passing ANTHROPIC_API_KEY to container")
-        logger.debug("[*] Passing ANTHROPIC_BASE_URL to container")
+        for env_arg in self._docker_env_args():
+            command.append(env_arg)
+        logger.debug("[*] Passing configured ProtocolGuard environment variables to container")
         logger.debug("[*] Passing PG_HOST_UID=%d to container", os.getuid())
         logger.debug("[*] Passing PG_HOST_GID=%d to container", os.getgid())
 
@@ -1292,45 +1451,22 @@ class AgentExecutor:
         with open(tar_path, "wb") as f:
             f.write(code_bytes)
 
-        config_content = config_bytes.decode("utf-8")
-        rule_content = rules_bytes.decode("utf-8")
-
         inputs_dir = workspace_dir / "inputs"
         inputs_dir.mkdir(parents=True, exist_ok=True)
         rules_path = inputs_dir / "rules.json"
         with open(rules_path, "wb") as f:
             f.write(rules_bytes)
 
+        rule_config_path = workspace_dir / "rule_config.json"
+        with open(rule_config_path, "wb") as f:
+            f.write(rules_bytes)
+
+        config_path = workspace_dir / "config.toml"
+        with open(config_path, "wb") as f:
+            f.write(config_bytes)
+
         if progress_callback:
-            progress_callback(job_identifier, "compile", "Starting AI-assisted compilation")
-
-        dockerfile = self.compiler.run(
-            sol_tar=str(tar_path),
-            config_content=config_content,
-            rule_content=rule_content,
-            output_dir=str(workspace_dir),
-            job_id=job_identifier,
-            progress_callback=progress_callback,
-        )
-
-        if dockerfile is None:
-            bug_path = workspace_dir / "bug.txt"
-            error_details = ""
-            if bug_path.exists():
-                with open(bug_path, "r") as f:
-                    error_details = f.read()
-            raise AgentExecutionError(
-                f"Compilation failed after timeout ({self.settings.max_runtime}s)",
-                logs=[],
-                details={"workspace": str(workspace_dir), "error": error_details}
-            )
-
-        import os
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        dockerfile_path = os.path.join(current_dir, "Dockerfile.txt")
-        with open(dockerfile_path, "w", encoding="utf-8") as f:
-            f.write(dockerfile)
-        logger.debug("[*] Saved generated Dockerfile to %s", dockerfile_path)
+            progress_callback(job_identifier, "compile", "Starting Claude builder compilation")
 
         project_dir = workspace_dir / "project"
         project_dir.mkdir(parents=True, exist_ok=True)
@@ -1354,46 +1490,11 @@ class AgentExecutor:
         else:
                 logger.warning("sol.tar not found at %s", tar_path)
 
+        builder_logs = self._run_claude_builder_container(workspace_dir, job_identifier, progress_callback)
+        logger.debug("[*] Claude builder emitted %d log lines", len(builder_logs))
+        self._validate_builder_outputs(workspace_dir)
         if progress_callback:
-            progress_callback(job_identifier, "compile", "Building builder image")
-
-        build_tag = f"protocolguard-builder-{job_identifier[:8]}"
-
-        build_ok, build_log = self.compiler.docker.build(
-            "-",
-            tag=build_tag,
-            dockerfile_content=dockerfile,
-            build_context=str(workspace_dir)
-        )
-
-        if not build_ok:
-            logger.debug("❌ BUILD FAILED: %s", build_log)
-            if progress_callback:
-                progress_callback(job_identifier, "compile", f"Builder build failed: {build_log[:200]}")
-            raise AgentExecutionError(
-                "Builder image build failed",
-                logs=[build_log],
-                details={"workspace": str(workspace_dir)}
-            )
-
-        logger.debug("✅ BUILD SUCCESS")
-
-        if progress_callback:
-            progress_callback(job_identifier, "compile", "Running builder container")
-
-        copy_ok, copy_log = self.compiler.docker.copy_output(build_tag, str(workspace_dir))
-
-        if not copy_ok:
-            logger.debug("❌ COPY OUTPUT FAILED: %s", copy_log)
-            if progress_callback:
-                progress_callback(job_identifier, "compile", f"Builder output copy failed: {copy_log[:200]}")
-            raise AgentExecutionError(
-                "Builder output copy failed",
-                logs=[copy_log],
-                details={"workspace": str(workspace_dir)}
-            )
-
-        logger.debug("✅ COPY OUTPUT SUCCESS")
+            progress_callback(job_identifier, "compile", "Claude builder output validated")
 
         logger.debug("[*] Workspace contents after builder:")
         for root, dirs, files in os.walk(workspace_dir):
