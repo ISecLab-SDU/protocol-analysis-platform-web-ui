@@ -1,5 +1,6 @@
 import re
 import json
+import os
 from openai import OpenAI
 from collections import defaultdict
 import toml
@@ -8,7 +9,11 @@ from pathlib import Path
 script_dir = Path(__file__).parent.parent
 config_path = script_dir / "config.toml"
 toml_config = toml.load(config_path)
-this_url = toml_config["llm"]["base_url"]
+this_url = (
+    os.environ.get("PROTOCOL_EXTRACT_LLM_BASE_URL")
+    or os.environ.get("OPENAI_BASE_URL")
+    or toml_config["llm"]["base_url"]
+)
 this_model = toml_config["llm"]["model2"]
 
 

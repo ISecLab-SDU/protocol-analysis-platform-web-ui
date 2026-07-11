@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 import tarfile
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 if str(BACKEND_ROOT) not in sys.path:
@@ -64,11 +64,11 @@ class FakeDocker:
 
 
 def _controller() -> CompilerController:
-    controller = CompilerController.__new__(CompilerController)
+    controller = cast(Any, CompilerController.__new__(CompilerController))
     controller.llm = FakeLLM()
     controller.docker = FakeDocker()
     controller.max_runtime = 60
-    return controller
+    return cast(CompilerController, controller)
 
 
 def _tar_file(tmp_path: Path) -> Path:

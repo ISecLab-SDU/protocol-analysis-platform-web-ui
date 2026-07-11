@@ -52,15 +52,15 @@ class AgentExecutorSettings:
         enabled = bool(api_key)
         base_url = os.environ.get("OPENAI_BASE_URL") or ""
         model = os.environ.get("PG_AGENT_MODEL", "deepseek-v3")
-        
+
         runtime_root = Path(os.environ.get("PG_RUNTIME_ROOT", tempfile.gettempdir() + "/protocolguard"))
         workspace_root = Path(os.environ.get("PG_WORKSPACE_ROOT", runtime_root / "workspaces"))
-        
+
         max_runtime = int(os.environ.get("PG_AGENT_MAX_RUNTIME", "3600"))
-        
+
         env_passthrough_str = os.environ.get("PG_ENV_VARS", "OPENAI_API_KEY")
         env_passthrough = tuple(item.strip() for item in env_passthrough_str.split(",") if item.strip())
-        
+
         return cls(
             enabled=enabled,
             api_key=api_key or "",
@@ -82,10 +82,10 @@ class LLMClient:
         api_key = api_key or os.environ.get("OPENAI_API_KEY")
         base_url = base_url or os.environ.get("OPENAI_BASE_URL")
         model = model or os.environ.get("PG_AGENT_MODEL", "deepseek-v3")
-        
+
         if not api_key:
             raise ValueError("PG_AGENT_API_KEY or OPENAI_API_KEY environment variable is required")
-        
+
         self.client = OpenAI(
             api_key=api_key,
             base_url=base_url
@@ -328,20 +328,20 @@ class DockerTester:
                     text=True,
                     timeout=30
                 )
-                
+
                 if r_start.returncode != 0:
                     return False, f"Failed to start container: {r_start.stderr}"
-                
+
                 r_wait = subprocess.run(
                     ["docker", "wait", container_id],
                     capture_output=True,
                     text=True,
                     timeout=600
                 )
-                
+
                 if r_wait.returncode != 0:
                     return False, f"Container wait failed: {r_wait.stderr}"
-                
+
                 exit_code = int(r_wait.stdout.strip())
                 if exit_code != 0:
                     logs_result = subprocess.run(
@@ -352,14 +352,14 @@ class DockerTester:
                     )
                     logs_stdout = logs_result.stdout
                     logs_stderr = logs_result.stderr
-                    
+
                     inspect_result = subprocess.run(
                         ["docker", "inspect", container_id],
                         capture_output=True,
                         text=True,
                         timeout=30
                     )
-                    
+
                     return False, f"Container exited with code {exit_code}\nSTDOUT:\n{logs_stdout}\nSTDERR:\n{logs_stderr}\nINSPECT:\n{inspect_result.stdout[:500]}"
 
                 r = subprocess.run(
@@ -427,13 +427,13 @@ class CompilerController:
         )
         config, rule = self.load(config_content, rule_content)
         structure = self.parse_tar(sol_tar)
-        
+
         build_context = os.path.dirname(os.path.abspath(sol_tar))
-        
+
         config_path = os.path.join(build_context, "config.toml")
         with open(config_path, "w") as f:
             f.write(config_content)
-        
+
         rule_path = os.path.join(build_context, "rule_config.json")
         with open(rule_path, "w") as f:
             f.write(rule_content)
@@ -531,7 +531,7 @@ class CompilerController:
                 logger.debug("-" * 40)
                 logger.debug(log[-3000:] if len(log) > 3000 else log)
                 logger.debug("-" * 40)
-                
+
                 logger.debug("[+] Checking /workspace directory...")
                 job_logger.info(
                     "Round %d: validating builder output",
@@ -638,7 +638,7 @@ class CompilerController:
         )
 
         bug_report = f"""==== FINAL ERROR LOG ====\n\n{error_log or ""}\n\n==== LAST DOCKERFILE ====\n{last_dockerfile or ""}\n\n==== STRUCTURE ====\n{structure}\n\n==== CONFIG ====\n{config}\n\n==== RULE ====\n{json.dumps(rule, indent=2)}"""
-        
+
         bug_path = os.path.join(output_dir, "bug.txt")
         with open(bug_path, "w") as f:
             f.write(bug_report)
@@ -648,7 +648,7 @@ class CompilerController:
             bug_report_path=bug_path,
             emit_progress=False,
         )
-        
+
         return None
 
 
@@ -818,7 +818,7 @@ class AgentExecutor:
         self.settings = settings
         if not settings.enabled:
             raise AgentNotAvailableError("Agent executor is not enabled")
-        
+
         try:
             self.compiler = CompilerController(
                 max_runtime=settings.max_runtime,
@@ -828,7 +828,7 @@ class AgentExecutor:
             )
         except ValueError as e:
             raise AgentNotAvailableError(str(e)) from e
-        
+
         self._docker_available = self._check_docker()
         self._analysis_image = os.environ.get("PG_ANALYSIS_IMAGE", "protocolguard:latest")
         self._analysis_command = os.environ.get("PG_ANALYSIS_COMMAND", "static").split()
@@ -844,15 +844,15 @@ class AgentExecutor:
         if not self._docker_available:
             logger.debug("⚠️ Docker not available, skipping analysis container")
             return
-        
+
         output_dir = self.settings.workspace_root.parent / "outputs" / job_identifier
         output_dir.mkdir(parents=True, exist_ok=True)
-        
+
         config_dir = self.settings.workspace_root.parent / "configs" / job_identifier
         config_dir.mkdir(parents=True, exist_ok=True)
-        
+
         logger.debug("[*] Generating config.toml with correct paths for ProtocolGuard analysis")
-        
+
         prepared_config = {
             "wpa": {
                 "path": "/workspace/ffp.txt",
@@ -912,15 +912,15 @@ class AgentExecutor:
                 ],
             },
         }
-        
+
         import toml
         with open(config_dir / "config.toml", "w", encoding="utf-8") as f:
             toml.dump(prepared_config, f)
         logger.debug("[*] Generated config.toml at %s", config_dir / "config.toml")
-        
+
         inputs_dir = workspace_dir / "inputs"
         inputs_dir.mkdir(parents=True, exist_ok=True)
-        
+
         rules_path = inputs_dir / "rules.json"
         if not rules_path.exists():
             rule_config_path = workspace_dir / "rule_config.json"
@@ -930,13 +930,13 @@ class AgentExecutor:
             else:
                 logger.debug("⚠️ rules.json not found, skipping analysis container")
                 return
-        
+
         project_build_dir = workspace_dir / "project" / "sol" / "build"
         project_build_dir.mkdir(parents=True, exist_ok=True)
-        
+
         workspace_build_log = workspace_dir / "build_log.txt"
         project_build_log = project_build_dir / "build_log.txt"
-        
+
         if workspace_build_log.exists():
             shutil.copy2(workspace_build_log, project_build_log)
             logger.debug("[*] Copied build_log.txt to %s", project_build_log)
@@ -949,13 +949,13 @@ class AgentExecutor:
                 with open(workspace_build_log, "w") as f:
                     f.write("Empty build log - build may have failed")
                 shutil.copy2(workspace_build_log, project_build_log)
-        
+
         project_dir = workspace_dir / "project"
         project_dir.mkdir(parents=True, exist_ok=True)
-        
+
         src_dir = project_dir / "sol" / "src"
         cf_files = list(src_dir.glob(".cf_*.json")) if src_dir.exists() else []
-        
+
         if cf_files:
             logger.debug("[*] Found %d .cf_*.json files from compiler.py output", len(cf_files))
             for cf_file in cf_files[:5]:
@@ -969,7 +969,7 @@ class AgentExecutor:
                 with tarfile.open(tar_path, "r") as tar:
                     tar.extractall(project_dir)
                 logger.debug("[*] sol.tar extracted successfully")
-                
+
                 cf_files = list(src_dir.glob(".cf_*.json")) if src_dir.exists() else []
                 if cf_files:
                     logger.debug("[*] Found %d .cf_*.json files after manual extraction", len(cf_files))
@@ -977,7 +977,7 @@ class AgentExecutor:
                     logger.warning("No .cf_*.json files found in %s", src_dir)
             else:
                 logger.warning("sol.tar not found at %s", tar_path)
-        
+
         logger.debug("\n%s", "=" * 60)
         logger.debug("RUNNING PROTOCOL GUARD ANALYSIS")
         logger.debug("%s", "=" * 60)
@@ -986,10 +986,10 @@ class AgentExecutor:
         logger.debug("[*] Workspace: %s", workspace_dir)
         logger.debug("[*] Output: %s", output_dir)
         logger.debug("[*] Config: %s", config_dir)
-        
+
         if progress_callback:
             progress_callback(job_identifier, "builder", "Starting builder container")
-        
+
         command = [
             "docker", "run", "--rm",
             "-u", f"{os.getuid()}:{os.getgid()}",
@@ -998,10 +998,10 @@ class AgentExecutor:
             "-v", f"{config_dir}:/config",
             "--network=host",
         ]
-        
+
         api_key = os.environ.get("OPENAI_API_KEY")
         base_url = os.environ.get("OPENAI_BASE_URL")
-        
+
         command.extend(["-e", f"OPENAI_API_KEY={api_key}"])
         command.extend(["-e", f"OPENAI_BASE_URL={base_url}"])
         command.extend(["-e", f"ANTHROPIC_API_KEY={api_key}"])
@@ -1014,13 +1014,13 @@ class AgentExecutor:
         logger.debug("[*] Passing ANTHROPIC_BASE_URL to container")
         logger.debug("[*] Passing PG_HOST_UID=%d to container", os.getuid())
         logger.debug("[*] Passing PG_HOST_GID=%d to container", os.getgid())
-        
+
         command.extend([self._analysis_image, *self._analysis_command])
-        
+
         logger.debug("[*] Command: %s", " ".join(command))
-        
+
         log_file_path = workspace_dir / "analysis_log.txt"
-        
+
         try:
             process = subprocess.Popen(
                 command,
@@ -1031,7 +1031,7 @@ class AgentExecutor:
             )
             if process.stdout is None:
                 raise AgentExecutionError("Analysis container did not expose stdout")
-            
+
             log_lines = []
             step_keywords = [
                 ("函数入口", "function-entry"),
@@ -1044,36 +1044,36 @@ class AgentExecutor:
                 ("生成报告", "generating-report"),
                 ("构建完成", "build-complete"),
             ]
-            
+
             last_step = None
-            
+
             with open(log_file_path, "w", encoding="utf-8") as log_file:
                 for line in iter(process.stdout.readline, ''):
                     line = line.rstrip()
                     log_lines.append(line)
                     log_file.write(line + "\n")
-                    
+
                     logger.debug("[ANALYSIS] %s", line)
-                    
+
                     for keyword, step_name in step_keywords:
                         if keyword in line and step_name != last_step:
                             last_step = step_name
                             if progress_callback:
                                 progress_callback(job_identifier, step_name, f"Step: {keyword}")
                             break
-                    
+
                     if "error" in line.lower() or "failed" in line.lower():
                         if progress_callback:
                             progress_callback(job_identifier, "error", line)
-            
+
             process.wait(timeout=300)
-            
+
             if process.returncode == 0:
                 logger.debug("🎉 ANALYSIS SUCCESS")
-                
+
                 if progress_callback:
                     progress_callback(job_identifier, "analysis", "ProtocolGuard analysis completed")
-                
+
                 logger.debug("[*] Fixing permissions on source files in %s", output_dir)
                 try:
                     subprocess.run(
@@ -1126,7 +1126,7 @@ class AgentExecutor:
                         except Exception:
                             pass
                 logger.debug("[*] Analysis outputs copied to workspace")
-                
+
                 db_in_workspace = workspace_dir / "database"
                 if db_in_workspace.exists():
                     try:
@@ -1155,7 +1155,7 @@ class AgentExecutor:
                     except Exception:
                         pass
                 logger.debug("[*] Set permissions on all .db files in workspace")
-                
+
                 logger.debug("[*] Final workspace contents:")
                 for root, dirs, files in os.walk(workspace_dir):
                     level = root.replace(str(workspace_dir), '').count(os.sep)
@@ -1174,7 +1174,7 @@ class AgentExecutor:
                 logger.debug("-" * 40)
                 logger.debug("\n".join(log_lines[-40:]) if log_lines else "")
                 logger.debug("-" * 40)
-                
+
                 logger.debug("[*] Fixing permissions on source files in %s (failure path)", output_dir)
                 try:
                     subprocess.run(
@@ -1186,7 +1186,7 @@ class AgentExecutor:
                     logger.debug("[*] chmod -R 755 applied to %s", output_dir)
                 except Exception as e:
                     logger.debug("[*] Failed to chmod: %s", e)
-                
+
                 try:
                     subprocess.run(
                         ["find", str(output_dir), "-type", "f", "-exec", "chmod", "644", "{}", "+"],
@@ -1197,9 +1197,9 @@ class AgentExecutor:
                     logger.debug("[*] find -type f -exec chmod 644 applied to %s", output_dir)
                 except Exception as e:
                     logger.debug("[*] Failed to chmod files: %s", e)
-                
+
                 logger.debug("[*] Source file permissions fixed (failure path)")
-                
+
                 logger.debug("[*] Copying analysis outputs from %s to %s (even on failure)", output_dir, workspace_dir)
                 for item in output_dir.iterdir():
                     dest_path = workspace_dir / item.name
@@ -1238,7 +1238,7 @@ class AgentExecutor:
                     except Exception:
                         pass
                 logger.debug("[*] Set permissions on all .db files in workspace (failure path)")
-                
+
                 ast_stderr_path = workspace_dir / "logs" / "ast_extraction.stderr"
                 if ast_stderr_path.exists():
                     logger.debug("[*] AST extraction stderr content:")
@@ -1248,10 +1248,10 @@ class AgentExecutor:
                     logger.debug("-" * 40)
                 else:
                     logger.debug("[*] AST extraction stderr not found at %s", ast_stderr_path)
-                
+
                 if progress_callback:
                     progress_callback(job_identifier, "error", f"Analysis failed with exit code {process.returncode}")
-                
+
         except subprocess.TimeoutExpired:
             logger.debug("❌ ANALYSIS TIMEOUT")
             if progress_callback:
@@ -1277,33 +1277,33 @@ class AgentExecutor:
         progress_callback: Optional[Callable[[str, str, str], None]] = None,
     ) -> Dict[str, Any]:
         job_identifier = job_id or str(uuid.uuid4())
-        
+
         if progress_callback:
             progress_callback(job_identifier, "init", "Preparing compiler inputs")
-        
+
         workspace_dir = self.settings.workspace_root / job_identifier
         workspace_dir.mkdir(parents=True, exist_ok=True)
-        
+
         code_bytes = code_stream.read()
         config_bytes = config_stream.read()
         rules_bytes = rules_stream.read()
-        
+
         tar_path = workspace_dir / code_filename
         with open(tar_path, "wb") as f:
             f.write(code_bytes)
-        
+
         config_content = config_bytes.decode("utf-8")
         rule_content = rules_bytes.decode("utf-8")
-        
+
         inputs_dir = workspace_dir / "inputs"
         inputs_dir.mkdir(parents=True, exist_ok=True)
         rules_path = inputs_dir / "rules.json"
         with open(rules_path, "wb") as f:
             f.write(rules_bytes)
-        
+
         if progress_callback:
             progress_callback(job_identifier, "compile", "Starting AI-assisted compilation")
-        
+
         dockerfile = self.compiler.run(
             sol_tar=str(tar_path),
             config_content=config_content,
@@ -1312,7 +1312,7 @@ class AgentExecutor:
             job_id=job_identifier,
             progress_callback=progress_callback,
         )
-        
+
         if dockerfile is None:
             bug_path = workspace_dir / "bug.txt"
             error_details = ""
@@ -1324,24 +1324,24 @@ class AgentExecutor:
                 logs=[],
                 details={"workspace": str(workspace_dir), "error": error_details}
             )
-        
+
         import os
         current_dir = os.path.dirname(os.path.abspath(__file__))
         dockerfile_path = os.path.join(current_dir, "Dockerfile.txt")
         with open(dockerfile_path, "w", encoding="utf-8") as f:
             f.write(dockerfile)
         logger.debug("[*] Saved generated Dockerfile to %s", dockerfile_path)
-        
+
         project_dir = workspace_dir / "project"
         project_dir.mkdir(parents=True, exist_ok=True)
-        
+
         tar_path = workspace_dir / code_filename
         if tar_path.exists():
             import tarfile
             with tarfile.open(tar_path, "r:*") as tar:
                 tar.extractall(project_dir)
             logger.debug("[*] Pre-extracted sol.tar to %s", project_dir)
-            
+
             cf_files = list(project_dir.rglob(".cf_*.json"))
             if cf_files:
                 logger.debug("[*] Found %d .cf_*.json files after pre-extraction", len(cf_files))
@@ -1353,19 +1353,19 @@ class AgentExecutor:
                 logger.warning("No .cf_*.json files found in %s", project_dir)
         else:
                 logger.warning("sol.tar not found at %s", tar_path)
-        
+
         if progress_callback:
             progress_callback(job_identifier, "compile", "Building builder image")
-        
+
         build_tag = f"protocolguard-builder-{job_identifier[:8]}"
-        
+
         build_ok, build_log = self.compiler.docker.build(
-            "-", 
-            tag=build_tag, 
+            "-",
+            tag=build_tag,
             dockerfile_content=dockerfile,
             build_context=str(workspace_dir)
         )
-        
+
         if not build_ok:
             logger.debug("❌ BUILD FAILED: %s", build_log)
             if progress_callback:
@@ -1375,14 +1375,14 @@ class AgentExecutor:
                 logs=[build_log],
                 details={"workspace": str(workspace_dir)}
             )
-        
+
         logger.debug("✅ BUILD SUCCESS")
-        
+
         if progress_callback:
             progress_callback(job_identifier, "compile", "Running builder container")
-        
+
         copy_ok, copy_log = self.compiler.docker.copy_output(build_tag, str(workspace_dir))
-        
+
         if not copy_ok:
             logger.debug("❌ COPY OUTPUT FAILED: %s", copy_log)
             if progress_callback:
@@ -1392,9 +1392,9 @@ class AgentExecutor:
                 logs=[copy_log],
                 details={"workspace": str(workspace_dir)}
             )
-        
+
         logger.debug("✅ COPY OUTPUT SUCCESS")
-        
+
         logger.debug("[*] Workspace contents after builder:")
         for root, dirs, files in os.walk(workspace_dir):
             level = root.replace(str(workspace_dir), '').count(os.sep)
@@ -1405,11 +1405,11 @@ class AgentExecutor:
                 logger.debug("%s%s", subindent, file)
             if len(files) > 10:
                 logger.debug("%s... and %d more", subindent, len(files) - 10)
-        
+
         self._run_analysis_container(workspace_dir, job_identifier, progress_callback)
-        
+
         database_path = None
-        
+
         def _validate_db(db_path_candidate: Path) -> bool:
             try:
                 try:
@@ -1429,9 +1429,9 @@ class AgentExecutor:
                     return row is not None
             except Exception:
                 return False
-        
+
         standard_names = ["rule_code_snippet.db", "analysis.db", "protocolguard.db", "violations.db"]
-        
+
         for db_candidate in [
             workspace_dir / "database" / "rule_code_snippet.db",
             workspace_dir / "database" / "analysis.db",
@@ -1444,7 +1444,7 @@ class AgentExecutor:
                 database_path = str(db_candidate)
                 logger.debug("[*] Found valid database file: %s", database_path)
                 break
-        
+
         if database_path is None:
             for ext in [".db", ".sqlite"]:
                 for path in workspace_dir.rglob(f"*{ext}"):
@@ -1454,7 +1454,7 @@ class AgentExecutor:
                         break
                 if database_path:
                     break
-        
+
         if database_path is None:
             for ext in [".db", ".sqlite"]:
                 for path in workspace_dir.rglob(f"*{ext}"):
@@ -1469,7 +1469,7 @@ class AgentExecutor:
                         break
                 if database_path:
                     break
-        
+
         if database_path is None:
             database_dir = workspace_dir / "database"
             if database_dir.exists():
@@ -1478,13 +1478,13 @@ class AgentExecutor:
                         database_path = str(db_file)
                         logger.debug("[*] Found valid database in database dir: %s", database_path)
                         break
-            
+
             if database_path is None and database_dir.exists():
                 for db_file in database_dir.glob("*.db"):
                     database_path = str(db_file)
                     logger.debug("[*] Using database file in database dir: %s", database_path)
                     break
-                
+
                 if database_path is None:
                     logger.debug("[*] No database file found in database dir: %s", database_dir)
             else:
@@ -1495,34 +1495,34 @@ class AgentExecutor:
                             database_path = str(db_file)
                             logger.debug("[*] Found valid database in build dir: %s", database_path)
                             break
-                
+
                 if database_path is None and build_dir.exists():
                     for db_file in build_dir.glob("*.db"):
                         database_path = str(db_file)
                         logger.debug("[*] Using database file in build dir: %s", database_path)
                         break
-                
+
                 if database_path is None:
                     database_path = str(workspace_dir / "database" / "rule_code_snippet.db")
                     logger.debug("[*] Using fallback database path: %s", database_path)
-        
+
         db_path_for_findings = database_path if (database_path and Path(database_path).is_file()) else None
-        
+
         findings, summary_counts = self._extract_findings(
             db_path_for_findings,
             protocol_name or "unknown",
             protocol_version or "unknown",
         )
         overall_status = self._determine_overall_status(summary_counts)
-        
+
         logger.debug("[*] Extracted %d findings from database", len(findings))
         logger.debug("[*] Summary counts: %s", summary_counts)
         logger.debug("[*] Overall status: %s", overall_status)
-        
+
         output_dir = self.settings.workspace_root.parent / "outputs" / job_identifier
         config_dir = self.settings.workspace_root.parent / "configs" / job_identifier
         log_file = workspace_dir / "build_log.txt"
-        
+
         artifacts = {
             "workspace": str(workspace_dir),
             "output": str(output_dir) if output_dir.exists() else None,
@@ -1531,12 +1531,12 @@ class AgentExecutor:
             "database": db_path_for_findings if db_path_for_findings and Path(db_path_for_findings).exists() else None,
             "workspaceSnapshots": [],
         }
-        
+
         if progress_callback:
             progress_callback(job_identifier, "completed", "Compilation and analysis completed successfully")
-        
+
         now_iso = datetime.now(timezone.utc).isoformat()
-        
+
         return {
             "analysisId": job_identifier,
             "durationMs": 0,

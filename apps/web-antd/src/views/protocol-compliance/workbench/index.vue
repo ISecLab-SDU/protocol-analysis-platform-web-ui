@@ -30,6 +30,7 @@ import StageAssertGen from './components/StageAssertGen.vue';
 import StageCodeLocate from './components/StageCodeLocate.vue';
 import StageFuzz from './components/StageFuzz.vue';
 import StageResultVerification from './components/StageResultVerification.vue';
+import StageRuleExtract from './components/StageRuleExtract.vue';
 import StageRuleConfirm from './components/StageRuleConfirm.vue';
 import StageSetup from './components/StageSetup.vue';
 import { STAGE_LIST } from './types';
@@ -111,7 +112,9 @@ const startedAtDisplay = computed(() => {
   return startedAt.value ? formatTime(startedAt.value.toISOString()) : '-';
 });
 
-const sourceArchiveName = computed(() => projectConfig.archive?.name || '未上传');
+const sourceArchiveName = computed(
+  () => projectConfig.archive?.name || '未上传',
+);
 
 const sideNavItems = [
   { icon: 'mdi:view-dashboard-outline', key: 'overview', label: '概览' },
@@ -119,7 +122,14 @@ const sideNavItems = [
   { icon: 'mdi:clipboard-text-clock-outline', key: 'logs', label: '历史结果' },
 ] as const;
 
-type SideNavKey = (typeof sideNavItems)[number]['key'];
+const workbenchSubNavItems = [
+  { icon: 'mdi:file-document-edit-outline', key: 'extract', label: '规则提取' },
+  { icon: 'mdi:playlist-check', key: 'workbench', label: '分析流程' },
+] as const;
+
+type SideNavKey =
+  | (typeof sideNavItems)[number]['key']
+  | (typeof workbenchSubNavItems)[number]['key'];
 
 const activeSideNav = ref<SideNavKey>('overview');
 const demoConfigLoading = ref(false);
@@ -150,11 +160,17 @@ const historyFilters = reactive<{
 });
 
 const activeSideNavLabel = computed(() => {
+  if (activeSideNav.value === 'extract') return '工作台 / 规则提取';
+  if (activeSideNav.value === 'workbench') return '工作台 / 分析流程';
   return (
     sideNavItems.find((item) => item.key === activeSideNav.value)?.label ||
     '概览'
   );
 });
+
+const isWorkbenchSectionActive = computed(() =>
+  ['extract', 'workbench'].includes(activeSideNav.value),
+);
 
 const violationHistoryRefreshing = computed(
   () =>
@@ -164,7 +180,8 @@ const violationHistoryRefreshing = computed(
 
 const shouldShowBannerProgress = computed(() => {
   if (activeSideNav.value !== 'workbench') return false;
-  if (activeStageView.value === 'done' || stageStatus.done === 'done') return false;
+  if (activeStageView.value === 'done' || stageStatus.done === 'done')
+    return false;
   return (
     isRunning.value ||
     stageStatus.code_locate === 'done' ||
@@ -174,8 +191,8 @@ const shouldShowBannerProgress = computed(() => {
   );
 });
 
-const bannerProgressText = computed(() =>
-  `${Math.round(bannerProgress.value)}%`,
+const bannerProgressText = computed(
+  () => `${Math.round(bannerProgress.value)}%`,
 );
 
 const activeWorkbenchStageStatus = computed(() => {
@@ -297,8 +314,9 @@ const protocolCards = computed(() => {
 });
 
 const implementationRanking = computed(() => {
-  return [...implementationOverview.value]
-    .sort((left, right) => right.violationRules - left.violationRules);
+  return [...implementationOverview.value].sort(
+    (left, right) => right.violationRules - left.violationRules,
+  );
 });
 
 const historyProtocolOptions = computed(() => [
@@ -379,44 +397,44 @@ function scheduleBannerProgressTick() {
     !shouldShowBannerProgress.value ||
     shouldCompleteBannerProgress.value ||
     stageStatus.done === 'done'
-  ) return;
+  )
+    return;
 
   const current = bannerProgress.value;
   const isAssertStage = activeStageView.value === 'assert_gen';
-  const delay =
-    isAssertStage
-      ? current < 70
-        ? 1900 + Math.random() * 1200
-        : current < 90
-          ? 3000 + Math.random() * 1800
-          : 3400 + Math.random() * 2000
-      : current < 70
-        ? 950 + Math.random() * 650
-        : current < 90
-          ? 1600 + Math.random() * 900
-          : 1400 + Math.random() * 1300;
+  const delay = isAssertStage
+    ? current < 70
+      ? 1900 + Math.random() * 1200
+      : current < 90
+        ? 3000 + Math.random() * 1800
+        : 3400 + Math.random() * 2000
+    : current < 70
+      ? 950 + Math.random() * 650
+      : current < 90
+        ? 1600 + Math.random() * 900
+        : 1400 + Math.random() * 1300;
 
   bannerProgressTimer = setTimeout(() => {
     if (
       !shouldShowBannerProgress.value ||
       shouldCompleteBannerProgress.value ||
       stageStatus.done === 'done'
-    ) return;
+    )
+      return;
 
     const value = bannerProgress.value;
     const isCurrentAssertStage = activeStageView.value === 'assert_gen';
-    const increment =
-      isCurrentAssertStage
-        ? value < 70
+    const increment = isCurrentAssertStage
+      ? value < 70
+        ? 0.7 + Math.random() * 1.2
+        : value < 90
+          ? 0.22 + Math.random() * 0.55
+          : 0.1 + Math.random() * 0.25
+      : value < 70
+        ? 2 + Math.random() * 2.8
+        : value < 90
           ? 0.7 + Math.random() * 1.2
-          : value < 90
-            ? 0.22 + Math.random() * 0.55
-            : 0.1 + Math.random() * 0.25
-        : value < 70
-          ? 2 + Math.random() * 2.8
-          : value < 90
-            ? 0.7 + Math.random() * 1.2
-            : 0.3 + Math.random() * 0.9;
+          : 0.3 + Math.random() * 0.9;
     const cap = value < 90 ? 90 : 98;
     bannerProgress.value = Math.min(cap, value + increment);
     scheduleBannerProgressTick();
@@ -543,6 +561,29 @@ function handleSideNavClick(key: SideNavKey) {
   if (key === 'logs') void refreshViolationHistoryOnEnter();
 }
 
+function handleRuleExtractGoWorkbench() {
+  activeSideNav.value = 'workbench';
+  if (!isRunning.value) {
+    stage.value = 'setup';
+    activeStageView.value = 'setup';
+  }
+}
+
+function handleApplyExtractedRules(file: File) {
+  if (isRunning.value) {
+    message.warning('请先停止当前分析流程');
+    return;
+  }
+
+  resetWorkbench();
+  projectConfig.rules = file;
+  activeSideNav.value = 'workbench';
+  stage.value = 'setup';
+  activeStageView.value = 'setup';
+  stageMessage.value = '规则 JSON 已填入项目设置，请补充所需文件后进入规则确认';
+  message.success(`已填入协议规则 JSON：${file.name}`);
+}
+
 function refreshViolationHistoryOnEnter() {
   void nextTick(() => {
     if (activeSideNav.value !== 'logs') return;
@@ -566,7 +607,9 @@ function handleHistoryProtocolChange() {
 }
 
 function normalizeFilterValue(value: null | string | undefined) {
-  return String(value || '').trim().toLowerCase();
+  return String(value || '')
+    .trim()
+    .toLowerCase();
 }
 
 function formatOptionalTime(value?: null | string) {
@@ -579,7 +622,9 @@ function truncateText(value: null | string | undefined, maxLength: number) {
   return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text;
 }
 
-async function toggleViolationHistoryDetail(entry: ProtocolViolationHistoryEntry) {
+async function toggleViolationHistoryDetail(
+  entry: ProtocolViolationHistoryEntry,
+) {
   const shouldCollapse = selectedViolationHistoryId.value === entry.id;
   selectedViolationHistoryId.value = shouldCollapse ? '' : entry.id;
 
@@ -635,7 +680,9 @@ function isViolationHistoryMissingError(error: unknown) {
   );
 }
 
-async function handleDeleteViolationHistory(entry: ProtocolViolationHistoryEntry) {
+async function handleDeleteViolationHistory(
+  entry: ProtocolViolationHistoryEntry,
+) {
   if (deletingViolationHistoryId.value) return;
 
   deletingViolationHistoryId.value = entry.id;
@@ -787,7 +834,10 @@ async function handleLoadDemoConfig() {
         </div>
 
         <div v-if="activeSideNav === 'workbench'" class="topbar-actions">
-          <div class="runtime-status" :class="{ 'runtime-status--idle': !isRunning }">
+          <div
+            class="runtime-status"
+            :class="{ 'runtime-status--idle': !isRunning }"
+          >
             <span class="status-dot" />
             <span>{{ isRunning ? '运行中' : '空闲' }}</span>
           </div>
@@ -821,17 +871,44 @@ async function handleLoadDemoConfig() {
         <aside class="guard-sidebar">
           <div class="sidebar-main">
             <nav class="sidebar-nav">
-              <button
+              <div
                 v-for="item in sideNavItems"
                 :key="item.key"
-                class="nav-item"
-                :class="{ 'nav-item--active': item.key === activeSideNav }"
-                type="button"
-                @click="handleSideNavClick(item.key)"
+                class="nav-group"
               >
-                <IconifyIcon :icon="item.icon" />
-                <span>{{ item.label }}</span>
-              </button>
+                <button
+                  class="nav-item"
+                  :class="{
+                    'nav-item--active':
+                      item.key === activeSideNav ||
+                      (item.key === 'workbench' && isWorkbenchSectionActive),
+                  }"
+                  type="button"
+                  @click="handleSideNavClick(item.key)"
+                >
+                  <IconifyIcon :icon="item.icon" />
+                  <span>{{ item.label }}</span>
+                </button>
+
+                <div
+                  v-if="item.key === 'workbench' && isWorkbenchSectionActive"
+                  class="sub-nav"
+                >
+                  <button
+                    v-for="child in workbenchSubNavItems"
+                    :key="child.key"
+                    class="sub-nav-item"
+                    :class="{
+                      'sub-nav-item--active': child.key === activeSideNav,
+                    }"
+                    type="button"
+                    @click="handleSideNavClick(child.key)"
+                  >
+                    <IconifyIcon :icon="child.icon" />
+                    <span>{{ child.label }}</span>
+                  </button>
+                </div>
+              </div>
             </nav>
           </div>
 
@@ -840,7 +917,11 @@ async function handleLoadDemoConfig() {
             <dl>
               <div>
                 <dt>项目:</dt>
-                <dd>{{ projectConfig.protocolType }} ({{ projectConfig.implementation }})</dd>
+                <dd>
+                  {{ projectConfig.protocolType }} ({{
+                    projectConfig.implementation
+                  }})
+                </dd>
               </div>
               <div>
                 <dt>协议版本:</dt>
@@ -889,7 +970,9 @@ async function handleLoadDemoConfig() {
                     <IconifyIcon icon="mdi:check-decagram-outline" />
                     <span>
                       已支持
-                      <strong>{{ formatNumber(protocolOverview.length) }}</strong>
+                      <strong>{{
+                        formatNumber(protocolOverview.length)
+                      }}</strong>
                       类协议
                     </span>
                   </div>
@@ -897,7 +980,9 @@ async function handleLoadDemoConfig() {
                     <IconifyIcon icon="mdi:server-network" />
                     <span>
                       已接入
-                      <strong>{{ formatNumber(overviewSummary.implementations) }}</strong>
+                      <strong>{{
+                        formatNumber(overviewSummary.implementations)
+                      }}</strong>
                       个实现
                     </span>
                   </div>
@@ -954,7 +1039,8 @@ async function handleLoadDemoConfig() {
                     <p>
                       来自数据库汇总结果，共
                       {{ formatNumber(protocolOverview.length) }} 类协议、
-                      {{ formatNumber(overviewSummary.implementations) }} 个实现。
+                      {{ formatNumber(overviewSummary.implementations) }}
+                      个实现。
                     </p>
                   </div>
                   <span class="card-count">
@@ -986,8 +1072,13 @@ async function handleLoadDemoConfig() {
                       </div>
                     </div>
                     <div class="protocol-meta">
-                      <span>定位 {{ formatNumber(item.violationLocations) }} 处</span>
-                      <span>记录 {{ formatNumber(item.analysisRecords) }} 条</span>
+                      <span
+                        >定位
+                        {{ formatNumber(item.violationLocations) }} 处</span
+                      >
+                      <span
+                        >记录 {{ formatNumber(item.analysisRecords) }} 条</span
+                      >
                     </div>
                   </article>
                 </div>
@@ -1002,7 +1093,11 @@ async function handleLoadDemoConfig() {
                       {{ formatNumber(implementationRanking.length) }} 个实现。
                     </p>
                   </div>
-                  <Button size="small" type="primary" @click="openViolationHistory">
+                  <Button
+                    size="small"
+                    type="primary"
+                    @click="openViolationHistory"
+                  >
                     查看详情
                     <template #icon>
                       <IconifyIcon icon="mdi:arrow-right" />
@@ -1098,6 +1193,19 @@ async function handleLoadDemoConfig() {
             </section>
           </section>
 
+          <section
+            v-else-if="activeSideNav === 'extract'"
+            class="extract-shell"
+          >
+            <StageRuleExtract
+              :disabled="isRunning"
+              :protocol-type="projectConfig.protocolType"
+              :rules-file="projectConfig.rules"
+              @applyRules="handleApplyExtractedRules"
+              @goWorkbench="handleRuleExtractGoWorkbench"
+            />
+          </section>
+
           <section v-else-if="activeSideNav === 'workbench'" class="task-shell">
             <header class="task-header">
               <div class="task-heading">
@@ -1116,7 +1224,9 @@ async function handleLoadDemoConfig() {
                 @click="switchRule"
               >
                 切换规则
-                <template #icon><IconifyIcon icon="mdi:chevron-down" /></template>
+                <template #icon
+                  ><IconifyIcon icon="mdi:chevron-down"
+                /></template>
               </Button>
             </header>
 
@@ -1139,12 +1249,18 @@ async function handleLoadDemoConfig() {
                 @click="handleStageSelect(s.key)"
               >
                 <div class="stepper-circle">
-                  <IconifyIcon v-if="stageStatus[s.key] === 'done'" icon="mdi:check" />
+                  <IconifyIcon
+                    v-if="stageStatus[s.key] === 'done'"
+                    icon="mdi:check"
+                  />
                   <IconifyIcon
                     v-else-if="stageStatus[s.key] === 'skipped'"
                     icon="mdi:debug-step-over"
                   />
-                  <IconifyIcon v-else-if="stageStatus[s.key] === 'error'" icon="mdi:close" />
+                  <IconifyIcon
+                    v-else-if="stageStatus[s.key] === 'error'"
+                    icon="mdi:close"
+                  />
                   <span v-else>{{ s.index }}</span>
                 </div>
                 <div class="stepper-copy">
@@ -1177,7 +1293,10 @@ async function handleLoadDemoConfig() {
                 icon="mdi:information-outline"
               />
               <span class="workbench-banner-text">{{ stageMessage }}</span>
-              <span v-if="shouldShowBannerProgress" class="workbench-banner-percent">
+              <span
+                v-if="shouldShowBannerProgress"
+                class="workbench-banner-percent"
+              >
                 {{ bannerProgressText }}
               </span>
               <Button
@@ -1269,7 +1388,8 @@ async function handleLoadDemoConfig() {
                 <p>
                   数据库规则判定记录
                   <template v-if="violationHistoryGeneratedAt">
-                    · 更新时间 {{ formatOptionalTime(violationHistoryGeneratedAt) }}
+                    · 更新时间
+                    {{ formatOptionalTime(violationHistoryGeneratedAt) }}
                   </template>
                   <template v-if="violationHistoryRefreshing">
                     · 正在同步最新数据
@@ -1362,7 +1482,9 @@ async function handleLoadDemoConfig() {
                     </div>
                     <div class="result-history-meta">
                       {{ entry.databaseName }} ·
-                      {{ formatOptionalTime(entry.updatedAt || entry.extractedAt) }}
+                      {{
+                        formatOptionalTime(entry.updatedAt || entry.extractedAt)
+                      }}
                     </div>
                   </div>
                   <Tag :color="historyResultTagColor(entry)">
@@ -1423,10 +1545,16 @@ async function handleLoadDemoConfig() {
                   <header class="history-detail-head">
                     <div>
                       <span>结果详情</span>
-                      <h2>{{ entry.implementationName }} {{ entry.protocolName }}</h2>
+                      <h2>
+                        {{ entry.implementationName }} {{ entry.protocolName }}
+                      </h2>
                       <p>
                         {{ entry.databaseName }} ·
-                        {{ formatOptionalTime(entry.updatedAt || entry.extractedAt) }}
+                        {{
+                          formatOptionalTime(
+                            entry.updatedAt || entry.extractedAt,
+                          )
+                        }}
                       </p>
                     </div>
                     <Tag :color="historyResultTagColor(entry)">
@@ -1656,6 +1784,10 @@ async function handleLoadDemoConfig() {
   gap: 8px;
 }
 
+.nav-group {
+  min-width: 0;
+}
+
 .nav-item {
   display: flex;
   gap: 13px;
@@ -1694,6 +1826,41 @@ async function handleLoadDemoConfig() {
   content: '';
   background: #1677ff;
   border-radius: 0 3px 3px 0;
+}
+
+.sub-nav {
+  display: grid;
+  gap: 6px;
+  padding: 8px 0 0 20px;
+  margin-left: 16px;
+  border-left: 1px solid #dbe8f8;
+}
+
+.sub-nav-item {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #475569;
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+}
+
+.sub-nav-item :first-child {
+  flex: 0 0 auto;
+  font-size: 18px;
+}
+
+.sub-nav-item--active {
+  color: #1677ff;
+  background: #eef6ff;
 }
 
 .current-task {
@@ -1812,6 +1979,7 @@ async function handleLoadDemoConfig() {
 }
 
 .overview-shell,
+.extract-shell,
 .task-shell,
 .logs-shell {
   animation: guard-view-enter 140ms ease-out;
@@ -1995,8 +2163,17 @@ async function handleLoadDemoConfig() {
   width: min(420px, 100%);
   height: 174px;
   background:
-    linear-gradient(135deg, rgb(255 255 255 / 72%) 0%, rgb(81 139 255 / 18%) 100%),
-    linear-gradient(135deg, transparent 48%, rgb(64 133 255 / 28%) 49%, transparent 51%);
+    linear-gradient(
+      135deg,
+      rgb(255 255 255 / 72%) 0%,
+      rgb(81 139 255 / 18%) 100%
+    ),
+    linear-gradient(
+      135deg,
+      transparent 48%,
+      rgb(64 133 255 / 28%) 49%,
+      transparent 51%
+    );
   border: 1px solid rgb(64 133 255 / 28%);
   box-shadow: 0 22px 46px rgb(42 100 205 / 20%);
   transform: skewY(-10deg) rotate(-4deg);
@@ -2391,7 +2568,9 @@ async function handleLoadDemoConfig() {
 
 .implementation-row {
   display: grid;
-  grid-template-columns: minmax(100px, 1.2fr) 76px 68px minmax(136px, 1.2fr) 74px;
+  grid-template-columns:
+    minmax(100px, 1.2fr) 76px 68px minmax(136px, 1.2fr)
+    74px;
   gap: 10px;
   align-items: center;
   min-height: 42px;
@@ -2607,6 +2786,11 @@ async function handleLoadDemoConfig() {
 }
 
 .task-shell {
+  min-height: 100%;
+  padding: 24px 28px 28px;
+}
+
+.extract-shell {
   min-height: 100%;
   padding: 24px 28px 28px;
 }
@@ -3430,6 +3614,7 @@ async function handleLoadDemoConfig() {
     flex-wrap: wrap;
   }
 
+  .extract-shell,
   .task-shell {
     padding: 18px 14px;
   }
