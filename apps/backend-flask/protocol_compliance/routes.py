@@ -91,7 +91,7 @@ from .static_analysis_result_insights import (
 from .static_analysis_sources import (
     iter_static_analysis_database_sources,
 )
-from .static_analysis_submission_routes import register_static_analysis_submission_routes
+from .static_analysis_submission_routes import create_static_analysis_submission_handlers
 from .task_routes import create_task_handlers
 from .violation_history_markers import (
     _candidate_database_history_times as _candidate_database_history_times_impl,
@@ -237,8 +237,7 @@ def assertion_history_entry(job_id: str):
 def download_assertion_diff(job_id: str):
     return _assertion_history_handlers["download_assertion_diff"](job_id)
 
-_static_analysis_submission_route_handlers = register_static_analysis_submission_routes(
-    bp,
+_static_analysis_submission_handlers = create_static_analysis_submission_handlers(
     _ensure_authenticated,
     extract_protocol_metadata_from_config=_extract_protocol_metadata_from_config,
     list_static_analysis_history=(
@@ -248,13 +247,21 @@ _static_analysis_submission_route_handlers = register_static_analysis_submission
     strip_extension=_strip_extension,
     to_int=_to_int,
 )
-static_analysis = _static_analysis_submission_route_handlers["static_analysis"]
-static_analysis_history = _static_analysis_submission_route_handlers[
-    "static_analysis_history"
-]
-delete_static_analysis_history = _static_analysis_submission_route_handlers[
-    "delete_static_analysis_history"
-]
+
+
+@bp.route("/static-analysis", methods=["POST"])
+def static_analysis():
+    return _static_analysis_submission_handlers["static_analysis"]()
+
+
+@bp.route("/static-analysis/history", methods=["GET"])
+def static_analysis_history():
+    return _static_analysis_submission_handlers["static_analysis_history"]()
+
+
+@bp.route("/static-analysis/history/<job_id>", methods=["DELETE"])
+def delete_static_analysis_history(job_id: str):
+    return _static_analysis_submission_handlers["delete_static_analysis_history"](job_id)
 
 
 # Helpers -------------------------------------------------------------------

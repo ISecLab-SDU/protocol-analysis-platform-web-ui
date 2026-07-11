@@ -1,4 +1,4 @@
-"""Static-analysis submission and job history route registration."""
+"""Static-analysis submission and job history request handlers."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import json
 import logging
 from typing import Callable, Optional, cast
 
-from flask import Blueprint, make_response, request
+from flask import make_response, request
 from werkzeug.datastructures import FileStorage
 
 from utils.responses import error_response, success_response
@@ -22,8 +22,7 @@ from .analysis import (
 LOGGER = logging.getLogger(__name__)
 
 
-def register_static_analysis_submission_routes(
-    bp: Blueprint,
+def create_static_analysis_submission_handlers(
     ensure_authenticated: Callable[[], tuple[object, object]],
     *,
     extract_protocol_metadata_from_config: Callable[
@@ -35,7 +34,6 @@ def register_static_analysis_submission_routes(
     strip_extension: Callable[[str], str],
     to_int: Callable[[object, int], int],
 ) -> dict[str, Callable[..., object]]:
-    @bp.route("/static-analysis", methods=["POST"])
     def static_analysis():
         _, error = ensure_authenticated()
         if error:
@@ -136,7 +134,6 @@ def register_static_analysis_submission_routes(
         )
         return make_response(success_response(snapshot), 202)
 
-    @bp.route("/static-analysis/history", methods=["GET"])
     def static_analysis_history():
         _, error = ensure_authenticated()
         if error:
@@ -148,7 +145,6 @@ def register_static_analysis_submission_routes(
         payload = success_response({"items": history, "limit": limit, "count": len(history)})
         return make_response(payload, 200)
 
-    @bp.route("/static-analysis/history/<job_id>", methods=["DELETE"])
     def delete_static_analysis_history(job_id: str):
         """Delete a static analysis job from the history."""
         _, error = ensure_authenticated()
