@@ -39,15 +39,9 @@ from .analysis import (
 from .assertion import (
     get_assertion_history_diff_path,
     get_assertion_history_entry,
-    get_assert_generation_job,
-    get_assert_generation_result,
-    get_assert_generation_zip_path,
-    submit_assert_generation_job,
-    submit_diff_parsing_job,
-    get_diff_parsing_job,
-    get_diff_parsing_result,
     list_assertion_history,
 )
+from .assertion_routes import register_assertion_routes
 from .store import STORE
 from .pipeline_runner import (
     PipelineExecutionError,
@@ -139,7 +133,6 @@ _aflnet_route_handlers = register_aflnet_routes(bp, _ensure_authenticated)
 download_aflnet_result = _aflnet_route_handlers["download_aflnet_result"]
 snapshot_aflnet_result = _aflnet_route_handlers["snapshot_aflnet_result"]
 download_aflnet_result_artifact = _aflnet_route_handlers["download_aflnet_result_artifact"]
-
 
 # Helpers -------------------------------------------------------------------
 
@@ -865,6 +858,25 @@ def _resolve_assertion_database_path(database_path: Path) -> tuple[Optional[Path
             return matches[0], warnings
 
     return None, warnings
+
+
+_assertion_route_handlers = register_assertion_routes(
+    bp,
+    _ensure_authenticated,
+    _expand_path,
+    _read_upload,
+    _resolve_assertion_database_path,
+)
+assertion_generation = _assertion_route_handlers["assertion_generation"]
+assertion_generation_progress = _assertion_route_handlers["assertion_generation_progress"]
+assertion_generation_result = _assertion_route_handlers["assertion_generation_result"]
+assertion_generation_download = _assertion_route_handlers["assertion_generation_download"]
+assertion_generation_instrumentation_diff = _assertion_route_handlers[
+    "assertion_generation_instrumentation_diff"
+]
+start_diff_parsing = _assertion_route_handlers["start_diff_parsing"]
+diff_parsing_progress = _assertion_route_handlers["diff_parsing_progress"]
+diff_parsing_result = _assertion_route_handlers["diff_parsing_result"]
 
 
 def _preview_text(value: Any, limit: int = 240) -> str:
@@ -2690,269 +2702,6 @@ def download_static_analysis_database(job_id: str):
     LOGGER.error("[下载数据库] 所有方法都失败，无法找到数据库文件")
     return make_response(error_response("数据库文件不存在"), 404)
 
-
-@bp.route("/assertion-generation", methods=["POST"])
-def assertion_generation():
-    _, error = _ensure_authenticated()
-    if error:
-        return error
-
-    if not request.files:
-        return make_response(error_response("请上传源码压缩包"), 400)
-
-    code_upload_raw = request.files.get("codeArchive")
-    if not isinstance(code_upload_raw, FileStorage):
-        return make_response(error_response("请上传完整文件：源码压缩包"), 400)
-
-    code_name, code_data = _read_upload(code_upload_raw)
-
-    database_path_requested = request.form.get("databasePath")
-    database_source = "upload"
-    if database_path_requested:
-        database_path = _expand_path(database_path_requested)
-        if database_path is None:
-            return make_response(error_response("分析结果数据路径无效"), 400)
-        resolved_database_path, database_warnings = _resolve_assertion_database_path(database_path)
-        if resolved_database_path is None:
-            return make_response(
-                error_response(f"分析结果数据不存在：{database_path}"),
-                400,
-            )
-        if database_warnings:
-            LOGGER.warning(
-                "Resolved assertion analysis data with fallback",
-                extra={
-                    "requestedDatabasePath": str(database_path),
-                    "resolvedDatabasePath": str(resolved_database_path),
-                    "warnings": database_warnings,
-                },
-            )
-        database_path = resolved_database_path
-        try:
-            database_data = database_path.read_bytes()
-        except OSError as exc:
-            LOGGER.exception("Failed to read assertion analysis data: %s", database_path)
-            return make_response(error_response(f"读取分析结果数据失败：{exc}"), 500)
-        database_name = database_path.name
-        database_source = str(database_path)
-    else:
-        database_upload_raw = request.files.get("database")
-        if not isinstance(database_upload_raw, FileStorage):
-            return make_response(error_response("请上传完整文件：分析结果数据文件"), 400)
-        database_name, database_data = _read_upload(database_upload_raw)
-
-    if not code_data or not database_data:
-        return make_response(error_response("上传的文件内容为空，请重新上传"), 400)
-
-    build_instructions_raw = request.form.get("buildInstructions", "")
-    notes = request.form.get("notes")
-
-    LOGGER.info(
-        "Assertion generation job requested",
-        extra={
-            "codeArchive": code_name,
-            "database": database_name,
-            "databaseSource": database_source,
-            "hasBuildInstructions": bool(build_instructions_raw.strip()),
-            "notesLength": len(notes.strip()) if isinstance(notes, str) else 0,
-        },
-    )
-
-    snapshot = submit_assert_generation_job(
-        code_payload=(code_name, code_data),
-        database_payload=(database_name, database_data),
-        build_instructions=build_instructions_raw,
-        notes=notes,
-    )
-    return make_response(success_response(snapshot), 202)
-
-
-@bp.route("/assertion-generation/<job_id>/progress", methods=["GET"])
-def assertion_generation_progress(job_id: str):
-    _, error = _ensure_authenticated()
-    if error:
-        return error
-
-    snapshot = get_assert_generation_job(job_id)
-    if not snapshot:
-        return make_response(error_response("未找到断言生成任务"), 404)
-    return make_response(success_response(snapshot), 200)
-
-
-@bp.route("/assertion-generation/<job_id>/result", methods=["GET"])
-def assertion_generation_result(job_id: str):
-    _, error = _ensure_authenticated()
-    if error:
-        return error
-
-    result = get_assert_generation_result(job_id)
-    if result is None:
-        snapshot = get_assert_generation_job(job_id)
-        if not snapshot:
-            return make_response(error_response("未找到断言生成任务"), 404)
-        status = snapshot.get("status")
-        return make_response(
-            error_response("断言生成任务尚未完成", {"status": status}),
-            409,
-        )
-    return make_response(success_response(result), 200)
-
-
-@bp.route("/assertion-generation/<job_id>/download", methods=["GET"])
-def assertion_generation_download(job_id: str):
-    _, error = _ensure_authenticated()
-    if error:
-        return error
-
-    snapshot = get_assert_generation_job(job_id)
-    if not snapshot:
-        return make_response(error_response("未找到断言生成任务"), 404)
-
-    if snapshot.get("status") != "completed":
-        return make_response(
-            error_response("断言生成任务尚未完成", {"status": snapshot.get("status")}),
-            409,
-        )
-
-    zip_path = get_assert_generation_zip_path(job_id)
-    if not zip_path:
-        return make_response(error_response("未找到断言生成结果压缩包"), 404)
-
-    download_name = f"assertion-generation-{job_id}.zip"
-    return send_file(
-        zip_path,
-        mimetype="application/zip",
-        as_attachment=True,
-        download_name=download_name,
-        max_age=0,
-    )
-
-
-@bp.route("/assertion-generation/<job_id>/instrumentation-diff", methods=["GET"])
-def assertion_generation_instrumentation_diff(job_id: str):
-    """Fetch the instrumentation diff for a completed assertion generation job."""
-    _, error = _ensure_authenticated()
-    if error:
-        return error
-
-    result = get_assert_generation_result(job_id)
-    if result is None:
-        snapshot = get_assert_generation_job(job_id)
-        if not snapshot:
-            return make_response(error_response("未找到断言生成任务"), 404)
-        status = snapshot.get("status")
-        return make_response(
-            error_response("断言生成任务尚未完成", {"status": status}),
-            409,
-        )
-
-    # Extract instrumentation diff from result
-    instrumentation = result.get("instrumentation")
-    if not instrumentation or not isinstance(instrumentation, dict):
-        return make_response(error_response("未找到 instrumentation 数据"), 404)
-
-    instrumentation_data = cast(Dict[str, object], instrumentation)
-    artifacts = instrumentation_data.get("artifacts")
-    if not artifacts or not isinstance(artifacts, dict):
-        return make_response(error_response("未找到 instrumentation artifacts"), 404)
-
-    artifact_data = cast(Dict[str, object], artifacts)
-    diff_output = artifact_data.get("diffOutput")
-    if not diff_output or not isinstance(diff_output, dict):
-        return make_response(error_response("未找到 instrumentation diff 输出"), 404)
-
-    return make_response(success_response(diff_output), 200)
-
-
-# Diff Parsing Routes -----------------------------------------------------------
-
-
-@bp.route("/assertion-generation/<assert_job_id>/diff-parsing", methods=["POST"])
-def start_diff_parsing(assert_job_id: str):
-    """Start diff parsing for a completed assertion generation job."""
-    _, error = _ensure_authenticated()
-    if error:
-        return error
-
-    # Verify the parent assertion generation job exists
-    assert_snapshot = get_assert_generation_job(assert_job_id)
-    if not assert_snapshot:
-        return make_response(error_response("未找到断言生成任务"), 404)
-
-    if assert_snapshot.get("status") != "completed":
-        return make_response(
-            error_response(
-                "断言生成任务尚未完成，无法开始差异解析",
-                {"status": assert_snapshot.get("status")},
-            ),
-            409,
-        )
-
-    LOGGER.info(
-        "Diff parsing job requested",
-        extra={
-            "parentJobId": assert_job_id,
-        },
-    )
-
-    snapshot = submit_diff_parsing_job(assert_job_id)
-    return make_response(success_response(snapshot), 202)
-
-
-@bp.route(
-    "/assertion-generation/<assert_job_id>/diff-parsing/<diff_job_id>/progress",
-    methods=["GET"],
-)
-def diff_parsing_progress(assert_job_id: str, diff_job_id: str):
-    """Get progress of a diff parsing job."""
-    _, error = _ensure_authenticated()
-    if error:
-        return error
-
-    snapshot = get_diff_parsing_job(diff_job_id)
-    if not snapshot:
-        return make_response(error_response("未找到差异解析任务"), 404)
-
-    # Verify the parent job ID matches
-    if snapshot.get("parentJobId") != assert_job_id:
-        return make_response(
-            error_response("差异解析任务与指定的断言生成任务不匹配"),
-            400,
-        )
-
-    return make_response(success_response(snapshot), 200)
-
-
-@bp.route(
-    "/assertion-generation/<assert_job_id>/diff-parsing/<diff_job_id>/result",
-    methods=["GET"],
-)
-def diff_parsing_result(assert_job_id: str, diff_job_id: str):
-    """Get result of a completed diff parsing job."""
-    _, error = _ensure_authenticated()
-    if error:
-        return error
-
-    result = get_diff_parsing_result(diff_job_id)
-    if result is None:
-        snapshot = get_diff_parsing_job(diff_job_id)
-        if not snapshot:
-            return make_response(error_response("未找到差异解析任务"), 404)
-
-        # Verify the parent job ID matches
-        if snapshot.get("parentJobId") != assert_job_id:
-            return make_response(
-                error_response("差异解析任务与指定的断言生成任务不匹配"),
-                400,
-            )
-
-        status = snapshot.get("status")
-        return make_response(
-            error_response("差异解析任务尚未完成", {"status": status}),
-            409,
-        )
-
-    return make_response(success_response(result), 200)
 
 
 # Protocol Specific Routes -------------------------------------------------
