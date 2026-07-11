@@ -1,10 +1,9 @@
+import type { ExtendedFormApi } from './form-api';
 import type { BaseFormComponentType, VbenFormProps } from './types';
 
 import { defineComponent, h, isReactive, onBeforeUnmount, watch } from 'vue';
 
 import { useStore } from '@vben-core/shared/store';
-
-import type { ExtendedFormApi } from './form-api';
 
 import { FormApi } from './form-api';
 import VbenUseForm from './vben-use-form.vue';

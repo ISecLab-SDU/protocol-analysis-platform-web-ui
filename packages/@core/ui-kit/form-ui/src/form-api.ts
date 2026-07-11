@@ -5,8 +5,7 @@ import type {
   ValidationOptions,
 } from 'vee-validate';
 
-import type { ComponentPublicInstance } from 'vue';
-import type { Ref } from 'vue';
+import type { ComponentPublicInstance, Ref } from 'vue';
 
 import type { Recordable } from '@vben-core/typings';
 
