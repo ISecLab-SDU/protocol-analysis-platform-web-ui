@@ -77,3 +77,5 @@ compiler_test.py
 demo_mqtt_integration.py
 **/.envrc
 **/.tmux.conf
+
+.vscode/**
