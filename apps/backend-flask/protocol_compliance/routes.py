@@ -61,6 +61,7 @@ from .legacy_analysis_history import (
     read_analysis_history as read_analysis_history,
 )
 from .legacy_analysis_routes import register_legacy_analysis_routes
+from .legacy_fuzz_routes import register_legacy_fuzz_routes
 from .route_helpers import (
     _collect_exception_details as _collect_exception_details,
     _extract_protocol_metadata_from_config,
@@ -151,6 +152,12 @@ get_detection_results = _legacy_analysis_route_handlers["get_detection_results"]
 list_available_implementations = _legacy_analysis_route_handlers["list_available_implementations"]
 get_analysis_history = _legacy_analysis_route_handlers["get_analysis_history"]
 add_analysis_history = _legacy_analysis_route_handlers["add_analysis_history"]
+
+_legacy_fuzz_route_handlers = register_legacy_fuzz_routes(
+    bp,
+    _ensure_authenticated,
+)
+write_script = _legacy_fuzz_route_handlers["write_script"]
 
 # Helpers -------------------------------------------------------------------
 
@@ -2415,42 +2422,6 @@ SNMP_CONFIG = {
     "shell_command": "echo 'SNMP Fuzzer模拟运行'",  # SNMP Fuzzer启动命令（临时模拟）
     "output_dir": os.path.join(os.path.dirname(__file__), "snmpfuzzer_logs")  # SNMP Fuzzer输出目录
 }
-
-
-@bp.route("/write-script", methods=["POST"])
-def write_script():
-    """写入脚本文件到指定路径"""
-    _, error = _ensure_authenticated()
-    if error:
-        return error
-
-    data = request.get_json()
-    if not data:
-        return make_response(error_response("请求数据不能为空"), 400)
-
-    content = data.get("content")
-    protocol = data.get("protocol", "UNKNOWN")
-
-    if not content:
-        return make_response(error_response("脚本内容不能为空"), 400)
-
-    # 根据协议获取配置
-    if protocol == "RTSP":
-        # SOL使用ProtocolGuard，不需要脚本文件，直接返回成功
-        return success_response({
-            "message": "SOL不需要脚本文件，直接启动docker即可生成日志",
-            "filePath": "N/A",
-            "size": 0
-        })
-    elif protocol == "MQTT":
-        # MQTT协议暂时不需要脚本文件，直接返回成功
-        return success_response({
-            "message": f"{protocol}协议不需要脚本文件",
-            "filePath": "N/A",
-            "size": 0
-        })
-    else:
-        return make_response(error_response(f"不支持的协议类型: {protocol}"), 400)
 
 
 @bp.route("/execute-command", methods=["POST"])
