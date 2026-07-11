@@ -446,19 +446,6 @@ export function runProtocolStaticAnalysis(
   if (config) {
     formData.append('config', config);
   }
-  console.info(
-    '[protocol-compliance] static analysis multipart config decision',
-    {
-      codeArchive: codeArchive.name,
-      configFile: config?.name ?? null,
-      configUpload: Boolean(config),
-      decision: config ? 'upload-config-file' : 'backend-generate-config.toml',
-      projectName: projectName?.trim() || null,
-      protocolName: protocolName?.trim() || null,
-      protocolVersion: protocolVersion?.trim() || null,
-      rules: rules.name,
-    },
-  );
   if (notes?.trim()) {
     formData.append('notes', notes.trim());
   }
@@ -527,7 +514,7 @@ export interface DownloadAflNetPocParams {
   protocol: string;
 }
 
-export interface SnapshotAflNetPocParams extends DownloadAflNetPocParams {}
+export type SnapshotAflNetPocParams = DownloadAflNetPocParams;
 
 export interface SnapshotAflNetPocResponse {
   artifactId: string;
@@ -1060,15 +1047,10 @@ export async function runProtocolExtract(payload: RunProtocolExtractPayload) {
   const data = res?.data ?? res;
 
   // 兼容数组格式、对象格式、嵌套 data 结构
-  const rules = Array.isArray(data)
-    ? data
-    : Array.isArray(data.rules)
-      ? data.rules
-      : Array.isArray(data.result)
-        ? data.result
-        : Array.isArray(data.data?.rules)
-          ? data.data.rules
-          : [];
+  const rules =
+    [data, data.rules, data.result, data.data?.rules].find((value) =>
+      Array.isArray(value),
+    ) ?? [];
 
   // ✅ 兼容附加字段（若后端没返回则设默认值）
   return {

@@ -3,11 +3,12 @@ import type { Plugin } from 'vite';
 
 import fs from 'node:fs';
 import path from 'node:path';
+import process from 'node:process';
 
 import { defineConfig } from '@vben/vite-config';
 
 const DEMO_INPUT_ROUTE = '/New-Input/';
-const DEMO_INPUT_DIR = path.resolve(__dirname, '../..', 'New-Input');
+const DEMO_INPUT_DIR = path.resolve(import.meta.dirname, '../..', 'New-Input');
 const DEMO_INPUT_MIME_TYPES: Record<string, string> = {
   '.json': 'application/json',
   '.tar': 'application/x-tar',
@@ -89,7 +90,7 @@ export default defineConfig(async () => {
       plugins: [demoInputStaticPlugin()],
       resolve: {
         alias: {
-          '@': path.resolve(__dirname, 'src'),
+          '@': path.resolve(import.meta.dirname, 'src'),
         },
       },
       server: {
