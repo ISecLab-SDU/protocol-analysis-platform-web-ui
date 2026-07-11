@@ -399,7 +399,7 @@ def static_analysis():
 
     if not request.files:
         return make_response(
-            error_response("请上传源码、协议规则和配置文件"), 400
+            error_response("请上传源码和协议规则文件"), 400
         )
 
     uploads_map = {
@@ -410,13 +410,13 @@ def static_analysis():
 
     required_missing = [
         key for key, value in uploads_map.items()
+        if key != "config"
         if not isinstance(value, FileStorage)
     ]
     if required_missing:
         labels = {
             "codeArchive": "源码压缩包",
             "rules": "协议规则 JSON",
-            "config": "分析配置 TOML",
         }
         readable = "、".join(labels.get(item, item) for item in required_missing)
         return make_response(
@@ -425,13 +425,16 @@ def static_analysis():
 
     code_upload = cast(FileStorage, uploads_map["codeArchive"])
     rules_upload = cast(FileStorage, uploads_map["rules"])
-    config_upload = cast(FileStorage, uploads_map["config"])
+    config_upload = uploads_map["config"] if isinstance(uploads_map["config"], FileStorage) else None
 
     code_name, code_data = _read_upload(code_upload)
     rules_name, rules_data = _read_upload(rules_upload)
-    config_name, config_data = _read_upload(config_upload)
+    if config_upload is not None:
+        config_name, config_data = _read_upload(config_upload)
+    else:
+        config_name, config_data = "generated-config.toml", None
 
-    if code_data is None or config_data is None or rules_data is None:
+    if code_data is None or rules_data is None:
         return make_response(error_response("上传的文件内容为空，请重新上传"), 400)
 
     parsed_rules = None
@@ -441,11 +444,19 @@ def static_analysis():
         except (json.JSONDecodeError, UnicodeDecodeError):
             parsed_rules = None
 
+    form_protocol_name = (request.form.get("protocolName") or request.form.get("protocol") or "").strip()
+    form_protocol_version = (
+        request.form.get("protocolVersion") or request.form.get("version") or ""
+    ).strip()
+    project_name = (request.form.get("projectName") or request.form.get("implementationName") or "").strip()
+
     config_protocol_name, config_protocol_version = _extract_protocol_metadata_from_config(config_data, config_name)
 
     rules_protocol_fallback = normalize_protocol_name(parsed_rules, _strip_extension(rules_name))
-    protocol_name = config_protocol_name or rules_protocol_fallback
-    if config_protocol_name:
+    protocol_name = form_protocol_name or config_protocol_name or rules_protocol_fallback
+    if form_protocol_name:
+        LOGGER.info("Static analysis protocol resolved from form field: %s", form_protocol_name)
+    elif config_protocol_name:
         LOGGER.info(
             "Static analysis protocol resolved from config %s: %s",
             config_name,
@@ -459,8 +470,10 @@ def static_analysis():
         )
 
     rules_version_fallback = extract_protocol_version(parsed_rules, None)
-    protocol_version = config_protocol_version or rules_version_fallback
-    if config_protocol_version:
+    protocol_version = form_protocol_version or config_protocol_version or rules_version_fallback
+    if form_protocol_version:
+        LOGGER.info("Static analysis protocol version resolved from form field: %s", form_protocol_version)
+    elif config_protocol_version:
         LOGGER.info(
             "Static analysis protocol version resolved from config %s: %s",
             config_name,
@@ -482,6 +495,7 @@ def static_analysis():
         notes=notes,
         protocol_name=protocol_name,
         protocol_version=protocol_version,
+        project_name=project_name or None,
         rules_summary=rules_summary,
     )
     return make_response(success_response(snapshot), 202)

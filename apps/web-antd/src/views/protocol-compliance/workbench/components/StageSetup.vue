@@ -25,8 +25,10 @@ const emit = defineEmits<Emits>();
 
 const implementationOptions = computed(() => PROTOCOL_IMPLEMENTATIONS[props.config.protocolType]);
 
-function onProtocolChange(val: 'MQTT' | 'SNMP') {
+function onProtocolChange(val: unknown) {
+  if (val !== 'MQTT' && val !== 'SNMP') return;
   props.config.protocolType = val;
+  props.config.protocolVersion = val === 'MQTT' ? '3.1.1' : 'v2c/v3';
   props.config.implementation = PROTOCOL_IMPLEMENTATIONS[val][0]!;
   props.config.targetHost = DEFAULT_TARGET[val].host;
   props.config.targetPort = DEFAULT_TARGET[val].port;
@@ -38,11 +40,20 @@ function onProtocolChange(val: 'MQTT' | 'SNMP') {
   );
 }
 
-function onImplementationChange(val: ProjectConfig['implementation']) {
-  props.config.implementation = val;
+function onImplementationChange(val: unknown) {
+  if (
+    typeof val !== 'string' ||
+    !PROTOCOL_IMPLEMENTATIONS[props.config.protocolType].includes(
+      val as ProjectConfig['implementation'],
+    )
+  ) {
+    return;
+  }
+  const implementation = val as ProjectConfig['implementation'];
+  props.config.implementation = implementation;
   props.config.fuzzScript = buildDefaultFuzzScript(
     props.config.protocolType,
-    props.config.implementation,
+    implementation,
     props.config.targetHost,
     props.config.targetPort,
   );
@@ -50,20 +61,19 @@ function onImplementationChange(val: ProjectConfig['implementation']) {
 
 function beforeUpload(
   file: File,
-  field: 'archive' | 'config' | 'rules',
+  field: 'archive' | 'rules',
 ) {
   props.config[field] = file;
   return false;
 }
 
-function removeFile(field: 'archive' | 'config' | 'rules') {
+function removeFile(field: 'archive' | 'rules') {
   props.config[field] = null;
 }
 
 const canCommit = computed(() => {
   return Boolean(
     props.config.archive &&
-    props.config.config &&
     props.config.rules &&
     props.config.buildInstructions.trim()
   );
@@ -80,21 +90,6 @@ const canCommit = computed(() => {
           :before-upload="(file) => beforeUpload(file, 'archive')"
           :disabled="disabled"
           @remove="() => removeFile('archive')"
-        >
-          <Button :disabled="disabled">
-            <template #icon><IconifyIcon icon="mdi:upload" /></template>
-            选择文件
-          </Button>
-        </Upload>
-      </div>
-
-      <div class="setup-section">
-        <div class="setup-label">配置 TOML *</div>
-        <Upload
-          :file-list="config.config ? [{ uid: '-3', name: config.config.name, status: 'done' }] : []"
-          :before-upload="(file) => beforeUpload(file, 'config')"
-          :disabled="disabled"
-          @remove="() => removeFile('config')"
         >
           <Button :disabled="disabled">
             <template #icon><IconifyIcon icon="mdi:upload" /></template>
@@ -142,6 +137,15 @@ const canCommit = computed(() => {
           <SelectOption value="MQTT">MQTT</SelectOption>
           <SelectOption value="SNMP">SNMP</SelectOption>
         </Select>
+      </div>
+
+      <div class="setup-section">
+        <div class="setup-label">协议版本</div>
+        <Input
+          v-model:value="config.protocolVersion"
+          placeholder="3.1.1"
+          :disabled="disabled"
+        />
       </div>
 
       <div class="setup-section">

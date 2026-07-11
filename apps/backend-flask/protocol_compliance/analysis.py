@@ -445,13 +445,14 @@ def run_static_analysis(
     *,
     code_stream: BinaryIO,
     code_file_name: str,
-    config_stream: BinaryIO,
-    config_file_name: str,
+    config_stream: Optional[BinaryIO],
+    config_file_name: Optional[str],
     rules_stream: BinaryIO,
     rules_file_name: str,
     notes: Optional[str],
     protocol_name: str,
     protocol_version: Optional[str],
+    project_name: Optional[str],
     rules_summary: Optional[str],
     job_id: Optional[str] = None,
     progress_callback: Optional[Callable[[str, str, str], None]] = None,
@@ -487,6 +488,7 @@ def run_static_analysis(
             notes=notes,
             protocol_name=protocol_name,
             protocol_version=protocol_version,
+            project_name=project_name,
             job_id=job_identifier,
             progress_callback=progress_callback,
         )
@@ -520,11 +522,12 @@ def _extract_database_path(result: Dict[str, object]) -> Optional[str]:
 def submit_static_analysis_job(
     *,
     code_payload: tuple[str, bytes],
-    config_payload: tuple[str, bytes],
+    config_payload: tuple[str, Optional[bytes]],
     rules_payload: tuple[str, bytes],
     notes: Optional[str],
     protocol_name: str,
     protocol_version: Optional[str],
+    project_name: Optional[str],
     rules_summary: Optional[str],
 ) -> Dict[str, object]:
     """Launch static analysis asynchronously and return the initial job snapshot."""
@@ -539,17 +542,47 @@ def submit_static_analysis_job(
             code_name, code_bytes = code_payload
             config_name, config_bytes = config_payload
             rules_name, rules_bytes = rules_payload
+            config_decision = (
+                f"using uploaded config {config_name}"
+                if config_bytes is not None
+                else "no config upload provided; backend will generate config.toml"
+            )
+            LOGGER.info(
+                "Static analysis job %s input decision: %s (code=%s, rules=%s, protocol=%s, version=%s, project=%s)",
+                job_id,
+                config_decision,
+                code_name,
+                rules_name,
+                protocol_name,
+                protocol_version,
+                project_name,
+                extra={
+                    "protocolguard_context": {
+                        "job_id": job_id,
+                        "stage": "inputs",
+                        "config_source": "uploaded" if config_bytes is not None else "generated",
+                        "config_filename": config_name,
+                        "code_filename": code_name,
+                        "rules_filename": rules_name,
+                        "protocol_name": protocol_name,
+                        "protocol_version": protocol_version,
+                        "project_name": project_name,
+                    },
+                },
+            )
+            progress_callback(job_id, "inputs", f"Config decision: {config_decision}")
 
             result = run_static_analysis(
                 code_stream=BytesIO(code_bytes),
                 code_file_name=code_name,
-                config_stream=BytesIO(config_bytes),
+                config_stream=BytesIO(config_bytes) if config_bytes is not None else None,
                 config_file_name=config_name,
                 rules_stream=BytesIO(rules_bytes),
                 rules_file_name=rules_name,
                 notes=notes,
                 protocol_name=protocol_name,
                 protocol_version=protocol_version,
+                project_name=project_name,
                 rules_summary=rules_summary,
                 job_id=job_id,
                 progress_callback=progress_callback,

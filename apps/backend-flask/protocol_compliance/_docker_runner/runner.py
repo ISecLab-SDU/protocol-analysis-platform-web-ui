@@ -101,8 +101,8 @@ class ProtocolGuardDockerRunner:
         code_filename: str,
         builder_stream: BinaryIO,
         builder_filename: str,
-        config_stream: BinaryIO,
-        config_filename: str,
+        config_stream: Optional[BinaryIO],
+        config_filename: Optional[str],
         rules_stream: BinaryIO,
         rules_filename: str,
         notes: Optional[str],
@@ -186,14 +186,23 @@ class ProtocolGuardDockerRunner:
                 )
 
             with logger.state(stage="config", config_file=job_paths.config_file):
-                logger.info("Loading and preparing config file", source=config_filename_real)
-                config_data = self._load_config(config_stream, config_filename)
-                prepared_config = self._prepare_config(
-                    config_data=config_data,
-                    job_paths=job_paths,
-                    protocol_name=protocol_name,
-                    protocol_version=protocol_version,
-                )
+                if config_stream is None:
+                    logger.info("Generating config file from staged inputs")
+                    prepared_config = self._build_config(
+                        job_paths=job_paths,
+                        rules_path=rules_path,
+                        protocol_name=protocol_name,
+                        protocol_version=protocol_version,
+                    )
+                else:
+                    logger.info("Loading and preparing config file", source=config_filename_real)
+                    config_data = self._load_config(config_stream, config_filename_real)
+                    prepared_config = self._prepare_config(
+                        config_data=config_data,
+                        job_paths=job_paths,
+                        protocol_name=protocol_name,
+                        protocol_version=protocol_version,
+                    )
                 self._write_config(job_paths.config_file, prepared_config)
                 logger.info("Config file written to workspace")
 

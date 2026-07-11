@@ -840,20 +840,193 @@ class AgentExecutor:
         except (subprocess.CalledProcessError, FileNotFoundError, TimeoutError):
             return False
 
-    def _run_analysis_container(self, workspace_dir: Path, job_identifier: str, progress_callback=None):
-        if not self._docker_available:
-            logger.debug("⚠️ Docker not available, skipping analysis container")
-            return
+    def _build_generated_config_content(
+        self,
+        *,
+        protocol_name: Optional[str],
+        protocol_version: Optional[str],
+        project_name: Optional[str],
+    ) -> str:
+        import toml
 
-        output_dir = self.settings.workspace_root.parent / "outputs" / job_identifier
-        output_dir.mkdir(parents=True, exist_ok=True)
+        resolved_protocol = protocol_name or os.environ.get("PG_PROTOCOL_NAME", "MQTT")
+        resolved_version = protocol_version or os.environ.get("PG_PROTOCOL_VERSION", "3.1.1")
+        resolved_project = project_name or os.environ.get("PG_PROJECT_NAME", "Sol")
+        config = {
+            "wpa": {"path": "/workspace/ffp.txt"},
+            "database": {"path": "/workspace/database"},
+            "llm": {
+                "llm_api_platform": os.environ.get(
+                    "PG_LLM_API_BASE",
+                    "http://10.102.32.6:47860/v1/chat/completions",
+                ),
+                "llm_model_deepseek_v3": os.environ.get("PG_LLM_MODEL_V3", "deepseek-v3"),
+                "llm_model_deepseek_r1": os.environ.get("PG_LLM_MODEL_R1", "deepseek-r1"),
+                "llm_query_repeat_times": 1,
+                "llm_query_max_attempts": 10,
+                "llm_violation_repeat_times": 3,
+                "llm_multithread": 32,
+            },
+            "project": {
+                "project_path": "/workspace/project/sol",
+                "packet_related_callgraph_path": "/workspace/callgraph_report.txt",
+                "function_arg_path": "/workspace/function_arg_summary.txt",
+                "rule_path": "/workspace/inputs/rules.json",
+                "protocol_name": resolved_protocol,
+                "protocol_version": resolved_version,
+                "project_name": resolved_project,
+                "original_llvm_ir_path": "/workspace/program.ll",
+                "build_log_path": "/workspace/build_log.txt",
+                "binary_path": "/workspace/program",
+                "bitcode_path": "/workspace/program.bc",
+            },
+            "debug": {
+                "code_slice_replace_mode": int(os.environ.get("PG_DEBUG_CODE_SLICE_MODE", "0") or 0),
+                "log_print": int(os.environ.get("PG_DEBUG_LOG_PRINT", "0") or 0),
+            },
+            "config": {
+                "mqtt_packet_type": [
+                    "CONNECT", "CONNACK", "PUBLISH", "PUBACK", "PUBREC", "PUBREL", "PUBCOMP",
+                    "SUBSCRIBE", "SUBACK", "UNSUBSCRIBE", "UNSUBACK", "PINGREQ", "PINGRESP",
+                    "DISCONNECT", "AUTH",
+                ],
+                "dhcpv6_packet_type": [
+                    "DHCP6_SOLICIT", "DHCP6_ADVERTISE", "DHCP6_REQUEST", "DHCP6_REPLY",
+                    "DHCP6_CONFIRM", "DHCP6_RELEASE", "DHCP6_DECLINE", "DHCP6_RENEW",
+                    "DHCP6_REBIND", "DHCP6_IREQ", "DHCP6_RECONFIGURE", "DHCP6_RELAYFORW",
+                    "DHCP6_RELAYREPL",
+                ],
+                "coap_packet_type": ["CONFIRMABLE", "NON_CONFIRMABLE", "ACKNOWLEDGEMENT", "RESET"],
+                "ftp_packet_type": [
+                    "USER", "PASS", "ACCT", "REIN", "QUIT", "PORT", "PASV", "TYPE", "STRU",
+                    "MODE", "RETR", "STOR", "APPE", "DELE", "RNFR", "RNTO", "ABOR", "CWD",
+                    "CDUP", "PWD", "MKD", "RMD", "LIST", "NLST", "SYST", "STAT", "FEAT",
+                    "HELP", "NOOP", "ALLO", "REST", "MLST", "MLSD", "OPTS", "EPSV", "EPRT",
+                    "AUTH", "ADAT", "CCC", "CONF", "ENC", "MIC", "PBSZ", "PROT",
+                ],
+                "tls13_message_type": [
+                    "CLIENT_HELLO", "SERVER_HELLO", "NEW_SESSION_TICKET", "END_OF_EARLY_DATA",
+                    "ENCRYPTED_EXTENSIONS", "CERTIFICATE", "CERTIFICATE_REQUEST",
+                    "CERTIFICATE_VERIFY", "FINISHED", "KEY_UPDATE", "HELLO_RETRY_REQUEST",
+                ],
+            },
+        }
+        return toml.dumps(config)
 
-        config_dir = self.settings.workspace_root.parent / "configs" / job_identifier
-        config_dir.mkdir(parents=True, exist_ok=True)
+    def _container_path(self, workspace_dir: Path, path: Path) -> str:
+        try:
+            relative = path.resolve(strict=False).relative_to(workspace_dir.resolve(strict=False))
+        except ValueError:
+            return str(path)
+        if relative.as_posix() == ".":
+            return "/workspace"
+        return f"/workspace/{relative.as_posix()}"
 
-        logger.debug("[*] Generating config.toml with correct paths for ProtocolGuard analysis")
+    def _first_existing(self, workspace_dir: Path, relative_paths: List[str]) -> Optional[Path]:
+        for relative_path in relative_paths:
+            candidate = workspace_dir / relative_path
+            if candidate.exists():
+                return candidate
+        return None
 
-        prepared_config = {
+    def _find_workspace_file(
+        self,
+        workspace_dir: Path,
+        *,
+        suffixes: Tuple[str, ...],
+        exclude_suffixes: Tuple[str, ...] = (),
+    ) -> Optional[Path]:
+        matches: List[Path] = []
+        for path in workspace_dir.rglob("*"):
+            if not path.is_file():
+                continue
+            name = path.name.lower()
+            if exclude_suffixes and any(name.endswith(suffix) for suffix in exclude_suffixes):
+                continue
+            if any(name.endswith(suffix) for suffix in suffixes):
+                matches.append(path)
+        if not matches:
+            return None
+        matches.sort(key=lambda path: (len(path.relative_to(workspace_dir).parts), str(path)))
+        return matches[0]
+
+    def _infer_project_root(self, workspace_dir: Path) -> Path:
+        project_dir = workspace_dir / "project"
+        if not project_dir.exists():
+            return workspace_dir
+
+        build_markers = {
+            "CMakeLists.txt",
+            "Makefile",
+            "configure",
+            "meson.build",
+            "compile_commands.json",
+        }
+        marker_dirs: List[Path] = []
+        for path in project_dir.rglob("*"):
+            if path.is_file() and path.name in build_markers:
+                marker_dirs.append(path.parent)
+        if marker_dirs:
+            marker_dirs.sort(key=lambda path: (len(path.relative_to(project_dir).parts), str(path)))
+            return marker_dirs[0]
+
+        children = [path for path in project_dir.iterdir() if path.is_dir()]
+        if len(children) == 1:
+            return children[0]
+        return project_dir
+
+    def _build_analysis_config(
+        self,
+        *,
+        workspace_dir: Path,
+        protocol_name: Optional[str],
+        protocol_version: Optional[str],
+        project_name: Optional[str],
+    ) -> Dict[str, Any]:
+        project_root = self._infer_project_root(workspace_dir)
+        bitcode_path = self._first_existing(
+            workspace_dir,
+            [
+                "program.bc",
+                "sol.bc",
+                "project/sol/build/sol.bc",
+            ],
+        ) or self._find_workspace_file(
+            workspace_dir,
+            suffixes=(".bc",),
+            exclude_suffixes=("_ssa.bc",),
+        ) or (workspace_dir / "program.bc")
+        original_ir_path = self._first_existing(
+            workspace_dir,
+            [
+                "program.ll",
+                "project/sol/build/sol.ll",
+            ],
+        ) or self._find_workspace_file(workspace_dir, suffixes=(".ll",)) or bitcode_path
+        build_log_path = self._first_existing(
+            workspace_dir,
+            [
+                "build_log.txt",
+                "project/sol/build/build_log.txt",
+            ],
+        ) or self._find_workspace_file(workspace_dir, suffixes=("build_log.txt",)) or (
+            workspace_dir / "build_log.txt"
+        )
+        bitcode_binary = bitcode_path.with_suffix("")
+        binary_path = self._first_existing(
+            workspace_dir,
+            [
+                "program",
+                "sol",
+                "project/sol/build/sol",
+            ],
+        ) or (bitcode_binary if bitcode_binary.exists() else workspace_dir / "program")
+
+        resolved_protocol = protocol_name or os.environ.get("PG_PROTOCOL_NAME", "MQTT")
+        resolved_version = protocol_version or os.environ.get("PG_PROTOCOL_VERSION", "3.1.1")
+        resolved_project = project_name or os.environ.get("PG_PROJECT_NAME", "Sol")
+
+        return {
             "wpa": {
                 "path": "/workspace/ffp.txt",
             },
@@ -870,18 +1043,17 @@ class AgentExecutor:
                 "llm_multithread": 32,
             },
             "project": {
-                "project_path": "/workspace/project/sol",
+                "project_path": self._container_path(workspace_dir, project_root),
                 "packet_related_callgraph_path": "/workspace/callgraph_report.txt",
                 "function_arg_path": "/workspace/function_arg_summary.txt",
                 "rule_path": "/workspace/inputs/rules.json",
-                "protocol_name": os.environ.get("PG_PROTOCOL_NAME", "MQTT"),
-                "protocol_version": os.environ.get("PG_PROTOCOL_VERSION", "5"),
-                "project_name": os.environ.get("PG_PROJECT_NAME", "Sol"),
-                "original_llvm_ir_path": "/workspace/program.ll",
-                "build_command": "cmake -S . -B build -DCMAKE_C_COMPILER=gclang -DCMAKE_C_FLAGS='-g -Xclang -disable-O0-optnone -fno-discard-value-names' && cmake --build build -- VERBOSE=1",
-                "build_log_path": "/workspace/build_log.txt",
-                "binary_path": "/workspace/sol",
-                "bitcode_path": "/workspace/program.bc",
+                "protocol_name": resolved_protocol,
+                "protocol_version": resolved_version,
+                "project_name": resolved_project,
+                "original_llvm_ir_path": self._container_path(workspace_dir, original_ir_path),
+                "build_log_path": self._container_path(workspace_dir, build_log_path),
+                "binary_path": self._container_path(workspace_dir, binary_path),
+                "bitcode_path": self._container_path(workspace_dir, bitcode_path),
             },
             "debug": {
                 "code_slice_replace_mode": 0,
@@ -913,10 +1085,60 @@ class AgentExecutor:
             },
         }
 
+    def _run_analysis_container(
+        self,
+        workspace_dir: Path,
+        job_identifier: str,
+        progress_callback=None,
+        *,
+        protocol_name: Optional[str] = None,
+        protocol_version: Optional[str] = None,
+        project_name: Optional[str] = None,
+    ):
+        if not self._docker_available:
+            logger.debug("⚠️ Docker not available, skipping analysis container")
+            return
+
+        output_dir = self.settings.workspace_root.parent / "outputs" / job_identifier
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        config_dir = self.settings.workspace_root.parent / "configs" / job_identifier
+        config_dir.mkdir(parents=True, exist_ok=True)
+
+        logger.debug("[*] Generating config.toml with correct paths for ProtocolGuard analysis")
+
+        prepared_config = self._build_analysis_config(
+            workspace_dir=workspace_dir,
+            protocol_name=protocol_name,
+            protocol_version=protocol_version,
+            project_name=project_name,
+        )
+
         import toml
-        with open(config_dir / "config.toml", "w", encoding="utf-8") as f:
-            toml.dump(prepared_config, f)
-        logger.debug("[*] Generated config.toml at %s", config_dir / "config.toml")
+        final_config_content = toml.dumps(prepared_config)
+        config_path = config_dir / "config.toml"
+        with open(config_path, "w", encoding="utf-8") as f:
+            f.write(final_config_content)
+        logger.info(
+            "Generated final ProtocolGuard analysis config.toml for job %s at %s:\n%s",
+            job_identifier,
+            config_path,
+            final_config_content,
+            extra={
+                "protocolguard_context": {
+                    "job_id": job_identifier,
+                    "stage": "config",
+                    "config_source": "generated-final-analysis",
+                    "config_path": str(config_path),
+                },
+            },
+        )
+        if progress_callback:
+            progress_callback(
+                job_identifier,
+                "config",
+                f"Generated final ProtocolGuard analysis config.toml at {config_path}:\n{final_config_content}",
+            )
 
         inputs_dir = workspace_dir / "inputs"
         inputs_dir.mkdir(parents=True, exist_ok=True)
@@ -1266,17 +1488,23 @@ class AgentExecutor:
         *,
         code_stream: BinaryIO,
         code_filename: str,
-        config_stream: BinaryIO,
-        config_filename: str,
+        config_stream: Optional[BinaryIO],
+        config_filename: Optional[str],
         rules_stream: BinaryIO,
         rules_filename: str,
         notes: Optional[str] = None,
         protocol_name: Optional[str] = None,
         protocol_version: Optional[str] = None,
+        project_name: Optional[str] = None,
         job_id: Optional[str] = None,
         progress_callback: Optional[Callable[[str, str, str], None]] = None,
     ) -> Dict[str, Any]:
         job_identifier = job_id or str(uuid.uuid4())
+        job_logger = JobStageLogger(
+            job_id=job_identifier,
+            logger=logger,
+            progress_callback=progress_callback,
+        )
 
         if progress_callback:
             progress_callback(job_identifier, "init", "Preparing compiler inputs")
@@ -1285,14 +1513,41 @@ class AgentExecutor:
         workspace_dir.mkdir(parents=True, exist_ok=True)
 
         code_bytes = code_stream.read()
-        config_bytes = config_stream.read()
+        config_bytes = config_stream.read() if config_stream is not None else None
         rules_bytes = rules_stream.read()
 
         tar_path = workspace_dir / code_filename
         with open(tar_path, "wb") as f:
             f.write(code_bytes)
 
-        config_content = config_bytes.decode("utf-8")
+        if config_bytes is None:
+            config_filename = config_filename or "generated-config.toml"
+            config_content = self._build_generated_config_content(
+                protocol_name=protocol_name,
+                protocol_version=protocol_version,
+                project_name=project_name,
+            )
+            job_logger.info(
+                "No uploaded ProtocolGuard config was provided; generated %s for compiler bootstrap:\n%s",
+                config_filename,
+                config_content,
+                stage="config",
+                config_source="generated",
+                config_filename=config_filename,
+                protocol_name=protocol_name,
+                protocol_version=protocol_version,
+                project_name=project_name,
+            )
+        else:
+            config_content = config_bytes.decode("utf-8")
+            job_logger.info(
+                "Using uploaded ProtocolGuard config %s for compiler bootstrap:\n%s",
+                config_filename or "config.toml",
+                config_content,
+                stage="config",
+                config_source="uploaded",
+                config_filename=config_filename or "config.toml",
+            )
         rule_content = rules_bytes.decode("utf-8")
 
         inputs_dir = workspace_dir / "inputs"
@@ -1406,7 +1661,14 @@ class AgentExecutor:
             if len(files) > 10:
                 logger.debug("%s... and %d more", subindent, len(files) - 10)
 
-        self._run_analysis_container(workspace_dir, job_identifier, progress_callback)
+        self._run_analysis_container(
+            workspace_dir,
+            job_identifier,
+            progress_callback,
+            protocol_name=protocol_name,
+            protocol_version=protocol_version,
+            project_name=project_name,
+        )
 
         database_path = None
 
@@ -1543,7 +1805,7 @@ class AgentExecutor:
             "inputs": {
                 "codeFileName": code_filename,
                 "builderDockerfileName": None,
-                "configFileName": config_filename,
+                "configFileName": config_filename or "generated-config.toml",
                 "notes": notes or None,
                 "protocolName": protocol_name,
                 "rulesFileName": rules_filename,

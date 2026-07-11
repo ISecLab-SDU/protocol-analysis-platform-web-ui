@@ -133,8 +133,11 @@ export interface ProtocolStaticAnalysisResult {
 export interface RunProtocolStaticAnalysisPayload {
   builderDockerfile?: File;
   codeArchive: File;
-  config: File;
+  config?: File;
   notes?: string;
+  projectName?: string;
+  protocolName?: string;
+  protocolVersion?: string;
   rules: File;
 }
 
@@ -424,16 +427,46 @@ export async function downloadProtocolComplianceTaskResult(taskId: string) {
 export function runProtocolStaticAnalysis(
   payload: RunProtocolStaticAnalysisPayload,
 ) {
-  const { builderDockerfile, codeArchive, config, notes, rules } = payload;
+  const {
+    builderDockerfile,
+    codeArchive,
+    config,
+    notes,
+    projectName,
+    protocolName,
+    protocolVersion,
+    rules,
+  } = payload;
   const formData = new FormData();
   formData.append('codeArchive', codeArchive);
   if (builderDockerfile) {
     formData.append('builderDockerfile', builderDockerfile);
   }
   formData.append('rules', rules);
-  formData.append('config', config);
+  if (config) {
+    formData.append('config', config);
+  }
+  console.info('[protocol-compliance] static analysis multipart config decision', {
+    codeArchive: codeArchive.name,
+    configFile: config?.name ?? null,
+    configUpload: Boolean(config),
+    decision: config ? 'upload-config-file' : 'backend-generate-config.toml',
+    projectName: projectName?.trim() || null,
+    protocolName: protocolName?.trim() || null,
+    protocolVersion: protocolVersion?.trim() || null,
+    rules: rules.name,
+  });
   if (notes?.trim()) {
     formData.append('notes', notes.trim());
+  }
+  if (protocolName?.trim()) {
+    formData.append('protocolName', protocolName.trim());
+  }
+  if (protocolVersion?.trim()) {
+    formData.append('protocolVersion', protocolVersion.trim());
+  }
+  if (projectName?.trim()) {
+    formData.append('projectName', projectName.trim());
   }
 
   return requestClient.post<ProtocolStaticAnalysisJob>(
