@@ -1,4 +1,4 @@
-"""AFLNet artifact route registration."""
+"""AFLNet artifact request handlers."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Callable, Dict
 
-from flask import Blueprint, make_response, request, send_file
+from flask import make_response, request, send_file
 
 from utils.responses import error_response, success_response
 
@@ -22,11 +22,9 @@ from .aflnet import (
 )
 
 
-def register_aflnet_routes(
-    bp: Blueprint,
+def create_aflnet_handlers(
     ensure_authenticated: Callable[[], tuple[object, object]],
 ) -> Dict[str, Callable[..., object]]:
-    @bp.route("/fuzzing/aflnet-result/download", methods=["GET"])
     def download_aflnet_result():
         """Download AFLNET crash/queue artefacts as a zip bundle."""
         _, error = ensure_authenticated()
@@ -72,7 +70,6 @@ def register_aflnet_routes(
             max_age=0,
         )
 
-    @bp.route("/fuzzing/aflnet-result/snapshot", methods=["POST"])
     def snapshot_aflnet_result():
         """Persist the current AFLNET POC bundle for history downloads."""
         _, error = ensure_authenticated()
@@ -124,7 +121,6 @@ def register_aflnet_routes(
             "fileSize": file_size,
         })
 
-    @bp.route("/fuzzing/aflnet-result/artifacts/<artifact_id>/download", methods=["GET"])
     def download_aflnet_result_artifact(artifact_id: str):
         """Download a persisted AFLNET POC artifact."""
         _, error = ensure_authenticated()

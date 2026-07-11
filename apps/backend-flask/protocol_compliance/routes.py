@@ -35,7 +35,7 @@ from .aflnet import (
     _aflnet_shell_command,
     _resolve_aflnet_output_source,
 )
-from .aflnet_routes import register_aflnet_routes
+from .aflnet_routes import create_aflnet_handlers
 from .legacy_analysis_history import (
     read_analysis_history as read_analysis_history,
 )
@@ -144,10 +144,22 @@ def _ensure_authenticated():
     return user, None
 
 
-_aflnet_route_handlers = register_aflnet_routes(bp, _ensure_authenticated)
-download_aflnet_result = _aflnet_route_handlers["download_aflnet_result"]
-snapshot_aflnet_result = _aflnet_route_handlers["snapshot_aflnet_result"]
-download_aflnet_result_artifact = _aflnet_route_handlers["download_aflnet_result_artifact"]
+_aflnet_handlers = create_aflnet_handlers(_ensure_authenticated)
+
+
+@bp.route("/fuzzing/aflnet-result/download", methods=["GET"])
+def download_aflnet_result():
+    return _aflnet_handlers["download_aflnet_result"]()
+
+
+@bp.route("/fuzzing/aflnet-result/snapshot", methods=["POST"])
+def snapshot_aflnet_result():
+    return _aflnet_handlers["snapshot_aflnet_result"]()
+
+
+@bp.route("/fuzzing/aflnet-result/artifacts/<artifact_id>/download", methods=["GET"])
+def download_aflnet_result_artifact(artifact_id: str):
+    return _aflnet_handlers["download_aflnet_result_artifact"](artifact_id)
 
 _static_analysis_job_route_handlers = register_static_analysis_job_routes(
     bp,
