@@ -14,6 +14,7 @@ import type {
   ProtocolStaticAnalysisDatabaseRuleInsight,
   ProtocolStaticAnalysisJob,
   ProtocolStaticAnalysisResult,
+  ProtocolStaticAnalysisRuleViolationDetail,
 } from '#/api/protocol-compliance';
 
 import { computed, nextTick, reactive, ref } from 'vue';
@@ -546,8 +547,11 @@ function getCrashLogPathFromFuzzLogs() {
   if (aflNetPocPath.value.trim()) return aflNetPocPath.value.trim();
 
   for (const log of fuzzLogs.value) {
-    const cnMatch = log.text.match(/崩溃队列信息导出[:：]\s*(.+)$/);
-    if (cnMatch?.[1]) return cnMatch[1].trim();
+    const cnSeparatorIndex = log.text.search(/[:：]/);
+    if (log.text.startsWith('崩溃队列信息导出') && cnSeparatorIndex !== -1) {
+      const queuePath = log.text.slice(cnSeparatorIndex + 1).trim();
+      if (queuePath) return queuePath;
+    }
 
     const aflMatch = log.text.match(
       /(?:crash|queue|poc)[^:：]*[:：]\s*(\/\S+)/i,
@@ -660,14 +664,7 @@ function buildHistoryCodeSnippet() {
   const slices =
     functions.length > 0
       ? functions
-      : evidence?.codeRows?.length
-        ? [
-            {
-              codeRows: evidence.codeRows,
-              name: evidence.targetFile || '代码片段',
-            },
-          ]
-        : [];
+      : getEvidenceFallbackFunctionSlices(evidence, '代码片段');
 
   return slices
     .map((slice) => {
@@ -677,6 +674,34 @@ function buildHistoryCodeSnippet() {
       return `Function: ${slice.name}\n${rows}`;
     })
     .join('\n\n');
+}
+
+function getEvidenceFallbackFunctionSlices(
+  evidence: CodeLocateEvidence | null,
+  name: string,
+) {
+  if (!evidence?.codeRows || evidence.codeRows.length === 0) return [];
+  return [
+    {
+      codeRows: evidence.codeRows,
+      name,
+      path: evidence.targetFile,
+      targetLine: evidence.targetLine,
+    },
+  ];
+}
+
+function getResultHistoryConclusion(
+  reason: 'crash' | 'no-crash' | 'stopped',
+  crashCount: number,
+) {
+  if (reason === 'crash' || crashCount > 0) {
+    return `发现 ${crashCount || 1} 个崩溃，已进入结果验证`;
+  }
+  if (reason === 'no-crash') {
+    return '静态分析未发现违规，后续断言生成和模糊测试已跳过';
+  }
+  return '分析流程已停止，当前结果已汇总';
 }
 
 async function persistViolationHistoryFromWorkbench(
@@ -735,27 +760,14 @@ function appendResultHistoryRecord(reason: 'crash' | 'no-crash' | 'stopped') {
     evidence?.functions?.length ?? evidence?.candidateFunctionCount ?? 0;
   const hasCrash = reason === 'crash' || fuzzStats.crashes > 0;
   const shouldSnapshotPoc = false;
-  const conclusion = hasCrash
-    ? `发现 ${fuzzStats.crashes || 1} 个崩溃，已进入结果验证`
-    : reason === 'no-crash'
-      ? '静态分析未发现违规，后续断言生成和模糊测试已跳过'
-      : '分析流程已停止，当前结果已汇总';
+  const conclusion = getResultHistoryConclusion(reason, fuzzStats.crashes);
   const changedFileCount = (
     assertDiffContent.value.match(/^diff --git\s+/gm) ?? []
   ).length;
   const codeFunctions =
     evidence?.functions && evidence.functions.length > 0
       ? evidence.functions
-      : evidence?.codeRows && evidence.codeRows.length > 0
-        ? [
-            {
-              codeRows: evidence.codeRows,
-              name: '定位源码片段',
-              path: evidence.targetFile,
-              targetLine: evidence.targetLine,
-            },
-          ]
-        : [];
+      : getEvidenceFallbackFunctionSlices(evidence, '定位源码片段');
 
   resultHistoryIdSeq += 1;
   const historyEntry: (typeof resultHistory.value)[number] = {
@@ -1094,12 +1106,15 @@ function finishFuzzFromCurrentOutput(reason: 'fallback' | 'stopped') {
   activeStageView.value = 'done';
   stageStatus.done = 'done';
   appendResultHistoryRecord(fuzzStats.crashes > 0 ? 'crash' : 'stopped');
-  stageMessage.value =
-    fuzzStats.crashes > 0
-      ? '已发现崩溃，结果验证模块已生成证据摘要'
-      : reason === 'fallback'
-        ? '模糊测试结果已汇总'
-        : '检测到容器停止，已读取当前输出数据';
+  stageMessage.value = getFuzzCompletionMessage(reason);
+}
+
+function getFuzzCompletionMessage(reason: 'fallback' | 'stopped') {
+  if (fuzzStats.crashes > 0) {
+    return '已发现崩溃，结果验证模块已生成证据摘要';
+  }
+  if (reason === 'fallback') return '模糊测试结果已汇总';
+  return '检测到容器停止，已读取当前输出数据';
 }
 
 async function switchToFallbackFuzzOutput(runId: number) {
@@ -1212,13 +1227,53 @@ function shortenPath(path: string) {
 function formatLineRange(lines: number[]) {
   const unique = [...new Set(lines)].sort((a, b) => a - b);
   if (unique.length === 0) return '-';
-  const first = unique[0]!;
-  const last = unique[unique.length - 1]!;
+  const [first] = unique;
+  const last = unique.at(-1);
+  if (first === undefined || last === undefined) return '-';
   return first === last ? String(first) : `${first}-${last}`;
+}
+
+function getCodeLocateTargetLines(
+  violationLineSet: Set<number>,
+  pathLines: number[],
+  codeLines: number[],
+) {
+  if (violationLineSet.size > 0) return [...violationLineSet];
+  if (pathLines.length > 0) return pathLines;
+  return codeLines;
+}
+
+function getKeySliceCount(
+  findings: ProtocolStaticAnalysisDatabaseRuleInsight[],
+  violations: ProtocolStaticAnalysisRuleViolationDetail[],
+  result: ProtocolStaticAnalysisDatabaseRuleInsight['result'],
+) {
+  const actionableFindingCount = findings.filter(
+    (finding) => finding.result !== 'no_violation',
+  ).length;
+  if (actionableFindingCount > 0) return actionableFindingCount;
+  if (violations.length > 0) return violations.length;
+  return result === 'no_violation' ? 0 : 1;
 }
 
 function normalizeCodeLine(raw: string) {
   return raw.replace(/\s+$/, '');
+}
+
+function parseNumberedCodeLine(line: string) {
+  const trimmedStart = line.trimStart();
+  let digitEnd = 0;
+  while (digitEnd < trimmedStart.length && /\d/.test(trimmedStart[digitEnd])) {
+    digitEnd += 1;
+  }
+  if (digitEnd === 0 || digitEnd > 7) return null;
+  const separator = trimmedStart[digitEnd];
+  if (separator !== undefined && !/\s/.test(separator)) return null;
+
+  return {
+    lineNumber: Number(trimmedStart.slice(0, digitEnd)),
+    text: trimmedStart.slice(digitEnd).trimStart(),
+  };
 }
 
 function stripLogPrefix(line: string) {
@@ -1275,37 +1330,47 @@ function parseCodeSnippetToEvidence(
 
   for (const rawLine of snippet.split(/\r?\n/)) {
     const line = stripLogPrefix(rawLine);
-    const extractedFunctionMatch = line.match(/^func:\s*(.+?)\s*$/i);
-    if (extractedFunctionMatch?.[1]) {
-      ensureFunctionSlice(functions, extractedFunctionMatch[1]);
+    const lowerLine = line.toLowerCase();
+    if (lowerLine.startsWith('func:')) {
+      const functionName = line.slice(line.indexOf(':') + 1).trim();
+      if (!functionName) continue;
+      ensureFunctionSlice(functions, functionName);
       currentFunction = null;
       continue;
     }
 
-    const functionMatch = line.match(/Function:\s*(.+?)\s*$/i);
-    if (functionMatch?.[1]) {
-      currentFunction = ensureFunctionSlice(functions, functionMatch[1]);
+    if (lowerLine.startsWith('function:')) {
+      const functionName = line.slice(line.indexOf(':') + 1).trim();
+      if (!functionName) continue;
+      currentFunction = ensureFunctionSlice(functions, functionName);
       continue;
     }
 
-    const pathMatch = line.match(/Path:\s*(.+?):(\d+)\s*$/i);
-    if (pathMatch?.[1]) {
-      const filePath = pathMatch[1].trim();
-      files.add(filePath);
-      if (!firstTargetFile) firstTargetFile = filePath;
-      const lineNumber = Number(pathMatch[2]);
-      if (Number.isFinite(lineNumber)) pathLines.push(lineNumber);
-      if (currentFunction) {
-        currentFunction.path = filePath;
-        currentFunction.targetLine = lineNumber;
+    if (lowerLine.startsWith('path:')) {
+      const pathValue = line.slice(line.indexOf(':') + 1).trim();
+      const lineSeparatorIndex = pathValue.lastIndexOf(':');
+      if (lineSeparatorIndex !== -1) {
+        const filePath = pathValue.slice(0, lineSeparatorIndex).trim();
+        const lineNumber = Number(
+          pathValue.slice(lineSeparatorIndex + 1).trim(),
+        );
+        if (filePath) {
+          files.add(filePath);
+          if (!firstTargetFile) firstTargetFile = filePath;
+          if (Number.isFinite(lineNumber)) pathLines.push(lineNumber);
+          if (currentFunction) {
+            currentFunction.path = filePath;
+            currentFunction.targetLine = lineNumber;
+          }
+        }
       }
       continue;
     }
 
-    const codeMatch = line.match(/^\s*(\d{1,7})\s+(.*)$/);
-    if (!codeMatch?.[1]) continue;
-    const lineNumber = Number(codeMatch[1]);
-    const text = normalizeCodeLine(codeMatch[2] ?? '');
+    const codeLine = parseNumberedCodeLine(line);
+    if (!codeLine) continue;
+    const { lineNumber } = codeLine;
+    const text = normalizeCodeLine(codeLine.text);
     const row: CodeLocateRow = {
       emphasis: violationLineSet.has(lineNumber),
       line: lineNumber,
@@ -1331,12 +1396,11 @@ function parseCodeSnippetToEvidence(
   const codeLines = rows
     .map((row) => (typeof row.line === 'number' ? row.line : Number(row.line)))
     .filter((line) => Number.isFinite(line));
-  const targetLines =
-    violationLineSet.size > 0
-      ? [...violationLineSet]
-      : pathLines.length > 0
-        ? pathLines
-        : codeLines;
+  const targetLines = getCodeLocateTargetLines(
+    violationLineSet,
+    pathLines,
+    codeLines,
+  );
   const sliceCount = functionSlices.filter(
     (fn) => fn.codeRows.length > 0,
   ).length;
@@ -1426,10 +1490,7 @@ function buildEvidenceFromInsight(
   );
   const targetFile =
     violations.find((violation) => violation.filename)?.filename || null;
-  const keySliceCount =
-    findings.filter((finding) => finding.result !== 'no_violation').length ||
-    violations.length ||
-    (insight.result === 'no_violation' ? 0 : 1);
+  const keySliceCount = getKeySliceCount(findings, violations, insight.result);
 
   return parseCodeSnippetToEvidence(insight.codeSnippet || '', {
     keySliceCount,
@@ -1694,18 +1755,6 @@ async function runStaticAnalysisStep(runId: number) {
   staticLastEventId.value = 0;
   codeLocateEvidence.value = null;
   try {
-    console.info(
-      '[workbench] submitting static analysis without config upload',
-      {
-        codeArchive: projectConfig.archive.name,
-        configDecision: 'backend-generated-config.toml',
-        configUpload: false,
-        implementation: projectConfig.implementation,
-        protocolName: projectConfig.protocolType,
-        protocolVersion: projectConfig.protocolVersion,
-        rules: projectConfig.rules.name,
-      },
-    );
     const job = await runProtocolStaticAnalysis({
       codeArchive: projectConfig.archive,
       rules: buildRulesFile(),
