@@ -79,6 +79,49 @@ def _app(monkeypatch) -> Flask:
     return app
 
 
+def test_static_analysis_history_routes_keep_legacy_endpoint_names() -> None:
+    app = Flask(__name__)
+    app.register_blueprint(routes.bp)
+
+    history_rules = {
+        (rule.rule, tuple(sorted(rule.methods - {"HEAD", "OPTIONS"}))): rule.endpoint
+        for rule in app.url_map.iter_rules()
+        if rule.rule
+        in {
+            "/api/protocol-compliance/static-analysis/database-overview",
+            "/api/protocol-compliance/static-analysis/violation-history",
+            "/api/protocol-compliance/static-analysis/violation-history/<item_id>",
+        }
+    }
+
+    assert history_rules == {
+        (
+            "/api/protocol-compliance/static-analysis/database-overview",
+            ("GET",),
+        ): (
+            "protocol_compliance.static_analysis_database_overview"
+        ),
+        (
+            "/api/protocol-compliance/static-analysis/violation-history",
+            ("GET",),
+        ): (
+            "protocol_compliance.static_analysis_violation_history"
+        ),
+        (
+            "/api/protocol-compliance/static-analysis/violation-history",
+            ("POST",),
+        ): (
+            "protocol_compliance.upsert_static_analysis_violation_history"
+        ),
+        (
+            "/api/protocol-compliance/static-analysis/violation-history/<item_id>",
+            ("DELETE",),
+        ): (
+            "protocol_compliance.delete_static_analysis_violation_history"
+        ),
+    }
+
+
 def test_violation_history_prefers_database_ids_for_database_backed_jobs(
     monkeypatch,
     tmp_path: Path,
