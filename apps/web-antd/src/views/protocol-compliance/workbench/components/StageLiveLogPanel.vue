@@ -87,13 +87,11 @@ function formatLogLineForCopy(line: StageLiveLogLine) {
         class="log-line"
         :class="line.kind ? `log-line--${line.kind}` : undefined"
       >
-        <div class="log-meta">
-          <span class="log-time">{{ line.time || '--:--:--' }}</span>
-          <span class="log-chip log-chip--phase">{{ line.phase }}</span>
-          <span v-if="line.source" class="log-chip log-chip--source">{{
-            line.source
-          }}</span>
-        </div>
+        <span class="log-time">{{ line.time || '--:--:--' }}</span>
+        <span class="log-chip log-chip--phase">{{ line.phase }}</span>
+        <span v-if="line.source" class="log-chip log-chip--source">{{
+          line.source
+        }}</span>
         <span class="log-text">{{ line.text }}</span>
       </div>
       <div v-if="lines.length === 0" class="log-empty">
@@ -197,11 +195,10 @@ function formatLogLineForCopy(line: StageLiveLogLine) {
 }
 
 .log-line {
-  display: grid;
-  gap: 4px;
   min-height: 30px;
   padding: 6px 14px;
   color: #334155;
+  overflow-wrap: anywhere;
 }
 
 .log-line--success {
@@ -232,22 +229,20 @@ function formatLogLineForCopy(line: StageLiveLogLine) {
   background: #fff7ed;
 }
 
-.log-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  min-width: 0;
-}
-
 .log-time {
-  flex: 0 0 82px;
+  display: inline-block;
+  width: 82px;
   color: #64748b;
   user-select: none;
+  vertical-align: middle;
+}
+
+.log-line > * + * {
+  margin-left: 8px;
 }
 
 .log-chip {
-  flex: 0 1 auto;
+  display: inline-block;
   max-width: 180px;
   padding: 1px 8px;
   overflow: hidden;
@@ -255,6 +250,7 @@ function formatLogLineForCopy(line: StageLiveLogLine) {
   line-height: 22px;
   color: #475569;
   text-overflow: ellipsis;
+  vertical-align: middle;
   white-space: nowrap;
   background: #eef2f7;
   border-radius: 4px;
@@ -275,6 +271,7 @@ function formatLogLineForCopy(line: StageLiveLogLine) {
 .log-text {
   min-width: 0;
   overflow-wrap: anywhere;
+  vertical-align: middle;
   white-space: pre-wrap;
 }
 
