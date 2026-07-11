@@ -1,4 +1,4 @@
-"""Assertion-generation route registration."""
+"""Assertion-generation request handlers."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 from typing import Callable, Dict, Optional, cast
 
-from flask import Blueprint, make_response, request, send_file
+from flask import make_response, request, send_file
 from werkzeug.datastructures import FileStorage
 
 from utils.responses import error_response, success_response
@@ -24,14 +24,12 @@ from .assertion import (
 LOGGER = logging.getLogger(__name__)
 
 
-def register_assertion_routes(
-    bp: Blueprint,
+def create_assertion_handlers(
     ensure_authenticated: Callable[[], tuple[object, object]],
     expand_path: Callable[[Optional[str]], Optional[Path]],
     read_upload: Callable[[FileStorage], tuple[str, Optional[bytes]]],
     resolve_assertion_database_path: Callable[[Path], tuple[Optional[Path], list[str]]],
 ) -> Dict[str, Callable[..., object]]:
-    @bp.route("/assertion-generation", methods=["POST"])
     def assertion_generation():
         _, error = ensure_authenticated()
         if error:
@@ -106,7 +104,6 @@ def register_assertion_routes(
         )
         return make_response(success_response(snapshot), 202)
 
-    @bp.route("/assertion-generation/<job_id>/progress", methods=["GET"])
     def assertion_generation_progress(job_id: str):
         _, error = ensure_authenticated()
         if error:
@@ -117,7 +114,6 @@ def register_assertion_routes(
             return make_response(error_response("未找到断言生成任务"), 404)
         return make_response(success_response(snapshot), 200)
 
-    @bp.route("/assertion-generation/<job_id>/result", methods=["GET"])
     def assertion_generation_result(job_id: str):
         _, error = ensure_authenticated()
         if error:
@@ -135,7 +131,6 @@ def register_assertion_routes(
             )
         return make_response(success_response(result), 200)
 
-    @bp.route("/assertion-generation/<job_id>/download", methods=["GET"])
     def assertion_generation_download(job_id: str):
         _, error = ensure_authenticated()
         if error:
@@ -164,7 +159,6 @@ def register_assertion_routes(
             max_age=0,
         )
 
-    @bp.route("/assertion-generation/<job_id>/instrumentation-diff", methods=["GET"])
     def assertion_generation_instrumentation_diff(job_id: str):
         """Fetch the instrumentation diff for a completed assertion generation job."""
         _, error = ensure_authenticated()
@@ -198,7 +192,6 @@ def register_assertion_routes(
 
         return make_response(success_response(diff_output), 200)
 
-    @bp.route("/assertion-generation/<assert_job_id>/diff-parsing", methods=["POST"])
     def start_diff_parsing(assert_job_id: str):
         """Start diff parsing for a completed assertion generation job."""
         _, error = ensure_authenticated()
@@ -228,10 +221,6 @@ def register_assertion_routes(
         snapshot = submit_diff_parsing_job(assert_job_id)
         return make_response(success_response(snapshot), 202)
 
-    @bp.route(
-        "/assertion-generation/<assert_job_id>/diff-parsing/<diff_job_id>/progress",
-        methods=["GET"],
-    )
     def diff_parsing_progress(assert_job_id: str, diff_job_id: str):
         """Get progress of a diff parsing job."""
         _, error = ensure_authenticated()
@@ -250,10 +239,6 @@ def register_assertion_routes(
 
         return make_response(success_response(snapshot), 200)
 
-    @bp.route(
-        "/assertion-generation/<assert_job_id>/diff-parsing/<diff_job_id>/result",
-        methods=["GET"],
-    )
     def diff_parsing_result(assert_job_id: str, diff_job_id: str):
         """Get result of a completed diff parsing job."""
         _, error = ensure_authenticated()

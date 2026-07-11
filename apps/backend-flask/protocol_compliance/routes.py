@@ -25,7 +25,7 @@ from .assertion_database import (
     _resolve_assertion_database_path as _resolve_assertion_database_path_impl,
 )
 from .assertion_history_routes import create_assertion_history_handlers
-from .assertion_routes import register_assertion_routes
+from .assertion_routes import create_assertion_handlers
 from .aflnet import (
     RTSP_CONFIG as RTSP_CONFIG,
     _aflnet_fallback_output_root,
@@ -453,23 +453,58 @@ def _resolve_assertion_database_path(database_path: Path) -> tuple[Optional[Path
     )
 
 
-_assertion_route_handlers = register_assertion_routes(
-    bp,
+_assertion_handlers = create_assertion_handlers(
     _ensure_authenticated,
     _expand_path,
     _read_upload,
     _resolve_assertion_database_path,
 )
-assertion_generation = _assertion_route_handlers["assertion_generation"]
-assertion_generation_progress = _assertion_route_handlers["assertion_generation_progress"]
-assertion_generation_result = _assertion_route_handlers["assertion_generation_result"]
-assertion_generation_download = _assertion_route_handlers["assertion_generation_download"]
-assertion_generation_instrumentation_diff = _assertion_route_handlers[
-    "assertion_generation_instrumentation_diff"
-]
-start_diff_parsing = _assertion_route_handlers["start_diff_parsing"]
-diff_parsing_progress = _assertion_route_handlers["diff_parsing_progress"]
-diff_parsing_result = _assertion_route_handlers["diff_parsing_result"]
+
+
+@bp.route("/assertion-generation", methods=["POST"])
+def assertion_generation():
+    return _assertion_handlers["assertion_generation"]()
+
+
+@bp.route("/assertion-generation/<job_id>/progress", methods=["GET"])
+def assertion_generation_progress(job_id: str):
+    return _assertion_handlers["assertion_generation_progress"](job_id)
+
+
+@bp.route("/assertion-generation/<job_id>/result", methods=["GET"])
+def assertion_generation_result(job_id: str):
+    return _assertion_handlers["assertion_generation_result"](job_id)
+
+
+@bp.route("/assertion-generation/<job_id>/download", methods=["GET"])
+def assertion_generation_download(job_id: str):
+    return _assertion_handlers["assertion_generation_download"](job_id)
+
+
+@bp.route("/assertion-generation/<job_id>/instrumentation-diff", methods=["GET"])
+def assertion_generation_instrumentation_diff(job_id: str):
+    return _assertion_handlers["assertion_generation_instrumentation_diff"](job_id)
+
+
+@bp.route("/assertion-generation/<assert_job_id>/diff-parsing", methods=["POST"])
+def start_diff_parsing(assert_job_id: str):
+    return _assertion_handlers["start_diff_parsing"](assert_job_id)
+
+
+@bp.route(
+    "/assertion-generation/<assert_job_id>/diff-parsing/<diff_job_id>/progress",
+    methods=["GET"],
+)
+def diff_parsing_progress(assert_job_id: str, diff_job_id: str):
+    return _assertion_handlers["diff_parsing_progress"](assert_job_id, diff_job_id)
+
+
+@bp.route(
+    "/assertion-generation/<assert_job_id>/diff-parsing/<diff_job_id>/result",
+    methods=["GET"],
+)
+def diff_parsing_result(assert_job_id: str, diff_job_id: str):
+    return _assertion_handlers["diff_parsing_result"](assert_job_id, diff_job_id)
 
 
 def _preview_text(value: Any, limit: int = 240) -> str:
