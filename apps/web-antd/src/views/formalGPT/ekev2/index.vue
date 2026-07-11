@@ -1503,22 +1503,25 @@ export default {
 </template>
 
 <style scoped>
-.ring-2 {
-  box-shadow: 0 0 0 2px currentColor;
-}
 
-/* 动画样式 */
-.animate-spin {
-  animation: spin 1s linear infinite;
-}
 
 @keyframes spin {
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }
+}
+
+.ring-2 {
+  box-shadow: 0 0 0 2px currentcolor;
+}
+
+/* 动画样式 */
+.animate-spin {
+  animation: spin 1s linear infinite;
 }
 
 /* 平滑过渡效果 */

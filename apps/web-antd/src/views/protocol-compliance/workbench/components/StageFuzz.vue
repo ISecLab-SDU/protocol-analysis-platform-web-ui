@@ -336,9 +336,9 @@ function formatRate(value: number) {
 .runtime-tile strong {
   display: block;
   overflow: hidden;
+  text-overflow: ellipsis;
   font-weight: 900;
   line-height: 1.1;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 

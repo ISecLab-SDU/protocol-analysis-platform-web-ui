@@ -232,9 +232,9 @@ function formatLogLineForCopy(line: StageLiveLogLine) {
 .log-time {
   display: inline-block;
   width: 82px;
+  vertical-align: middle;
   color: #64748b;
   user-select: none;
-  vertical-align: middle;
 }
 
 .log-line > * + * {
@@ -246,11 +246,11 @@ function formatLogLineForCopy(line: StageLiveLogLine) {
   max-width: 180px;
   padding: 1px 8px;
   overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 14px;
   line-height: 22px;
-  color: #475569;
-  text-overflow: ellipsis;
   vertical-align: middle;
+  color: #475569;
   white-space: nowrap;
   background: #eef2f7;
   border-radius: 4px;
@@ -270,8 +270,8 @@ function formatLogLineForCopy(line: StageLiveLogLine) {
 
 .log-text {
   min-width: 0;
-  overflow-wrap: anywhere;
   vertical-align: middle;
+  overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 

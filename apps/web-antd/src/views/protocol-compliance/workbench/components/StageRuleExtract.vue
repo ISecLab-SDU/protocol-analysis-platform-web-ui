@@ -609,10 +609,10 @@ function ruleTypeText(rule: ProtocolExtractRuleItem) {
   display: block;
   min-width: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 18px;
   font-weight: 850;
   color: #101b36;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 

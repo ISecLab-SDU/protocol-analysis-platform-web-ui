@@ -516,8 +516,8 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
 }
 
 .diff-wrapper {
-  height: 440px;
   min-width: 0;
+  height: 440px;
   padding: 8px 0;
   overflow: auto;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -611,10 +611,10 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
   max-width: 780px;
   margin-top: 4px;
   overflow: hidden;
+  text-overflow: ellipsis;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 14px;
   color: #172033;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -625,8 +625,8 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
   }
 
   .poc-body {
-    align-items: stretch;
     flex-direction: column;
+    align-items: stretch;
   }
 }
 </style>

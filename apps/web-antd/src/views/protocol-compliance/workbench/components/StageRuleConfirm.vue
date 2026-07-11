@@ -232,8 +232,8 @@ watch(
 }
 
 .rule-actions {
-  margin-top: 20px;
   padding-top: 20px;
+  margin-top: 20px;
   border-top: 1px solid var(--ant-color-border-secondary);
 }
 </style>

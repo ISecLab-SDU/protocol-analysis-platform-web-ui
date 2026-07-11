@@ -253,8 +253,8 @@ const canCommit = computed(() => {
 }
 
 .setup-actions {
-  margin-top: 24px;
   padding-top: 24px;
+  margin-top: 24px;
   border-top: 1px solid var(--ant-color-border-secondary);
 }
 </style>

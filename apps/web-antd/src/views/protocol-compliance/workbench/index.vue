@@ -1913,10 +1913,10 @@ async function handleLoadDemoConfig() {
   min-width: 0;
   margin: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 12px;
   font-weight: 600;
   color: #172033;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -2279,8 +2279,8 @@ async function handleLoadDemoConfig() {
 }
 
 .hero-art-cube--two {
-  right: 16px;
   top: 58px;
+  right: 16px;
   width: 22px;
   height: 22px;
 }
@@ -2296,8 +2296,8 @@ async function handleLoadDemoConfig() {
   display: flex;
   gap: 10px;
   align-items: center;
-  margin-bottom: 16px;
   padding: 11px 14px;
+  margin-bottom: 16px;
   font-size: 13px;
   color: #dc2626;
   background: #fff5f5;
@@ -2342,11 +2342,11 @@ async function handleLoadDemoConfig() {
   display: block;
   min-width: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 30px;
   font-weight: 850;
   line-height: 1.15;
   color: #111b34;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -2439,9 +2439,9 @@ async function handleLoadDemoConfig() {
 
 .card-count {
   display: flex;
+  flex: 0 0 auto;
   gap: 6px;
   align-items: center;
-  flex: 0 0 auto;
   min-height: 28px;
   padding: 0 10px;
   font-size: 12px;
@@ -2570,9 +2570,9 @@ async function handleLoadDemoConfig() {
 
 .implementation-table {
   overflow: auto;
+  scrollbar-gutter: stable;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  scrollbar-gutter: stable;
 }
 
 .overview-card--ranking .implementation-table {
@@ -2648,9 +2648,9 @@ async function handleLoadDemoConfig() {
 
 .workflow-list {
   display: grid;
+  flex: 1;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 28px;
-  flex: 1;
 }
 
 .workflow-step {
@@ -2726,11 +2726,11 @@ async function handleLoadDemoConfig() {
 .workflow-step strong {
   display: block;
   overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 14px;
   font-weight: 850;
   color: #172033;
   text-align: center;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -2738,19 +2738,19 @@ async function handleLoadDemoConfig() {
   display: -webkit-box;
   margin: 8px 0 0;
   overflow: hidden;
+  -webkit-line-clamp: 2;
   font-size: 12px;
   line-height: 1.55;
   color: #64748b;
   text-align: center;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
 }
 
 .finding-list {
   display: grid;
+  flex: 1;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
-  flex: 1;
 }
 
 .finding-item {
@@ -2772,9 +2772,9 @@ async function handleLoadDemoConfig() {
 .finding-head strong {
   min-width: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 13px;
   color: #0f172a;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -2783,21 +2783,21 @@ async function handleLoadDemoConfig() {
   min-height: 42px;
   margin: 0 0 7px;
   overflow: hidden;
+  -webkit-line-clamp: 2;
   font-size: 13px;
   line-height: 1.6;
   color: #0f172a;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
 }
 
 .finding-item small {
   display: -webkit-box;
   overflow: hidden;
+  -webkit-line-clamp: 3;
   font-size: 12px;
   line-height: 1.6;
   color: #64748b;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
 }
 
 .task-shell {
@@ -2856,9 +2856,9 @@ async function handleLoadDemoConfig() {
   max-width: min(860px, 100%);
   padding: 3px 8px;
   overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 15px;
   color: #172033;
-  text-overflow: ellipsis;
   white-space: nowrap;
   background: #eef5ff;
   border: 1px solid #dceaff;
@@ -2870,8 +2870,8 @@ async function handleLoadDemoConfig() {
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
   align-items: center;
-  margin-bottom: 18px;
   padding: 18px 20px;
+  margin-bottom: 18px;
   background: #fff;
   border: 1px solid #e7edf5;
   border-radius: 8px;
@@ -2927,10 +2927,10 @@ async function handleLoadDemoConfig() {
 
 .stepper-title {
   overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 16px;
   font-weight: 800;
   color: #111827;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -2952,8 +2952,8 @@ async function handleLoadDemoConfig() {
 }
 
 .stepper-item--active .stepper-state {
-  color: #1677ff;
   font-weight: 700;
+  color: #1677ff;
 }
 
 .stepper-item--done .stepper-circle {
@@ -2969,8 +2969,8 @@ async function handleLoadDemoConfig() {
 }
 
 .stepper-item--skipped .stepper-state {
-  color: #475569;
   font-weight: 700;
+  color: #475569;
 }
 
 .stepper-item--error .stepper-circle {
@@ -2980,8 +2980,8 @@ async function handleLoadDemoConfig() {
 }
 
 .stepper-item--error .stepper-state {
-  color: #dc2626;
   font-weight: 700;
+  color: #dc2626;
 }
 
 .workbench-banner,
@@ -2989,8 +2989,8 @@ async function handleLoadDemoConfig() {
   display: flex;
   gap: 10px;
   align-items: center;
-  margin-bottom: 14px;
   padding: 11px 14px;
+  margin-bottom: 14px;
   font-size: 15px;
   border-radius: 8px;
 }
@@ -3172,8 +3172,8 @@ async function handleLoadDemoConfig() {
 }
 
 .history-detail-panel {
-  margin-top: 14px;
   padding-top: 14px;
+  margin-top: 14px;
   border-top: 1px solid #dbeafe;
 }
 
@@ -3182,8 +3182,8 @@ async function handleLoadDemoConfig() {
   gap: 16px;
   align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 14px;
   padding-bottom: 14px;
+  margin-bottom: 14px;
   border-bottom: 1px solid #e2e8f0;
 }
 
@@ -3235,12 +3235,12 @@ async function handleLoadDemoConfig() {
   display: -webkit-box;
   margin: 0;
   overflow: hidden;
+  -webkit-line-clamp: 2;
   font-size: 13px;
   line-height: 1.55;
   color: #334155;
   overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
 }
 
 .history-summary-footer {
@@ -3254,9 +3254,9 @@ async function handleLoadDemoConfig() {
 .history-summary-footer span {
   min-width: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 12px;
   color: #64748b;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -3270,8 +3270,8 @@ async function handleLoadDemoConfig() {
 .history-detail-actions {
   display: flex;
   justify-content: flex-end;
-  margin-top: 14px;
   padding-top: 14px;
+  margin-top: 14px;
   border-top: 1px solid #e2e8f0;
 }
 
@@ -3308,9 +3308,9 @@ async function handleLoadDemoConfig() {
 .history-block strong {
   min-width: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 13px;
   color: #172033;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -3432,8 +3432,8 @@ async function handleLoadDemoConfig() {
 
 .history-diff pre {
   max-height: 360px;
-  margin: 0;
   padding: 12px;
+  margin: 0;
   overflow: auto;
   font-family:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
@@ -3448,8 +3448,8 @@ async function handleLoadDemoConfig() {
 
 .history-source pre {
   max-height: 360px;
-  margin: 0;
   padding: 12px;
+  margin: 0;
   overflow: auto;
   font-family:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
@@ -3697,8 +3697,8 @@ async function handleLoadDemoConfig() {
   }
 
   .history-summary-footer {
-    align-items: flex-start;
     flex-direction: column;
+    align-items: flex-start;
   }
 
   .history-summary-footer span {
@@ -3707,8 +3707,8 @@ async function handleLoadDemoConfig() {
   }
 
   .history-summary-actions {
-    width: 100%;
     justify-content: flex-end;
+    width: 100%;
   }
 }
 </style>
