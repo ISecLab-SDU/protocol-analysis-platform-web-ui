@@ -1,4 +1,5 @@
 import json
+import os
 import re
 from pathlib import Path
 from typing import Dict, List
@@ -12,7 +13,11 @@ config_path = script_dir / "config.toml"
 prompt_path = script_dir / "prompt.toml"
 toml_config = toml.load(config_path)
 toml_prompt = toml.load(prompt_path)
-this_url = toml_config["llm"]["base_url"]
+this_url = (
+    os.environ.get("PROTOCOL_EXTRACT_LLM_BASE_URL")
+    or os.environ.get("OPENAI_BASE_URL")
+    or toml_config["llm"]["base_url"]
+)
 this_model = toml_config["llm"]["model1"]
 
 # 完整 RFC 2119 + RFC 8174 核心情态关键词

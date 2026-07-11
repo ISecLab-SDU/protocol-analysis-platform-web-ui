@@ -224,6 +224,7 @@ def run_protocol_extract():
         return make_response(error_response("请上传协议 HTML 文件"), 400)
 
     api_key = (request.form.get("apiKey") or "").strip()
+    llm_base_url = (request.form.get("llmBaseUrl") or "").strip()
     protocol = (request.form.get("protocol") or "").strip()
     version = (request.form.get("version") or "").strip()
     filter_flag = (request.form.get("filterHeadings") or "").strip().lower()
@@ -236,6 +237,7 @@ def run_protocol_extract():
             version=version,
             html_upload=html_upload,
             filter_headings=filter_headings,
+            llm_base_url=llm_base_url,
         )
     except ValueError as exc:
         payload = make_error_payload("参数错误", details=str(exc))
@@ -250,8 +252,12 @@ def run_protocol_extract():
         payload = make_error_payload("未找到分析结果文件", details=detail)
         return make_response(payload, 500)
     except PipelineExecutionError as exc:
-        LOGGER.exception("Protocol extraction pipeline execution failed")
+        LOGGER.exception(
+            "Protocol extraction pipeline execution failed. log_path=%s",
+            exc.log_path,
+        )
         detail = {
+            "logPath": exc.log_path,
             "stdout": (exc.stdout or "").splitlines()[-40:] or None,
             "stderr": (exc.stderr or "").splitlines()[-40:] or None,
         }
@@ -402,7 +408,7 @@ def static_analysis():
     }
 
     required_missing = [
-        key for key, value in uploads_map.items() 
+        key for key, value in uploads_map.items()
         if not isinstance(value, FileStorage)
     ]
     if required_missing:
@@ -3245,22 +3251,22 @@ def assertion_generation_instrumentation_diff(job_id: str):
             error_response("断言生成任务尚未完成", {"status": status}),
             409,
         )
-    
+
     # Extract instrumentation diff from result
     instrumentation = result.get("instrumentation")
     if not instrumentation or not isinstance(instrumentation, dict):
         return make_response(error_response("未找到 instrumentation 数据"), 404)
-    
+
     instrumentation_data = cast(Dict[str, object], instrumentation)
     artifacts = instrumentation_data.get("artifacts")
     if not artifacts or not isinstance(artifacts, dict):
         return make_response(error_response("未找到 instrumentation artifacts"), 404)
-    
+
     artifact_data = cast(Dict[str, object], artifacts)
     diff_output = artifact_data.get("diffOutput")
     if not diff_output or not isinstance(diff_output, dict):
         return make_response(error_response("未找到 instrumentation diff 输出"), 404)
-    
+
     return make_response(success_response(diff_output), 200)
 
 
@@ -3755,7 +3761,7 @@ def write_script():
 def execute_command():
     """执行shell命令启动程序"""
     LOGGER.debug("========== execute-command API被调用 ==========")
-    
+
     _, error = _ensure_authenticated()
     if error:
         LOGGER.debug("认证失败: %s", error)
@@ -3763,14 +3769,14 @@ def execute_command():
 
     data = request.get_json()
     LOGGER.debug("接收到的请求数据: %s", data)
-    
+
     if not data:
         LOGGER.debug("请求数据为空")
         return make_response(error_response("请求数据不能为空"), 400)
 
     protocol = data.get("protocol", "UNKNOWN")
     protocol_implementations = data.get("protocolImplementations", [])
-    
+
     LOGGER.debug("解析参数 - 协议: %s, 实现: %s", protocol, protocol_implementations)
 
     # 根据协议获取配置
@@ -3804,7 +3810,7 @@ def execute_command():
         # 对于SOL的ProtocolGuard，使用后台运行方式
         # 检查是否是SOL实现（MQTT协议 + SOL实现 或者 原RTSP协议）
         is_sol_protocol = (protocol == "RTSP") or (protocol == "MQTT" and protocol_implementations and "SOL" in protocol_implementations)
-        
+
         if is_sol_protocol:
             # ProtocolGuard需要在后台运行，因为它是长时间运行的fuzzing任务
             # 直接执行docker命令并获取容器ID
@@ -3817,13 +3823,13 @@ def execute_command():
                     text=True,
                     timeout=30  # 30秒超时
                 )
-                
+
                 if result.returncode == 0:
                     container_id = result.stdout.strip()
                     if container_id and len(container_id) >= 12:  # Docker容器ID至少12位
                         protocol_name = "SOL" if protocol == "MQTT" else protocol
                         LOGGER.debug("%s ProtocolGuard启动成功，容器ID: %s", protocol_name, container_id)
-                        
+
                         # 验证容器是否真的在运行
                         import time
                         time.sleep(2)
@@ -3834,7 +3840,7 @@ def execute_command():
                             stderr=subprocess.PIPE,
                             text=True
                         )
-                        
+
                         if check_result.returncode == 0 and check_result.stdout.strip():
                             response_data = {
                                 "message": f"{protocol_name} ProtocolGuard启动成功，正在后台运行fuzzing任务",
@@ -3861,7 +3867,7 @@ def execute_command():
                     error_msg = result.stderr.strip() if result.stderr.strip() else "Docker命令执行失败"
                     LOGGER.debug("ProtocolGuard启动失败: %s", error_msg)
                     return make_response(error_response(f"ProtocolGuard启动失败: {error_msg}"), 500)
-                    
+
             except subprocess.TimeoutExpired:
                 return make_response(error_response("Docker容器启动超时"), 500)
             except Exception as e:
@@ -3931,7 +3937,7 @@ def read_log():
         and protocol_implementations
         and "SOL" in protocol_implementations
     )
-    
+
     if protocol == "MQTT":
         # MQTT协议支持双引擎配置
         if protocol_implementations and "SOL" in protocol_implementations:
@@ -3950,7 +3956,7 @@ def read_log():
     try:
         LOGGER.debug("尝试读取%s日志文件: %s", protocol, file_path)
         LOGGER.debug("上次读取位置: %s", last_position)
-        
+
         # 检查目录是否存在
         log_dir = os.path.dirname(file_path)
         if not os.path.exists(log_dir):
@@ -3972,14 +3978,14 @@ def read_log():
                         ),
                     })
             return success_response(response_data)
-        
+
         # 列出目录中的文件
         try:
             files_in_dir = os.listdir(log_dir)
             LOGGER.debug("日志目录中的文件: %s", files_in_dir)
         except Exception as e:
             LOGGER.debug("无法列出目录文件: %s", e)
-        
+
         if not os.path.exists(file_path):
             LOGGER.debug("日志文件不存在: %s", file_path)
             response_data = {
@@ -3999,12 +4005,12 @@ def read_log():
                         ),
                     })
             return success_response(response_data)
-        
+
         # 获取文件信息
         file_stat = os.stat(file_path)
         file_size = file_stat.st_size
         LOGGER.debug("日志文件大小: %s 字节", file_size)
-        
+
         with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
             # 移动到上次读取的位置
             f.seek(last_position)
@@ -4023,13 +4029,13 @@ def read_log():
 
             # 获取当前位置
             current_position = f.tell()
-        
+
         LOGGER.debug("读取到新内容长度: %s 字符", len(new_content))
         LOGGER.debug("新的读取位置: %s", current_position)
-        
+
         if new_content:
             LOGGER.debug("新内容预览: %s...", new_content[:200])
-        
+
         response_data = {
             "content": new_content,
             "position": current_position,
@@ -4053,23 +4059,23 @@ def check_status():
     _, error = _ensure_authenticated()
     if error:
         return error
-    
+
     data = request.get_json()
     if not data:
         return make_response(error_response("请求数据不能为空"), 400)
-    
+
     protocol = data.get("protocol", "UNKNOWN")
-    
+
     try:
         status_info = {
             "protocol": protocol,
             "timestamp": datetime.now().isoformat()
         }
-        
+
         if protocol == "MQTT":
             # MQTT协议支持双引擎配置，需要检查协议实现
             protocol_implementations = data.get("protocolImplementations", [])
-            
+
             if protocol_implementations and "SOL" in protocol_implementations:
                 # 检查SOL相关状态 (使用AFLNET引擎)
                 log_file_path = str(_aflnet_log_file_for_source())
@@ -4088,9 +4094,9 @@ def check_status():
                 log_file_path = MQTT_CONFIG["log_file_path"]
                 status_info["engine"] = "MBFuzzer"
                 status_info["implementation"] = protocol_implementations
-            
+
             log_dir = os.path.dirname(log_file_path)
-            
+
             # 检查目录和文件状态
             status_info.update({
                 "log_file_path": log_file_path,
@@ -4098,7 +4104,7 @@ def check_status():
                 "log_dir_exists": os.path.exists(log_dir),
                 "log_file_exists": os.path.exists(log_file_path)
             })
-            
+
             # 如果目录存在，列出文件
             if os.path.exists(log_dir):
                 try:
@@ -4106,7 +4112,7 @@ def check_status():
                     status_info["files_in_log_dir"] = files
                 except Exception as e:
                     status_info["files_in_log_dir"] = f"无法列出文件: {e}"
-            
+
             # 如果日志文件存在，获取文件信息
             if os.path.exists(log_file_path):
                 file_stat = os.stat(log_file_path)
@@ -4114,7 +4120,7 @@ def check_status():
                     "log_file_size": file_stat.st_size,
                     "log_file_mtime": datetime.fromtimestamp(file_stat.st_mtime).isoformat()
                 })
-            
+
             # 检查Docker容器状态
             try:
                 result = subprocess.run(
@@ -4125,19 +4131,19 @@ def check_status():
                     text=True,
                     timeout=10
                 )
-                
+
                 if result.returncode == 0:
                     status_info["docker_containers"] = result.stdout
                 else:
                     status_info["docker_error"] = result.stderr
-                    
+
             except Exception as e:
                 status_info["docker_error"] = str(e)
-        
+
         LOGGER.debug("状态检查结果: %s", status_info)
-        
+
         return success_response(status_info)
-        
+
     except Exception as e:
         LOGGER.debug("状态检查异常: %s", e)
         return make_response(error_response(f"状态检查失败: {str(e)}"), 500)
@@ -4181,33 +4187,33 @@ def stop_process():
 def pre_start_cleanup():
     """启动前清理：停止现有容器并清理输出文件"""
     LOGGER.debug("========== 启动前清理API被调用 ==========")
-    
+
     _, error = _ensure_authenticated()
     if error:
         LOGGER.debug("认证失败: %s", error)
         return error
-    
+
     data = request.get_json()
     LOGGER.debug("接收到的请求数据: %s", data)
-    
+
     if not data:
         LOGGER.debug("请求数据为空")
         return make_response(error_response("请求数据不能为空"), 400)
-    
+
     protocol = data.get("protocol", "UNKNOWN")
-    
+
     LOGGER.debug("解析参数 - 协议: %s", protocol)
-    
+
     cleanup_results = {
         "containers_stopped": 0,
         "containers_removed": 0,
         "output_cleaned": False,
         "errors": []
     }
-    
+
     try:
         LOGGER.debug("开始启动前清理 - 协议: %s", protocol)
-        
+
         # 1. 查找并停止所有相关的Docker容器
         if protocol == "RTSP" or protocol == "MQTT":
             # 查找protocolguard容器
@@ -4218,11 +4224,11 @@ def pre_start_cleanup():
                 stderr=subprocess.PIPE,
                 text=True
             )
-            
+
             if find_result.returncode == 0 and find_result.stdout.strip():
                 container_ids = find_result.stdout.strip().split('\n')
                 LOGGER.debug("找到 %s 个运行中的protocolguard容器", len(container_ids))
-                
+
                 for container_id in container_ids:
                     if container_id:
                         try:
@@ -4235,11 +4241,11 @@ def pre_start_cleanup():
                                 text=True,
                                 timeout=30
                             )
-                            
+
                             if stop_result.returncode == 0:
                                 cleanup_results["containers_stopped"] += 1
                                 LOGGER.debug("容器停止成功: %s", container_id)
-                                
+
                                 # 删除容器
                                 remove_result = subprocess.run(
                                     f"docker rm {container_id}",
@@ -4249,7 +4255,7 @@ def pre_start_cleanup():
                                     text=True,
                                     timeout=30
                                 )
-                                
+
                                 if remove_result.returncode == 0:
                                     cleanup_results["containers_removed"] += 1
                                     LOGGER.debug("容器删除成功: %s", container_id)
@@ -4259,19 +4265,19 @@ def pre_start_cleanup():
                             else:
                                 error_msg = stop_result.stderr.strip() or "停止容器失败"
                                 cleanup_results["errors"].append(f"停止容器失败 {container_id}: {error_msg}")
-                                
+
                         except subprocess.TimeoutExpired:
                             cleanup_results["errors"].append(f"操作容器超时: {container_id}")
                         except Exception as e:
                             cleanup_results["errors"].append(f"操作容器异常 {container_id}: {str(e)}")
             else:
                 LOGGER.debug("没有找到运行中的protocolguard容器")
-        
+
         # 2. 清理输出文件夹
         if protocol == "RTSP" or protocol == "MQTT":
             output_dir = os.path.dirname(cast(str, RTSP_CONFIG["log_file_path"]))
             fallback_output_dir = str(_aflnet_fallback_output_root().resolve())
-            
+
             # Linux安全检查：防止删除系统重要目录
             dangerous_paths = ['/', '/home', '/usr', '/var', '/etc', '/bin', '/sbin', '/lib', '/opt']
             if str(Path(output_dir).resolve()) == fallback_output_dir:
@@ -4284,11 +4290,11 @@ def pre_start_cleanup():
                 try:
                     if os.path.exists(output_dir):
                         import shutil
-                        
+
                         # 删除output目录下的所有文件和子目录，但保留目录本身
                         cleaned_items = []
                         failed_items = []
-                        
+
                         for item in os.listdir(output_dir):
                             item_path = os.path.join(output_dir, item)
                             try:
@@ -4299,32 +4305,32 @@ def pre_start_cleanup():
                                 cleaned_items.append(item)
                             except Exception as e:
                                 failed_items.append(f"{item}: {str(e)}")
-                        
+
                         if cleaned_items:
                             cleanup_results["output_cleaned"] = True
                             LOGGER.debug("输出目录清理成功，删除了 %s 个项目", len(cleaned_items))
-                        
+
                         if failed_items:
                             cleanup_results["errors"].extend([f"清理失败: {item}" for item in failed_items])
                     else:
                         LOGGER.debug("输出目录不存在: %s", output_dir)
                         cleanup_results["output_cleaned"] = True  # 目录不存在也算清理成功
-                        
+
                 except Exception as e:
                     cleanup_results["errors"].append(f"清理输出目录异常: {str(e)}")
                     LOGGER.debug("清理输出目录异常: %s", e)
-        
+
         LOGGER.debug("启动前清理完成: %s", cleanup_results)
-        
+
         return success_response({
             "message": "启动前清理完成",
             "cleanup_results": cleanup_results
         })
-        
+
     except Exception as e:
         LOGGER.debug("启动前清理异常: %s", e)
         cleanup_results["errors"].append(f"清理过程异常: {str(e)}")
-        
+
         return success_response({
             "message": "启动前清理部分完成",
             "cleanup_results": cleanup_results
@@ -4335,37 +4341,37 @@ def pre_start_cleanup():
 def stop_and_cleanup():
     """停止Docker容器并清理输出文件"""
     LOGGER.debug("========== 停止和清理API被调用 ==========")
-    
+
     _, error = _ensure_authenticated()
     if error:
         LOGGER.debug("认证失败: %s", error)
         return error
-    
+
     data = request.get_json()
     LOGGER.debug("接收到的请求数据: %s", data)
-    
+
     if not data:
         LOGGER.debug("请求数据为空")
         return make_response(error_response("请求数据不能为空"), 400)
-    
+
     container_id = data.get("container_id")
     protocol = data.get("protocol", "UNKNOWN")
-    
+
     LOGGER.debug("解析参数 - 容器ID: %s, 协议: %s", container_id, protocol)
-    
+
     if not container_id:
         LOGGER.debug("容器ID为空")
         return make_response(error_response("容器ID不能为空"), 400)
-    
+
     stop_results = {
         "container_stopped": False,
         "container_removed": False,
         "errors": []
     }
-    
+
     try:
         LOGGER.debug("开始停止和清理%s容器: %s", protocol, container_id)
-        
+
         # 首先检查容器是否存在
         check_result = subprocess.run(
             f"docker ps -a -q --filter id={container_id}",
@@ -4374,13 +4380,13 @@ def stop_and_cleanup():
             stderr=subprocess.PIPE,
             text=True
         )
-        
+
         if check_result.returncode == 0 and check_result.stdout.strip():
             LOGGER.debug("找到容器: %s", check_result.stdout.strip())
         else:
             LOGGER.debug("容器不存在或查找失败: %s", check_result.stderr)
             stop_results["errors"].append(f"容器不存在: {container_id}")
-        
+
         # 检查容器是否正在运行
         running_check = subprocess.run(
             f"docker ps -q --filter id={container_id}",
@@ -4389,12 +4395,12 @@ def stop_and_cleanup():
             stderr=subprocess.PIPE,
             text=True
         )
-        
+
         if running_check.returncode == 0 and running_check.stdout.strip():
             LOGGER.debug("容器正在运行，需要停止: %s", running_check.stdout.strip())
         else:
             LOGGER.debug("容器未在运行或已停止")
-        
+
         # 1. 停止Docker容器（使用更短的超时时间）
         try:
             stop_result = subprocess.run(
@@ -4405,7 +4411,7 @@ def stop_and_cleanup():
                 text=True,
                 timeout=15  # 总超时时间15秒
             )
-            
+
             if stop_result.returncode == 0:
                 stop_results["container_stopped"] = True
                 LOGGER.debug("容器停止成功: %s", container_id)
@@ -4413,14 +4419,14 @@ def stop_and_cleanup():
                 error_msg = stop_result.stderr.strip() or "停止容器失败"
                 stop_results["errors"].append(f"停止容器失败: {error_msg}")
                 LOGGER.debug("停止容器失败: %s", error_msg)
-                
+
         except subprocess.TimeoutExpired:
             stop_results["errors"].append("停止容器超时")
             LOGGER.debug("停止容器超时")
         except Exception as e:
             stop_results["errors"].append(f"停止容器异常: {str(e)}")
             LOGGER.debug("停止容器异常: %s", e)
-        
+
         # 2. 删除Docker容器
         try:
             remove_result = subprocess.run(
@@ -4431,7 +4437,7 @@ def stop_and_cleanup():
                 text=True,
                 timeout=10  # 删除操作通常很快
             )
-            
+
             if remove_result.returncode == 0:
                 stop_results["container_removed"] = True
                 LOGGER.debug("容器删除成功: %s", container_id)
@@ -4439,40 +4445,40 @@ def stop_and_cleanup():
                 error_msg = remove_result.stderr.strip() or "删除容器失败"
                 stop_results["errors"].append(f"删除容器失败: {error_msg}")
                 LOGGER.debug("删除容器失败: %s", error_msg)
-                
+
         except subprocess.TimeoutExpired:
             stop_results["errors"].append("删除容器超时")
             LOGGER.debug("删除容器超时")
         except Exception as e:
             stop_results["errors"].append(f"删除容器异常: {str(e)}")
             LOGGER.debug("删除容器异常: %s", e)
-        
+
         LOGGER.debug("容器停止完成: %s", stop_results)
-        
+
         # 构建响应消息
         success_count = sum([
             stop_results["container_stopped"],
             stop_results["container_removed"]
         ])
-        
+
         if success_count == 2:
             message = f"{protocol}容器已完全停止，输出文件已保留供查看"
         elif success_count > 0:
             message = f"{protocol}容器部分停止完成 ({success_count}/2)，输出文件已保留"
         else:
             message = f"{protocol}容器停止失败"
-        
+
         return success_response({
             "message": message,
             "container_id": container_id,
             "protocol": protocol,
             "stop_results": stop_results
         })
-        
+
     except Exception as e:
         LOGGER.debug("停止过程异常: %s", e)
         stop_results["errors"].append(f"停止过程异常: {str(e)}")
-        
+
         return success_response({
             "message": f"{protocol}容器停止部分完成",
             "container_id": container_id,

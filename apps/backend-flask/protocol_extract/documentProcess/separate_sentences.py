@@ -1,5 +1,6 @@
 import re
 import json
+import os
 import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 from openai import OpenAI
@@ -16,7 +17,11 @@ prompt_path = script_dir / "prompt.toml"
 toml_config = toml.load(config_path)
 toml_prompt = toml.load(prompt_path)
 this_workers = toml_config["llm"]["max_workers"]
-this_url = toml_config["llm"]["base_url"]
+this_url = (
+    os.environ.get("PROTOCOL_EXTRACT_LLM_BASE_URL")
+    or os.environ.get("OPENAI_BASE_URL")
+    or toml_config["llm"]["base_url"]
+)
 PROMPT_TEMPLATE = toml_prompt["prompt_separate_sentences"]["user"]
 this_model = toml_config["llm"]["model1"]
 
@@ -65,14 +70,15 @@ def process_sentences(config):
             print(f"[DEBUG] headings章节示例: {list(headings)[:5]}")
             for heading in selected:
                 if heading in headings:
-                    if not headings[heading].strip():
+                    section_text = str(headings[heading] or '').strip()
+                    if not section_text:
                         print(f"[WARN] {heading} 在headings中但内容为空，跳过")
                         continue
-                    sentences = [s for s in re.split(r'(?<=[.!?])\s+', headings[heading]) if s.strip()]
+                    sentences = [s for s in re.split(r'(?<=[.!?])\s+', section_text) if s.strip()]
                     if not sentences:
                         print(f"[WARN] {heading} 内容分句后为空，跳过")
                         continue
-                    futures[executor.submit(process_sentence, client, heading, sentences)] = heading
+                    futures[executor.submit(process_sentence, client, heading, section_text)] = heading
                 else:
                     print(f"[WARN] {heading} 不在headings中，跳过")
 
@@ -96,8 +102,7 @@ def process_sentences(config):
                     pbar.update(1)
 
     # 保存结果
-    df = pd.DataFrame(df_data)
-    df.columns = ["章节", "原句", "修正"]
+    df = pd.DataFrame(df_data, columns=pd.Index(["章节", "原句", "修正"]))
     df.to_excel(config["paths"]["output_excel"], index=False)
 
     with open(config["paths"]["output_json"], "w", encoding='utf-8') as f:
