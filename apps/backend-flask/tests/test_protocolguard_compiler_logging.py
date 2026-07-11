@@ -64,12 +64,11 @@ class FakeDocker:
 
 
 def _controller() -> CompilerController:
-    controller = CompilerController.__new__(CompilerController)
-    mutable_controller = cast(Any, controller)
-    mutable_controller.llm = FakeLLM()
-    mutable_controller.docker = FakeDocker()
-    mutable_controller.max_runtime = 60
-    return controller
+    controller = cast(Any, CompilerController.__new__(CompilerController))
+    controller.llm = FakeLLM()
+    controller.docker = FakeDocker()
+    controller.max_runtime = 60
+    return cast(CompilerController, controller)
 
 
 def _tar_file(tmp_path: Path) -> Path:

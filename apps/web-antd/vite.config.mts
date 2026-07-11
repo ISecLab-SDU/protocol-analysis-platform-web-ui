@@ -76,6 +76,9 @@ function demoInputStaticPlugin(): Plugin {
 }
 
 export default defineConfig(async () => {
+  const backendProxyTarget =
+    process.env.VITE_BACKEND_PROXY_TARGET || 'http://localhost:5000';
+
   return {
     application: {
       nitroMock: false,
@@ -91,16 +94,16 @@ export default defineConfig(async () => {
         proxy: {
           '/api': {
             changeOrigin: true,
-            target: 'http://localhost:5000',
+            target: backendProxyTarget,
             ws: true,
           },
           '/auth': {
             changeOrigin: true,
-            target: 'http://localhost:5000',
+            target: backendProxyTarget,
           },
           '/uploads': {
             changeOrigin: true,
-            target: 'http://localhost:5000',
+            target: backendProxyTarget,
           },
         },
       },
