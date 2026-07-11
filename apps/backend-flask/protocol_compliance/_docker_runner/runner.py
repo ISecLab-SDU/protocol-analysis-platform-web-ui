@@ -1054,7 +1054,7 @@ class ProtocolGuardDockerRunner:
             for thread in relay_threads:
                 thread.start()
 
-            for chunk in container.logs(stream=True, follow=True):
+            for chunk in container.logs(stream=True, follow=True, stdout=True, stderr=True):
                 line = chunk.decode("utf-8", errors="replace").rstrip()
                 with write_lock:
                     log_file.write(line + "\n")

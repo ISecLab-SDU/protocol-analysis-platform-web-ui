@@ -229,3 +229,58 @@ def test_runner_relay_runtime_analysis_log_file(
         "analysis-log",
         "[LLM Query] Succeeded in 31 ms. Model: deepseek-v3.",
     ) in events
+
+
+def test_runner_reads_docker_stdout_and_stderr_streams(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    settings = _settings(monkeypatch, tmp_path)
+    runner = _runner(settings)
+    job_paths = _job_paths(settings, "job-docker-logs")
+    log_kwargs: dict[str, object] = {}
+
+    class FakeContainer:
+        id = "123456789abc"
+
+        def logs(self, **kwargs: object) -> list[bytes]:
+            log_kwargs.update(kwargs)
+            return [
+                b"stdout line from match-pass\n",
+                b"stderr line from match-pass\n",
+            ]
+
+        def wait(self, timeout: int | None = None) -> dict[str, int]:
+            return {"StatusCode": 0}
+
+        def remove(self, *, force: bool = False) -> None:
+            return None
+
+    class FakeContainers:
+        def run(self, **_kwargs: object) -> FakeContainer:
+            return FakeContainer()
+
+    class FakeClient:
+        containers = FakeContainers()
+
+    runner._client = FakeClient()
+
+    logs = runner._run_container(
+        job_paths=job_paths,
+        image="protocolguard:latest",
+        command=["static"],
+        volumes={str(job_paths.workspace): {"bind": "/workspace", "mode": "rw"}},
+        environment={},
+        log_destination=job_paths.log_file,
+    )
+
+    assert log_kwargs["stream"] is True
+    assert log_kwargs["follow"] is True
+    assert log_kwargs["stdout"] is True
+    assert log_kwargs["stderr"] is True
+    assert logs == [
+        "stdout line from match-pass",
+        "stderr line from match-pass",
+    ]
+    assert "stdout line from match-pass" in job_paths.log_file.read_text(encoding="utf-8")
+    assert "stderr line from match-pass" in job_paths.log_file.read_text(encoding="utf-8")
