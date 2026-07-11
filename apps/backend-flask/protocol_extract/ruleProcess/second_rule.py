@@ -113,7 +113,10 @@ def process_sentence(client, protocol, version, sentence, heading, sections):
             temperature=this_temperature,
             stream=False
         )
-        model_output = response.choices[0].message.content.strip()
+        content = response.choices[0].message.content
+        if content is None:
+            raise ValueError("Empty second-rule response")
+        model_output = content.strip()
         conforms = "Conforms" in model_output
         result_text = "Conforms" if conforms else "Does not conform"
     except Exception as e:
@@ -166,13 +169,14 @@ def run_second_rule(api_key, protocol, version, config):
         futures = []
         for idx, row in matched_rows.iterrows():  # 遍历带索引的行
             # 使用增强后的句子（若存在）
-            sentence = row.get("Enhanced_Sentence") or row["Sentence"]
+            sentence = str(row.get("Enhanced_Sentence") or row["Sentence"])
+            heading = str(row["Heading"]).strip()
             # 将future与原始索引绑定，确保结果能对应到正确行
             future = executor.submit(
                 process_sentence, 
                 client, protocol, version, 
                 sentence, 
-                row["Heading"].strip(), 
+                heading,
                 sections
             )
             futures.append( (future, idx) )  # 存储 (future对象, 原始行索引)

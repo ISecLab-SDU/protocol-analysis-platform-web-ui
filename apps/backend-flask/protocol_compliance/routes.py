@@ -23,24 +23,14 @@ import toml
 from flask import Blueprint, make_response, request, send_file
 from werkzeug.datastructures import FileStorage
 
-try:
-    from ..utils.auth import verify_access_token
-    from ..utils.responses import (
-        error_response,
-        make_error_payload,
-        paginate,
-        success_response,
-        unauthorized,
-    )
-except ImportError:
-    from utils.auth import verify_access_token
-    from utils.responses import (
-        error_response,
-        make_error_payload,
-        paginate,
-        success_response,
-        unauthorized,
-    )
+from utils.auth import verify_access_token
+from utils.responses import (
+    error_response,
+    make_error_payload,
+    paginate,
+    success_response,
+    unauthorized,
+)
 from .analysis import (
     delete_static_analysis_job,
     extract_protocol_version,
@@ -69,7 +59,6 @@ from .pipeline_runner import (
     PipelineResultNotFoundError,
     run_protocol_pipeline,
 )
-from .compiler import CompilerController
 
 LOGGER = logging.getLogger(__name__)
 
@@ -204,8 +193,8 @@ def _extract_protocol_metadata_from_config(
     return None, None
 
 
-def _collect_exception_details(exc: Exception, *, max_logs: int = 40) -> dict:
-    details = {"message": str(exc)}
+def _collect_exception_details(exc: Exception, *, max_logs: int = 40) -> dict[str, object]:
+    details: dict[str, object] = {"message": str(exc)}
     extra = getattr(exc, "details", None)
     if isinstance(extra, dict) and extra:
         details.update(extra)
@@ -3047,7 +3036,7 @@ def download_static_analysis_database(job_id: str):
     database_path = snapshot.get("database_path")
     LOGGER.info("[下载数据库] 任务 %s 的 database_path: %s", job_id, database_path)
 
-    if database_path:
+    if isinstance(database_path, str) and database_path:
         db_file = Path(database_path)
         if db_file.exists():
             LOGGER.info("[下载数据库] 使用存储的路径: %s", db_file)
@@ -3061,7 +3050,7 @@ def download_static_analysis_database(job_id: str):
     # 如果database_path为空或文件不存在，尝试从output_path动态查找
     LOGGER.warning("[下载数据库] database_path 无效，尝试从 output_path 查找")
     output_path = snapshot.get("output_path")
-    if output_path:
+    if isinstance(output_path, str) and output_path:
         output_dir = Path(output_path)
         database_dir = output_dir / "database"
         LOGGER.info("[下载数据库] 在 %s 目录查找数据库文件", database_dir)
@@ -3115,8 +3104,7 @@ def assertion_generation():
     if not isinstance(code_upload_raw, FileStorage):
         return make_response(error_response("请上传完整文件：源码压缩包"), 400)
 
-    code_upload = cast(FileStorage, code_upload_raw)
-    code_name, code_data = _read_upload(code_upload)
+    code_name, code_data = _read_upload(code_upload_raw)
 
     database_path_requested = request.form.get("databasePath")
     database_source = "upload"
@@ -3151,8 +3139,7 @@ def assertion_generation():
         database_upload_raw = request.files.get("database")
         if not isinstance(database_upload_raw, FileStorage):
             return make_response(error_response("请上传完整文件：分析结果数据文件"), 400)
-        database_upload = cast(FileStorage, database_upload_raw)
-        database_name, database_data = _read_upload(database_upload)
+        database_name, database_data = _read_upload(database_upload_raw)
 
     if not code_data or not database_data:
         return make_response(error_response("上传的文件内容为空，请重新上传"), 400)
@@ -3414,7 +3401,7 @@ def _is_path_inside(path: Path, allowed_roots: list[Path]) -> bool:
 
 
 def _aflnet_output_root() -> Path:
-    return Path(os.environ.get("AFLNET_OUTPUT_ROOT") or os.path.dirname(RTSP_CONFIG["log_file_path"]))
+    return Path(os.environ.get("AFLNET_OUTPUT_ROOT") or os.path.dirname(cast(str, RTSP_CONFIG["log_file_path"])))
 
 
 def _repo_root() -> Path:
@@ -3465,7 +3452,7 @@ def _aflnet_log_file_for_source(source: str = "primary") -> Path:
     if source == "fallback":
         filename = os.environ.get("AFLNET_FALLBACK_LOG_FILE_NAME", "plot_data")
         return _aflnet_fallback_output_root() / filename
-    return Path(RTSP_CONFIG["log_file_path"]).expanduser()
+    return Path(cast(str, RTSP_CONFIG["log_file_path"])).expanduser()
 
 
 def _resolve_aflnet_output_source(data: Optional[Dict[str, Any]] = None) -> str:
@@ -4282,7 +4269,7 @@ def pre_start_cleanup():
         
         # 2. 清理输出文件夹
         if protocol == "RTSP" or protocol == "MQTT":
-            output_dir = os.path.dirname(RTSP_CONFIG["log_file_path"])
+            output_dir = os.path.dirname(cast(str, RTSP_CONFIG["log_file_path"]))
             fallback_output_dir = str(_aflnet_fallback_output_root().resolve())
             
             # Linux安全检查：防止删除系统重要目录

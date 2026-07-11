@@ -4,10 +4,18 @@ from __future__ import annotations
 
 import contextlib
 import logging
+from types import TracebackType
 from collections.abc import Callable, Iterator, Mapping
 from typing import Any, Optional
 
 ProgressCallback = Callable[[str, str, str], None]
+ExcInfo = (
+    bool
+    | BaseException
+    | tuple[type[BaseException], BaseException, TracebackType | None]
+    | tuple[None, None, None]
+    | None
+)
 
 
 class JobStageLogger:
@@ -34,17 +42,81 @@ class JobStageLogger:
         finally:
             self._state_stack.pop()
 
-    def debug(self, message: str, *args: object, **fields: object) -> None:
-        self.log(logging.DEBUG, message, *args, emit_progress=False, **fields)
+    def debug(
+        self,
+        message: str,
+        *args: object,
+        emit_progress: bool = False,
+        exc_info: ExcInfo = None,
+        frontend_message: Optional[str] = None,
+        **fields: object,
+    ) -> None:
+        self.log(
+            logging.DEBUG,
+            message,
+            *args,
+            emit_progress=emit_progress,
+            exc_info=exc_info,
+            frontend_message=frontend_message,
+            **fields,
+        )
 
-    def info(self, message: str, *args: object, **fields: object) -> None:
-        self.log(logging.INFO, message, *args, **fields)
+    def info(
+        self,
+        message: str,
+        *args: object,
+        emit_progress: bool = True,
+        exc_info: ExcInfo = None,
+        frontend_message: Optional[str] = None,
+        **fields: object,
+    ) -> None:
+        self.log(
+            logging.INFO,
+            message,
+            *args,
+            emit_progress=emit_progress,
+            exc_info=exc_info,
+            frontend_message=frontend_message,
+            **fields,
+        )
 
-    def warning(self, message: str, *args: object, **fields: object) -> None:
-        self.log(logging.WARNING, message, *args, **fields)
+    def warning(
+        self,
+        message: str,
+        *args: object,
+        emit_progress: bool = True,
+        exc_info: ExcInfo = None,
+        frontend_message: Optional[str] = None,
+        **fields: object,
+    ) -> None:
+        self.log(
+            logging.WARNING,
+            message,
+            *args,
+            emit_progress=emit_progress,
+            exc_info=exc_info,
+            frontend_message=frontend_message,
+            **fields,
+        )
 
-    def error(self, message: str, *args: object, **fields: object) -> None:
-        self.log(logging.ERROR, message, *args, **fields)
+    def error(
+        self,
+        message: str,
+        *args: object,
+        emit_progress: bool = True,
+        exc_info: ExcInfo = None,
+        frontend_message: Optional[str] = None,
+        **fields: object,
+    ) -> None:
+        self.log(
+            logging.ERROR,
+            message,
+            *args,
+            emit_progress=emit_progress,
+            exc_info=exc_info,
+            frontend_message=frontend_message,
+            **fields,
+        )
 
     def log(
         self,
@@ -52,7 +124,7 @@ class JobStageLogger:
         message: str,
         *args: object,
         emit_progress: bool = True,
-        exc_info: object = None,
+        exc_info: ExcInfo = None,
         frontend_message: Optional[str] = None,
         **fields: object,
     ) -> None:
@@ -68,7 +140,8 @@ class JobStageLogger:
             exc_info=exc_info,
             extra={"protocolguard_context": context},
         )
-        if emit_progress and self._progress_callback:
+        progress_callback = self._progress_callback
+        if emit_progress and progress_callback:
             self._emit_progress(stage, frontend_message or self._format_message(message, args))
 
     def _build_context(
@@ -84,8 +157,11 @@ class JobStageLogger:
         return context
 
     def _emit_progress(self, stage: str, message: str) -> None:
+        progress_callback = self._progress_callback
+        if progress_callback is None:
+            return
         try:
-            self._progress_callback(self._job_id, stage, message)
+            progress_callback(self._job_id, stage, message)
         except Exception:  # pragma: no cover - defensive
             self._logger.debug("Progress callback failed for job %s", self._job_id, exc_info=True)
 

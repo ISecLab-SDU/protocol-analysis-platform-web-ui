@@ -9,9 +9,8 @@ import subprocess
 import tempfile
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from io import BytesIO
 from pathlib import Path
 from typing import Any, BinaryIO, Callable, Dict, List, Optional, Tuple
 from openai import OpenAI
@@ -49,7 +48,7 @@ class AgentExecutorSettings:
     def from_env(cls) -> "AgentExecutorSettings":
         api_key = os.environ.get("OPENAI_API_KEY")
         enabled = bool(api_key)
-        base_url = os.environ.get("OPENAI_BASE_URL")
+        base_url = os.environ.get("OPENAI_BASE_URL") or ""
         model = os.environ.get("PG_AGENT_MODEL", "deepseek-v3")
         
         runtime_root = Path(os.environ.get("PG_RUNTIME_ROOT", tempfile.gettempdir() + "/protocolguard"))
@@ -62,7 +61,7 @@ class AgentExecutorSettings:
         
         return cls(
             enabled=enabled,
-            api_key=api_key,
+            api_key=api_key or "",
             base_url=base_url,
             model=model,
             workspace_root=workspace_root,
@@ -72,8 +71,12 @@ class AgentExecutorSettings:
 
 
 class LLMClient:
-
-    def __init__(self, api_key=None, base_url=None, model=None):
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+        model: Optional[str] = None,
+    ) -> None:
         api_key = api_key or os.environ.get("OPENAI_API_KEY")
         base_url = base_url or os.environ.get("OPENAI_BASE_URL")
         model = model or os.environ.get("PG_AGENT_MODEL", "deepseek-v3")
@@ -222,7 +225,10 @@ Return ONLY Dockerfile content
             max_tokens=4096
         )
 
-        return self._clean(resp.choices[0].message.content)
+        content = resp.choices[0].message.content
+        if content is None:
+            raise AgentExecutionError("LLM response did not include Dockerfile content")
+        return self._clean(content)
 
 
 class DockerTester:
@@ -709,8 +715,6 @@ class AgentExecutor:
         config_dir = self.settings.workspace_root.parent / "configs" / job_identifier
         config_dir.mkdir(parents=True, exist_ok=True)
         
-        config_path = workspace_dir / "config.toml"
-        
         logger.debug("[*] Generating config.toml with correct paths for ProtocolGuard analysis")
         
         prepared_config = {
@@ -889,6 +893,8 @@ class AgentExecutor:
                 text=True,
                 cwd=str(workspace_dir)
             )
+            if process.stdout is None:
+                raise AgentExecutionError("Analysis container did not expose stdout")
             
             log_lines = []
             step_keywords = [
@@ -1227,7 +1233,7 @@ class AgentExecutor:
             if progress_callback:
                 progress_callback(job_identifier, "compile", f"Builder build failed: {build_log[:200]}")
             raise AgentExecutionError(
-                f"Builder image build failed",
+                "Builder image build failed",
                 logs=[build_log],
                 details={"workspace": str(workspace_dir)}
             )
@@ -1244,7 +1250,7 @@ class AgentExecutor:
             if progress_callback:
                 progress_callback(job_identifier, "compile", f"Builder output copy failed: {copy_log[:200]}")
             raise AgentExecutionError(
-                f"Builder output copy failed",
+                "Builder output copy failed",
                 logs=[copy_log],
                 details={"workspace": str(workspace_dir)}
             )
@@ -1264,8 +1270,6 @@ class AgentExecutor:
         
         self._run_analysis_container(workspace_dir, job_identifier, progress_callback)
         
-        bitcode_path = workspace_dir / "program.bc"
-        build_log_path = workspace_dir / "build_log.txt"
         database_path = None
         
         def _validate_db(db_path_candidate: Path) -> bool:

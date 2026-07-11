@@ -510,6 +510,7 @@ def _extract_database_path(result: Dict[str, object]) -> Optional[str]:
     artifacts = result.get("artifacts")
     if not isinstance(artifacts, dict):
         return None
+    artifacts = cast(Dict[str, object], artifacts)
     database_path = artifacts.get("database")
     if isinstance(database_path, str) and database_path:
         return database_path

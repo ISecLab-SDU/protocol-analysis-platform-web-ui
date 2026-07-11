@@ -15,7 +15,6 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 from typing import Any, BinaryIO, Callable, Dict, List, Optional, Tuple, cast
@@ -28,7 +27,7 @@ from .docker_runner import (
     ProtocolGuardExecutionError,
     ProtocolGuardNotAvailableError,
 )
-from .job_logging import JobStageLogger
+from .job_logging import JobStageLogger, ProgressCallback
 
 LOGGER = logging.getLogger(__name__)
 
@@ -38,6 +37,7 @@ def _now_iso() -> str:
 
 
 AssertGenerationJobStatus = str  # Literal['queued', 'running', 'completed', 'failed']
+AssertGenerationResult = Dict[str, object]
 
 
 @dataclass
@@ -1349,6 +1349,9 @@ def parse_unified_diff(patch_content: str) -> Dict[str, object]:
         
         # Match diff content lines
         elif current_hunk is not None:
+            if current_file is None:
+                i += 1
+                continue
             if line.startswith('+') and not line.startswith('+++'):
                 current_hunk["lines"].append({"type": "add", "content": line[1:]})
                 current_file["additions"] += 1

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any, cast
 import sys
 import types
 from pathlib import Path
@@ -96,7 +97,7 @@ def test_job_stage_logger_emits_backend_and_frontend_logs(caplog: pytest.LogCapt
         logging.INFO,
         logging.WARNING,
     ]
-    assert caplog.records[1].protocolguard_context == {
+    assert cast(Any, caplog.records[1]).protocolguard_context == {
         "artifact": "source.tar",
         "workspace": "/tmp/work",
     }
@@ -146,7 +147,7 @@ def test_runner_log_step_preserves_frontend_event_and_backend_context(
             "Copied rules file to project context: /tmp/rules.json",
         )
     ]
-    assert caplog.records[0].protocolguard_context == {"destination": "/tmp/rules.json"}
+    assert cast(Any, caplog.records[0]).protocolguard_context == {"destination": "/tmp/rules.json"}
 
 
 def test_runner_lifecycle_progress_order_is_preserved(
