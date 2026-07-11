@@ -5,6 +5,24 @@ log() {
   printf '[pg-builder][%s] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"
 }
 
+log_section() {
+  log "========== $* =========="
+}
+
+log_file_preview() {
+  local path="$1"
+  local label="$2"
+  local max_lines="${3:-120}"
+
+  if [[ ! -f "$path" ]]; then
+    log "$label missing at $path"
+    return
+  fi
+
+  log "$label at $path ($(wc -c < "$path") bytes)"
+  sed -n "1,${max_lines}p" "$path" | sed "s/^/[pg-builder][$label] /"
+}
+
 fail() {
   log "ERROR: $*"
   exit 1
@@ -43,6 +61,7 @@ configure_claude() {
 }
 EOF
   log "Claude Code settings written; credentials are not printed"
+  log "Claude Code base URL is configured; credential values are redacted"
 }
 
 write_prompt() {
@@ -50,6 +69,15 @@ write_prompt() {
 You are running inside a disposable Docker container for ProtocolGuard static analysis.
 
 Your job is to compile the uploaded C/C++ protocol implementation and place LLVM build artefacts where the Flask backend expects them. Work autonomously by inspecting files, trying builds, reading errors, and fixing the build commands until the required artefacts exist. Do not ask the user questions.
+
+Log your internal workflow in a concise action journal. Before every meaningful action, print one of these markers:
+- `[claude-step] <short goal>` when you decide the next goal.
+- `[claude-command] <command>` before running a shell command.
+- `[claude-observation] <what changed or what failed>` after inspecting command output.
+- `[claude-config] <how config.toml/rule_config.json affect the build>` when reading configuration.
+- `[claude-artifact] <path and status>` when producing or validating an artifact.
+
+Also write the same journal to `/workspace/claude_action_journal.log`.
 
 Container facts:
 - The current directory is `/workspace`.
@@ -80,28 +108,80 @@ Recommended procedure:
 
 Do not fabricate placeholder bitcode. If a required artefact cannot be produced, leave the full attempted command output in `/workspace/build_log.txt` and exit non-zero.
 EOF
+  log "Claude builder prompt written to /workspace/claude_builder_prompt.md"
+  log "Claude builder prompt sha256: $(sha256sum /workspace/claude_builder_prompt.md | awk '{print $1}')"
+  log_file_preview /workspace/claude_builder_prompt.md "prompt-preview" 80
+}
+
+log_workspace_inputs() {
+  log_section "workspace inputs before Claude Code"
+  log "Working directory: $(pwd)"
+  log "Mounted workspace inventory"
+  find /workspace -maxdepth 3 -mindepth 1 -printf '[pg-builder][workspace] %y %p\n' | sort
+  log_file_preview /workspace/config.toml "config.toml" 200
+  log_file_preview /workspace/rule_config.json "rule_config.json" 120
+  if compgen -G "/workspace/*.tar" >/dev/null; then
+    for archive in /workspace/*.tar; do
+      log "Source archive candidate: $archive ($(wc -c < "$archive") bytes)"
+      tar -tf "$archive" | sed -n '1,80p' | sed 's/^/[pg-builder][archive] /' || true
+    done
+  else
+    log "No /workspace/*.tar source archive was found before Claude Code"
+  fi
 }
 
 run_claude() {
+  log_workspace_inputs
   log "Checking Claude Code CLI"
   claude --version
 
   write_prompt
   log "Starting Claude builder agent"
+  set +e
   IS_SANDBOX=1 claude -p "$(cat /workspace/claude_builder_prompt.md)" \
     --dangerously-skip-permissions \
     --allow-dangerously-skip-permissions \
     2>&1 | tee /workspace/claude_builder.log
+  local claude_status="${PIPESTATUS[0]}"
+  set -e
+  log "Claude builder agent exited with status ${claude_status}"
+  if [[ -f /workspace/claude_action_journal.log ]]; then
+    log_file_preview /workspace/claude_action_journal.log "claude-action-journal" 200
+  else
+    log "Claude action journal was not created"
+  fi
+  return "$claude_status"
 }
 
 fallback_validation() {
+  log_section "post-Claude artifact validation"
   mkdir -p /workspace/inputs
-  [[ -f /workspace/rule_config.json ]] && cp /workspace/rule_config.json /workspace/inputs/rules.json
-  [[ -f /workspace/config.toml ]] && cp /workspace/config.toml /workspace/inputs/config.toml
+  if [[ -f /workspace/rule_config.json ]]; then
+    cp /workspace/rule_config.json /workspace/inputs/rules.json
+    log "[claude-artifact] copied /workspace/rule_config.json to /workspace/inputs/rules.json"
+  fi
+  if [[ -f /workspace/config.toml ]]; then
+    cp /workspace/config.toml /workspace/inputs/config.toml
+    log "[claude-artifact] copied /workspace/config.toml to /workspace/inputs/config.toml"
+  fi
 
   [[ -f /workspace/program.bc ]] || fail "Missing /workspace/program.bc after Claude builder run"
   [[ -f /workspace/program.ll ]] || llvm-dis-14 /workspace/program.bc -o /workspace/program.ll
   [[ -f /workspace/build_log.txt ]] || cp /workspace/claude_builder.log /workspace/build_log.txt
+
+  for artifact in \
+    /workspace/program.bc \
+    /workspace/program.ll \
+    /workspace/build_log.txt \
+    /workspace/inputs/rules.json \
+    /workspace/inputs/config.toml; do
+    if [[ -e "$artifact" ]]; then
+      log "[claude-artifact] validated $artifact ($(wc -c < "$artifact") bytes)"
+      file "$artifact" | sed 's/^/[pg-builder][artifact-file] /'
+    else
+      log "[claude-artifact] missing $artifact"
+    fi
+  done
 
   log "Final workspace snapshot"
   ls -la /workspace

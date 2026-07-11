@@ -892,6 +892,7 @@ class AgentExecutor:
         progress_callback: Optional[Callable[[str, str, str], None]],
         job_identifier: str,
         stage: str,
+        stage_selector: Optional[Callable[[str, str], str]] = None,
         timeout: Optional[int] = None,
     ) -> List[str]:
         logger.debug("[*] Command: %s", " ".join(self._redact_command(command)))
@@ -916,9 +917,10 @@ class AgentExecutor:
                 lines.append(line)
                 log_file.write(line + "\n")
                 if line:
-                    logger.debug("[%s] %s", stage.upper(), line)
+                    progress_stage = stage_selector(line, stage) if stage_selector else stage
+                    logger.debug("[%s] %s", progress_stage.upper(), line)
                     if progress_callback:
-                        progress_callback(job_identifier, stage, line[:500])
+                        progress_callback(job_identifier, progress_stage, line[:500])
 
         try:
             process.wait(timeout=timeout)
@@ -942,6 +944,33 @@ class AgentExecutor:
             )
         return lines
 
+    @staticmethod
+    def _claude_builder_progress_stage(line: str, default_stage: str) -> str:
+        marker_stage = {
+            "[claude-step]": "claude-step",
+            "[claude-command]": "claude-command",
+            "[claude-observation]": "claude-observation",
+            "[claude-config]": "claude-config",
+            "[claude-artifact]": "claude-artifact",
+            "[prompt-preview]": "claude-prompt",
+            "[config.toml]": "claude-config",
+            "[rule_config.json]": "claude-config",
+            "[artifact-file]": "claude-artifact",
+            "[archive]": "claude-inputs",
+            "[workspace]": "claude-inputs",
+            "[claude-action-journal]": "claude-journal",
+        }
+        for marker, stage in marker_stage.items():
+            if marker in line:
+                return stage
+        if "Claude builder agent exited with status" in line:
+            return "claude-status"
+        if "workspace inputs before Claude Code" in line:
+            return "claude-inputs"
+        if "post-Claude artifact validation" in line:
+            return "claude-artifact"
+        return default_stage
+
     def _run_claude_builder_container(
         self,
         workspace_dir: Path,
@@ -956,6 +985,71 @@ class AgentExecutor:
         log_path = workspace_dir / "build_log.txt"
         log_path.parent.mkdir(parents=True, exist_ok=True)
 
+        config_path = workspace_dir / "config.toml"
+        rules_path = workspace_dir / "rule_config.json"
+        prompt_path = workspace_dir / "claude_builder_prompt.md"
+        logger.info(
+            "Starting Claude builder container for job %s with workspace=%s image=%s config=%s rules=%s",
+            job_identifier,
+            workspace_dir,
+            self._builder_image,
+            config_path if config_path.exists() else None,
+            rules_path if rules_path.exists() else None,
+            extra={
+                "protocolguard_context": {
+                    "job_id": job_identifier,
+                    "stage": "claude-inputs",
+                    "workspace": str(workspace_dir),
+                    "builder_image": self._builder_image,
+                    "config_path": str(config_path) if config_path.exists() else None,
+                    "rules_path": str(rules_path) if rules_path.exists() else None,
+                },
+            },
+        )
+        if config_path.exists():
+            logger.info(
+                "Claude builder input config.toml for job %s:\n%s",
+                job_identifier,
+                config_path.read_text(encoding="utf-8", errors="replace"),
+                extra={
+                    "protocolguard_context": {
+                        "job_id": job_identifier,
+                        "stage": "claude-config",
+                        "config_path": str(config_path),
+                    },
+                },
+            )
+        if rules_path.exists():
+            logger.info(
+                "Claude builder input rule_config.json for job %s:\n%s",
+                job_identifier,
+                rules_path.read_text(encoding="utf-8", errors="replace")[:8000],
+                extra={
+                    "protocolguard_context": {
+                        "job_id": job_identifier,
+                        "stage": "claude-config",
+                        "rules_path": str(rules_path),
+                    },
+                },
+            )
+        workspace_preview = sorted(
+            str(path.relative_to(workspace_dir))
+            for path in workspace_dir.rglob("*")
+            if path.is_file()
+        )[:120]
+        logger.info(
+            "Claude builder workspace file preview for job %s: %s",
+            job_identifier,
+            workspace_preview,
+            extra={
+                "protocolguard_context": {
+                    "job_id": job_identifier,
+                    "stage": "claude-inputs",
+                    "workspace": str(workspace_dir),
+                    "file_count_preview": len(workspace_preview),
+                },
+            },
+        )
         if progress_callback:
             progress_callback(job_identifier, "builder", f"Starting Claude builder image {self._builder_image}")
 
@@ -972,15 +1066,30 @@ class AgentExecutor:
             self._builder_image,
         ]
 
-        return self._run_logged_command(
+        logs = self._run_logged_command(
             command,
             cwd=workspace_dir,
             log_path=log_path,
             progress_callback=progress_callback,
             job_identifier=job_identifier,
             stage="builder-log",
+            stage_selector=self._claude_builder_progress_stage,
             timeout=self.settings.max_runtime,
         )
+        if prompt_path.exists():
+            logger.info(
+                "Claude builder prompt persisted for job %s at %s",
+                job_identifier,
+                prompt_path,
+                extra={
+                    "protocolguard_context": {
+                        "job_id": job_identifier,
+                        "stage": "claude-prompt",
+                        "prompt_path": str(prompt_path),
+                    },
+                },
+            )
+        return logs
 
     def _validate_builder_outputs(self, workspace_dir: Path) -> None:
         required = {

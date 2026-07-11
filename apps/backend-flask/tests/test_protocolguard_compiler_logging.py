@@ -185,3 +185,34 @@ def test_agent_executor_redacts_secret_command_values() -> None:
         "-e",
         "PG_HOST_UID=1000",
     ]
+
+
+def test_agent_executor_classifies_claude_builder_log_markers() -> None:
+    assert (
+        AgentExecutor._claude_builder_progress_stage(
+            "[claude-command] cmake -S . -B build",
+            "builder-log",
+        )
+        == "claude-command"
+    )
+    assert (
+        AgentExecutor._claude_builder_progress_stage(
+            "[pg-builder][config.toml] protocol_name = \"MQTT\"",
+            "builder-log",
+        )
+        == "claude-config"
+    )
+    assert (
+        AgentExecutor._claude_builder_progress_stage(
+            "[pg-builder][artifact-file] /workspace/program.bc: LLVM IR bitcode",
+            "builder-log",
+        )
+        == "claude-artifact"
+    )
+    assert (
+        AgentExecutor._claude_builder_progress_stage(
+            "plain Claude output line",
+            "builder-log",
+        )
+        == "builder-log"
+    )
