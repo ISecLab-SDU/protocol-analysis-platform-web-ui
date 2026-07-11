@@ -913,20 +913,120 @@ class AgentExecutor:
         }
         return toml.dumps(config)
 
-    def _run_analysis_container(self, workspace_dir: Path, job_identifier: str, progress_callback=None):
-        if not self._docker_available:
-            logger.debug("⚠️ Docker not available, skipping analysis container")
-            return
+    def _container_path(self, workspace_dir: Path, path: Path) -> str:
+        try:
+            relative = path.resolve(strict=False).relative_to(workspace_dir.resolve(strict=False))
+        except ValueError:
+            return str(path)
+        if relative.as_posix() == ".":
+            return "/workspace"
+        return f"/workspace/{relative.as_posix()}"
 
-        output_dir = self.settings.workspace_root.parent / "outputs" / job_identifier
-        output_dir.mkdir(parents=True, exist_ok=True)
+    def _first_existing(self, workspace_dir: Path, relative_paths: List[str]) -> Optional[Path]:
+        for relative_path in relative_paths:
+            candidate = workspace_dir / relative_path
+            if candidate.exists():
+                return candidate
+        return None
 
-        config_dir = self.settings.workspace_root.parent / "configs" / job_identifier
-        config_dir.mkdir(parents=True, exist_ok=True)
+    def _find_workspace_file(
+        self,
+        workspace_dir: Path,
+        *,
+        suffixes: Tuple[str, ...],
+        exclude_suffixes: Tuple[str, ...] = (),
+    ) -> Optional[Path]:
+        matches: List[Path] = []
+        for path in workspace_dir.rglob("*"):
+            if not path.is_file():
+                continue
+            name = path.name.lower()
+            if exclude_suffixes and any(name.endswith(suffix) for suffix in exclude_suffixes):
+                continue
+            if any(name.endswith(suffix) for suffix in suffixes):
+                matches.append(path)
+        if not matches:
+            return None
+        matches.sort(key=lambda path: (len(path.relative_to(workspace_dir).parts), str(path)))
+        return matches[0]
 
-        logger.debug("[*] Generating config.toml with correct paths for ProtocolGuard analysis")
+    def _infer_project_root(self, workspace_dir: Path) -> Path:
+        project_dir = workspace_dir / "project"
+        if not project_dir.exists():
+            return workspace_dir
 
-        prepared_config = {
+        build_markers = {
+            "CMakeLists.txt",
+            "Makefile",
+            "configure",
+            "meson.build",
+            "compile_commands.json",
+        }
+        marker_dirs: List[Path] = []
+        for path in project_dir.rglob("*"):
+            if path.is_file() and path.name in build_markers:
+                marker_dirs.append(path.parent)
+        if marker_dirs:
+            marker_dirs.sort(key=lambda path: (len(path.relative_to(project_dir).parts), str(path)))
+            return marker_dirs[0]
+
+        children = [path for path in project_dir.iterdir() if path.is_dir()]
+        if len(children) == 1:
+            return children[0]
+        return project_dir
+
+    def _build_analysis_config(
+        self,
+        *,
+        workspace_dir: Path,
+        protocol_name: Optional[str],
+        protocol_version: Optional[str],
+        project_name: Optional[str],
+    ) -> Dict[str, Any]:
+        project_root = self._infer_project_root(workspace_dir)
+        bitcode_path = self._first_existing(
+            workspace_dir,
+            [
+                "program.bc",
+                "sol.bc",
+                "project/sol/build/sol.bc",
+            ],
+        ) or self._find_workspace_file(
+            workspace_dir,
+            suffixes=(".bc",),
+            exclude_suffixes=("_ssa.bc",),
+        ) or (workspace_dir / "program.bc")
+        original_ir_path = self._first_existing(
+            workspace_dir,
+            [
+                "program.ll",
+                "project/sol/build/sol.ll",
+            ],
+        ) or self._find_workspace_file(workspace_dir, suffixes=(".ll",)) or bitcode_path
+        build_log_path = self._first_existing(
+            workspace_dir,
+            [
+                "build_log.txt",
+                "project/sol/build/build_log.txt",
+            ],
+        ) or self._find_workspace_file(workspace_dir, suffixes=("build_log.txt",)) or (
+            workspace_dir / "build_log.txt"
+        )
+        bitcode_binary = bitcode_path.with_suffix("")
+        binary_path = self._first_existing(
+            workspace_dir,
+            [
+                "program",
+                "sol",
+                "project/sol/build/sol",
+            ],
+        ) or (bitcode_binary if bitcode_binary.exists() else workspace_dir / "program")
+
+        resolved_protocol = protocol_name or os.environ.get("PG_PROTOCOL_NAME", "MQTT")
+        resolved_version = protocol_version or os.environ.get("PG_PROTOCOL_VERSION", "3.1.1")
+        resolved_project = project_name or os.environ.get("PG_PROJECT_NAME", "Sol")
+
+        return {
             "wpa": {
                 "path": "/workspace/ffp.txt",
             },
@@ -943,18 +1043,17 @@ class AgentExecutor:
                 "llm_multithread": 32,
             },
             "project": {
-                "project_path": "/workspace/project/sol",
+                "project_path": self._container_path(workspace_dir, project_root),
                 "packet_related_callgraph_path": "/workspace/callgraph_report.txt",
                 "function_arg_path": "/workspace/function_arg_summary.txt",
                 "rule_path": "/workspace/inputs/rules.json",
-                "protocol_name": os.environ.get("PG_PROTOCOL_NAME", "MQTT"),
-                "protocol_version": os.environ.get("PG_PROTOCOL_VERSION", "5"),
-                "project_name": os.environ.get("PG_PROJECT_NAME", "Sol"),
-                "original_llvm_ir_path": "/workspace/program.ll",
-                "build_command": "cmake -S . -B build -DCMAKE_C_COMPILER=gclang -DCMAKE_C_FLAGS='-g -Xclang -disable-O0-optnone -fno-discard-value-names' && cmake --build build -- VERBOSE=1",
-                "build_log_path": "/workspace/build_log.txt",
-                "binary_path": "/workspace/sol",
-                "bitcode_path": "/workspace/program.bc",
+                "protocol_name": resolved_protocol,
+                "protocol_version": resolved_version,
+                "project_name": resolved_project,
+                "original_llvm_ir_path": self._container_path(workspace_dir, original_ir_path),
+                "build_log_path": self._container_path(workspace_dir, build_log_path),
+                "binary_path": self._container_path(workspace_dir, binary_path),
+                "bitcode_path": self._container_path(workspace_dir, bitcode_path),
             },
             "debug": {
                 "code_slice_replace_mode": 0,
@@ -985,6 +1084,35 @@ class AgentExecutor:
                 ],
             },
         }
+
+    def _run_analysis_container(
+        self,
+        workspace_dir: Path,
+        job_identifier: str,
+        progress_callback=None,
+        *,
+        protocol_name: Optional[str] = None,
+        protocol_version: Optional[str] = None,
+        project_name: Optional[str] = None,
+    ):
+        if not self._docker_available:
+            logger.debug("⚠️ Docker not available, skipping analysis container")
+            return
+
+        output_dir = self.settings.workspace_root.parent / "outputs" / job_identifier
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        config_dir = self.settings.workspace_root.parent / "configs" / job_identifier
+        config_dir.mkdir(parents=True, exist_ok=True)
+
+        logger.debug("[*] Generating config.toml with correct paths for ProtocolGuard analysis")
+
+        prepared_config = self._build_analysis_config(
+            workspace_dir=workspace_dir,
+            protocol_name=protocol_name,
+            protocol_version=protocol_version,
+            project_name=project_name,
+        )
 
         import toml
         with open(config_dir / "config.toml", "w", encoding="utf-8") as f:
@@ -1488,7 +1616,14 @@ class AgentExecutor:
             if len(files) > 10:
                 logger.debug("%s... and %d more", subindent, len(files) - 10)
 
-        self._run_analysis_container(workspace_dir, job_identifier, progress_callback)
+        self._run_analysis_container(
+            workspace_dir,
+            job_identifier,
+            progress_callback,
+            protocol_name=protocol_name,
+            protocol_version=protocol_version,
+            project_name=project_name,
+        )
 
         database_path = None
 
