@@ -10,7 +10,6 @@ import shutil
 import socket
 import subprocess
 import sqlite3
-import threading
 import textwrap
 import tarfile
 import time
@@ -904,7 +903,6 @@ class ProtocolGuardDockerRunner:
             volumes=volumes,
             environment=environment,
             log_destination=job_paths.log_file,
-            relay_files=(job_paths.workspace / "analysis_log.txt",),
             timeout=self._settings.analysis_timeout,
         )
         self._snapshot_workspace(job_paths, stage="main")
@@ -1016,7 +1014,6 @@ class ProtocolGuardDockerRunner:
         volumes: Mapping[str, Mapping[str, str]],
         environment: Mapping[str, str],
         log_destination: Path,
-        relay_files: Sequence[Path] = (),
         timeout: Optional[int] = None,
     ) -> List[str]:
         if not volumes:
@@ -1038,26 +1035,11 @@ class ProtocolGuardDockerRunner:
         self._log_step(job_paths, "container", f"Container {container.id[:12]} started for image {image}")
 
         logs: List[str] = []
-        stop_relay = threading.Event()
-        write_lock = threading.Lock()
 
         with log_destination.open("a", encoding="utf-8") as log_file:
-            relay_threads = [
-                threading.Thread(
-                    target=self._relay_runtime_log_file,
-                    args=(job_paths, path, log_file, write_lock, stop_relay),
-                    name=f"protocolguard-log-relay-{job_paths.job_id}-{index}",
-                    daemon=True,
-                )
-                for index, path in enumerate(relay_files, start=1)
-            ]
-            for thread in relay_threads:
-                thread.start()
-
             for chunk in container.logs(stream=True, follow=True, stdout=True, stderr=True):
                 line = chunk.decode("utf-8", errors="replace").rstrip()
-                with write_lock:
-                    log_file.write(line + "\n")
+                log_file.write(line + "\n")
                 logs.append(line)
                 if line:
                     display_line = line if len(line) <= 2000 else f"{line[:2000]}..."
@@ -1066,10 +1048,6 @@ class ProtocolGuardDockerRunner:
                         "container-log",
                         f"{image}: {display_line}",
                     )
-
-            stop_relay.set()
-            for thread in relay_threads:
-                thread.join(timeout=2)
 
         try:
             result = container.wait(timeout=timeout)
@@ -1097,59 +1075,6 @@ class ProtocolGuardDockerRunner:
             )
         self._log_step(job_paths, "container", f"Container for image {image} exited cleanly")
         return logs
-
-    def _relay_runtime_log_file(
-        self,
-        job_paths: JobPaths,
-        source: Path,
-        destination: Any,
-        write_lock: threading.Lock,
-        stop_event: threading.Event,
-    ) -> None:
-        """Mirror a file written inside the mounted workspace while the container runs."""
-
-        position = 0
-        announced = False
-
-        while True:
-            try:
-                if source.exists():
-                    if not announced:
-                        self._log_step(
-                            job_paths,
-                            "analysis-log",
-                            f"Relaying runtime analysis log from {source}",
-                        )
-                        announced = True
-
-                    size = source.stat().st_size
-                    if size < position:
-                        position = 0
-
-                    with source.open("r", encoding="utf-8", errors="replace") as handle:
-                        handle.seek(position)
-                        while raw_line := handle.readline():
-                            line = raw_line.rstrip()
-                            position = handle.tell()
-                            if not line:
-                                continue
-                            with write_lock:
-                                destination.write(line + "\n")
-                                destination.flush()
-                            display_line = line if len(line) <= 2000 else f"{line[:2000]}..."
-                            self._log_step(job_paths, "analysis-log", display_line)
-            except OSError as exc:
-                self._log_step(
-                    job_paths,
-                    "analysis-log",
-                    f"Failed to relay runtime analysis log {source}: {exc}",
-                    level=logging.WARNING,
-                )
-                return
-
-            if stop_event.is_set():
-                return
-            stop_event.wait(0.5)
 
     # Validation ----------------------------------------------------------------
 

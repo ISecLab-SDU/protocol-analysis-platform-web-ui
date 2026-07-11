@@ -131,18 +131,19 @@ class JobStageLogger:
         state = self._state_stack[-1]
         stage = str(fields.pop("stage", state.get("stage", "general")) or "general")
         context = self._build_context(state, fields)
+        formatted_message = self._format_message(message, args)
         self._logger.log(
             level,
-            "[job %s][%s] " + message,
+            "[job %s][%s] %s",
             self._job_id,
             stage,
-            *args,
+            formatted_message,
             exc_info=exc_info,
             extra={"protocolguard_context": context},
         )
         progress_callback = self._progress_callback
         if emit_progress and progress_callback:
-            self._emit_progress(stage, frontend_message or self._format_message(message, args))
+            self._emit_progress(stage, frontend_message or formatted_message)
 
     def _build_context(
         self,

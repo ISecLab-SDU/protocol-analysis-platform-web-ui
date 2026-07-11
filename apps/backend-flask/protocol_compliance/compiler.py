@@ -1367,14 +1367,23 @@ class AgentExecutor:
         self,
         workspace_dir: Path,
         job_identifier: str,
-        progress_callback=None,
+        progress_callback: Optional[Callable[[str, str, str], None]] = None,
         *,
         protocol_name: Optional[str] = None,
         protocol_version: Optional[str] = None,
         project_name: Optional[str] = None,
     ):
+        job_logger = JobStageLogger(
+            job_id=job_identifier,
+            logger=logger,
+            progress_callback=progress_callback,
+        )
         if not self._docker_available:
-            logger.debug("⚠️ Docker not available, skipping analysis container")
+            job_logger.debug(
+                "Docker not available, skipping analysis container",
+                stage="analysis",
+                emit_progress=False,
+            )
             return
 
         output_dir = self.settings.workspace_root.parent / "outputs" / job_identifier
@@ -1509,7 +1518,8 @@ class AgentExecutor:
 
         logger.debug("[*] Command: %s", " ".join(command))
 
-        log_file_path = workspace_dir / "analysis_log.txt"
+        workspace_log_path = workspace_dir / "analysis_log.txt"
+        output_log_path = output_dir / "analysis.log"
 
         try:
             process = subprocess.Popen(
@@ -1537,13 +1547,26 @@ class AgentExecutor:
 
             last_step = None
 
-            with open(log_file_path, "w", encoding="utf-8") as log_file:
+            with (
+                workspace_log_path.open("w", encoding="utf-8") as workspace_log,
+                output_log_path.open("w", encoding="utf-8") as output_log,
+            ):
                 for line in iter(process.stdout.readline, ''):
                     line = line.rstrip()
                     log_lines.append(line)
-                    log_file.write(line + "\n")
+                    workspace_log.write(line + "\n")
+                    workspace_log.flush()
+                    output_log.write(line + "\n")
+                    output_log.flush()
 
-                    logger.debug("[ANALYSIS] %s", line)
+                    if line:
+                        job_logger.info(
+                            "%s",
+                            line,
+                            stage="analysis-log",
+                            stream="docker-stdout-stderr",
+                            frontend_message=line[:2000],
+                        )
 
                     for keyword, step_name in step_keywords:
                         if keyword in line and step_name != last_step:

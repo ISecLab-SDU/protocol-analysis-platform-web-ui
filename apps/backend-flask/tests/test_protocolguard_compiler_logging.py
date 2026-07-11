@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import sys
 import tarfile
 from pathlib import Path
@@ -9,6 +10,7 @@ BACKEND_ROOT = Path(__file__).resolve().parents[1]
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
+from protocol_compliance import compiler as compiler_module  # noqa: E402
 from protocol_compliance.compiler import CompilerController  # noqa: E402
 from protocol_compliance.compiler import AgentExecutor, AgentExecutorSettings  # noqa: E402
 
@@ -216,3 +218,84 @@ def test_agent_executor_classifies_claude_builder_log_markers() -> None:
         )
         == "builder-log"
     )
+
+
+def test_agent_executor_streams_analysis_container_logs(
+    caplog: Any,
+    monkeypatch: Any,
+    tmp_path: Path,
+) -> None:
+    workspace_root = tmp_path / "workspaces"
+    workspace_dir = workspace_root / "job-analysis-stream"
+    workspace_dir.mkdir(parents=True)
+    (workspace_dir / "build_log.txt").write_text("build ok\n", encoding="utf-8")
+    (workspace_dir / "rule_config.json").write_text('{"rules": []}\n', encoding="utf-8")
+    (workspace_dir / "program.bc").write_text("bitcode\n", encoding="utf-8")
+    (workspace_dir / "program.ll").write_text("llvm ir\n", encoding="utf-8")
+    (workspace_dir / "program").write_text("binary\n", encoding="utf-8")
+    src_dir = workspace_dir / "project" / "sol" / "src"
+    src_dir.mkdir(parents=True)
+    (src_dir / ".cf_main.json").write_text("{}\n", encoding="utf-8")
+
+    settings = AgentExecutorSettings(
+        enabled=True,
+        api_key="test",
+        base_url="",
+        model="unused",
+        workspace_root=workspace_root,
+        max_runtime=60,
+        env_passthrough=(),
+        builder_image="unused",
+    )
+    executor = AgentExecutor(settings)
+    executor._docker_available = True
+    executor._analysis_image = "protocolguard:latest"
+    executor._analysis_command = ["static"]
+
+    class FakeStdout:
+        def __init__(self) -> None:
+            self._lines = iter(
+                [
+                    "Running match-pass with configuration\n",
+                    "\rProcessing records:   0%|          | 0/1 [00:00<?, ?it/s]\n",
+                    "[LLM Query] Succeeded in 31 ms. Model: deepseek-v3.\n",
+                    "",
+                ]
+            )
+
+        def readline(self) -> str:
+            return next(self._lines)
+
+    class FakeProcess:
+        def __init__(self) -> None:
+            self.stdout = FakeStdout()
+            self.returncode = 0
+
+        def wait(self, timeout: int | None = None) -> int:
+            return self.returncode
+
+    monkeypatch.setattr(compiler_module.subprocess, "Popen", lambda *args, **kwargs: FakeProcess())
+    monkeypatch.setattr(
+        compiler_module.subprocess,
+        "run",
+        lambda *args, **kwargs: type("Result", (), {"returncode": 0, "stdout": "", "stderr": ""})(),
+    )
+    events: list[tuple[str, str, str]] = []
+
+    with caplog.at_level(logging.INFO, logger="protocol_compliance.compiler"):
+        executor._run_analysis_container(
+            workspace_dir,
+            "job-analysis-stream",
+            lambda job_id, stage, message: events.append((job_id, stage, message)),
+            project_name="Sol",
+        )
+
+    output_log = tmp_path / "outputs" / "job-analysis-stream" / "analysis.log"
+    assert output_log.exists()
+    assert "[LLM Query] Succeeded in 31 ms. Model: deepseek-v3." in output_log.read_text(encoding="utf-8")
+    assert "[LLM Query] Succeeded in 31 ms. Model: deepseek-v3." in caplog.text
+    assert (
+        "job-analysis-stream",
+        "analysis-log",
+        "[LLM Query] Succeeded in 31 ms. Model: deepseek-v3.",
+    ) in events
