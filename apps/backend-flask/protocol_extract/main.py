@@ -4,20 +4,26 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Optional, TypedDict
+
 import toml
 
 
-def run_command(cmd: list, cwd: str = None):
+class PipelineStep(TypedDict):
+    name: str
+    cmd: list[str]
+    cwd: Optional[str]
+
+
+def run_command(cmd: list[str], cwd: Optional[str] = None) -> None:
     """通用命令执行函数"""
     try:
-        result = subprocess.run(
+        subprocess.run(
             cmd,
             cwd=cwd,
             check=True,
         )
         print(f"[SUCCESS] 命令执行成功: {' '.join(cmd)}")
-        if result.stdout:
-            print("输出摘要:\n" + "\n".join(result.stdout.splitlines()[:5]))
     except subprocess.CalledProcessError as e:
         print(f"\n❌ 命令执行失败: {' '.join(e.cmd)}")
         print(f"错误信息:\n{e.stdout}")
@@ -70,7 +76,7 @@ def main():
     if args.filter_headings:
         doc_cmd.append("--filter-headings")
     # 定义各阶段执行命令
-    steps = [
+    steps: list[PipelineStep] = [
         {
             "name": "文档处理阶段",
             "cmd": doc_cmd,

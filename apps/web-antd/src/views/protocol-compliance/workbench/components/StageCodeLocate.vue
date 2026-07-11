@@ -1,15 +1,18 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue';
-
-import { Card, Empty, Tag } from 'ant-design-vue';
-import { IconifyIcon } from '@vben/icons';
+import type { CodeLocateEvidence, CodeLocateFunctionSlice } from '../types';
 
 import type {
   ProtocolExtractRuleItem,
   ProtocolStaticAnalysisResult,
 } from '#/api/protocol-compliance';
 
-import type { CodeLocateEvidence, CodeLocateFunctionSlice } from '../types';
+import { computed } from 'vue';
+
+import { IconifyIcon } from '@vben/icons';
+
+import { Card, Empty, Tag } from 'ant-design-vue';
+
+import StageLiveLogPanel from './StageLiveLogPanel.vue';
 
 interface Props {
   evidence: CodeLocateEvidence | null;
@@ -39,7 +42,6 @@ interface LocateProgressStep {
 
 const props = defineProps<Props>();
 
-const logBodyRef = ref<HTMLElement | null>(null);
 const fallbackLogTimes = new Map<string, string>();
 
 const verdicts = computed(() => props.result?.modelResponse?.verdicts ?? []);
@@ -54,10 +56,12 @@ const primaryVerdict = computed(() => {
   );
 });
 
-const showFinalFinding = computed(() => Boolean(props.result && !props.running));
+const showFinalFinding = computed(() =>
+  Boolean(props.result && !props.running),
+);
 
 const ruleId = computed(() => {
-  const optionId = (props.rule as { id?: string } | null)?.id;
+  const optionId = (props.rule as null | { id?: string })?.id;
   return (
     primaryVerdict.value?.relatedRule?.id ||
     optionId ||
@@ -95,7 +99,8 @@ const targetFile = computed(() => {
 });
 
 const functionRecords = computed<CodeLocateFunctionSlice[]>(() => {
-  const evidenceFunctions = props.evidence?.functions?.filter((fn) => fn.name.trim()) ?? [];
+  const evidenceFunctions =
+    props.evidence?.functions?.filter((fn) => fn.name.trim()) ?? [];
   if (evidenceFunctions.length > 0) return evidenceFunctions;
 
   const records = new Map<string, CodeLocateFunctionSlice>();
@@ -127,14 +132,19 @@ const rawLogLines = computed(() => {
     .split(/\r?\n/)
     .map((line) => line.trimEnd())
     .filter((line) => line.trim().length > 0);
-  return rawLines.map(parseLogLine).filter((line) => !isWaitingLogLine(line));
+  return rawLines
+    .map((line, index) => parseLogLine(line, index))
+    .filter((line) => !isWaitingLogLine(line));
 });
 
 const logLines = computed<LogLine[]>(() => {
   let currentStepIndex = -1;
   const lines: LogLine[] = [];
   for (const line of rawLogLines.value) {
-    const matchedStepIndex = findLocateProgressStepIndex(line, currentStepIndex + 1);
+    const matchedStepIndex = findLocateProgressStepIndex(
+      line,
+      currentStepIndex + 1,
+    );
     if (matchedStepIndex >= 0) currentStepIndex = matchedStepIndex;
     if (currentStepIndex < 0) continue;
     const currentStep = locateProgressSteps[currentStepIndex]!;
@@ -200,7 +210,10 @@ const locateProgressSteps: LocateProgressStep[] = [
     key: 'callgraph',
     label: '调用图与入口函数定位',
     match: (line) =>
-      hasLogText(line, 'Generating packet-related call graph and function summaries'),
+      hasLogText(
+        line,
+        'Generating packet-related call graph and function summaries',
+      ),
   },
   {
     description: '通过 LLM 判断消息处理入口和通用接收函数。',
@@ -215,8 +228,9 @@ const locateProgressSteps: LocateProgressStep[] = [
     key: 'field-analysis',
     label: '字段变量与相关函数分析',
     match: (line) =>
-      /Extracted \d+ functions that are related to the message/i.test(line.text) ||
-      hasLogText(line, 'Collect LLM responses for request field variable'),
+      /Extracted \d+ functions that are related to the message/i.test(
+        line.text,
+      ) || hasLogText(line, 'Collect LLM responses for request field variable'),
   },
   {
     description: '判断函数是否与当前规则相关，筛出需要补全的函数。',
@@ -236,8 +250,7 @@ const locateProgressSteps: LocateProgressStep[] = [
     description: '根据规则与代码证据执行违规一致性分析。',
     key: 'inconsistency',
     label: '违规一致性分析',
-    match: (line) =>
-      hasLogText(line, 'Starting inconsistency analysis'),
+    match: (line) => hasLogText(line, 'Starting inconsistency analysis'),
   },
   {
     description: '复制输出、清理日志并收集分析结果。',
@@ -259,7 +272,8 @@ const locateProgressSteps: LocateProgressStep[] = [
 ];
 
 const locateProgress = computed(() => {
-  const finished = Boolean(props.result) || (!props.running && Boolean(props.evidence));
+  const finished =
+    Boolean(props.result) || (!props.running && Boolean(props.evidence));
   if (finished) {
     return {
       current: locateProgressSteps[locateProgressSteps.length - 1]!,
@@ -274,7 +288,9 @@ const locateProgress = computed(() => {
   if (!currentStep) {
     return {
       current: {
-        description: props.running ? '正在等待阶段起始日志。' : '尚未开始代码定位。',
+        description: props.running
+          ? '正在等待阶段起始日志。'
+          : '尚未开始代码定位。',
         key: 'waiting',
         label: props.running ? '等待阶段日志' : '未开始',
       },
@@ -286,19 +302,22 @@ const locateProgress = computed(() => {
   };
 });
 
-const hasContent = computed(() => {
-  return Boolean(props.logText || props.logHtml || props.running || props.result || props.evidence);
+const displayLogLines = computed(() => {
+  return logLines.value.map((line) => ({
+    ...line,
+    time: getDisplayLogTime(line),
+  }));
 });
 
-watch(
-  () => props.logText,
-  async () => {
-    await nextTick();
-    const target = logBodyRef.value;
-    if (!target) return;
-    target.scrollTop = target.scrollHeight;
-  },
-);
+const hasContent = computed(() => {
+  return Boolean(
+    props.logText ||
+      props.logHtml ||
+      props.running ||
+      props.result ||
+      props.evidence,
+  );
+});
 
 function parseLogLine(raw: string, index: number): LogLine {
   let rest = raw.trim();
@@ -306,29 +325,29 @@ function parseLogLine(raw: string, index: number): LogLine {
   let time = '';
   let source = '';
 
-  const leadingStage = rest.match(/^\(([^)]+)\)\s*(.*)$/);
-  if (leadingStage?.[1]) {
-    stage = leadingStage[1];
-    rest = leadingStage[2] ?? '';
+  const leadingStage = consumeDelimitedPrefix(rest, '(', ')');
+  if (leadingStage) {
+    stage = leadingStage.value;
+    rest = leadingStage.rest;
   }
 
-  const timeMatch = rest.match(/^\[([^\]]+)\]\s*(.*)$/);
-  if (timeMatch?.[1]) {
-    time = timeMatch[1];
-    rest = timeMatch[2] ?? '';
+  const timeMatch = consumeDelimitedPrefix(rest, '[', ']');
+  if (timeMatch) {
+    time = timeMatch.value;
+    rest = timeMatch.rest;
   }
 
-  const inlineStage = rest.match(/^\(([^)]+)\)\s*(.*)$/);
-  if (inlineStage?.[1]) {
-    stage = stage || inlineStage[1];
-    rest = inlineStage[2] ?? '';
+  const inlineStage = consumeDelimitedPrefix(rest, '(', ')');
+  if (inlineStage) {
+    stage = stage || inlineStage.value;
+    rest = inlineStage.rest;
   }
 
-  if (!/^(Function|Path|func):|\d+\s+/.test(rest)) {
-    const sourceMatch = rest.match(/^([^\s:]+(?::[^\s:]+)?):\s*(.*)$/);
-    if (sourceMatch?.[1]) {
-      source = sourceMatch[1];
-      rest = sourceMatch[2] ?? '';
+  if (!/^(?:Function|Path|func):|\d+\s+/.test(rest)) {
+    const sourcePrefix = consumeSourcePrefix(rest);
+    if (sourcePrefix) {
+      source = sourcePrefix.value;
+      rest = sourcePrefix.rest;
     }
   }
 
@@ -340,6 +359,36 @@ function parseLogLine(raw: string, index: number): LogLine {
     stage,
     text: rest || raw,
     time,
+  };
+}
+
+function consumeDelimitedPrefix(text: string, open: string, close: string) {
+  if (!text.startsWith(open)) return null;
+  const endIndex = text.indexOf(close, open.length);
+  if (endIndex === -1) return null;
+  return {
+    rest: text.slice(endIndex + close.length).trimStart(),
+    value: text.slice(open.length, endIndex),
+  };
+}
+
+function consumeSourcePrefix(text: string) {
+  const firstColonIndex = text.indexOf(':');
+  if (firstColonIndex <= 0) return null;
+
+  const firstWhitespaceIndex = text.search(/\s/);
+  const secondColonIndex = text.indexOf(':', firstColonIndex + 1);
+  const delimiterIndex =
+    secondColonIndex > 0 &&
+    (firstWhitespaceIndex === -1 || secondColonIndex < firstWhitespaceIndex)
+      ? secondColonIndex
+      : firstColonIndex;
+  const value = text.slice(0, delimiterIndex);
+  if (/\s/.test(value)) return null;
+
+  return {
+    rest: text.slice(delimiterIndex + 1).trimStart(),
+    value,
   };
 }
 
@@ -385,6 +434,7 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
   if (!fn.targetLine || fn.targetLine === '-') return path;
   return `${path}:${fn.targetLine}`;
 }
+
 </script>
 
 <template>
@@ -427,45 +477,11 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
       </section>
 
       <section class="observe-grid">
-        <section class="live-log-panel">
-          <div class="panel-head">
-            <div>
-              <span class="panel-kicker">实时运行轨迹</span>
-              <h3>日志输出</h3>
-            </div>
-            <Tag :color="running ? 'processing' : 'default'">
-              {{ running ? '自动滚动' : `${logLines.length} 行` }}
-            </Tag>
-          </div>
-
-          <div class="log-progress">
-            <div class="log-progress-main">
-              <div class="log-progress-title">
-                <span>当前阶段</span>
-                <strong>{{ locateProgress.current.label }}</strong>
-              </div>
-              <p>{{ locateProgress.current.description }}</p>
-            </div>
-          </div>
-
-          <div ref="logBodyRef" class="live-log">
-            <div
-              v-for="line in logLines"
-              :key="line.id"
-              class="log-line"
-              :class="`log-line--${line.kind}`"
-            >
-              <span class="log-time">{{ getDisplayLogTime(line) }}</span>
-              <span class="log-chip log-chip--phase">{{ line.phase }}</span>
-              <span v-if="line.stage" class="log-chip">{{ line.stage }}</span>
-              <span v-if="line.source" class="log-chip log-chip--source">{{ line.source }}</span>
-              <span class="log-text">{{ line.text }}</span>
-            </div>
-            <div v-if="logLines.length === 0" class="log-empty">
-              {{ running ? '等待日志输出...' : '暂无日志输出' }}
-            </div>
-          </div>
-        </section>
+        <StageLiveLogPanel
+          :lines="displayLogLines"
+          :progress="locateProgress.current"
+          :running="running"
+        />
 
         <section class="discovery-panel">
           <div class="panel-head">
@@ -476,7 +492,10 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
             <Tag color="blue">{{ evidenceFunctionSlices.length }} 个函数</Tag>
           </div>
 
-          <div v-if="evidenceFunctionSlices.length > 0" class="function-source-frame">
+          <div
+            v-if="evidenceFunctionSlices.length > 0"
+            class="function-source-frame"
+          >
             <section
               v-for="fn in evidenceFunctionSlices"
               :key="fn.name"
@@ -626,7 +645,6 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
   gap: 16px;
 }
 
-.live-log-panel,
 .discovery-panel {
   min-width: 0;
   padding: 18px;
@@ -659,126 +677,6 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
 
 .stage-card :deep(.ant-empty-description) {
   font-size: 14px;
-}
-
-.log-progress {
-  padding: 12px;
-  margin-bottom: 12px;
-  background: #f7fbff;
-  border: 1px solid #d6e9ff;
-  border-radius: 8px;
-}
-
-.log-progress-main {
-  min-width: 0;
-}
-
-.log-progress-title {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: baseline;
-}
-
-.log-progress-title span {
-  font-size: 14px;
-  color: #64748b;
-}
-
-.log-progress-title strong {
-  font-size: 16px;
-  color: #0b5cad;
-}
-
-.log-progress p {
-  margin: 4px 0 0;
-  font-size: 15px;
-  line-height: 1.5;
-  color: #334155;
-  overflow-wrap: anywhere;
-}
-
-.live-log {
-  height: 360px;
-  padding: 10px 0;
-  overflow: auto;
-  font-family:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
-    monospace;
-  font-size: 15px;
-  line-height: 1.7;
-  background: #fbfdff;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-}
-
-.log-line {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-  min-height: 30px;
-  padding: 4px 14px;
-  color: #334155;
-}
-
-.log-line--summary {
-  color: #0b5cad;
-  background: #eef6ff;
-}
-
-.log-line--function,
-.log-line--slice {
-  color: #0f766e;
-  background: #f0fdfa;
-}
-
-.log-line--path {
-  color: #7c3aed;
-  background: #f8f5ff;
-}
-
-.log-time {
-  flex: 0 0 82px;
-  color: #64748b;
-  user-select: none;
-}
-
-.log-chip {
-  flex: 0 0 auto;
-  max-width: 160px;
-  padding: 1px 8px;
-  overflow: hidden;
-  font-size: 14px;
-  line-height: 22px;
-  color: #475569;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  background: #eef2f7;
-  border-radius: 4px;
-}
-
-.log-chip--phase {
-  max-width: 210px;
-  font-weight: 700;
-  color: #0b5cad;
-  background: #e8f2ff;
-}
-
-.log-chip--source {
-  color: #0b5cad;
-  background: #e8f2ff;
-}
-
-.log-text {
-  min-width: 0;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
-}
-
-.log-empty {
-  padding: 14px;
-  font-size: 15px;
-  color: #64748b;
 }
 
 .function-source-frame {
@@ -873,14 +771,6 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
 @media (max-width: 860px) {
   .function-source-head {
     grid-template-columns: 1fr;
-  }
-
-  .log-line {
-    flex-wrap: wrap;
-  }
-
-  .log-text {
-    flex-basis: 100%;
   }
 }
 </style>

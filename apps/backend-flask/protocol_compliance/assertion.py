@@ -15,7 +15,6 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 from typing import Any, BinaryIO, Callable, Dict, List, Optional, Tuple, cast
@@ -28,6 +27,7 @@ from .docker_runner import (
     ProtocolGuardExecutionError,
     ProtocolGuardNotAvailableError,
 )
+from .job_logging import JobStageLogger, ProgressCallback
 
 LOGGER = logging.getLogger(__name__)
 
@@ -37,6 +37,7 @@ def _now_iso() -> str:
 
 
 AssertGenerationJobStatus = str  # Literal['queued', 'running', 'completed', 'failed']
+AssertGenerationResult = Dict[str, object]
 
 
 @dataclass
@@ -90,6 +91,9 @@ class AssertGenerationProgressRegistry:
         self._states: Dict[str, AssertGenerationProgressState] = {}
         self._lock = threading.Lock()
 
+    def _job_logger(self, job_id: str) -> JobStageLogger:
+        return JobStageLogger(job_id=job_id, logger=LOGGER)
+
     def create_job(self) -> AssertGenerationProgressState:
         job_id = str(uuid.uuid4())
         now = _now_iso()
@@ -106,6 +110,7 @@ class AssertGenerationProgressRegistry:
         )
         with self._lock:
             self._states[job_id] = state
+        self._job_logger(job_id).info("Job queued", stage="queued", status="queued")
         return state
 
     def mark_running(self, job_id: str, stage: str, message: str) -> None:
@@ -115,6 +120,7 @@ class AssertGenerationProgressRegistry:
                 return
             state.status = "running"
             self._append_event(state, stage, message)
+            self._job_logger(job_id).info(message, stage=stage, status="running")
 
     def append_event(self, job_id: str, stage: str, message: str) -> None:
         with self._lock:
@@ -122,6 +128,7 @@ class AssertGenerationProgressRegistry:
             if not state:
                 return
             self._append_event(state, stage, message)
+            self._job_logger(job_id).info(message, stage=stage, status=state.status)
 
     def complete(self, job_id: str, result: Dict[str, object]) -> None:
         with self._lock:
@@ -131,6 +138,11 @@ class AssertGenerationProgressRegistry:
             state.status = "completed"
             state.result = result
             self._append_event(state, "completed", "Assertion generation completed successfully")
+            self._job_logger(job_id).info(
+                "Assertion generation completed successfully",
+                stage="completed",
+                status="completed",
+            )
 
     def fail(
         self,
@@ -149,6 +161,12 @@ class AssertGenerationProgressRegistry:
             state.error = error or message
             state.details = details
             self._append_event(state, stage, message)
+            self._job_logger(job_id).error(
+                message,
+                stage=stage,
+                status="failed",
+                error=state.error,
+            )
 
     def snapshot(self, job_id: str) -> Optional[Dict[str, object]]:
         with self._lock:
@@ -350,9 +368,11 @@ def run_assert_generation(
         except AssertGenerationError:
             raise
         except Exception as exc:
+            LOGGER.exception("Instrumentation step failed")
             raise AssertGenerationError(f"Instrumentation step failed: {exc}") from exc
         return base_result
     except ProtocolGuardExecutionError as exc:
+        LOGGER.exception("ProtocolGuard assertion generation execution failed")
         details: Dict[str, object] = {
             "image": getattr(exc, "image", None),
             "status": getattr(exc, "status", None),
@@ -365,6 +385,7 @@ def run_assert_generation(
             details=details,
         ) from exc
     except ProtocolGuardDockerError as exc:
+        LOGGER.exception("ProtocolGuard assertion generation Docker error")
         raise AssertGenerationError(str(exc)) from exc
 
 
@@ -1328,6 +1349,9 @@ def parse_unified_diff(patch_content: str) -> Dict[str, object]:
         
         # Match diff content lines
         elif current_hunk is not None:
+            if current_file is None:
+                i += 1
+                continue
             if line.startswith('+') and not line.startswith('+++'):
                 current_hunk["lines"].append({"type": "add", "content": line[1:]})
                 current_file["additions"] += 1
