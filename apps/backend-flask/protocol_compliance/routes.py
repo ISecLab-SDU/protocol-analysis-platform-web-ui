@@ -11,23 +11,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, cast
 
-from flask import Blueprint, make_response, request
-from werkzeug.datastructures import FileStorage
+from flask import Blueprint, request
 
 from utils.auth import verify_access_token
 from utils.responses import (
-    error_response,
-    success_response,
     unauthorized,
 )
 from .analysis import (
-    delete_static_analysis_job,
-    extract_protocol_version,
     get_static_analysis_job,
     list_static_analysis_history,
-    normalize_protocol_name,
-    submit_static_analysis_job,
-    try_extract_rules_summary,
 )
 from .assertion_database import (
     _candidate_sqlite_roots_for_job as _candidate_sqlite_roots_for_job_impl,
@@ -105,6 +97,7 @@ from .static_analysis_overview import (
 from .static_analysis_sources import (
     iter_static_analysis_database_sources,
 )
+from .static_analysis_submission_routes import register_static_analysis_submission_routes
 from .task_routes import register_task_routes
 from .violation_history_markers import (
     _candidate_database_history_times as _candidate_database_history_times_impl,
@@ -224,140 +217,30 @@ assertion_history = _assertion_history_route_handlers["assertion_history"]
 assertion_history_entry = _assertion_history_route_handlers["assertion_history_entry"]
 download_assertion_diff = _assertion_history_route_handlers["download_assertion_diff"]
 
+_static_analysis_submission_route_handlers = register_static_analysis_submission_routes(
+    bp,
+    _ensure_authenticated,
+    extract_protocol_metadata_from_config=_extract_protocol_metadata_from_config,
+    list_static_analysis_history=(
+        lambda *args, **kwargs: list_static_analysis_history(*args, **kwargs)
+    ),
+    read_upload=_read_upload,
+    strip_extension=_strip_extension,
+    to_int=_to_int,
+)
+static_analysis = _static_analysis_submission_route_handlers["static_analysis"]
+static_analysis_history = _static_analysis_submission_route_handlers[
+    "static_analysis_history"
+]
+delete_static_analysis_history = _static_analysis_submission_route_handlers[
+    "delete_static_analysis_history"
+]
+
 
 # Helpers -------------------------------------------------------------------
 
 
 # Routes --------------------------------------------------------------------
-
-
-@bp.route("/static-analysis", methods=["POST"])
-def static_analysis():
-    _, error = _ensure_authenticated()
-    if error:
-        return error
-
-    if not request.files:
-        return make_response(
-            error_response("请上传源码、协议规则和配置文件"), 400
-        )
-
-    uploads_map = {
-        "codeArchive": request.files.get("codeArchive"),
-        "rules": request.files.get("rules"),
-        "config": request.files.get("config"),
-    }
-
-    required_missing = [
-        key for key, value in uploads_map.items()
-        if not isinstance(value, FileStorage)
-    ]
-    if required_missing:
-        labels = {
-            "codeArchive": "源码压缩包",
-            "rules": "协议规则 JSON",
-            "config": "分析配置 TOML",
-        }
-        readable = "、".join(labels.get(item, item) for item in required_missing)
-        return make_response(
-            error_response(f"请上传完整文件：{readable}"), 400
-        )
-
-    code_upload = cast(FileStorage, uploads_map["codeArchive"])
-    rules_upload = cast(FileStorage, uploads_map["rules"])
-    config_upload = cast(FileStorage, uploads_map["config"])
-
-    code_name, code_data = _read_upload(code_upload)
-    rules_name, rules_data = _read_upload(rules_upload)
-    config_name, config_data = _read_upload(config_upload)
-
-    if code_data is None or config_data is None or rules_data is None:
-        return make_response(error_response("上传的文件内容为空，请重新上传"), 400)
-
-    parsed_rules = None
-    if rules_data:
-        try:
-            parsed_rules = json.loads(rules_data.decode("utf-8"))
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            parsed_rules = None
-
-    config_protocol_name, config_protocol_version = _extract_protocol_metadata_from_config(config_data, config_name)
-
-    rules_protocol_fallback = normalize_protocol_name(parsed_rules, _strip_extension(rules_name))
-    protocol_name = config_protocol_name or rules_protocol_fallback
-    if config_protocol_name:
-        LOGGER.info(
-            "Static analysis protocol resolved from config %s: %s",
-            config_name,
-            config_protocol_name,
-        )
-    else:
-        LOGGER.info(
-            "Static analysis protocol falling back to %s (config %s missing protocol_name)",
-            rules_protocol_fallback,
-            config_name,
-        )
-
-    rules_version_fallback = extract_protocol_version(parsed_rules, None)
-    protocol_version = config_protocol_version or rules_version_fallback
-    if config_protocol_version:
-        LOGGER.info(
-            "Static analysis protocol version resolved from config %s: %s",
-            config_name,
-            config_protocol_version,
-        )
-    elif rules_version_fallback:
-        LOGGER.info(
-            "Static analysis protocol version falling back to %s (config %s missing protocol_version)",
-            rules_version_fallback,
-            config_name,
-        )
-    rules_summary = try_extract_rules_summary(parsed_rules)
-    notes = request.form.get("notes")
-
-    snapshot = submit_static_analysis_job(
-        code_payload=(code_name, code_data),
-        config_payload=(config_name, config_data),
-        rules_payload=(rules_name, rules_data),
-        notes=notes,
-        protocol_name=protocol_name,
-        protocol_version=protocol_version,
-        rules_summary=rules_summary,
-    )
-    return make_response(success_response(snapshot), 202)
-
-
-@bp.route("/static-analysis/history", methods=["GET"])
-def static_analysis_history():
-    _, error = _ensure_authenticated()
-    if error:
-        return error
-
-    limit = _to_int(request.args.get("limit"), 50)
-    limit = max(1, min(limit, 200))
-    history = list_static_analysis_history(limit=limit)
-    payload = success_response({"items": history, "limit": limit, "count": len(history)})
-    return make_response(payload, 200)
-
-
-@bp.route("/static-analysis/history/<job_id>", methods=["DELETE"])
-def delete_static_analysis_history(job_id: str):
-    """Delete a static analysis job from the history."""
-    _, error = _ensure_authenticated()
-    if error:
-        return error
-
-    if not job_id or not isinstance(job_id, str):
-        return make_response(error_response("无效的任务 ID"), 400)
-
-    try:
-        deleted = delete_static_analysis_job(job_id)
-        if not deleted:
-            return make_response(error_response("任务不存在"), 404)
-        return make_response(success_response({"jobId": job_id, "deleted": True}), 200)
-    except Exception as exc:
-        LOGGER.exception("Failed to delete static analysis job %s", job_id)
-        return make_response(error_response(f"删除失败：{str(exc)}"), 500)
 
 
 def _row_history_time_marker(
