@@ -137,6 +137,8 @@ VISIBLE_VIOLATION_HISTORY_LIMIT = 5
 
 # Authentication -------------------------------------------------------------
 
+# Kept in this dispatcher so every route and extracted handler shares the same
+# monkeypatch-compatible authentication boundary.
 def _ensure_authenticated():
     user = verify_access_token(request.headers.get("Authorization"))
     if not user:
@@ -327,10 +329,13 @@ def delete_static_analysis_history(job_id: str):
     return _static_analysis_submission_handlers["delete_static_analysis_history"](job_id)
 
 
-# Helpers -------------------------------------------------------------------
-
-
-# Routes --------------------------------------------------------------------
+# Compatibility shims --------------------------------------------------------
+#
+# The remaining non-route functions in this file are intentionally thin glue.
+# They preserve the historical protocol_compliance.routes._* import and
+# monkeypatch surface used by tests and callers while keeping the implementation
+# in protocol_compliance submodules. New business logic should live in those
+# submodules, not here.
 
 
 def _row_history_time_marker(
