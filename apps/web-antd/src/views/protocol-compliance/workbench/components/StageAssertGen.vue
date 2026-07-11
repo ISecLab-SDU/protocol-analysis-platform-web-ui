@@ -1,15 +1,18 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue';
+import type { ProtocolAssertGenerationResult } from '#/api/protocol-compliance';
 
-import { Card, Empty, Tag } from 'ant-design-vue';
+import { computed } from 'vue';
+
 import { IconifyIcon } from '@vben/icons';
 
-import type { ProtocolAssertGenerationResult } from '#/api/protocol-compliance';
+import { Card, Empty, Tag } from 'ant-design-vue';
+
+import StageLiveLogPanel from './StageLiveLogPanel.vue';
 
 interface Props {
   logText: string;
   diffContent: string;
-  result: ProtocolAssertGenerationResult | null;
+  result: null | ProtocolAssertGenerationResult;
   running: boolean;
 }
 
@@ -38,8 +41,6 @@ interface RenderedDiffLine {
 
 const props = defineProps<Props>();
 
-const logBodyRef = ref<HTMLElement | null>(null);
-
 const stageStateText = computed(() => {
   if (props.running) return '进行中';
   if (props.result) return '已完成';
@@ -51,7 +52,7 @@ const rawLogLines = computed(() => {
     .split(/\r?\n/)
     .map((line) => line.trimEnd())
     .filter((line) => line.trim().length > 0)
-    .map(parseLogLine)
+    .map((line, index) => parseLogLine(line, index))
     .filter((line) => !isWaitingLogLine(line));
 
   return stripInlineDiffPayload(lines);
@@ -61,7 +62,10 @@ const logLines = computed<AssertLogLine[]>(() => {
   let currentStepIndex = -1;
   const lines: AssertLogLine[] = [];
   for (const line of rawLogLines.value) {
-    const matchedStepIndex = findAssertProgressStepIndex(line, currentStepIndex + 1);
+    const matchedStepIndex = findAssertProgressStepIndex(
+      line,
+      currentStepIndex + 1,
+    );
     if (matchedStepIndex >= 0) currentStepIndex = matchedStepIndex;
     if (currentStepIndex < 0) continue;
     const currentStep = assertProgressSteps[currentStepIndex]!;
@@ -89,7 +93,9 @@ const assertProgress = computed(() => {
   if (!currentStep) {
     return {
       current: {
-        description: props.running ? '正在等待断言生成阶段起始日志。' : '尚未开始断言生成。',
+        description: props.running
+          ? '正在等待断言生成阶段起始日志。'
+          : '尚未开始断言生成。',
         key: 'waiting',
         label: props.running ? '等待阶段日志' : '未开始',
       },
@@ -102,7 +108,9 @@ const assertProgress = computed(() => {
 });
 
 const hasContent = computed(() => {
-  return Boolean(props.logText || props.diffContent || props.running || props.result);
+  return Boolean(
+    props.logText || props.diffContent || props.running || props.result,
+  );
 });
 
 const effectiveDiffContent = computed(() => {
@@ -133,11 +141,13 @@ const assertProgressSteps: AssertProgressStep[] = [
     key: 'inputs',
     label: '输入接收',
     match: (line) =>
-      (line.stage === 'init' && hasLogText(line, 'Preparing assertion generation inputs')) ||
+      (line.stage === 'init' &&
+        hasLogText(line, 'Preparing assertion generation inputs')) ||
       line.stage === 'inputs',
   },
   {
-    description: '创建工作目录，解压源码，挂载 SQLite 违规数据库并写入构建说明。',
+    description:
+      '创建工作目录，解压源码，挂载 SQLite 违规数据库并写入构建说明。',
     key: 'workspace',
     label: '工作区准备',
     match: (line) =>
@@ -145,7 +155,8 @@ const assertProgressSteps: AssertProgressStep[] = [
       (line.stage === 'workspace-snapshot' && hasLogText(line, 'prepared')),
   },
   {
-    description: '启动 ProtocolGuard 断言生成容器，并检查容器内工作区挂载状态。',
+    description:
+      '启动 ProtocolGuard 断言生成容器，并检查容器内工作区挂载状态。',
     key: 'container-start',
     label: '断言容器启动',
     match: (line) =>
@@ -156,7 +167,8 @@ const assertProgressSteps: AssertProgressStep[] = [
       line.stage === 'container',
   },
   {
-    description: '在容器内创建 Python 运行环境，构建并安装 assert-generate 工具。',
+    description:
+      '在容器内创建 Python 运行环境，构建并安装 assert-generate 工具。',
     key: 'generator-env',
     label: '生成器环境初始化',
     match: (line) =>
@@ -167,7 +179,8 @@ const assertProgressSteps: AssertProgressStep[] = [
         hasLogText(line, 'Installed')),
   },
   {
-    description: '读取代码定位与一致性分析结论，提取相关函数源码和 AST 上下文。',
+    description:
+      '读取代码定位与一致性分析结论，提取相关函数源码和 AST 上下文。',
     key: 'violation-read',
     label: '违规记录解析',
     match: (line) =>
@@ -197,7 +210,10 @@ const assertProgressSteps: AssertProgressStep[] = [
       (line.stage === 'workspace-snapshot' &&
         (hasLogText(line, 'main') || hasLogText(line, 'post-run'))) ||
       (line.stage === 'analysis' &&
-        hasLogText(line, 'Assertion generation container completed successfully')),
+        hasLogText(
+          line,
+          'Assertion generation container completed successfully',
+        )),
   },
   {
     description: '准备插桩容器和 Claude 运行配置，加载上一阶段生成的断言任务。',
@@ -221,7 +237,8 @@ const assertProgressSteps: AssertProgressStep[] = [
         hasLogText(line, 'Initial commit')),
   },
   {
-    description: '逐个读取任务 prompt，调用 Claude CLI 将断言辅助函数和 assert 插入源码。',
+    description:
+      '逐个读取任务 prompt，调用 Claude CLI 将断言辅助函数和 assert 插入源码。',
     key: 'claude-instrumentation',
     label: 'LLM 断言插桩',
     match: (line) =>
@@ -257,38 +274,28 @@ const assertProgressSteps: AssertProgressStep[] = [
   },
 ];
 
-watch(
-  () => props.logText,
-  async () => {
-    await nextTick();
-    const target = logBodyRef.value;
-    if (!target) return;
-    target.scrollTop = target.scrollHeight;
-  },
-);
-
 function parseLogLine(raw: string, index: number): AssertLogLine {
   let rest = raw.trim();
   let stage = '';
   let time = '';
   let source = '';
 
-  const timeMatch = rest.match(/^\[([^\]]+)\]\s*(.*)$/);
-  if (timeMatch?.[1]) {
-    time = timeMatch[1];
-    rest = timeMatch[2] ?? '';
+  const timeMatch = consumeDelimitedPrefix(rest, '[', ']');
+  if (timeMatch) {
+    time = timeMatch.value;
+    rest = timeMatch.rest;
   }
 
-  const stageMatch = rest.match(/^\(([^)]+)\)\s*(.*)$/);
-  if (stageMatch?.[1]) {
-    stage = stageMatch[1];
-    rest = stageMatch[2] ?? '';
+  const stageMatch = consumeDelimitedPrefix(rest, '(', ')');
+  if (stageMatch) {
+    stage = stageMatch.value;
+    rest = stageMatch.rest;
   }
 
-  const sourceMatch = rest.match(/^([^\s:]+(?::[^\s:]+)?):\s*(.*)$/);
-  if (sourceMatch?.[1] && shouldExtractSource(rest)) {
-    source = sourceMatch[1];
-    rest = sourceMatch[2] ?? '';
+  const sourcePrefix = consumeSourcePrefix(rest);
+  if (sourcePrefix && shouldExtractSource(rest)) {
+    source = sourcePrefix.value;
+    rest = sourcePrefix.rest;
   }
 
   return {
@@ -299,6 +306,36 @@ function parseLogLine(raw: string, index: number): AssertLogLine {
     stage,
     text: rest || raw,
     time,
+  };
+}
+
+function consumeDelimitedPrefix(text: string, open: string, close: string) {
+  if (!text.startsWith(open)) return null;
+  const endIndex = text.indexOf(close, open.length);
+  if (endIndex === -1) return null;
+  return {
+    rest: text.slice(endIndex + close.length).trimStart(),
+    value: text.slice(open.length, endIndex),
+  };
+}
+
+function consumeSourcePrefix(text: string) {
+  const firstColonIndex = text.indexOf(':');
+  if (firstColonIndex <= 0) return null;
+
+  const firstWhitespaceIndex = text.search(/\s/);
+  const secondColonIndex = text.indexOf(':', firstColonIndex + 1);
+  const delimiterIndex =
+    secondColonIndex > 0 &&
+    (firstWhitespaceIndex === -1 || secondColonIndex < firstWhitespaceIndex)
+      ? secondColonIndex
+      : firstColonIndex;
+  const value = text.slice(0, delimiterIndex);
+  if (/\s/.test(value)) return null;
+
+  return {
+    rest: text.slice(delimiterIndex + 1).trimStart(),
+    value,
   };
 }
 
@@ -317,11 +354,31 @@ function shouldExtractSource(text: string) {
 function classifyLogLine(text: string): AssertLogLine['kind'] {
   if (/✓|completed successfully|Success rate/i.test(text)) return 'success';
   if (/Task \d+\/\d+|Prompt saved|Reading prompt/i.test(text)) return 'task';
-  if (/EXECUTION SUMMARY|CODEBASE CHANGES|Change Summary|Total tasks/i.test(text)) {
+  if (
+    /EXECUTION SUMMARY|CODEBASE CHANGES|Change Summary|Total tasks/i.test(text)
+  ) {
     return 'summary';
   }
-  if (/^(diff --git|index |@@ |\+|-{3} |\+{3} )/.test(text)) return 'diff';
-  if (/^\s*(static int|#include|#ifdef|assert\(|\+?#include|\+?static int|\+?\s*assert\()/i.test(text)) {
+  if (
+    text.startsWith('diff --git') ||
+    text.startsWith('index ') ||
+    text.startsWith('@@ ') ||
+    text.startsWith('+') ||
+    text.startsWith('--- ')
+  ) {
+    return 'diff';
+  }
+
+  const trimmedText = text.trimStart();
+  const codeText = trimmedText.startsWith('+')
+    ? trimmedText.slice(1).trimStart()
+    : trimmedText;
+  if (
+    /^static int/i.test(codeText) ||
+    codeText.startsWith('#include') ||
+    codeText.startsWith('#ifdef') ||
+    codeText.startsWith('assert(')
+  ) {
     return 'code';
   }
   return 'normal';
@@ -398,7 +455,9 @@ function normalizeDiffContent(content: string) {
 
   const detailedDiffMatch = normalized.match(/^Detailed Diff:\s*$/m);
   if (detailedDiffMatch?.index !== undefined) {
-    return normalized.slice(detailedDiffMatch.index + detailedDiffMatch[0].length).trim();
+    return normalized
+      .slice(detailedDiffMatch.index + detailedDiffMatch[0].length)
+      .trim();
   }
 
   return normalized;
@@ -412,6 +471,7 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
   if (text.startsWith('-')) return 'delete';
   return 'context';
 }
+
 </script>
 
 <template>
@@ -431,43 +491,11 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
 
     <div v-if="hasContent" class="assert-container">
       <section class="assert-observe-grid">
-        <section class="assert-log-panel">
-          <div class="panel-head">
-            <div>
-              <span class="panel-kicker">实时运行轨迹</span>
-              <h3>日志输出</h3>
-            </div>
-            <Tag :color="running ? 'processing' : 'default'">
-              {{ running ? '自动滚动' : `${logLines.length} 行` }}
-            </Tag>
-          </div>
-
-          <div class="log-progress">
-            <div class="log-progress-title">
-              <span>当前阶段</span>
-              <strong>{{ assertProgress.current.label }}</strong>
-            </div>
-            <p>{{ assertProgress.current.description }}</p>
-          </div>
-
-          <div ref="logBodyRef" class="live-log">
-            <div
-              v-for="line in logLines"
-              :key="line.id"
-              class="log-line"
-              :class="`log-line--${line.kind}`"
-            >
-              <span class="log-time">{{ line.time || '--:--:--' }}</span>
-              <span class="log-chip log-chip--phase">{{ line.phase }}</span>
-              <span v-if="line.stage" class="log-chip">{{ line.stage }}</span>
-              <span v-if="line.source" class="log-chip log-chip--source">{{ line.source }}</span>
-              <span class="log-text">{{ line.text }}</span>
-            </div>
-            <div v-if="logLines.length === 0" class="log-empty">
-              {{ running ? '等待日志输出...' : '暂无日志输出' }}
-            </div>
-          </div>
-        </section>
+        <StageLiveLogPanel
+          :lines="logLines"
+          :progress="assertProgress.current"
+          :running="running"
+        />
 
         <section class="assert-diff">
           <div class="panel-head">
@@ -499,7 +527,11 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
       </section>
     </div>
 
-    <Empty v-else description="等待断言生成阶段开始" :image="Empty.PRESENTED_IMAGE_SIMPLE" />
+    <Empty
+      v-else
+      description="等待断言生成阶段开始"
+      :image="Empty.PRESENTED_IMAGE_SIMPLE"
+    />
   </Card>
 </template>
 
@@ -540,7 +572,6 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
   gap: 16px;
 }
 
-.assert-log-panel,
 .assert-diff {
   display: flex;
   flex-direction: column;
@@ -588,129 +619,6 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
 
 .stage-card :deep(.ant-empty-description) {
   font-size: 14px;
-}
-
-.log-progress {
-  padding: 12px;
-  background: #f7fbff;
-  border: 1px solid #d6e9ff;
-  border-radius: 8px;
-}
-
-.log-progress-title {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: baseline;
-}
-
-.log-progress-title span {
-  font-size: 14px;
-  color: #64748b;
-}
-
-.log-progress-title strong {
-  font-size: 16px;
-  color: #0b5cad;
-}
-
-.log-progress p {
-  margin: 4px 0 0;
-  font-size: 15px;
-  line-height: 1.5;
-  color: #334155;
-  overflow-wrap: anywhere;
-}
-
-.live-log {
-  height: 360px;
-  padding: 10px 0;
-  overflow: auto;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 15px;
-  line-height: 1.7;
-  color: #334155;
-  background: #fbfdff;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-}
-
-.log-line {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-  min-height: 30px;
-  padding: 4px 14px;
-  color: #334155;
-}
-
-.log-line--success {
-  color: #047857;
-  background: #ecfdf5;
-}
-
-.log-line--summary {
-  color: #0b5cad;
-  background: #eef6ff;
-}
-
-.log-line--task {
-  color: #7c3aed;
-  background: #f8f5ff;
-}
-
-.log-line--code {
-  color: #0f766e;
-  background: #f0fdfa;
-}
-
-.log-line--diff {
-  color: #9a3412;
-  background: #fff7ed;
-}
-
-.log-time {
-  flex: 0 0 82px;
-  color: #64748b;
-  user-select: none;
-}
-
-.log-chip {
-  flex: 0 0 auto;
-  max-width: 160px;
-  padding: 1px 8px;
-  overflow: hidden;
-  font-size: 14px;
-  line-height: 22px;
-  color: #475569;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  background: #eef2f7;
-  border-radius: 4px;
-}
-
-.log-chip--phase {
-  max-width: 210px;
-  font-weight: 700;
-  color: #0b5cad;
-  background: #e8f2ff;
-}
-
-.log-chip--source {
-  color: #0b5cad;
-  background: #e8f2ff;
-}
-
-.log-text {
-  min-width: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.log-empty {
-  padding: 14px;
-  font-size: 15px;
-  color: #64748b;
 }
 
 .diff-wrapper {
@@ -790,14 +698,6 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
 @media (max-width: 960px) {
   .assert-observe-grid {
     grid-template-columns: 1fr;
-  }
-
-  .log-line {
-    flex-wrap: wrap;
-  }
-
-  .log-text {
-    flex-basis: 100%;
   }
 }
 </style>

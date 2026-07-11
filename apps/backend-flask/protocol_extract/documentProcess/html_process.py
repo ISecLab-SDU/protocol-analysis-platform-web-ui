@@ -1,7 +1,5 @@
 import html2text
 from lxml import html
-import re
-import json
 
 
 def extract_and_save_tables(html_path, output_json_path):
@@ -93,7 +91,7 @@ def clean_rfc_html(file_path, output_path, tables_json_path):
             parent.remove(comment)
 
     # 保存清理后的HTML
-    cleaned_html = html.tostring(tree, encoding='unicode', pretty_print=True)
+    cleaned_html = str(html.tostring(tree, encoding='unicode', pretty_print=True))
     with open(output_path, 'w', encoding='utf-8') as file:
         file.write(cleaned_html)
 
@@ -117,7 +115,7 @@ def html_to_markdown(file_path, output_path):
     h = html2text.HTML2Text()
     h.ignore_links = False
     h.body_width = 0
-    markdown = h.handle(html.tostring(tree, encoding='unicode'))
+    markdown = h.handle(str(html.tostring(tree, encoding='unicode')))
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write(markdown)
 

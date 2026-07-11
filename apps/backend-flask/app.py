@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import logging
-import os
-from pathlib import Path
+from logging.config import dictConfig
 
 from flask import Flask
 from flask_cors import CORS
@@ -12,8 +10,6 @@ from flask_cors import CORS
 from auth import bp as auth_blueprint
 from custom.routes import bp as custom_blueprint
 from demo import bp as demo_blueprint
-from firmware import bp as firmware_blueprint
-from formalgpt.routes import bp as formal_gpt_bp
 from menu import bp as menu_blueprint
 from misc import bp as misc_blueprint
 from protocol_compliance.routes import bp as protocol_compliance_blueprint
@@ -23,45 +19,49 @@ from upload import bp as upload_blueprint
 from user import bp as user_blueprint
 
 
-BUSINESS_LOGGERS = (
-    "app",
-    "auth",
-    "custom",
-    "demo",
-    "firmware",
-    "formalgpt",
-    "menu",
-    "misc",
-    "protocol_compliance",
-    "system",
-    "table",
-    "upload",
-    "user",
-)
-
-
 def _configure_logging() -> None:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    dictConfig(
+        {
+            "version": 1,
+            "disable_existing_loggers": False,
+            "formatters": {
+                "default": {
+                    "format": "%(asctime)s %(levelname)s [%(name)s] %(message)s",
+                },
+            },
+            "handlers": {
+                "console": {
+                    "class": "logging.StreamHandler",
+                    "formatter": "default",
+                    "level": "DEBUG",
+                },
+            },
+            "root": {
+                "handlers": ["console"],
+                "level": "INFO",
+            },
+            "loggers": {
+                "protocol_compliance": {
+                    "level": "DEBUG",
+                    "propagate": True,
+                },
+                "werkzeug": {
+                    "level": "WARNING",
+                    "propagate": True,
+                },
+                "watchdog": {
+                    "level": "WARNING",
+                    "propagate": True,
+                },
+            },
+        }
     )
-    logging.getLogger().setLevel(logging.INFO)
-
-    for logger_name in BUSINESS_LOGGERS:
-        logging.getLogger(logger_name).setLevel(logging.DEBUG)
-
-    logging.getLogger("watchdog").setLevel(logging.WARNING)
-    logging.getLogger("werkzeug").setLevel(logging.INFO)
 
 
 def create_app() -> Flask:
     _configure_logging()
-    logging.basicConfig(level=logging.DEBUG)
-    logging.getLogger().setLevel(logging.DEBUG)
 
     app = Flask(__name__)
-    app.logger.setLevel(logging.DEBUG)
-    logging.getLogger('werkzeug').setLevel(logging.DEBUG)
 
     # 配置文件上传大小限制（例如 100MB）
     app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
@@ -82,12 +82,10 @@ def create_app() -> Flask:
     app.register_blueprint(system_blueprint)
     app.register_blueprint(table_blueprint)
     app.register_blueprint(upload_blueprint)
-    app.register_blueprint(firmware_blueprint)
     app.register_blueprint(demo_blueprint)
     app.register_blueprint(misc_blueprint)
     app.register_blueprint(custom_blueprint)
     app.register_blueprint(protocol_compliance_blueprint)
-    app.register_blueprint(formal_gpt_bp)
 
     @app.get("/api/healthz")
     def healthcheck():
