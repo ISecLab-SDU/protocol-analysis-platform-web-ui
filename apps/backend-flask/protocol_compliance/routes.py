@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import sqlite3
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, cast
+from typing import Any, Dict, Iterable, List, Optional
 
 from flask import Blueprint, request
 
@@ -67,24 +66,14 @@ from .static_analysis_models import (
     PROTOCOL_ALIASES as PROTOCOL_ALIASES,
     PROTOCOL_BY_IMPLEMENTATION as PROTOCOL_BY_IMPLEMENTATION,
     RULE_RESULT_PRIORITY as RULE_RESULT_PRIORITY,
-    _analysis_result_artifacts,
-    _analysis_result_database_name,
-    _analysis_result_database_path,
     _analysis_result_inputs as _analysis_result_inputs,
-    _build_analysis_result_history_item_id,
     _dedupe_key,
-    _get_static_analysis_verdicts,
     _has_structured_violation_payload as _has_structured_violation_payload,
     _merge_rule_status,
-    _normalize_implementation_from_analysis_result,
-    _normalize_protocol_name,
     _parse_llm_response,
     _protocol_for_implementation as _protocol_for_implementation,
     _strip_archive_suffix as _strip_archive_suffix,
     _verdict_code_lines as _verdict_code_lines,
-    _verdict_result_status,
-    _verdict_rule_desc,
-    _verdict_violation_details,
 )
 from .static_analysis_insights import StaticAnalysisDatabaseInsightsHandler
 from .static_analysis_insight_routes import register_static_analysis_insight_routes
@@ -94,6 +83,10 @@ from .static_analysis_overview import (
     _read_overview_from_analysis_result,
     _read_overview_from_database,
     _truncate_text as _truncate_text,
+)
+from .static_analysis_result_insights import (
+    read_database_insights_from_analysis_result,
+    read_violation_history_from_analysis_result,
 )
 from .static_analysis_sources import (
     iter_static_analysis_database_sources,
@@ -570,64 +563,7 @@ def _history_database_name_marker(value: Any) -> str:
 def _read_violation_history_from_analysis_result(
     entry: Dict[str, Any],
 ) -> List[Dict[str, Any]]:
-    result = entry.get("result")
-    if not isinstance(result, dict):
-        return []
-
-    verdicts = _get_static_analysis_verdicts(result)
-    if not verdicts:
-        return []
-
-    implementation_name = _normalize_implementation_from_analysis_result(entry, result)
-    resolved_protocol = _normalize_protocol_name(
-        cast(Optional[str], entry.get("protocolName")),
-        implementation_name,
-    )
-    database_path = _analysis_result_database_path(entry, result)
-    database_name = _analysis_result_database_name(entry, result)
-    extracted_at = (
-        entry.get("completedAt")
-        or entry.get("updatedAt")
-        or datetime.now(timezone.utc).isoformat()
-    )
-
-    items: List[Dict[str, Any]] = []
-    for index, verdict in enumerate(verdicts, start=1):
-        result_status, result_label = _verdict_result_status(verdict)
-        reason = verdict.get("explanation")
-        if isinstance(reason, str):
-            reason = reason.strip()
-        elif reason is not None:
-            reason = json.dumps(reason, ensure_ascii=False)
-
-        items.append(
-            {
-                "id": _build_analysis_result_history_item_id(
-                    entry=entry,
-                    verdict=verdict,
-                    row_index=index,
-                ),
-                "sourceType": "job",
-                "jobId": entry.get("jobId"),
-                "implementationName": implementation_name,
-                "protocolName": resolved_protocol,
-                "databaseName": database_name,
-                "databasePath": database_path,
-                "ruleDesc": _verdict_rule_desc(verdict),
-                "result": result_status,
-                "resultLabel": result_label,
-                "reason": reason,
-                "codeSnippet": None,
-                "callGraph": None,
-                "llmRaw": verdict,
-                "violations": _verdict_violation_details(verdict),
-                "createdAt": entry.get("createdAt") or extracted_at,
-                "updatedAt": entry.get("updatedAt") or extracted_at,
-                "extractedAt": extracted_at,
-            }
-        )
-
-    return items
+    return read_violation_history_from_analysis_result(entry)
 
 
 def _find_static_analysis_history_entry(
@@ -647,40 +583,7 @@ def _find_static_analysis_history_entry(
 def _read_database_insights_from_analysis_result(
     entry: Dict[str, Any],
 ) -> Optional[Dict[str, Any]]:
-    result = entry.get("result")
-    if not isinstance(result, dict):
-        return None
-
-    history_items = _read_violation_history_from_analysis_result(entry)
-    if not history_items:
-        return None
-
-    artifacts = _analysis_result_artifacts(result)
-    database_path = _analysis_result_database_path(entry, result)
-    workspace_path = artifacts.get("workspace") or entry.get("workspacePath")
-    findings = [
-        {
-            "ruleDesc": item.get("ruleDesc"),
-            "codeSnippet": item.get("codeSnippet"),
-            "callGraph": item.get("callGraph"),
-            "llmRaw": item.get("llmRaw"),
-            "reason": item.get("reason"),
-            "result": item.get("result"),
-            "resultLabel": item.get("resultLabel"),
-            "violations": item.get("violations"),
-        }
-        for item in history_items
-    ]
-    return {
-        "databasePath": database_path,
-        "workspacePath": str(workspace_path) if workspace_path else None,
-        "extractedAt": (
-            entry.get("completedAt")
-            or entry.get("updatedAt")
-            or datetime.now(timezone.utc).isoformat()
-        ),
-        "findings": findings,
-    }
+    return read_database_insights_from_analysis_result(entry)
 
 
 def _static_analysis_database_insights_handler() -> StaticAnalysisDatabaseInsightsHandler:
