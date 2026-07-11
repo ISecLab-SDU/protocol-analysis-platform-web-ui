@@ -331,7 +331,7 @@ function parseLogLine(raw: string, index: number): LogLine {
     rest = leadingStage.rest;
   }
 
-  const timeMatch = consumeDelimitedPrefix(rest, '[', ']');
+  const timeMatch = consumeTimestampPrefix(rest);
   if (timeMatch) {
     time = timeMatch.value;
     rest = timeMatch.rest;
@@ -370,6 +370,19 @@ function consumeDelimitedPrefix(text: string, open: string, close: string) {
     rest: text.slice(endIndex + close.length).trimStart(),
     value: text.slice(open.length, endIndex),
   };
+}
+
+function consumeTimestampPrefix(text: string) {
+  const prefix = consumeDelimitedPrefix(text, '[', ']');
+  if (!prefix || !isTimestampValue(prefix.value)) return null;
+  return prefix;
+}
+
+function isTimestampValue(value: string) {
+  return (
+    /^\d{1,2}:\d{2}(?::\d{2})?(?:\s?[AP]M)?$/i.test(value) ||
+    /^\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}/.test(value)
+  );
 }
 
 function consumeSourcePrefix(text: string) {

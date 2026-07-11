@@ -1591,8 +1591,12 @@ async function pollStaticAnalysis(jobId: string, runId: number) {
       const events = snapshot.events ?? [];
       if (events.length > 0) {
         for (const evt of events) {
+          const ts = evt.timestamp
+            ? new Date(evt.timestamp).toLocaleTimeString()
+            : '';
           const stageText = evt.stage ? `(${evt.stage}) ` : '';
-          staticLogText.value += `${stageText}${evt.message}\n`;
+          const timeText = ts ? `[${ts}] ` : '';
+          staticLogText.value += `${stageText}${timeText}${evt.message}\n`;
           if (typeof evt.id === 'number' && evt.id > staticLastEventId.value) {
             staticLastEventId.value = evt.id;
           }
