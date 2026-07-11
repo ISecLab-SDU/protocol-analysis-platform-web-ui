@@ -97,6 +97,21 @@ const navItems = [
   { key: 'analysis-results', label: '分析结果', disabled: true },
 ];
 
+function setAnalysisResultsNavEnabled(enabled: boolean) {
+  const analysisResultsNav = navItems.find(
+    (item) => item.key === 'analysis-results',
+  );
+  if (analysisResultsNav) {
+    analysisResultsNav.disabled = !enabled;
+  }
+}
+
+function isAnalysisResultsNavDisabled() {
+  return Boolean(
+    navItems.find((item) => item.key === 'analysis-results')?.disabled,
+  );
+}
+
 // 当前选中的栏目
 const currentNav = ref('system-intro');
 
@@ -241,7 +256,7 @@ const loadFromHistory = async (recordId: string) => {
       analysisResults.value = structuredClone(record.results);
       treeData.value = structuredClone(record.treeData);
       analysisComplete.value = true;
-      navItems[3].disabled = false; // 启用分析结果导航
+      setAnalysisResultsNavEnabled(true);
       handleNavChange('analysis-results');
 
       // 显式渲染函数调用关系图
@@ -366,35 +381,39 @@ const generateTreeData = (): TreeDataNode[] => {
   }
 
   // 创建根节点，使用上传的文件名作为标题
+  const rootChildren: TreeDataNode[] = [];
   const rootNode: TreeDataNode = {
     title: file.value?.name || '固件文件',
     key: 'root',
     isLeaf: false,
-    children: [],
+    children: rootChildren,
   };
 
   // 按严重性分组
-  const severityGroups: Record<string, any[]> = {
+  type Severity = 'high' | 'low' | 'medium';
+  const severityGroups: Record<Severity, TreeDataNode[]> = {
     high: [],
     medium: [],
     low: [],
   };
+  const severityKeys: Severity[] = ['high', 'medium', 'low'];
 
   // 为每个分析结果创建节点
   analysisResults.value.forEach((item, index) => {
     if (!item) return;
 
     // 创建函数节点
+    const functionChildren: TreeDataNode[] = [];
     const functionNode: TreeDataNode = {
       title: `${item.issueType || '未分类问题'} - ${item.functionName || `函数${index + 1}`}`,
       key: `function-${index}`,
       isLeaf: false,
-      children: [],
+      children: functionChildren,
     };
 
     // 添加描述节点
     if (item.description) {
-      functionNode.children.push({
+      functionChildren.push({
         title: `描述: ${item.description}`,
         key: `desc-${index}`,
         isLeaf: true,
@@ -403,7 +422,7 @@ const generateTreeData = (): TreeDataNode[] => {
 
     // 添加参数节点
     if (item.parameters) {
-      functionNode.children.push({
+      functionChildren.push({
         title: `参数: ${item.parameters}`,
         key: `params-${index}`,
         isLeaf: true,
@@ -417,7 +436,7 @@ const generateTreeData = (): TreeDataNode[] => {
         item.codeSnippet.length > 50
           ? `${item.codeSnippet.slice(0, 50)}...`
           : item.codeSnippet;
-      functionNode.children.push({
+      functionChildren.push({
         title: `代码: ${shortSnippet}`,
         key: `code-${index}`,
         isLeaf: true,
@@ -425,8 +444,8 @@ const generateTreeData = (): TreeDataNode[] => {
     }
 
     // 按严重性将节点添加到相应组中
-    const severity = item.severity || 'low';
-    if (severityGroups[severity]) {
+    const severity = item.severity as Severity;
+    if (severityKeys.includes(severity)) {
       severityGroups[severity].push(functionNode);
     } else {
       severityGroups.low.push(functionNode); // 默认低危
@@ -440,7 +459,7 @@ const generateTreeData = (): TreeDataNode[] => {
     low: '低危问题',
   };
 
-  Object.keys(severityGroups).forEach((severity) => {
+  severityKeys.forEach((severity) => {
     if (severityGroups[severity].length > 0) {
       const groupNode: TreeDataNode = {
         title: severityMap[severity as keyof typeof severityMap],
@@ -448,7 +467,7 @@ const generateTreeData = (): TreeDataNode[] => {
         isLeaf: false,
         children: severityGroups[severity],
       };
-      rootNode.children?.push(groupNode);
+      rootChildren.push(groupNode);
     }
   });
 
@@ -621,7 +640,7 @@ const handleAnalyze = async () => {
       saveToHistory();
 
       // 启用分析结果导航
-      navItems[3].disabled = false;
+      setAnalysisResultsNavEnabled(true);
     } else {
       const errorMsg =
         responseData.message || result?.message || '分析失败，未返回有效数据';
@@ -643,7 +662,7 @@ const handleNavChange = (key: string) => {
   // 只有在分析完成后才能访问分析结果页面
   if (
     key === 'analysis-results' &&
-    (analysisResults.value.length === 0 || navItems[3].disabled)
+    (analysisResults.value.length === 0 || isAnalysisResultsNavDisabled())
   ) {
     message.warning('请先完成固件分析');
     return;
@@ -757,7 +776,7 @@ watch(
         <Menu
           mode="horizontal"
           :selected-keys="[currentNav]"
-          @click="({ key }) => handleNavChange(key)"
+          @click="({ key }) => handleNavChange(String(key))"
           class="border-0"
         >
           <Menu.Item
