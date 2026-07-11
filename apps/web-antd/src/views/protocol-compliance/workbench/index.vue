@@ -394,6 +394,30 @@ function clearBannerProgressTimer() {
   bannerProgressTimer = null;
 }
 
+function getBannerProgressDelay(current: number, isAssertStage: boolean) {
+  if (isAssertStage) {
+    if (current < 70) return 1900 + Math.random() * 1200;
+    if (current < 90) return 3000 + Math.random() * 1800;
+    return 3400 + Math.random() * 2000;
+  }
+
+  if (current < 70) return 950 + Math.random() * 650;
+  if (current < 90) return 1600 + Math.random() * 900;
+  return 1400 + Math.random() * 1300;
+}
+
+function getBannerProgressIncrement(value: number, isAssertStage: boolean) {
+  if (isAssertStage) {
+    if (value < 70) return 0.7 + Math.random() * 1.2;
+    if (value < 90) return 0.22 + Math.random() * 0.55;
+    return 0.1 + Math.random() * 0.25;
+  }
+
+  if (value < 70) return 2 + Math.random() * 2.8;
+  if (value < 90) return 0.7 + Math.random() * 1.2;
+  return 0.3 + Math.random() * 0.9;
+}
+
 function scheduleBannerProgressTick() {
   clearBannerProgressTimer();
   if (
@@ -405,17 +429,7 @@ function scheduleBannerProgressTick() {
 
   const current = bannerProgress.value;
   const isAssertStage = activeStageView.value === 'assert_gen';
-  const delay = isAssertStage
-    ? current < 70
-      ? 1900 + Math.random() * 1200
-      : current < 90
-        ? 3000 + Math.random() * 1800
-        : 3400 + Math.random() * 2000
-    : current < 70
-      ? 950 + Math.random() * 650
-      : current < 90
-        ? 1600 + Math.random() * 900
-        : 1400 + Math.random() * 1300;
+  const delay = getBannerProgressDelay(current, isAssertStage);
 
   bannerProgressTimer = setTimeout(() => {
     if (
@@ -427,17 +441,7 @@ function scheduleBannerProgressTick() {
 
     const value = bannerProgress.value;
     const isCurrentAssertStage = activeStageView.value === 'assert_gen';
-    const increment = isCurrentAssertStage
-      ? value < 70
-        ? 0.7 + Math.random() * 1.2
-        : value < 90
-          ? 0.22 + Math.random() * 0.55
-          : 0.1 + Math.random() * 0.25
-      : value < 70
-        ? 2 + Math.random() * 2.8
-        : value < 90
-          ? 0.7 + Math.random() * 1.2
-          : 0.3 + Math.random() * 0.9;
+    const increment = getBannerProgressIncrement(value, isCurrentAssertStage);
     const cap = value < 90 ? 90 : 98;
     bannerProgress.value = Math.min(cap, value + increment);
     scheduleBannerProgressTick();
