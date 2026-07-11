@@ -1656,6 +1656,7 @@ async function handleLoadDemoConfig() {
 .guard-shell {
   min-height: calc(100vh - 92px);
   overflow: hidden;
+  font-size: 17px;
   color: #111827;
   background: #f4f7fb;
 }
@@ -2454,7 +2455,9 @@ async function handleLoadDemoConfig() {
 
 .score-track {
   position: relative;
+  display: flex;
   height: 8px;
+  margin: 10px 0 16px;
   overflow: hidden;
   background: transparent;
   border-radius: 999px;
@@ -2526,7 +2529,7 @@ async function handleLoadDemoConfig() {
   width: 38px;
   height: 38px;
   overflow: hidden;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 850;
   color: #fff;
   text-align: center;
@@ -2536,11 +2539,6 @@ async function handleLoadDemoConfig() {
 .protocol-bars strong {
   font-size: 12px;
   color: #0f172a;
-}
-
-.score-track {
-  display: flex;
-  margin: 10px 0 16px;
 }
 
 .score-track__ok {
@@ -3485,10 +3483,6 @@ async function handleLoadDemoConfig() {
   color: #64748b;
 }
 
-.guard-shell {
-  font-size: 17px;
-}
-
 .overview-card-head p,
 .card-count,
 .current-task dt,
@@ -3538,10 +3532,6 @@ async function handleLoadDemoConfig() {
 .stepper-title,
 .result-history-title {
   font-size: 16px;
-}
-
-.protocol-badge {
-  font-size: 13px;
 }
 
 .history-source-code,
