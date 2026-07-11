@@ -84,7 +84,7 @@ def test_static_analysis_history_routes_keep_legacy_endpoint_names() -> None:
     app.register_blueprint(routes.bp)
 
     history_rules = {
-        (rule.rule, tuple(sorted(rule.methods - {"HEAD", "OPTIONS"}))): rule.endpoint
+        (rule.rule, tuple(sorted((rule.methods or set()) - {"HEAD", "OPTIONS"}))): rule.endpoint
         for rule in app.url_map.iter_rules()
         if rule.rule
         in {

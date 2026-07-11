@@ -4,7 +4,7 @@ from io import BytesIO
 import os
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -70,6 +70,7 @@ def test_assertion_generation_skips_instrumentation_when_no_tasks(
         job_id="job-empty",
         progress_callback=lambda job_id, stage, message: events.append((job_id, stage, message)),
     )
+    instrumentation = cast(dict[str, Any], result["instrumentation"])
 
     assert result["assertionCount"] == 0
     assert result["instrumentation"] == {
@@ -87,7 +88,7 @@ def test_assertion_generation_skips_instrumentation_when_no_tasks(
             },
         },
         "logs": [],
-        "completedAt": result["instrumentation"]["completedAt"],
+        "completedAt": instrumentation["completedAt"],
     }
     assert events == [
         (

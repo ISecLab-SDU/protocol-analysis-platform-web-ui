@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import re
-from typing import Callable, Optional
+from typing import Any, Callable, Iterable, Optional
 
 from flask import make_response, request
 from werkzeug.datastructures import FileStorage
@@ -22,7 +22,7 @@ from .pipeline_runner import (
     PipelineResultNotFoundError,
     run_protocol_pipeline,
 )
-from .store import STORE
+from .store import STORE, TaskStatus
 
 LOGGER = logging.getLogger(__name__)
 
@@ -30,11 +30,11 @@ LOGGER = logging.getLogger(__name__)
 def create_task_handlers(
     ensure_authenticated: Callable[[], tuple[object, object]],
     *,
-    normalize_status: Callable[[object], object],
+    normalize_status: Callable[[object], Optional[Iterable[TaskStatus]]],
     parse_tags: Callable[[Optional[str]], Optional[list[str]]],
     strip_extension: Callable[[str], str],
     to_int: Callable[[object, int], int],
-) -> dict[str, Callable[..., object]]:
+) -> dict[str, Callable[..., Any]]:
     def run_protocol_extract():
         _, error = ensure_authenticated()
         if error:

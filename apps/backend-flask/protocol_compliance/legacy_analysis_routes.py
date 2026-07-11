@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from typing import Callable
+from typing import Any, Callable
 
 from flask import make_response, request
 
@@ -20,7 +20,7 @@ from .legacy_analysis_history import (
 
 def create_legacy_analysis_handlers(
     ensure_authenticated: Callable[[], tuple[object, object]],
-) -> dict[str, Callable[..., object]]:
+) -> dict[str, Callable[..., Any]]:
     def get_detection_results(implementation_name: str):
         """获取指定协议实现的检测结果"""
         _, error = ensure_authenticated()

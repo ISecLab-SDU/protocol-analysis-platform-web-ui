@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 from flask import make_response, request, send_file
 
@@ -18,7 +18,7 @@ LOGGER = logging.getLogger(__name__)
 
 def create_static_analysis_job_handlers(
     ensure_authenticated: Callable[[], tuple[object, object]],
-) -> dict[str, Callable[..., object]]:
+) -> dict[str, Callable[..., Any]]:
     def static_analysis_progress(job_id: str):
         _, error = ensure_authenticated()
         if error:

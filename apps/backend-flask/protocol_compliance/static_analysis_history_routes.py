@@ -45,7 +45,7 @@ def create_static_analysis_history_handlers(
     remember_row_history_display_time: Callable[..., None],
     to_int: Callable[[object, int], int],
     visible_violation_history_limit: int,
-) -> dict[str, Callable[..., object]]:
+) -> dict[str, Callable[..., Any]]:
     def static_analysis_database_overview():
         _, error = ensure_authenticated()
         if error:

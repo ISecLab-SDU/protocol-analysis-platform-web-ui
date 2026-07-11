@@ -6,7 +6,6 @@ import dataclasses
 import json
 import os
 import shutil
-import sys
 import time
 import traceback
 from pathlib import Path
@@ -34,7 +33,7 @@ CLAUDE_CLI_PATH = os.environ.get("PG_CLAUDE_CLI_PATH") or shutil.which("claude")
 
 
 def _json_default(value: Any) -> Any:
-    if dataclasses.is_dataclass(value):
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
         return dataclasses.asdict(value)
     if isinstance(value, Path):
         return str(value)
@@ -95,7 +94,7 @@ def _tool_stage(name: str) -> str:
 
 
 def _message_to_dict(message: Any) -> dict[str, Any]:
-    if dataclasses.is_dataclass(message):
+    if dataclasses.is_dataclass(message) and not isinstance(message, type):
         return dataclasses.asdict(message)
     return {"repr": repr(message)}
 

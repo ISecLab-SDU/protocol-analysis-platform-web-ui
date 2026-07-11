@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 if str(BACKEND_ROOT) not in sys.path:
@@ -20,9 +21,9 @@ def _violation_match_keys(violations: object) -> set[str]:
     return {
         "|".join(
             [
-                _dedupe_key(item.get("filename")),
-                _dedupe_key(item.get("functionName")),
-                ",".join(str(line) for line in item.get("codeLines", [])),
+                _dedupe_key(cast(dict[str, Any], item).get("filename")),
+                _dedupe_key(cast(dict[str, Any], item).get("functionName")),
+                ",".join(str(line) for line in cast(dict[str, Any], item).get("codeLines", [])),
             ]
         )
         for item in violations

@@ -41,7 +41,7 @@ def create_legacy_fuzz_handlers(
     aflnet_output_root: Callable[[], Path],
     aflnet_fallback_output_root: Callable[[], Path],
     resolve_aflnet_output_source: Callable[[Dict[str, Any]], str],
-) -> Dict[str, Callable[..., object]]:
+) -> Dict[str, Callable[..., Any]]:
     def write_script():
         """写入脚本文件到指定路径"""
         _, error = ensure_authenticated()

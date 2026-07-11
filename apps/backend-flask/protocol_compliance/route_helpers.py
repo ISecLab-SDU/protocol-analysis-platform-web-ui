@@ -5,7 +5,8 @@ from __future__ import annotations
 import contextlib
 import json
 import logging
-from typing import Iterable, Optional, cast
+from collections.abc import Iterable
+from typing import Optional, cast
 
 import toml
 from werkzeug.datastructures import FileStorage
@@ -15,23 +16,29 @@ from .store import TaskStatus
 LOGGER = logging.getLogger(__name__)
 
 
-def _to_int(value: Optional[str], fallback: int) -> int:
+def _to_int(value: object, fallback: int) -> int:
     if value is None:
         return fallback
     try:
-        parsed = int(value)
+        parsed = int(str(value))
     except ValueError:
         return fallback
     return parsed if parsed > 0 else fallback
 
 
-def _normalize_status(raw: Optional[Iterable[str]]) -> Optional[list[TaskStatus]]:
+def _normalize_status(raw: object) -> Optional[list[TaskStatus]]:
     if not raw:
+        return None
+    if isinstance(raw, str):
+        raw_items: Iterable[str] = [raw]
+    elif isinstance(raw, Iterable):
+        raw_items = (str(item) for item in raw)
+    else:
         return None
     statuses: set[TaskStatus] = set()
     allowed: set[TaskStatus] = {"completed", "failed", "processing", "queued"}
 
-    for item in raw:
+    for item in raw_items:
         if not item:
             continue
         segments = [segment.strip() for segment in item.split(",")]
@@ -65,20 +72,21 @@ def _read_upload(upload: FileStorage) -> tuple[str, Optional[bytes]]:
 
 
 def _extract_protocol_metadata_from_config(
-    raw: Optional[bytes], source_label: str
+    raw: Optional[bytes], source_label: Optional[str]
 ) -> tuple[Optional[str], Optional[str]]:
+    source = source_label or "config.toml"
     if not raw:
-        LOGGER.debug("Config payload %s is empty; skipping protocol metadata extraction", source_label)
+        LOGGER.debug("Config payload %s is empty; skipping protocol metadata extraction", source)
         return None, None
     try:
         text = raw.decode("utf-8")
     except UnicodeDecodeError as exc:
-        LOGGER.warning("Failed to decode %s as UTF-8 while extracting protocol metadata: %s", source_label, exc)
+        LOGGER.warning("Failed to decode %s as UTF-8 while extracting protocol metadata: %s", source, exc)
         return None, None
     try:
         parsed = toml.loads(text)
     except toml.TomlDecodeError as exc:
-        LOGGER.warning("Failed to parse %s as TOML while extracting protocol metadata: %s", source_label, exc)
+        LOGGER.warning("Failed to parse %s as TOML while extracting protocol metadata: %s", source, exc)
         return None, None
 
     project = parsed.get("project")
@@ -90,7 +98,7 @@ def _extract_protocol_metadata_from_config(
         return (name or None, version or None)
 
     LOGGER.debug(
-        "Config %s does not define a [project] section when extracting protocol metadata", source_label
+        "Config %s does not define a [project] section when extracting protocol metadata", source
     )
     return None, None
 

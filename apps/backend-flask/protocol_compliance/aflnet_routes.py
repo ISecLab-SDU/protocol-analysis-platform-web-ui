@@ -7,7 +7,7 @@ import io
 import re
 import uuid
 from datetime import datetime, timezone
-from typing import Callable, Dict
+from typing import Any, Callable, Dict
 
 from flask import make_response, request, send_file
 
@@ -24,7 +24,7 @@ from .aflnet import (
 
 def create_aflnet_handlers(
     ensure_authenticated: Callable[[], tuple[object, object]],
-) -> Dict[str, Callable[..., object]]:
+) -> Dict[str, Callable[..., Any]]:
     def download_aflnet_result():
         """Download AFLNET crash/queue artefacts as a zip bundle."""
         _, error = ensure_authenticated()

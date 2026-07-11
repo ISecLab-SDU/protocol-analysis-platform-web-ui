@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Callable, Dict, Optional, cast
+from typing import Any, Callable, Dict, Optional, cast
 
 from flask import make_response, request, send_file
 from werkzeug.datastructures import FileStorage
@@ -29,7 +29,7 @@ def create_assertion_handlers(
     expand_path: Callable[[Optional[str]], Optional[Path]],
     read_upload: Callable[[FileStorage], tuple[str, Optional[bytes]]],
     resolve_assertion_database_path: Callable[[Path], tuple[Optional[Path], list[str]]],
-) -> Dict[str, Callable[..., object]]:
+) -> Dict[str, Callable[..., Any]]:
     def assertion_generation():
         _, error = ensure_authenticated()
         if error:

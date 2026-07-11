@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Callable, Optional, cast
+from typing import Any, Callable, Optional, cast
 
 from flask import make_response, request
 from werkzeug.datastructures import FileStorage
@@ -33,7 +33,7 @@ def create_static_analysis_submission_handlers(
     read_upload: Callable[[FileStorage], tuple[str, Optional[bytes]]],
     strip_extension: Callable[[str], str],
     to_int: Callable[[object, int], int],
-) -> dict[str, Callable[..., object]]:
+) -> dict[str, Callable[..., Any]]:
     def static_analysis():
         _, error = ensure_authenticated()
         if error:
@@ -122,6 +122,11 @@ def create_static_analysis_submission_handlers(
             )
         rules_summary = try_extract_rules_summary(parsed_rules)
         notes = request.form.get("notes")
+        project_name = (
+            request.form.get("projectName")
+            or request.form.get("implementationName")
+            or ""
+        ).strip() or None
 
         snapshot = submit_static_analysis_job(
             code_payload=(code_name, code_data),
@@ -130,6 +135,7 @@ def create_static_analysis_submission_handlers(
             notes=notes,
             protocol_name=protocol_name,
             protocol_version=protocol_version,
+            project_name=project_name,
             rules_summary=rules_summary,
         )
         return make_response(success_response(snapshot), 202)

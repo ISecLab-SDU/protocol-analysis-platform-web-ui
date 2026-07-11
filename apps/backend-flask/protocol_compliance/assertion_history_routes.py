@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Callable
+from typing import Any, Callable
 
 from flask import make_response, request, send_file
 
@@ -19,7 +19,7 @@ def create_assertion_history_handlers(
     ensure_authenticated: Callable[[], tuple[object, object]],
     *,
     to_int: Callable[[object, int], int],
-) -> dict[str, Callable[..., object]]:
+) -> dict[str, Callable[..., Any]]:
     def assertion_history():
         _, error = ensure_authenticated()
         if error:

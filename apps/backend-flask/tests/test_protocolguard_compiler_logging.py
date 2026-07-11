@@ -26,7 +26,7 @@ if "claude_agent_sdk" not in sys.modules:
         "ToolUseBlock",
     ):
         setattr(fake_claude_agent_sdk, name, type(name, (), {}))
-    fake_claude_agent_sdk.query = None
+    cast(Any, fake_claude_agent_sdk).query = None
     sys.modules["claude_agent_sdk"] = fake_claude_agent_sdk
 
 from protocol_compliance.compiler import CompilerController  # noqa: E402

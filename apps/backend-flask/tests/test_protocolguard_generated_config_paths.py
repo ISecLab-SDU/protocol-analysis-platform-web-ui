@@ -4,7 +4,7 @@ from io import BytesIO
 import sys
 import tarfile
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 if str(BACKEND_ROOT) not in sys.path:
@@ -29,6 +29,8 @@ def _executor(tmp_path: Path) -> AgentExecutor:
 
 
 class _FakeCompiler:
+    docker: Any
+
     def run(self, **_kwargs: Any) -> str:
         return "FROM scratch\n"
 
@@ -90,13 +92,14 @@ def test_generated_analysis_config_falls_back_to_workspace_conventions(tmp_path:
 
 def test_run_compilation_reports_generated_config_content(tmp_path: Path) -> None:
     executor = _executor(tmp_path)
-    executor.compiler = _FakeCompiler()
+    dynamic_executor = cast(Any, executor)
+    dynamic_executor.compiler = _FakeCompiler()
     executor._docker_available = True
     executor._builder_image = "protocolguard-claude-builder:test"
-    executor.compiler.docker = _FakeDocker()
-    executor._run_claude_builder_container = lambda *args, **kwargs: []
-    executor._validate_builder_outputs = lambda *args, **kwargs: None
-    executor._run_analysis_container = lambda *args, **kwargs: None
+    dynamic_executor.compiler.docker = _FakeDocker()
+    dynamic_executor._run_claude_builder_container = lambda *args, **kwargs: []
+    dynamic_executor._validate_builder_outputs = lambda *args, **kwargs: None
+    dynamic_executor._run_analysis_container = lambda *args, **kwargs: None
     source_file = tmp_path / "main.c"
     source_file.write_text("int main(void) { return 0; }\n", encoding="utf-8")
     archive = BytesIO()
