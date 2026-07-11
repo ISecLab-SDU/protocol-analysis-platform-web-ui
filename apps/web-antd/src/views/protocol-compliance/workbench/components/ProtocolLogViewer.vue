@@ -83,10 +83,11 @@ function getStatsItems(text: string) {
 
   return parts
     .map((part) => {
-      const match = part.match(/^([^:]+):\s*(.+)$/);
-      if (!match) return null;
-      const label = match[1].trim();
-      const value = match[2].trim();
+      const separatorIndex = part.indexOf(':');
+      if (separatorIndex === -1) return null;
+      const label = part.slice(0, separatorIndex).trim();
+      const value = part.slice(separatorIndex + 1).trim();
+      if (!label || !value) return null;
       const key = label.toLowerCase();
       let tone = 'neutral';
       if (key.includes('crash') || key.includes('崩溃')) tone = 'danger';

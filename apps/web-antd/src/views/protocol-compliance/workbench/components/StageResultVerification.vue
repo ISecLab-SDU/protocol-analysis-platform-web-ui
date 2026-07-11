@@ -123,8 +123,11 @@ const crashLogPath = computed(() => {
 
   for (const log of props.logs) {
     const text = log.text;
-    const cnMatch = text.match(/崩溃队列信息导出[:：]\s*(.+)$/);
-    if (cnMatch?.[1]) return cnMatch[1].trim();
+    const cnSeparatorIndex = text.search(/[:：]/);
+    if (text.startsWith('崩溃队列信息导出') && cnSeparatorIndex !== -1) {
+      const queuePath = text.slice(cnSeparatorIndex + 1).trim();
+      if (queuePath) return queuePath;
+    }
 
     const aflMatch = text.match(/(?:crash|queue|poc)[^:：]*[:：]\s*(\/\S+)/i);
     if (aflMatch?.[1]) return aflMatch[1].trim();

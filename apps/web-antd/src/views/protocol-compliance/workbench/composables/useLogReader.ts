@@ -7,6 +7,18 @@ import type { LogUIData, ProtocolType } from './types';
 
 import { nextTick, ref } from 'vue';
 
+function getDiffBorderClass(type: LogUIData['type']) {
+  if (type === 'ERROR') return 'border-red-400 bg-red-50';
+  if (type === 'WARNING') return 'border-yellow-400 bg-yellow-50';
+  return 'border-blue-400 bg-blue-50';
+}
+
+function getDiffBadgeClass(type: LogUIData['type']) {
+  if (type === 'ERROR') return 'bg-red-100 text-red-700';
+  if (type === 'WARNING') return 'bg-yellow-100 text-yellow-700';
+  return 'bg-blue-100 text-blue-700';
+}
+
 export function useLogReader() {
   // 日志读取状态
   const isReadingLog = ref(false);
@@ -181,24 +193,14 @@ export function useLogReader() {
         if (logData.isDetailedDiff && logData.diffInfo) {
           // 差异报告专用样式 - 更突出和详细
           div.className = 'mqtt-diff-line';
-          const severityClass =
-            logData.type === 'ERROR'
-              ? 'border-red-400 bg-red-50'
-              : (logData.type === 'WARNING'
-                ? 'border-yellow-400 bg-yellow-50'
-                : 'border-blue-400 bg-blue-50');
+          const severityClass = getDiffBorderClass(logData.type);
+          const badgeClass = getDiffBadgeClass(logData.type);
 
           div.innerHTML = `
             <div class="p-3 rounded-lg border-l-4 ${severityClass} mb-2">
               <div class="flex items-center justify-between mb-1">
                 <span class="text-xs text-gray-500">[${logData.timestamp}]</span>
-                <span class="text-xs px-2 py-1 rounded-full ${
-                  logData.type === 'ERROR'
-                    ? 'bg-red-100 text-red-700'
-                    : (logData.type === 'WARNING'
-                      ? 'bg-yellow-100 text-yellow-700'
-                      : 'bg-blue-100 text-blue-700')
-                }">${logData.diffInfo.type}</span>
+                <span class="text-xs px-2 py-1 rounded-full ${badgeClass}">${logData.diffInfo.type}</span>
               </div>
               <div class="text-sm font-medium text-gray-800">${logData.content}</div>
               <div class="text-xs text-gray-600 mt-1">
