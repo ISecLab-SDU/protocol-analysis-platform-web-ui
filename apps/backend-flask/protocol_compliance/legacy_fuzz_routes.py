@@ -1,4 +1,4 @@
-"""Legacy fuzzing route registration."""
+"""Legacy fuzzing request handlers."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict
 
-from flask import Blueprint, make_response, request
+from flask import make_response, request
 
 from utils.responses import error_response, success_response
 
@@ -29,8 +29,7 @@ SNMP_CONFIG = {
 }
 
 
-def register_legacy_fuzz_routes(
-    bp: Blueprint,
+def create_legacy_fuzz_handlers(
     ensure_authenticated: Callable[[], tuple[object, object]],
     *,
     logger: Any,
@@ -43,7 +42,6 @@ def register_legacy_fuzz_routes(
     aflnet_fallback_output_root: Callable[[], Path],
     resolve_aflnet_output_source: Callable[[Dict[str, Any]], str],
 ) -> Dict[str, Callable[..., object]]:
-    @bp.route("/write-script", methods=["POST"])
     def write_script():
         """写入脚本文件到指定路径"""
         _, error = ensure_authenticated()
@@ -78,7 +76,6 @@ def register_legacy_fuzz_routes(
         else:
             return make_response(error_response(f"不支持的协议类型: {protocol}"), 400)
 
-    @bp.route("/execute-command", methods=["POST"])
     def execute_command():
         """执行shell命令启动程序"""
         logger.debug("========== execute-command API被调用 ==========")
@@ -240,7 +237,6 @@ def register_legacy_fuzz_routes(
             logger.debug("异常: %s", str(e))
             return make_response(error_response(f"执行命令失败: {str(e)}"), 500)
 
-    @bp.route("/read-log", methods=["POST"])
     def read_log():
         """实时读取日志文件内容"""
         _, error = ensure_authenticated()
@@ -378,7 +374,6 @@ def register_legacy_fuzz_routes(
             logger.debug("读取日志文件异常: %s", e)
             return make_response(error_response(f"读取日志文件失败: {str(e)}"), 500)
 
-    @bp.route("/check-status", methods=["POST"])
     def check_status():
         """检查协议测试状态和文件系统"""
         _, error = ensure_authenticated()
@@ -473,7 +468,6 @@ def register_legacy_fuzz_routes(
             logger.debug("状态检查异常: %s", e)
             return make_response(error_response(f"状态检查失败: {str(e)}"), 500)
 
-    @bp.route("/stop-process", methods=["POST"])
     def stop_process():
         """停止指定进程"""
         _, error = ensure_authenticated()
@@ -506,7 +500,6 @@ def register_legacy_fuzz_routes(
         except Exception as e:
             return make_response(error_response(f"停止进程失败: {str(e)}"), 500)
 
-    @bp.route("/pre-start-cleanup", methods=["POST"])
     def pre_start_cleanup():
         """启动前清理：停止现有容器并清理输出文件"""
         logger.debug("========== 启动前清理API被调用 ==========")
@@ -657,7 +650,6 @@ def register_legacy_fuzz_routes(
                 "cleanup_results": cleanup_results,
             })
 
-    @bp.route("/stop-and-cleanup", methods=["POST"])
     def stop_and_cleanup():
         """停止Docker容器并清理输出文件"""
         logger.debug("========== 停止和清理API被调用 ==========")

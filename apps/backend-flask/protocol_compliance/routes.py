@@ -43,7 +43,7 @@ from .legacy_analysis_routes import create_legacy_analysis_handlers
 from .legacy_fuzz_routes import (
     MQTT_CONFIG as MQTT_CONFIG,
     SNMP_CONFIG as SNMP_CONFIG,
-    register_legacy_fuzz_routes,
+    create_legacy_fuzz_handlers,
 )
 from .route_helpers import (
     _collect_exception_details as _collect_exception_details,
@@ -204,8 +204,7 @@ def get_analysis_history():
 def add_analysis_history():
     return _legacy_analysis_handlers["add_analysis_history"]()
 
-_legacy_fuzz_route_handlers = register_legacy_fuzz_routes(
-    bp,
+_legacy_fuzz_handlers = create_legacy_fuzz_handlers(
     _ensure_authenticated,
     logger=LOGGER,
     subprocess_module=subprocess,
@@ -217,13 +216,41 @@ _legacy_fuzz_route_handlers = register_legacy_fuzz_routes(
     aflnet_fallback_output_root=_aflnet_fallback_output_root,
     resolve_aflnet_output_source=_resolve_aflnet_output_source,
 )
-write_script = _legacy_fuzz_route_handlers["write_script"]
-execute_command = _legacy_fuzz_route_handlers["execute_command"]
-read_log = _legacy_fuzz_route_handlers["read_log"]
-check_status = _legacy_fuzz_route_handlers["check_status"]
-stop_process = _legacy_fuzz_route_handlers["stop_process"]
-pre_start_cleanup = _legacy_fuzz_route_handlers["pre_start_cleanup"]
-stop_and_cleanup = _legacy_fuzz_route_handlers["stop_and_cleanup"]
+
+
+@bp.route("/write-script", methods=["POST"])
+def write_script():
+    return _legacy_fuzz_handlers["write_script"]()
+
+
+@bp.route("/execute-command", methods=["POST"])
+def execute_command():
+    return _legacy_fuzz_handlers["execute_command"]()
+
+
+@bp.route("/read-log", methods=["POST"])
+def read_log():
+    return _legacy_fuzz_handlers["read_log"]()
+
+
+@bp.route("/check-status", methods=["POST"])
+def check_status():
+    return _legacy_fuzz_handlers["check_status"]()
+
+
+@bp.route("/stop-process", methods=["POST"])
+def stop_process():
+    return _legacy_fuzz_handlers["stop_process"]()
+
+
+@bp.route("/pre-start-cleanup", methods=["POST"])
+def pre_start_cleanup():
+    return _legacy_fuzz_handlers["pre_start_cleanup"]()
+
+
+@bp.route("/stop-and-cleanup", methods=["POST"])
+def stop_and_cleanup():
+    return _legacy_fuzz_handlers["stop_and_cleanup"]()
 
 _task_handlers = create_task_handlers(
     _ensure_authenticated,
