@@ -214,7 +214,9 @@ const canCommit = computed(() => {
           :max="65535"
           :disabled="disabled"
           style="width: 100%"
-          @update:value="(value) => patchConfig({ targetPort: value ?? 1 })"
+          @update:value="
+            (value) => patchConfig({ targetPort: Number(value ?? 1) })
+          "
         />
       </div>
 

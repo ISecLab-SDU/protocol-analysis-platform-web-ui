@@ -114,7 +114,7 @@ export function useLogReader() {
 
     nextTick(() => {
       try {
-        if (!logContainer.value || !logContainer.value.appendChild) {
+        if (!logContainer.value) {
           return;
         }
 
@@ -161,12 +161,9 @@ export function useLogReader() {
         }
 
         // 限制日志条目数量，保持性能
-        if (
-          logContainer.value.children &&
-          logContainer.value.children.length > 200
-        ) {
+        if (logContainer.value.children.length > 200) {
           const firstChild = logContainer.value.firstChild;
-          if (firstChild && logContainer.value.removeChild) {
+          if (firstChild) {
             firstChild.remove();
           }
         }
@@ -184,7 +181,7 @@ export function useLogReader() {
     nextTick(() => {
       try {
         // 双重检查 DOM 元素是否仍然存在
-        if (!logContainer.value || !logContainer.value.appendChild) {
+        if (!logContainer.value) {
           return;
         }
 
@@ -251,7 +248,7 @@ export function useLogReader() {
           }
 
         // 再次检查容器是否存在再添加元素
-        if (logContainer.value && logContainer.value.appendChild) {
+        if (logContainer.value) {
           logContainer.value.append(div);
 
           // 自动滚动到底部
@@ -260,12 +257,9 @@ export function useLogReader() {
           }
 
           // 限制日志条目数量，保持性能
-          if (
-            logContainer.value.children &&
-            logContainer.value.children.length > 200
-          ) {
+          if (logContainer.value.children.length > 200) {
             const firstChild = logContainer.value.firstChild;
-            if (firstChild && logContainer.value.removeChild) {
+            if (firstChild) {
               firstChild.remove();
             }
           }
@@ -285,7 +279,7 @@ export function useLogReader() {
     nextTick(() => {
       try {
         // 双重检查 DOM 元素是否仍然存在
-        if (!logContainer.value || !logContainer.value.appendChild) {
+        if (!logContainer.value ) {
           return;
         }
         
@@ -306,7 +300,7 @@ export function useLogReader() {
         }
         
         // 再次检查容器是否存在再添加元素
-        if (logContainer.value && logContainer.value.appendChild) {
+        if (logContainer.value) {
           logContainer.value.appendChild(div);
           
           // 自动滚动到底部
@@ -315,9 +309,9 @@ export function useLogReader() {
           }
           
           // 限制日志条目数量，保持性能
-          if (logContainer.value.children && logContainer.value.children.length > 200) {
+          if (logContainer.value.children.length > 200) {
             const firstChild = logContainer.value.firstChild;
-            if (firstChild && logContainer.value.removeChild) {
+            if (firstChild) {
               logContainer.value.removeChild(firstChild);
             }
           }
@@ -337,7 +331,7 @@ export function useLogReader() {
     nextTick(() => {
       try {
         // 双重检查 DOM 元素是否仍然存在
-        if (!logContainer.value || !logContainer.value.appendChild) {
+        if (!logContainer.value) {
           return;
         }
 
@@ -358,7 +352,7 @@ export function useLogReader() {
         }
 
         // 再次检查容器是否存在再添加元素
-        if (logContainer.value && logContainer.value.appendChild) {
+        if (logContainer.value) {
           logContainer.value.append(div);
 
           // 自动滚动到底部
@@ -367,12 +361,9 @@ export function useLogReader() {
           }
 
           // 限制日志条目数量，保持性能
-          if (
-            logContainer.value.children &&
-            logContainer.value.children.length > 200
-          ) {
+          if (logContainer.value.children.length > 200) {
             const firstChild = logContainer.value.firstChild;
-            if (firstChild && logContainer.value.removeChild) {
+            if (firstChild) {
               firstChild.remove();
             }
           }

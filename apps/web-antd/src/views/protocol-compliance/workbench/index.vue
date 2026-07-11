@@ -356,14 +356,14 @@ const historyTimeRangeOptions = [
   { label: '近一周', value: 'week' },
   { label: '近一个月', value: 'month' },
   { label: '近一年', value: 'year' },
-] as const;
+];
 
 const historyResultOptions = [
   { label: '全部结果', value: '' },
   { label: '发现违规', value: 'violation_found' },
   { label: '合规', value: 'no_violation' },
   { label: '未判定', value: 'unknown' },
-] as const;
+];
 
 const maxImplementationViolation = computed(() => {
   return Math.max(

@@ -37,14 +37,6 @@ export function useProtocolDataManager() {
       logs: [],
       stats: {},
     },
-    RTSP: {
-      isRunning: false,
-      isProcessing: false,
-      totalRecords: 0,
-      processedRecords: 0,
-      logs: [],
-      stats: {},
-    },
     MQTT: {
       isRunning: false,
       isProcessing: false,
@@ -207,7 +199,12 @@ export function useProtocolDataManager() {
       stopRealtimeStream(protocol);
     }
 
-    const stream = {
+    const stream: {
+      batchSize: number;
+      buffer: LogEntry[];
+      interval: number;
+      timer: null | number;
+    } = {
       buffer: [],
       timer: null,
       batchSize: options.batchSize,
