@@ -25,7 +25,7 @@ def _load_configure_logging():
     end = source.index("\n\ndef create_app", start)
     module = types.ModuleType("app_logging_config")
     exec(
-        "import logging\nfrom logging.config import dictConfig\n\n" + source[start:end],
+        "import logging\nimport os\nfrom logging.config import dictConfig\n\n" + source[start:end],
         module.__dict__,
     )
     return module._configure_logging
@@ -61,7 +61,13 @@ def _job_paths(settings: ProtocolGuardDockerSettings, job_id: str) -> JobPaths:
     )
 
 
-def test_app_logging_config_uses_protocol_compliance_prefix() -> None:
+def test_app_logging_config_uses_protocol_compliance_prefix(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    log_file = tmp_path / "backend.log"
+    monkeypatch.setenv("FLASK_BACKEND_LOG_FILE", str(log_file))
+
     _configure_logging = _load_configure_logging()
     _configure_logging()
 
@@ -71,7 +77,12 @@ def test_app_logging_config_uses_protocol_compliance_prefix() -> None:
     assert protocol_logger.level == logging.DEBUG
     assert nested_logger.getEffectiveLevel() == logging.DEBUG
     assert logging.getLogger().getEffectiveLevel() == logging.INFO
-    assert logging.getLogger("werkzeug").getEffectiveLevel() == logging.INFO
+    assert logging.getLogger("werkzeug").getEffectiveLevel() == logging.WARNING
+
+    logging.getLogger("protocol_compliance.test_file").info("file logging probe")
+    logging.shutdown()
+
+    assert "file logging probe" in log_file.read_text(encoding="utf-8")
 
 
 def test_job_stage_logger_emits_backend_and_frontend_logs(caplog: pytest.LogCaptureFixture) -> None:

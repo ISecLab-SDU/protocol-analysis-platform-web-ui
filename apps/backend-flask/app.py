@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from logging.config import dictConfig
 
 from flask import Flask
@@ -20,6 +21,8 @@ from user import bp as user_blueprint
 
 
 def _configure_logging() -> None:
+    log_file = os.environ.get("FLASK_BACKEND_LOG_FILE", "/tmp/vue-vben-admin-backend.log")
+
     dictConfig(
         {
             "version": 1,
@@ -35,9 +38,16 @@ def _configure_logging() -> None:
                     "formatter": "default",
                     "level": "DEBUG",
                 },
+                "tmp_file": {
+                    "class": "logging.FileHandler",
+                    "encoding": "utf-8",
+                    "filename": log_file,
+                    "formatter": "default",
+                    "level": "DEBUG",
+                },
             },
             "root": {
-                "handlers": ["console"],
+                "handlers": ["console", "tmp_file"],
                 "level": "INFO",
             },
             "loggers": {
