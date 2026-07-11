@@ -15,6 +15,8 @@ from pathlib import Path
 from typing import Any, BinaryIO, Callable, Dict, List, Optional, Tuple
 from openai import OpenAI
 
+from protocol_compliance.job_logging import JobStageLogger
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
@@ -409,7 +411,20 @@ class CompilerController:
         with tarfile.open(tar_path) as tar:
             return "\n".join([m.name for m in tar.getmembers()])
 
-    def run(self, sol_tar, config_content, rule_content, output_dir):
+    def run(
+        self,
+        sol_tar,
+        config_content,
+        rule_content,
+        output_dir,
+        job_id: Optional[str] = None,
+        progress_callback: Optional[Callable[[str, str, str], None]] = None,
+    ):
+        job_logger = JobStageLogger(
+            job_id=job_id or "compiler",
+            logger=logger,
+            progress_callback=progress_callback if job_id else None,
+        )
         config, rule = self.load(config_content, rule_content)
         structure = self.parse_tar(sol_tar)
         
@@ -431,24 +446,57 @@ class CompilerController:
 
         logger.debug("🚀 START SELF-HEALING DOCKER LOOP")
         logger.debug("[*] Build context: %s", build_context)
+        job_logger.info(
+            "Prepared AI compiler build context",
+            stage="compile",
+            build_context=build_context,
+            input_archive=sol_tar,
+            output_dir=output_dir,
+            structure_entries=len(structure.splitlines()),
+        )
 
         while True:
             i += 1
+            elapsed_seconds = time.time() - start_time
             logger.debug("\n%s", "=" * 60)
             logger.debug("ROUND %d", i)
             logger.debug("%s", "=" * 60)
 
-            if time.time() - start_time > self.max_runtime:
+            if elapsed_seconds > self.max_runtime:
                 logger.debug("❌ TIME LIMIT REACHED")
+                job_logger.error(
+                    "AI compiler loop reached time limit after %.1f seconds",
+                    elapsed_seconds,
+                    stage="compile",
+                    round=i,
+                    elapsed_seconds=round(elapsed_seconds, 3),
+                    max_runtime_seconds=self.max_runtime,
+                    frontend_message="AI compiler loop reached time limit",
+                )
                 break
 
             logger.debug("[*] Generating Dockerfile with AI...")
+            job_logger.info(
+                "Round %d: generating Dockerfile with AI",
+                i,
+                stage="compile",
+                round=i,
+                elapsed_seconds=round(elapsed_seconds, 3),
+            )
             dockerfile = self.llm.generate(
                 config=config,
                 rule=rule,
                 structure=structure,
                 error_log=error_log,
                 last_dockerfile=last_dockerfile
+            )
+            job_logger.info(
+                "Round %d: generated Dockerfile",
+                i,
+                stage="compile",
+                round=i,
+                dockerfile_chars=len(dockerfile),
+                had_previous_error=bool(error_log),
             )
             logger.debug("[*] Generated Dockerfile:")
             logger.debug("-" * 40)
@@ -457,33 +505,91 @@ class CompilerController:
 
             logger.debug("[*] Building Docker image: build-%d", i)
             logger.debug("[*] Build context: %s", build_context)
+            image_tag = f"build-{i}"
+            job_logger.info(
+                "Round %d: building generated Dockerfile",
+                i,
+                stage="compile",
+                round=i,
+                image_tag=image_tag,
+                build_context=build_context,
+            )
 
-            ok, log = self.docker.build("-", tag=f"build-{i}", dockerfile_content=dockerfile, build_context=build_context)
+            ok, log = self.docker.build("-", tag=image_tag, dockerfile_content=dockerfile, build_context=build_context)
 
             if ok:
                 logger.debug("🎉 BUILD SUCCESS")
+                job_logger.info(
+                    "Round %d: Docker image build succeeded",
+                    i,
+                    stage="compile",
+                    round=i,
+                    image_tag=image_tag,
+                    build_log_chars=len(log),
+                )
                 logger.debug("[*] Build log:")
                 logger.debug("-" * 40)
                 logger.debug(log[-3000:] if len(log) > 3000 else log)
                 logger.debug("-" * 40)
                 
                 logger.debug("[+] Checking /workspace directory...")
+                job_logger.info(
+                    "Round %d: validating builder output",
+                    i,
+                    stage="compile",
+                    round=i,
+                    image_tag=image_tag,
+                )
 
-                output_ok, output_log = self.docker.check_output(f"build-{i}")
+                output_ok, output_log = self.docker.check_output(image_tag)
 
                 if output_ok:
                     logger.debug("✅ OUTPUT VALIDATED")
                     logger.debug(output_log)
+                    job_logger.info(
+                        "Round %d: builder output validated",
+                        i,
+                        stage="compile",
+                        round=i,
+                        image_tag=image_tag,
+                        output_log_chars=len(output_log),
+                    )
 
                     logger.debug("[+] Copying output to %s...", output_dir)
-                    copy_ok, copy_log = self.docker.copy_output(f"build-{i}", output_dir)
+                    job_logger.info(
+                        "Round %d: copying builder output",
+                        i,
+                        stage="compile",
+                        round=i,
+                        image_tag=image_tag,
+                        output_dir=output_dir,
+                    )
+                    copy_ok, copy_log = self.docker.copy_output(image_tag, output_dir)
 
                     if copy_ok:
                         logger.debug("✅ OUTPUT COPIED")
                         logger.debug(copy_log)
+                        job_logger.info(
+                            "Round %d: builder output copied",
+                            i,
+                            stage="compile",
+                            round=i,
+                            image_tag=image_tag,
+                            output_dir=output_dir,
+                            copy_log_chars=len(copy_log),
+                        )
                     else:
                         logger.debug("❌ FAILED TO COPY OUTPUT")
                         logger.debug(copy_log)
+                        job_logger.warning(
+                            "Round %d: failed to copy builder output",
+                            i,
+                            stage="compile",
+                            round=i,
+                            image_tag=image_tag,
+                            output_dir=output_dir,
+                            copy_log_tail=copy_log[-1000:],
+                        )
 
                     logger.debug("Success")
                     return dockerfile
@@ -494,9 +600,25 @@ class CompilerController:
                     logger.debug("-" * 40)
                     last_dockerfile = dockerfile
                     error_log = f"BUILD_SUCCESS_BUT_OUTPUT_INVALID\n{output_log}"
+                    job_logger.warning(
+                        "Round %d: builder output validation failed",
+                        i,
+                        stage="compile",
+                        round=i,
+                        image_tag=image_tag,
+                        output_log_tail=output_log[-1000:],
+                    )
                     continue
 
             logger.debug("❌ BUILD FAILED")
+            job_logger.warning(
+                "Round %d: Docker image build failed",
+                i,
+                stage="compile",
+                round=i,
+                image_tag=image_tag,
+                build_log_tail=log[-1000:],
+            )
             logger.debug("[*] Build error log:")
             logger.debug("-" * 40)
             logger.debug(log[-3000:] if len(log) > 3000 else log)
@@ -506,12 +628,26 @@ class CompilerController:
             error_log = log
 
         logger.debug("💥 FAILED AFTER TIME LIMIT")
+        job_logger.error(
+            "AI compiler loop failed after %.1f seconds",
+            time.time() - start_time,
+            stage="compile",
+            elapsed_seconds=round(time.time() - start_time, 3),
+            max_runtime_seconds=self.max_runtime,
+            frontend_message="AI compiler loop failed after time limit",
+        )
 
         bug_report = f"""==== FINAL ERROR LOG ====\n\n{error_log or ""}\n\n==== LAST DOCKERFILE ====\n{last_dockerfile or ""}\n\n==== STRUCTURE ====\n{structure}\n\n==== CONFIG ====\n{config}\n\n==== RULE ====\n{json.dumps(rule, indent=2)}"""
         
         bug_path = os.path.join(output_dir, "bug.txt")
         with open(bug_path, "w") as f:
             f.write(bug_report)
+        job_logger.info(
+            "Wrote AI compiler failure report",
+            stage="compile",
+            bug_report_path=bug_path,
+            emit_progress=False,
+        )
         
         return None
 
@@ -1172,7 +1308,9 @@ class AgentExecutor:
             sol_tar=str(tar_path),
             config_content=config_content,
             rule_content=rule_content,
-            output_dir=str(workspace_dir)
+            output_dir=str(workspace_dir),
+            job_id=job_identifier,
+            progress_callback=progress_callback,
         )
         
         if dockerfile is None:
