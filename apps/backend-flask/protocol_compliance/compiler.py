@@ -20,6 +20,8 @@ from protocol_compliance.job_logging import JobStageLogger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
+CLAUDE_BUILDER_PROGRESS_PREFIX = "PG_PROGRESS_JSON "
+
 
 class AgentExecutorError(Exception):
     pass
@@ -917,10 +919,14 @@ class AgentExecutor:
                 lines.append(line)
                 log_file.write(line + "\n")
                 if line:
-                    progress_stage = stage_selector(line, stage) if stage_selector else stage
-                    logger.debug("[%s] %s", progress_stage.upper(), line)
+                    progress_stage, progress_message = self._extract_progress_line(
+                        line,
+                        stage,
+                        stage_selector=stage_selector,
+                    )
+                    logger.debug("[%s] %s", progress_stage.upper(), progress_message)
                     if progress_callback:
-                        progress_callback(job_identifier, progress_stage, line[:500])
+                        progress_callback(job_identifier, progress_stage, progress_message[:500])
 
         try:
             process.wait(timeout=timeout)
@@ -943,6 +949,28 @@ class AgentExecutor:
                 },
             )
         return lines
+
+    @staticmethod
+    def _extract_progress_line(
+        line: str,
+        default_stage: str,
+        *,
+        stage_selector: Optional[Callable[[str, str], str]] = None,
+    ) -> tuple[str, str]:
+        if line.startswith(CLAUDE_BUILDER_PROGRESS_PREFIX):
+            raw_payload = line[len(CLAUDE_BUILDER_PROGRESS_PREFIX):]
+            try:
+                payload = json.loads(raw_payload)
+            except json.JSONDecodeError:
+                return "claude-status", line[:500]
+            stage = str(payload.get("stage") or default_stage)
+            message = payload.get("message")
+            if not message:
+                message = payload.get("type") or raw_payload
+            return stage, str(message)
+
+        progress_stage = stage_selector(line, default_stage) if stage_selector else default_stage
+        return progress_stage, line
 
     @staticmethod
     def _claude_builder_progress_stage(line: str, default_stage: str) -> str:
