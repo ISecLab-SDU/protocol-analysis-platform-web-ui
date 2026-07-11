@@ -75,7 +75,6 @@ export function useSNMP() {
     }
 
     const lines = text.split('\n');
-    console.log('解析文本总行数:', lines.length);
 
     if (lines.length < 5) {
       console.error('Insufficient fuzz data');
@@ -96,12 +95,6 @@ export function useSNMP() {
         if (currentPacket) parsedData.push(currentPacket);
         const packetNumber = Number.parseInt(packetMatch[1]);
 
-        // 调试信息：每100个包输出一次
-        if (packetNumber % 100 === 0 || packetNumber <= 5) {
-          console.log(
-            `解析数据包 #${packetNumber}: 版本=${packetMatch[2]}, 类型=${packetMatch[3]}`,
-          );
-        }
         currentPacket = {
           id: packetNumber,
           version: packetMatch[2],
@@ -233,10 +226,6 @@ export function useSNMP() {
 
     if (currentPacket) parsedData.push(currentPacket);
 
-    console.log('解析完成统计:');
-    console.log('- 总数据包数:', parsedData.length);
-    console.log('- 失败数据包数:', localFailedCount);
-
     // 解析统计信息
     const statsLine = (text.match(/^统计:.*$/m) || [])[0];
     if (statsLine) {
@@ -299,10 +288,7 @@ export function useSNMP() {
           break;
         }
         case 'v3': {
-          {
-            protocolStats.value.v3++;
-            // No default
-          }
+          protocolStats.value.v3++;
           break;
         }
       }
@@ -314,10 +300,7 @@ export function useSNMP() {
           break;
         }
         case 'getbulk': {
-          {
-            messageTypeStats.value.getbulk++;
-            // No default
-          }
+          messageTypeStats.value.getbulk++;
           break;
         }
         case 'getnext': {
@@ -345,6 +328,22 @@ export function useSNMP() {
     } catch (error) {
       console.warn('Error processing SNMP packet:', error);
     }
+  }
+
+  function formatPacketResultText(packet: FuzzPacket) {
+    if (packet.result === 'success') {
+      return `正常响应 (${packet.responseSize || 0}字节)`;
+    }
+    if (packet.result === 'timeout') return '接收超时';
+    if (packet.result === 'failed') return '构造失败';
+    return '未知状态';
+  }
+
+  function formatPacketResultClass(packet: FuzzPacket) {
+    if (packet.result === 'success') return 'text-success';
+    if (packet.result === 'timeout') return 'text-warning';
+    if (packet.result === 'failed') return 'text-danger';
+    return 'text-warning';
   }
 
   // SNMP专用的日志显示函数
@@ -384,22 +383,8 @@ export function useSNMP() {
           const time = packet.timestamp || '';
           const content = packet.oids?.[0] || '';
           const hex = (packet.hex || '').slice(0, 40);
-          const resultText =
-            packet.result === 'success'
-              ? `正常响应 (${packet.responseSize || 0}字节)`
-              : packet.result === 'timeout'
-                ? '接收超时'
-                : packet.result === 'failed'
-                  ? '构造失败'
-                  : '未知状态';
-          const resultClass =
-            packet.result === 'success'
-              ? 'text-success'
-              : packet.result === 'timeout'
-                ? 'text-warning'
-                : packet.result === 'failed'
-                  ? 'text-danger'
-                  : 'text-warning';
+          const resultText = formatPacketResultText(packet);
+          const resultClass = formatPacketResultClass(packet);
 
           div.innerHTML = `<span class="text-dark/50">[${time}]</span> <span class="text-primary">SNMP${protocol}</span> <span class="text-info">${op}</span> <span class="text-dark/70 truncate inline-block w-32" title="${content}">${content}</span> <span class="${resultClass} font-medium">${resultText}</span> <span class="text-dark/40">${hex}...</span>`;
         }
@@ -430,7 +415,6 @@ export function useSNMP() {
   // SNMP测试启动函数
   async function startSNMPTest(loop: () => void) {
     // SNMP协议的原有逻辑
-    console.log('启动SNMP测试...');
     loop();
   }
 
