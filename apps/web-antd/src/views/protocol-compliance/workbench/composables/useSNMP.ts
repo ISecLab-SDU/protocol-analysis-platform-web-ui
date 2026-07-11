@@ -86,19 +86,19 @@ export function useSNMP() {
     let localFailedCount = 0;
 
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
+      const line = (lines[i] ?? '').trim();
 
       const packetMatch = line.match(
         /^\[(\d+)\]\s+版本=([^,]+),\s+类型=([^,]+)/,
       );
       if (packetMatch) {
         if (currentPacket) parsedData.push(currentPacket);
-        const packetNumber = Number.parseInt(packetMatch[1]);
+        const packetNumber = Number.parseInt(packetMatch[1] ?? '0');
 
         currentPacket = {
           id: packetNumber,
-          version: packetMatch[2],
-          type: packetMatch[3],
+          version: packetMatch[2] ?? 'unknown',
+          type: packetMatch[3] ?? 'unknown',
           oids: [],
           hex: '',
           result: 'unknown',
@@ -111,7 +111,7 @@ export function useSNMP() {
 
       const failedMatch = line.match(/^\[(\d+)\]\s+生成失败:/);
       if (failedMatch) {
-        const failedId = Number.parseInt(failedMatch[1]);
+        const failedId = Number.parseInt(failedMatch[1] ?? '0');
         localFailedCount++;
         if (currentPacket && currentPacket.id === failedId) {
           currentPacket.result = 'failed';
@@ -140,7 +140,7 @@ export function useSNMP() {
       if (line.includes('选择OIDs=') && currentPacket) {
         const oidMatch = line.match(/选择OIDs=\[(.*?)\]/);
         if (oidMatch)
-          currentPacket.oids = oidMatch[1]
+          currentPacket.oids = (oidMatch[1] ?? '')
             .split(',')
             .map((oid) => oid.trim().replaceAll("'", ''));
         continue;
@@ -148,21 +148,23 @@ export function useSNMP() {
 
       if (line.includes('报文HEX:') && currentPacket) {
         const hexMatch = line.match(/报文HEX:\s*([A-F0-9]+)/);
-        if (hexMatch) currentPacket.hex = hexMatch[1];
+        if (hexMatch) currentPacket.hex = hexMatch[1] ?? '';
         continue;
       }
 
       if (line.includes('[发送尝试]') && currentPacket) {
         const sizeMatch = line.match(/长度=(\d+)\s*字节/);
         if (sizeMatch)
-          (currentPacket as any).sendSize = Number.parseInt(sizeMatch[1]);
+          (currentPacket as any).sendSize = Number.parseInt(
+            sizeMatch[1] ?? '0',
+          );
         continue;
       }
 
       if (line.includes('[接收成功]') && currentPacket) {
         const sizeMatch = line.match(/(\d+)\s*字节/);
         if (sizeMatch) {
-          currentPacket.responseSize = Number.parseInt(sizeMatch[1]);
+          currentPacket.responseSize = Number.parseInt(sizeMatch[1] ?? '0');
           currentPacket.result = 'success';
         }
         continue;
@@ -187,7 +189,7 @@ export function useSNMP() {
           };
 
           for (let j = i + 1; j < lines.length && j < i + 30; j++) {
-            const nextLine = lines[j].trim();
+            const nextLine = (lines[j] ?? '').trim();
             if (nextLine.includes('[崩溃信息] 疑似崩溃数据包:')) {
               crashEvent.crashPacket = nextLine.replace(
                 '[崩溃信息] 疑似崩溃数据包: ',
@@ -232,8 +234,8 @@ export function useSNMP() {
       const objMatch = statsLine.match(/统计:\s*(\{[^}]+\})\s*,\s*(\{[^}]+\})/);
       if (objMatch) {
         try {
-          const versionJson = objMatch[1].replaceAll("'", '"');
-          const typeJson = objMatch[2].replaceAll("'", '"');
+          const versionJson = (objMatch[1] ?? '{}').replaceAll("'", '"');
+          const typeJson = (objMatch[2] ?? '{}').replaceAll("'", '"');
           const parsedVersion = JSON.parse(versionJson);
           const parsedType = JSON.parse(typeJson);
           protocolStats.value = {
@@ -390,7 +392,7 @@ export function useSNMP() {
         }
 
         // Final check before DOM manipulation
-        if (logContainer && logContainer.appendChild) {
+        if (logContainer) {
           logContainer.append(div);
 
           // Safely update scroll position
@@ -399,9 +401,9 @@ export function useSNMP() {
           }
 
           // Limit log entries for performance with safe checks
-          if (logContainer.children && logContainer.children.length > 200) {
+          if (logContainer.children.length > 200) {
             const firstChild = logContainer.firstChild;
-            if (firstChild && logContainer.removeChild) {
+            if (firstChild) {
               firstChild.remove();
             }
           }

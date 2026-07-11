@@ -11,6 +11,19 @@ import { ref } from 'vue';
 
 import { dockerRequestClient, requestClient } from '#/api/request';
 
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function getResponseErrorData(error: unknown) {
+  if (typeof error !== 'object' || error === null)
+    return getErrorMessage(error);
+  return (
+    (error as { response?: { data?: unknown } }).response?.data ??
+    getErrorMessage(error)
+  );
+}
+
 export function useSOL() {
   // SOL统计数据
   const solStats: Ref<RTSPStats> = ref({
@@ -86,45 +99,57 @@ export function useSOL() {
           n_nodes,
           n_edges,
         ] = parts;
+        const cyclesDone = cycles_done ?? '0';
+        const curPath = cur_path ?? '0';
+        const pathsTotal = paths_total ?? '0';
+        const pendingTotal = pending_total ?? '0';
+        const pendingFavs = pending_favs ?? '0';
+        const mapSize = map_size ?? '0%';
+        const uniqueCrashes = unique_crashes ?? '0';
+        const uniqueHangs = unique_hangs ?? '0';
+        const maxDepth = max_depth ?? '0';
+        const execsPerSec = execs_per_sec ?? '0';
+        const nodeCount = n_nodes ?? '0';
+        const edgeCount = n_edges ?? '0';
 
         // 格式化显示AFL-NET统计信息
-        const formattedContent = `Cycles: ${cycles_done} | Paths: ${cur_path}/${paths_total} | Pending: ${pending_total}(${pending_favs} favs) | Coverage: ${map_size} | Crashes: ${unique_crashes} | Hangs: ${unique_hangs} | Speed: ${execs_per_sec}/sec | Nodes: ${n_nodes} | Edges: ${n_edges}`;
+        const formattedContent = `Cycles: ${cyclesDone} | Paths: ${curPath}/${pathsTotal} | Pending: ${pendingTotal}(${pendingFavs} favs) | Coverage: ${mapSize} | Crashes: ${uniqueCrashes} | Hangs: ${uniqueHangs} | Speed: ${execsPerSec}/sec | Nodes: ${nodeCount} | Edges: ${edgeCount}`;
 
         // 更新SOL统计信息
         solStats.value = {
-          cycles_done: Number.parseInt(cycles_done),
-          paths_total: Number.parseInt(paths_total),
-          cur_path: Number.parseInt(cur_path),
-          pending_total: Number.parseInt(pending_total),
-          pending_favs: Number.parseInt(pending_favs),
-          map_size,
-          unique_crashes: Number.parseInt(unique_crashes),
-          unique_hangs: Number.parseInt(unique_hangs),
-          max_depth: Number.parseInt(max_depth),
-          execs_per_sec: Number.parseFloat(execs_per_sec),
-          n_nodes: Number.parseInt(n_nodes),
-          n_edges: Number.parseInt(n_edges),
+          cycles_done: Number.parseInt(cyclesDone),
+          paths_total: Number.parseInt(pathsTotal),
+          cur_path: Number.parseInt(curPath),
+          pending_total: Number.parseInt(pendingTotal),
+          pending_favs: Number.parseInt(pendingFavs),
+          map_size: mapSize,
+          unique_crashes: Number.parseInt(uniqueCrashes),
+          unique_hangs: Number.parseInt(uniqueHangs),
+          max_depth: Number.parseInt(maxDepth),
+          execs_per_sec: Number.parseFloat(execsPerSec),
+          n_nodes: Number.parseInt(nodeCount),
+          n_edges: Number.parseInt(edgeCount),
         };
 
         // 更新通用统计信息
-        packetCount.value = Number.parseInt(cur_path);
+        packetCount.value = Number.parseInt(curPath);
         successCount.value =
-          Number.parseInt(paths_total) - Number.parseInt(pending_total);
-        failedCount.value = Number.parseInt(unique_crashes);
-        crashCount.value = Number.parseInt(unique_crashes);
-        currentSpeed.value = Math.round(Number.parseFloat(execs_per_sec));
+          Number.parseInt(pathsTotal) - Number.parseInt(pendingTotal);
+        failedCount.value = Number.parseInt(uniqueCrashes);
+        crashCount.value = Number.parseInt(uniqueCrashes);
+        currentSpeed.value = Math.round(Number.parseFloat(execsPerSec));
 
         return {
           timestamp,
           type: 'STATS',
           content: formattedContent,
           rawData: {
-            cycles_done: Number.parseInt(cycles_done),
-            paths_total: Number.parseInt(paths_total),
-            cur_path: Number.parseInt(cur_path),
-            pending_total: Number.parseInt(pending_total),
-            unique_crashes: Number.parseInt(unique_crashes),
-            execs_per_sec: Number.parseFloat(execs_per_sec),
+            cycles_done: Number.parseInt(cyclesDone),
+            paths_total: Number.parseInt(pathsTotal),
+            cur_path: Number.parseInt(curPath),
+            pending_total: Number.parseInt(pendingTotal),
+            unique_crashes: Number.parseInt(uniqueCrashes),
+            execs_per_sec: Number.parseFloat(execsPerSec),
           },
         } as LogUIData;
       }
@@ -177,7 +202,7 @@ export function useSOL() {
       return result;
     } catch (error: any) {
       console.error('[DEBUG] 执行SOL命令失败:', error);
-      console.error('[DEBUG] 错误详情:', error.response?.data || error.message);
+      console.error('[DEBUG] 错误详情:', getResponseErrorData(error));
       throw new Error(`执行启动命令失败: ${error.message}`);
     }
   }
@@ -218,7 +243,7 @@ export function useSOL() {
       return result;
     } catch (error) {
       console.error('[DEBUG] 启动前清理失败:', error);
-      console.error('[DEBUG] 错误详情:', error.response?.data || error.message);
+      console.error('[DEBUG] 错误详情:', getResponseErrorData(error));
       throw error;
     }
   }
@@ -243,7 +268,7 @@ export function useSOL() {
       return result;
     } catch (error) {
       console.error('[DEBUG] 停止SOL容器失败:', error);
-      console.error('[DEBUG] 错误详情:', error.response?.data || error.message);
+      console.error('[DEBUG] 错误详情:', getResponseErrorData(error));
       throw error;
     }
   }

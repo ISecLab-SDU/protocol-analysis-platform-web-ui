@@ -116,25 +116,25 @@ export function useMQTT() {
       // 提取协议版本
       const versionMatch = line.match(/protocol_version:\s*(\d+)/);
       if (versionMatch) {
-        diffInfo.protocol_version = Number.parseInt(versionMatch[1]);
+        diffInfo.protocol_version = Number.parseInt(versionMatch[1] ?? '0');
       }
 
       // 提取差异类型
       const typeMatch = line.match(/type:\s*\{([^}]+)\}/);
       if (typeMatch) {
-        diffInfo.type = typeMatch[1].trim();
+        diffInfo.type = (typeMatch[1] ?? '').trim();
       }
 
       // 提取字段名（如果存在）
       const fieldMatch = line.match(/field:[\t ]*([^,]+)/);
       if (fieldMatch) {
-        diffInfo.field = fieldMatch[1].trim();
+        diffInfo.field = (fieldMatch[1] ?? '').trim();
       }
 
       // 提取受影响的代理
       const brokerMatch = line.match(/diff_range_broker:\s*\[([^\]]+)\]/);
       if (brokerMatch) {
-        diffInfo.diff_range_broker = brokerMatch[1]
+        diffInfo.diff_range_broker = (brokerMatch[1] ?? '')
           .split(',')
           .map((broker) => broker.trim().replaceAll("'", ''));
       }
@@ -142,19 +142,19 @@ export function useMQTT() {
       // 提取消息类型
       const msgTypeMatch = line.match(/msg_type:\s*([^,]+)/);
       if (msgTypeMatch) {
-        diffInfo.msg_type = msgTypeMatch[1].trim();
+        diffInfo.msg_type = (msgTypeMatch[1] ?? '').trim();
       }
 
       // 提取方向
       const directionMatch = line.match(/direction:\s*([^,]+)/);
       if (directionMatch) {
-        diffInfo.direction = directionMatch[1].trim();
+        diffInfo.direction = (directionMatch[1] ?? '').trim();
       }
 
       // 提取捕获时间
       const timeMatch = line.match(/capture_time:\s*([^,\s]+(?:\s+[^,\s]+)*)/);
       if (timeMatch) {
-        diffInfo.capture_time = timeMatch[1].trim();
+        diffInfo.capture_time = (timeMatch[1] ?? '').trim();
       }
 
       // 添加到差异报告列表
@@ -281,7 +281,7 @@ export function useMQTT() {
       if (line.includes('Fuzzing Start Time:')) {
         const match = line.match(/Fuzzing Start Time:\s*(.+)/);
         if (match) {
-          mqttStats.value.fuzzing_start_time = match[1].trim();
+          mqttStats.value.fuzzing_start_time = (match[1] ?? '').trim();
           // 只在开始时显示一次简单消息
           if (!mqttStats.value.fuzzing_end_time) {
             return {
@@ -297,7 +297,7 @@ export function useMQTT() {
       if (line.includes('Fuzzing End Time:')) {
         const match = line.match(/Fuzzing End Time:\s*(.+)/);
         if (match) {
-          mqttStats.value.fuzzing_end_time = match[1].trim();
+          mqttStats.value.fuzzing_end_time = (match[1] ?? '').trim();
           return {
             timestamp,
             type: 'SUCCESS',
@@ -311,7 +311,9 @@ export function useMQTT() {
       if (line.includes('Fuzzing request number (client):')) {
         const match = line.match(/Fuzzing request number \(client\):\s*(\d+)/);
         if (match) {
-          mqttStats.value.client_request_count = Number.parseInt(match[1]);
+          mqttStats.value.client_request_count = Number.parseInt(
+            match[1] ?? '0',
+          );
           packetCount.value =
             mqttStats.value.client_request_count +
             mqttStats.value.broker_request_count;
@@ -322,7 +324,9 @@ export function useMQTT() {
       if (line.includes('Fuzzing request number (broker):')) {
         const match = line.match(/Fuzzing request number \(broker\):\s*(\d+)/);
         if (match) {
-          mqttStats.value.broker_request_count = Number.parseInt(match[1]);
+          mqttStats.value.broker_request_count = Number.parseInt(
+            match[1] ?? '0',
+          );
           packetCount.value =
             mqttStats.value.client_request_count +
             mqttStats.value.broker_request_count;
@@ -334,6 +338,7 @@ export function useMQTT() {
       const messageMatch = line.match(/^\s*([A-Z]+):\s*(\d+)/);
       if (messageMatch) {
         const [, messageType, count] = messageMatch;
+        if (!messageType || !count) return null;
         const countNum = Number.parseInt(count);
 
         if (Object.hasOwn(mqttStats.value.client_messages, messageType)) {
@@ -362,7 +367,7 @@ export function useMQTT() {
       if (line.includes('Crash Number:')) {
         const match = line.match(/Crash Number:\s*(\d+)/);
         if (match) {
-          mqttStats.value.crash_number = Number.parseInt(match[1]);
+          mqttStats.value.crash_number = Number.parseInt(match[1] ?? '0');
           crashCount.value = mqttStats.value.crash_number;
         }
         return null; // 静默处理，不显示
@@ -377,8 +382,10 @@ export function useMQTT() {
       if (line.includes('Valid Connect Number:')) {
         const match = line.match(/Valid Connect Number:\s*(\d+)/);
         if (match) {
-          mqttStats.value.valid_connect_number = Number.parseInt(match[1]);
-          successCount.value = Number.parseInt(match[1]);
+          mqttStats.value.valid_connect_number = Number.parseInt(
+            match[1] ?? '0',
+          );
+          successCount.value = Number.parseInt(match[1] ?? '0');
         }
         return null; // 静默处理，不显示
       }
