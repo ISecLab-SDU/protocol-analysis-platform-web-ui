@@ -1,4 +1,4 @@
-"""Protocol extraction and task route registration."""
+"""Protocol extraction and task request handlers."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import logging
 import re
 from typing import Callable, Optional
 
-from flask import Blueprint, make_response, request
+from flask import make_response, request
 from werkzeug.datastructures import FileStorage
 
 from utils.responses import (
@@ -27,8 +27,7 @@ from .store import STORE
 LOGGER = logging.getLogger(__name__)
 
 
-def register_task_routes(
-    bp: Blueprint,
+def create_task_handlers(
     ensure_authenticated: Callable[[], tuple[object, object]],
     *,
     normalize_status: Callable[[object], object],
@@ -36,7 +35,6 @@ def register_task_routes(
     strip_extension: Callable[[str], str],
     to_int: Callable[[object, int], int],
 ) -> dict[str, Callable[..., object]]:
-    @bp.route("/extract/run", methods=["POST"])
     def run_protocol_extract():
         _, error = ensure_authenticated()
         if error:
@@ -109,7 +107,6 @@ def register_task_routes(
         )
         return make_response(payload, 200)
 
-    @bp.route("/tasks", methods=["GET"])
     def list_tasks():
         _, error = ensure_authenticated()
         if error:
@@ -139,7 +136,6 @@ def register_task_routes(
         )
         return payload
 
-    @bp.route("/tasks", methods=["POST"])
     def create_task():
         _, error = ensure_authenticated()
         if error:
@@ -185,7 +181,6 @@ def register_task_routes(
         payload = success_response(STORE.serialize_task(task, base_url))
         return payload
 
-    @bp.route("/tasks/<task_id>/result", methods=["GET"])
     def download_result(task_id: str):
         _, error = ensure_authenticated()
         if error:

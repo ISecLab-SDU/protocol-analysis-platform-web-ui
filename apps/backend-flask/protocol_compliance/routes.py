@@ -92,7 +92,7 @@ from .static_analysis_sources import (
     iter_static_analysis_database_sources,
 )
 from .static_analysis_submission_routes import register_static_analysis_submission_routes
-from .task_routes import register_task_routes
+from .task_routes import create_task_handlers
 from .violation_history_markers import (
     _candidate_database_history_times as _candidate_database_history_times_impl,
     _database_history_display_time as _database_history_display_time_impl,
@@ -189,18 +189,33 @@ stop_process = _legacy_fuzz_route_handlers["stop_process"]
 pre_start_cleanup = _legacy_fuzz_route_handlers["pre_start_cleanup"]
 stop_and_cleanup = _legacy_fuzz_route_handlers["stop_and_cleanup"]
 
-_task_route_handlers = register_task_routes(
-    bp,
+_task_handlers = create_task_handlers(
     _ensure_authenticated,
     normalize_status=_normalize_status,
     parse_tags=_parse_tags,
     strip_extension=_strip_extension,
     to_int=_to_int,
 )
-run_protocol_extract = _task_route_handlers["run_protocol_extract"]
-list_tasks = _task_route_handlers["list_tasks"]
-create_task = _task_route_handlers["create_task"]
-download_result = _task_route_handlers["download_result"]
+
+
+@bp.route("/extract/run", methods=["POST"])
+def run_protocol_extract():
+    return _task_handlers["run_protocol_extract"]()
+
+
+@bp.route("/tasks", methods=["GET"])
+def list_tasks():
+    return _task_handlers["list_tasks"]()
+
+
+@bp.route("/tasks", methods=["POST"])
+def create_task():
+    return _task_handlers["create_task"]()
+
+
+@bp.route("/tasks/<task_id>/result", methods=["GET"])
+def download_result(task_id: str):
+    return _task_handlers["download_result"](task_id)
 
 _assertion_history_route_handlers = register_assertion_history_routes(
     bp,
