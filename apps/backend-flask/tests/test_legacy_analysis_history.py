@@ -2,9 +2,14 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import sys
 from pathlib import Path
 
-from protocol_compliance.legacy_analysis_history import (
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
+
+from protocol_compliance.legacy_analysis_history import (  # noqa: E402
     append_analysis_history,
     list_available_implementations,
     read_analysis_history,

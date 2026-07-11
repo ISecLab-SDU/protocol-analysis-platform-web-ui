@@ -58,11 +58,9 @@ from .aflnet import (
 )
 from .aflnet_routes import register_aflnet_routes
 from .legacy_analysis_history import (
-    append_analysis_history,
-    list_available_implementations as list_legacy_available_implementations,
-    read_analysis_history,
-    read_detection_results,
+    read_analysis_history as read_analysis_history,
 )
+from .legacy_analysis_routes import register_legacy_analysis_routes
 from .route_helpers import (
     _collect_exception_details as _collect_exception_details,
     _extract_protocol_metadata_from_config,
@@ -144,6 +142,15 @@ static_analysis_result = _static_analysis_job_route_handlers["static_analysis_re
 download_static_analysis_database = _static_analysis_job_route_handlers[
     "download_static_analysis_database"
 ]
+
+_legacy_analysis_route_handlers = register_legacy_analysis_routes(
+    bp,
+    _ensure_authenticated,
+)
+get_detection_results = _legacy_analysis_route_handlers["get_detection_results"]
+list_available_implementations = _legacy_analysis_route_handlers["list_available_implementations"]
+get_analysis_history = _legacy_analysis_route_handlers["get_analysis_history"]
+add_analysis_history = _legacy_analysis_route_handlers["add_analysis_history"]
 
 # Helpers -------------------------------------------------------------------
 
@@ -3174,85 +3181,3 @@ def stop_and_cleanup():
             "protocol": protocol,
             "stop_results": stop_results
         })
-
-
-# Detection Results Routes ------------------------------------------------------
-
-
-@bp.route("/detection-results/<implementation_name>", methods=["GET"])
-def get_detection_results(implementation_name: str):
-    """获取指定协议实现的检测结果"""
-    _, error = _ensure_authenticated()
-    if error:
-        return error
-
-    try:
-        items = read_detection_results(implementation_name)
-    except FileNotFoundError:
-        return make_response(
-            error_response(f"未找到协议实现 '{implementation_name}' 的数据库文件"),
-            404
-        )
-    except sqlite3.Error as e:
-        return make_response(
-            error_response(f"数据库读取错误: {str(e)}"),
-            500
-        )
-
-    return success_response({'items': items})
-
-
-@bp.route("/available-implementations", methods=["GET"])
-def list_available_implementations():
-    """获取所有可用的协议实现列表"""
-    _, error = _ensure_authenticated()
-    if error:
-        return error
-
-    implementations = list_legacy_available_implementations()
-    return success_response({'items': implementations})
-
-
-@bp.route("/analysis-history", methods=["GET"])
-def get_analysis_history():
-    """获取历史记录"""
-    _, error = _ensure_authenticated()
-    if error:
-        return error
-
-    try:
-        history = read_analysis_history()
-        return success_response({'items': history})
-    except (json.JSONDecodeError, IOError) as e:
-        return make_response(
-            error_response(f"读取历史记录失败: {str(e)}"),
-            500
-        )
-
-
-@bp.route("/analysis-history", methods=["POST"])
-def add_analysis_history():
-    """添加历史记录"""
-    _, error = _ensure_authenticated()
-    if error:
-        return error
-
-    data = request.get_json()
-    implementation_name = data.get('implementationName')
-    protocol_name = data.get('protocolName')
-
-    if not implementation_name or not protocol_name:
-        return make_response(
-            error_response("缺少必要参数"),
-            400
-        )
-
-    try:
-        append_analysis_history(implementation_name, protocol_name)
-    except IOError as e:
-        return make_response(
-            error_response(f"保存历史记录失败: {str(e)}"),
-            500
-        )
-
-    return success_response({'message': '已添加到历史记录'})
