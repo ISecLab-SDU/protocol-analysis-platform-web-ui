@@ -6,7 +6,7 @@ import logging
 import os
 import sqlite3
 import subprocess
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -87,6 +87,13 @@ from .static_analysis_overview import (
 from .static_analysis_result_insights import (
     read_database_insights_from_analysis_result,
     read_violation_history_from_analysis_result,
+)
+from .static_analysis_route_compat import (
+    find_static_analysis_history_entry,
+    history_item_datetime,
+    log_rule_code_snippet_rows,
+    parse_history_datetime,
+    preview_text,
 )
 from .static_analysis_sources import (
     iter_static_analysis_database_sources,
@@ -513,9 +520,7 @@ def diff_parsing_result(assert_job_id: str, diff_job_id: str):
 
 
 def _preview_text(value: Any, limit: int = 240) -> str:
-    if value is None:
-        return ""
-    return str(value)[:limit].replace("\n", "\\n")
+    return preview_text(value, limit)
 
 
 def _log_rule_code_snippet_rows(
@@ -526,35 +531,14 @@ def _log_rule_code_snippet_rows(
     columns: Optional[List[str]] = None,
     job_id: Any = None,
 ) -> None:
-    materialized_rows = list(rows)
-    LOGGER.debug(
-        "*** ProtocolGuard rule_code_snippet %s: jobId=%s db=%s columns=%s row_count=%d ***",
-        context,
-        job_id,
-        database_path,
-        columns or [],
-        len(materialized_rows),
+    log_rule_code_snippet_rows(
+        context=context,
+        database_path=database_path,
+        logger=LOGGER,
+        rows=rows,
+        columns=columns,
+        job_id=job_id,
     )
-    for index, row in enumerate(materialized_rows[:10], start=1):
-        rule_desc = row["rule_desc"] if "rule_desc" in row.keys() else None
-        code_snippet = row["code_snippet"] if "code_snippet" in row.keys() else None
-        call_graph = row["call_graph"] if "call_graph" in row.keys() else None
-        llm_response = row["llm_response"] if "llm_response" in row.keys() else None
-        LOGGER.debug(
-            (
-                "*** ProtocolGuard rule_code_snippet %s row=%d "
-                "rule_len=%d code_snippet_len=%d call_graph_len=%d llm_response_len=%d "
-                "rule_preview=%r code_snippet_preview=%r ***"
-            ),
-            context,
-            index,
-            len(str(rule_desc or "")),
-            len(str(code_snippet or "")),
-            len(str(call_graph or "")),
-            len(str(llm_response or "")),
-            _preview_text(rule_desc, 160),
-            _preview_text(code_snippet),
-        )
 
 
 def _iter_static_analysis_database_sources(
@@ -669,23 +653,11 @@ def _delete_violation_history_from_payload_sources(
 
 
 def _parse_history_datetime(value: Any) -> Optional[datetime]:
-    if not isinstance(value, str) or not value.strip():
-        return None
-    try:
-        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
+    return parse_history_datetime(value)
 
 
 def _history_item_datetime(item: Dict[str, Any]) -> Optional[datetime]:
-    return (
-        _parse_history_datetime(item.get("updatedAt"))
-        or _parse_history_datetime(item.get("extractedAt"))
-        or _parse_history_datetime(item.get("createdAt"))
-    )
+    return history_item_datetime(item)
 
 
 def _history_database_path_marker(value: Any) -> str:
@@ -707,13 +679,11 @@ def _find_static_analysis_history_entry(
     *,
     limit: int = 500,
 ) -> Optional[Dict[str, Any]]:
-    if not job_id:
-        return None
-    job_key = str(job_id)
-    for entry in list_static_analysis_history(limit=limit, include_result=True):
-        if str(entry.get("jobId") or "") == job_key:
-            return entry
-    return None
+    return find_static_analysis_history_entry(
+        job_id,
+        list_static_analysis_history=list_static_analysis_history,
+        limit=limit,
+    )
 
 
 def _read_database_insights_from_analysis_result(
