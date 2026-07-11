@@ -99,7 +99,7 @@ export function useMQTT() {
   // 解析差异报告行
   function parseDifferentialReport(
     line: string,
-    timestamp: string,
+    _timestamp: string,
   ): MQTTDifferentialReport | null {
     try {
       const diffInfo: MQTTDifferentialReport = {
@@ -126,7 +126,7 @@ export function useMQTT() {
       }
 
       // 提取字段名（如果存在）
-      const fieldMatch = line.match(/field:\s*([^,]+)(?:,|$)/);
+      const fieldMatch = line.match(/field:[\t ]*([^,]+)/);
       if (fieldMatch) {
         diffInfo.field = fieldMatch[1].trim();
       }
@@ -162,7 +162,7 @@ export function useMQTT() {
 
       // 更新代理问题统计
       diffInfo.diff_range_broker.forEach((broker) => {
-        if (mqttStats.value.broker_issues.hasOwnProperty(broker)) {
+        if (Object.hasOwn(mqttStats.value.broker_issues, broker)) {
           (mqttStats.value.broker_issues as any)[broker]++;
         }
       });
@@ -336,7 +336,7 @@ export function useMQTT() {
         const [, messageType, count] = messageMatch;
         const countNum = Number.parseInt(count);
 
-        if (mqttStats.value.client_messages.hasOwnProperty(messageType)) {
+        if (Object.hasOwn(mqttStats.value.client_messages, messageType)) {
           // 简单的启发式判断：如果客户端统计还是0，则认为是客户端数据
           if (
             mqttStats.value.client_messages[

@@ -24,6 +24,8 @@ export interface ProtocolState {
   stats: Record<string, any>;
 }
 
+const DEFAULT_REALTIME_STREAM_OPTIONS = { batchSize: 20, interval: 50 };
+
 export function useProtocolDataManager() {
   // 每个协议的独立状态
   const protocolStates = reactive<Record<ProtocolType, ProtocolState>>({
@@ -199,7 +201,7 @@ export function useProtocolDataManager() {
   // 开始实时日志流
   function startRealtimeStream(
     protocol: ProtocolType,
-    options = { batchSize: 20, interval: 50 },
+    options = DEFAULT_REALTIME_STREAM_OPTIONS,
   ) {
     if (realtimeStreams.has(protocol)) {
       stopRealtimeStream(protocol);

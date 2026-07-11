@@ -3,7 +3,7 @@
  * italic, underline, etc.) and ignores cursor/erase sequences.
  */
 
-const ESC = String.fromCharCode(0x1B);
+const ESC = String.fromCodePoint(27);
 
 const ANSI_STANDARD_COLORS = [
   '#000000',
@@ -273,8 +273,8 @@ export function ansiToHtml(raw: string): string {
     result += escapeHtml(segment).replaceAll('\n', '<br/>');
   };
 
-  let match: null | RegExpExecArray;
-  while ((match = ANSI_ESCAPE_PATTERN.exec(normalized)) !== null) {
+  let match = ANSI_ESCAPE_PATTERN.exec(normalized);
+  while (match !== null) {
     append(normalized.slice(lastIndex, match.index));
     lastIndex = match.index + match[0].length;
     const codeText = match[1] ?? '';
@@ -288,6 +288,7 @@ export function ansiToHtml(raw: string): string {
       result += `<span style="${buildStyleString(state)}">`;
       hasOpen = true;
     }
+    match = ANSI_ESCAPE_PATTERN.exec(normalized);
   }
   append(normalized.slice(lastIndex));
   if (hasOpen) result += '</span>';
@@ -295,7 +296,7 @@ export function ansiToHtml(raw: string): string {
 }
 
 export function formatBytes(size?: null | number): string {
-  if (size == null || !Number.isFinite(size)) return '-';
+  if (size === null || size === undefined || !Number.isFinite(size)) return '-';
   if (size < 1024) return `${size} B`;
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
   return `${(size / 1024 / 1024).toFixed(2)} MB`;
