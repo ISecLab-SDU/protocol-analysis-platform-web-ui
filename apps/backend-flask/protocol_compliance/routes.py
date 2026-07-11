@@ -39,7 +39,7 @@ from .aflnet_routes import create_aflnet_handlers
 from .legacy_analysis_history import (
     read_analysis_history as read_analysis_history,
 )
-from .legacy_analysis_routes import register_legacy_analysis_routes
+from .legacy_analysis_routes import create_legacy_analysis_handlers
 from .legacy_fuzz_routes import (
     MQTT_CONFIG as MQTT_CONFIG,
     SNMP_CONFIG as SNMP_CONFIG,
@@ -180,14 +180,29 @@ def static_analysis_result(job_id: str):
 def download_static_analysis_database(job_id: str):
     return _static_analysis_job_handlers["download_static_analysis_database"](job_id)
 
-_legacy_analysis_route_handlers = register_legacy_analysis_routes(
-    bp,
+_legacy_analysis_handlers = create_legacy_analysis_handlers(
     _ensure_authenticated,
 )
-get_detection_results = _legacy_analysis_route_handlers["get_detection_results"]
-list_available_implementations = _legacy_analysis_route_handlers["list_available_implementations"]
-get_analysis_history = _legacy_analysis_route_handlers["get_analysis_history"]
-add_analysis_history = _legacy_analysis_route_handlers["add_analysis_history"]
+
+
+@bp.route("/detection-results/<implementation_name>", methods=["GET"])
+def get_detection_results(implementation_name: str):
+    return _legacy_analysis_handlers["get_detection_results"](implementation_name)
+
+
+@bp.route("/available-implementations", methods=["GET"])
+def list_available_implementations():
+    return _legacy_analysis_handlers["list_available_implementations"]()
+
+
+@bp.route("/analysis-history", methods=["GET"])
+def get_analysis_history():
+    return _legacy_analysis_handlers["get_analysis_history"]()
+
+
+@bp.route("/analysis-history", methods=["POST"])
+def add_analysis_history():
+    return _legacy_analysis_handlers["add_analysis_history"]()
 
 _legacy_fuzz_route_handlers = register_legacy_fuzz_routes(
     bp,

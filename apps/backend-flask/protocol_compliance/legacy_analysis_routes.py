@@ -1,4 +1,4 @@
-"""Legacy detection-result and analysis-history route registration."""
+"""Legacy detection-result and analysis-history request handlers."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import json
 import sqlite3
 from typing import Callable
 
-from flask import Blueprint, make_response, request
+from flask import make_response, request
 
 from utils.responses import error_response, success_response
 
@@ -18,11 +18,9 @@ from .legacy_analysis_history import (
 )
 
 
-def register_legacy_analysis_routes(
-    bp: Blueprint,
+def create_legacy_analysis_handlers(
     ensure_authenticated: Callable[[], tuple[object, object]],
 ) -> dict[str, Callable[..., object]]:
-    @bp.route("/detection-results/<implementation_name>", methods=["GET"])
     def get_detection_results(implementation_name: str):
         """获取指定协议实现的检测结果"""
         _, error = ensure_authenticated()
@@ -44,7 +42,6 @@ def register_legacy_analysis_routes(
 
         return success_response({"items": items})
 
-    @bp.route("/available-implementations", methods=["GET"])
     def list_available_implementations():
         """获取所有可用的协议实现列表"""
         _, error = ensure_authenticated()
@@ -54,7 +51,6 @@ def register_legacy_analysis_routes(
         implementations = list_legacy_available_implementations()
         return success_response({"items": implementations})
 
-    @bp.route("/analysis-history", methods=["GET"])
     def get_analysis_history():
         """获取历史记录"""
         _, error = ensure_authenticated()
@@ -70,7 +66,6 @@ def register_legacy_analysis_routes(
                 500,
             )
 
-    @bp.route("/analysis-history", methods=["POST"])
     def add_analysis_history():
         """添加历史记录"""
         _, error = ensure_authenticated()
