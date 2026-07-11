@@ -840,6 +840,79 @@ class AgentExecutor:
         except (subprocess.CalledProcessError, FileNotFoundError, TimeoutError):
             return False
 
+    def _build_generated_config_content(
+        self,
+        *,
+        protocol_name: Optional[str],
+        protocol_version: Optional[str],
+        project_name: Optional[str],
+    ) -> str:
+        import toml
+
+        resolved_protocol = protocol_name or os.environ.get("PG_PROTOCOL_NAME", "MQTT")
+        resolved_version = protocol_version or os.environ.get("PG_PROTOCOL_VERSION", "3.1.1")
+        resolved_project = project_name or os.environ.get("PG_PROJECT_NAME", "Sol")
+        config = {
+            "wpa": {"path": "/workspace/ffp.txt"},
+            "database": {"path": "/workspace/database"},
+            "llm": {
+                "llm_api_platform": os.environ.get(
+                    "PG_LLM_API_BASE",
+                    "http://10.102.32.6:47860/v1/chat/completions",
+                ),
+                "llm_model_deepseek_v3": os.environ.get("PG_LLM_MODEL_V3", "deepseek-v3"),
+                "llm_model_deepseek_r1": os.environ.get("PG_LLM_MODEL_R1", "deepseek-r1"),
+                "llm_query_repeat_times": 1,
+                "llm_query_max_attempts": 10,
+                "llm_violation_repeat_times": 3,
+                "llm_multithread": 32,
+            },
+            "project": {
+                "project_path": "/workspace/project/sol",
+                "packet_related_callgraph_path": "/workspace/callgraph_report.txt",
+                "function_arg_path": "/workspace/function_arg_summary.txt",
+                "rule_path": "/workspace/inputs/rules.json",
+                "protocol_name": resolved_protocol,
+                "protocol_version": resolved_version,
+                "project_name": resolved_project,
+                "original_llvm_ir_path": "/workspace/program.ll",
+                "build_log_path": "/workspace/build_log.txt",
+                "binary_path": "/workspace/program",
+                "bitcode_path": "/workspace/program.bc",
+            },
+            "debug": {
+                "code_slice_replace_mode": int(os.environ.get("PG_DEBUG_CODE_SLICE_MODE", "0") or 0),
+                "log_print": int(os.environ.get("PG_DEBUG_LOG_PRINT", "0") or 0),
+            },
+            "config": {
+                "mqtt_packet_type": [
+                    "CONNECT", "CONNACK", "PUBLISH", "PUBACK", "PUBREC", "PUBREL", "PUBCOMP",
+                    "SUBSCRIBE", "SUBACK", "UNSUBSCRIBE", "UNSUBACK", "PINGREQ", "PINGRESP",
+                    "DISCONNECT", "AUTH",
+                ],
+                "dhcpv6_packet_type": [
+                    "DHCP6_SOLICIT", "DHCP6_ADVERTISE", "DHCP6_REQUEST", "DHCP6_REPLY",
+                    "DHCP6_CONFIRM", "DHCP6_RELEASE", "DHCP6_DECLINE", "DHCP6_RENEW",
+                    "DHCP6_REBIND", "DHCP6_IREQ", "DHCP6_RECONFIGURE", "DHCP6_RELAYFORW",
+                    "DHCP6_RELAYREPL",
+                ],
+                "coap_packet_type": ["CONFIRMABLE", "NON_CONFIRMABLE", "ACKNOWLEDGEMENT", "RESET"],
+                "ftp_packet_type": [
+                    "USER", "PASS", "ACCT", "REIN", "QUIT", "PORT", "PASV", "TYPE", "STRU",
+                    "MODE", "RETR", "STOR", "APPE", "DELE", "RNFR", "RNTO", "ABOR", "CWD",
+                    "CDUP", "PWD", "MKD", "RMD", "LIST", "NLST", "SYST", "STAT", "FEAT",
+                    "HELP", "NOOP", "ALLO", "REST", "MLST", "MLSD", "OPTS", "EPSV", "EPRT",
+                    "AUTH", "ADAT", "CCC", "CONF", "ENC", "MIC", "PBSZ", "PROT",
+                ],
+                "tls13_message_type": [
+                    "CLIENT_HELLO", "SERVER_HELLO", "NEW_SESSION_TICKET", "END_OF_EARLY_DATA",
+                    "ENCRYPTED_EXTENSIONS", "CERTIFICATE", "CERTIFICATE_REQUEST",
+                    "CERTIFICATE_VERIFY", "FINISHED", "KEY_UPDATE", "HELLO_RETRY_REQUEST",
+                ],
+            },
+        }
+        return toml.dumps(config)
+
     def _run_analysis_container(self, workspace_dir: Path, job_identifier: str, progress_callback=None):
         if not self._docker_available:
             logger.debug("⚠️ Docker not available, skipping analysis container")
@@ -1266,13 +1339,14 @@ class AgentExecutor:
         *,
         code_stream: BinaryIO,
         code_filename: str,
-        config_stream: BinaryIO,
-        config_filename: str,
+        config_stream: Optional[BinaryIO],
+        config_filename: Optional[str],
         rules_stream: BinaryIO,
         rules_filename: str,
         notes: Optional[str] = None,
         protocol_name: Optional[str] = None,
         protocol_version: Optional[str] = None,
+        project_name: Optional[str] = None,
         job_id: Optional[str] = None,
         progress_callback: Optional[Callable[[str, str, str], None]] = None,
     ) -> Dict[str, Any]:
@@ -1285,14 +1359,22 @@ class AgentExecutor:
         workspace_dir.mkdir(parents=True, exist_ok=True)
 
         code_bytes = code_stream.read()
-        config_bytes = config_stream.read()
+        config_bytes = config_stream.read() if config_stream is not None else None
         rules_bytes = rules_stream.read()
 
         tar_path = workspace_dir / code_filename
         with open(tar_path, "wb") as f:
             f.write(code_bytes)
 
-        config_content = config_bytes.decode("utf-8")
+        if config_bytes is None:
+            config_filename = config_filename or "generated-config.toml"
+            config_content = self._build_generated_config_content(
+                protocol_name=protocol_name,
+                protocol_version=protocol_version,
+                project_name=project_name,
+            )
+        else:
+            config_content = config_bytes.decode("utf-8")
         rule_content = rules_bytes.decode("utf-8")
 
         inputs_dir = workspace_dir / "inputs"
@@ -1543,7 +1625,7 @@ class AgentExecutor:
             "inputs": {
                 "codeFileName": code_filename,
                 "builderDockerfileName": None,
-                "configFileName": config_filename,
+                "configFileName": config_filename or "generated-config.toml",
                 "notes": notes or None,
                 "protocolName": protocol_name,
                 "rulesFileName": rules_filename,
