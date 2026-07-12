@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import os
 import sqlite3
-import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
@@ -27,26 +26,12 @@ from .assertion_database import (
 )
 from .assertion_history_routes import create_assertion_history_handlers
 from .assertion_routes import create_assertion_handlers
-from .aflnet import (
-    RTSP_CONFIG as RTSP_CONFIG,
-    _aflnet_fallback_output_root,
-    _aflnet_log_file_for_source,
-    _aflnet_output_root,
-    _aflnet_result_path_info,
-    _aflnet_shell_command,
-    _resolve_aflnet_output_source,
-)
 from .aflnet_routes import create_aflnet_handlers
 from .fuzz_job_routes import create_fuzz_job_handlers
 from .legacy_analysis_history import (
     read_analysis_history as read_analysis_history,
 )
 from .legacy_analysis_routes import create_legacy_analysis_handlers
-from .legacy_fuzz_routes import (
-    MQTT_CONFIG as MQTT_CONFIG,
-    SNMP_CONFIG as SNMP_CONFIG,
-    create_legacy_fuzz_handlers,
-)
 from .route_helpers import (
     _collect_exception_details as _collect_exception_details,
     _extract_protocol_metadata_from_config,
@@ -221,20 +206,6 @@ _fuzz_job_handlers = create_fuzz_job_handlers(
     _ensure_authenticated,
 )
 
-_legacy_fuzz_handlers = create_legacy_fuzz_handlers(
-    _ensure_authenticated,
-    logger=LOGGER,
-    subprocess_module=subprocess,
-    to_int=_to_int,
-    aflnet_shell_command=_aflnet_shell_command,
-    aflnet_result_path_info=_aflnet_result_path_info,
-    aflnet_log_file_for_source=_aflnet_log_file_for_source,
-    aflnet_output_root=_aflnet_output_root,
-    aflnet_fallback_output_root=_aflnet_fallback_output_root,
-    resolve_aflnet_output_source=_resolve_aflnet_output_source,
-)
-
-
 @bp.route("/fuzzing/jobs", methods=["POST"])
 def start_fuzz_job():
     return _fuzz_job_handlers["start_fuzz_job"]()
@@ -258,41 +229,6 @@ def read_fuzz_job_logs(job_id: str):
 @bp.route("/fuzzing/jobs/<job_id>/stop", methods=["POST"])
 def stop_fuzz_job(job_id: str):
     return _fuzz_job_handlers["stop_fuzz_job"](job_id)
-
-
-@bp.route("/write-script", methods=["POST"])
-def write_script():
-    return _legacy_fuzz_handlers["write_script"]()
-
-
-@bp.route("/execute-command", methods=["POST"])
-def execute_command():
-    return _legacy_fuzz_handlers["execute_command"]()
-
-
-@bp.route("/read-log", methods=["POST"])
-def read_log():
-    return _legacy_fuzz_handlers["read_log"]()
-
-
-@bp.route("/check-status", methods=["POST"])
-def check_status():
-    return _legacy_fuzz_handlers["check_status"]()
-
-
-@bp.route("/stop-process", methods=["POST"])
-def stop_process():
-    return _legacy_fuzz_handlers["stop_process"]()
-
-
-@bp.route("/pre-start-cleanup", methods=["POST"])
-def pre_start_cleanup():
-    return _legacy_fuzz_handlers["pre_start_cleanup"]()
-
-
-@bp.route("/stop-and-cleanup", methods=["POST"])
-def stop_and_cleanup():
-    return _legacy_fuzz_handlers["stop_and_cleanup"]()
 
 _task_handlers = create_task_handlers(
     _ensure_authenticated,

@@ -937,61 +937,6 @@ export function fetchProtocolDiffParsingResult(
   );
 }
 
-// 停止进程
-export function stopProcess(data: { pid: number | string; protocol: string }) {
-  return requestClient.post('/protocol-compliance/stop-process', data);
-}
-
-// 停止并清理Docker容器
-export function stopAndCleanup(data: {
-  container_id: string;
-  protocol: string;
-}) {
-  return requestClient.post('/protocol-compliance/stop-and-cleanup', data);
-}
-
-// 启动前清理残留容器和输出文件
-export function preStartCleanup(data: { protocol: string }) {
-  return requestClient.post('/protocol-compliance/pre-start-cleanup', data);
-}
-
-// 写入脚本文件
-export function writeScript(data: {
-  content: string;
-  protocol: string;
-  protocolImplementations?: string[];
-}) {
-  return requestClient.post('/protocol-compliance/write-script', data);
-}
-
-// 执行命令
-export function executeCommand(data: {
-  protocol: string;
-  protocolImplementations?: string[];
-}) {
-  return requestClient.post('/protocol-compliance/execute-command', data);
-}
-
-// 读取日志
-export function readLog(data: {
-  lastPosition: number;
-  maxLines?: number;
-  outputSource?: 'fallback' | 'primary';
-  protocol: string;
-  protocolImplementations?: string[];
-  useFallbackOutput?: boolean;
-}) {
-  return requestClient.post('/protocol-compliance/read-log', data);
-}
-
-// 检查状态
-export function checkStatus(data: {
-  protocol: string;
-  protocolImplementations?: string[];
-}) {
-  return requestClient.post('/protocol-compliance/check-status', data);
-}
-
 // Artifact-backed Fuzz Jobs -----------------------------------------------
 export type ProtocolFuzzingJobStatus =
   | 'completed'

@@ -11,6 +11,7 @@ import type {
   ProtocolAssertGenerationJob,
   ProtocolAssertGenerationResult,
   ProtocolExtractRuleItem,
+  ProtocolFuzzingJob,
   ProtocolStaticAnalysisDatabaseRuleInsight,
   ProtocolStaticAnalysisJob,
   ProtocolStaticAnalysisResult,
@@ -22,24 +23,20 @@ import { computed, nextTick, reactive, ref } from 'vue';
 import { message } from 'ant-design-vue';
 
 import {
-  checkStatus,
   downloadAflNetPocArtifact,
-  executeCommand,
   fetchProtocolAssertGenerationProgress,
   fetchProtocolAssertGenerationResult,
+  fetchProtocolFuzzingLogs,
   fetchProtocolInstrumentationDiff,
   fetchProtocolStaticAnalysisDatabaseInsights,
   fetchProtocolStaticAnalysisProgress,
   fetchProtocolStaticAnalysisResult,
-  preStartCleanup,
-  readLog,
   runProtocolAssertGeneration,
   runProtocolStaticAnalysis,
   snapshotAflNetPoc,
-  stopAndCleanup,
-  stopProcess,
+  startProtocolFuzzingJob,
+  stopProtocolFuzzingJob,
   upsertProtocolViolationHistory,
-  writeScript,
 } from '#/api/protocol-compliance';
 
 import { buildDefaultFuzzScript, DEFAULT_TARGET, STAGE_LIST } from './types';
@@ -97,11 +94,10 @@ const assertResult = ref<null | ProtocolAssertGenerationResult>(null);
 const assertLogText = ref('');
 const assertDiffContent = ref('');
 
-const fuzzPid = ref<null | string>(null);
-const fuzzContainerId = ref<null | string>(null);
+const fuzzJobId = ref<null | string>(null);
+const fuzzJob = ref<null | ProtocolFuzzingJob>(null);
 const aflNetPocPath = ref('');
 type FuzzLogLevel = 'ERROR' | 'INFO' | 'STATS' | 'WARN';
-type AflNetOutputSource = 'fallback' | 'primary';
 
 const fuzzLogs = ref<Array<{ id: number; level: FuzzLogLevel; text: string }>>(
   [],
@@ -176,23 +172,15 @@ let elapsedTimer: null | ReturnType<typeof setInterval> = null;
 let staticPollTimer: null | ReturnType<typeof setInterval> = null;
 let assertPollTimer: null | ReturnType<typeof setInterval> = null;
 let fuzzPollTimer: null | ReturnType<typeof setInterval> = null;
-let fallbackReplayTimer: null | ReturnType<typeof setTimeout> = null;
 let transitionTimer: null | ReturnType<typeof setTimeout> = null;
 let transitionResolver: ((shouldContinue: boolean) => void) | null = null;
 let fuzzLogIdSeq = 0;
 let pipelineRunId = 0;
-let lastFuzzLogGrowthAt = 0;
-let activeAflNetOutputSource: AflNetOutputSource = 'primary';
-let switchingToFallbackOutput = false;
 let resultHistoryAppended = false;
 let resultHistoryIdSeq = 0;
 let pendingPocSnapshotPromise: null | Promise<void> = null;
 
 const STAGE_TRANSITION_DELAY_MS = 2000;
-const AFLNET_FALLBACK_REPLAY_LINES_PER_TICK = 2;
-const SOL_AFLNET_STALE_LOG_FALLBACK_MS = 25_000;
-type WorkbenchPipelineProfile = 'full' | 'fuzz-only';
-const WORKBENCH_PIPELINE_PROFILE: WorkbenchPipelineProfile = 'full';
 
 interface ParsedAflNetStats {
   coverage: number;
@@ -222,48 +210,10 @@ function clearTimer(holder: 'assert' | 'elapsed' | 'fuzz' | 'static') {
     clearInterval(fuzzPollTimer);
     fuzzPollTimer = null;
   }
-  if (holder === 'fuzz' && fallbackReplayTimer) {
-    clearTimeout(fallbackReplayTimer);
-    fallbackReplayTimer = null;
-  }
   if (holder === 'elapsed' && elapsedTimer) {
     clearInterval(elapsedTimer);
     elapsedTimer = null;
   }
-}
-
-function randomIntInclusive(min: number, max: number) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-function scheduleFallbackReplay(runId: number) {
-  if (
-    !isCurrentPipelineRun(runId) ||
-    stageStatus.fuzz !== 'running' ||
-    activeAflNetOutputSource !== 'fallback'
-  ) {
-    return;
-  }
-
-  const delay = randomIntInclusive(700, 1500);
-  fallbackReplayTimer = setTimeout(async () => {
-    if (
-      !isCurrentPipelineRun(runId) ||
-      stageStatus.fuzz !== 'running' ||
-      activeAflNetOutputSource !== 'fallback'
-    ) {
-      return;
-    }
-
-    await readFuzzLogs({ replayFallback: true, runId });
-    if (
-      isCurrentPipelineRun(runId) &&
-      stageStatus.fuzz === 'running' &&
-      activeAflNetOutputSource === 'fallback'
-    ) {
-      scheduleFallbackReplay(runId);
-    }
-  }, delay);
 }
 
 function clearTransitionTimer(shouldContinue = false) {
@@ -804,25 +754,11 @@ function isCrashDiscoveryLine(line: string) {
 }
 
 async function stopFuzzProcessForCrashVerification(runId: number) {
-  const containerId = fuzzContainerId.value;
-  const pid = fuzzPid.value;
-  if (!pid && !containerId) return;
-
-  fuzzPid.value = null;
-  fuzzContainerId.value = null;
+  const jobId = fuzzJobId.value;
+  if (!jobId) return;
 
   try {
-    if (containerId) {
-      await stopAndCleanup({
-        container_id: containerId,
-        protocol: protocolKindForApi.value,
-      } as any);
-    } else if (pid) {
-      await stopProcess({
-        pid,
-        protocol: protocolKindForApi.value,
-      } as any);
-    }
+    await stopProtocolFuzzingJob(jobId);
     if (isCurrentPipelineRun(runId)) {
       appendFuzzLog('已停止当前 Fuzzer，保留崩溃证据用于结果验证', 'INFO');
     }
@@ -842,8 +778,6 @@ async function enterResultVerificationAfterCrash() {
   const runId = pipelineRunId;
   clearTimer('fuzz');
   clearTimer('elapsed');
-  lastFuzzLogGrowthAt = 0;
-  switchingToFallbackOutput = false;
   appendFuzzLog('检测到首个崩溃，2 秒后自动进入结果验证阶段', 'ERROR');
   stageStatus.fuzz = 'done';
   stageMessage.value = '检测到崩溃，2 秒后进入结果验证…';
@@ -941,9 +875,6 @@ function resetPipelineStageState() {
   clearTimer('static');
   clearTimer('assert');
   clearTimer('fuzz');
-  lastFuzzLogGrowthAt = 0;
-  activeAflNetOutputSource = 'primary';
-  switchingToFallbackOutput = false;
   isAwaitingAssertConfirmation.value = false;
 
   for (const s of STAGE_LIST) stageStatus[s.key] = 'idle';
@@ -962,8 +893,8 @@ function resetPipelineStageState() {
   assertResult.value = null;
   assertLogText.value = '';
   assertDiffContent.value = '';
-  fuzzPid.value = null;
-  fuzzContainerId.value = null;
+  fuzzJobId.value = null;
+  fuzzJob.value = null;
   aflNetPocPath.value = '';
   fuzzLogs.value = [];
   fuzzLogReadPosition.value = 0;
@@ -1000,139 +931,22 @@ const protocolKindForApi = computed(() => {
   return projectConfig.protocolType;
 });
 
-const isSolAflNetFuzzing = computed(
-  () =>
-    projectConfig.protocolType === 'MQTT' &&
-    projectConfig.implementation === 'SOL',
-);
-
-function formatCleanupSummary(result: any) {
-  const data = result?.data ?? result;
-  const cleanup = data?.cleanup_results;
-  if (!cleanup) return '启动前清理完成';
-
-  const parts = [
-    `停止容器 ${cleanup.containers_stopped ?? 0} 个`,
-    `删除容器 ${cleanup.containers_removed ?? 0} 个`,
-    cleanup.output_cleaned ? '输出目录已清理' : '输出目录无需清理',
-  ];
-  if (Array.isArray(cleanup.errors) && cleanup.errors.length > 0) {
-    parts.push(`错误 ${cleanup.errors.length} 个`);
-  }
-  return parts.join('，');
-}
-
-async function cleanupBeforeFuzzStart(runId: number) {
-  if (!isSolAflNetFuzzing.value) return;
-  if (!isCurrentPipelineRun(runId)) return;
-  if (pendingPocSnapshotPromise) {
-    stageMessage.value = '等待上次 POC 归档完成…';
-    appendFuzzLog('等待上次 POC 归档完成后再清理 AFLNET 输出目录', 'INFO');
-    await pendingPocSnapshotPromise;
-    if (!isCurrentPipelineRun(runId)) return;
-  }
-
-  stageMessage.value = '清理 SOL/AFLNET 上次运行残留…';
-  appendFuzzLog(
-    '清理 SOL/AFLNET 上次运行残留：停止旧容器并清空输出目录',
-    'INFO',
-  );
-  const cleanupResult = await preStartCleanup({
-    protocol: protocolKindForApi.value,
-  });
-  if (!isCurrentPipelineRun(runId)) return;
-  appendFuzzLog(formatCleanupSummary(cleanupResult), 'INFO');
-  appendFuzzLog('AFLNet已接入，模糊测试已启动', 'INFO');
-}
-
-function isCurrentFuzzContainerRunning(statusData: any) {
-  const dockerContainers = String(statusData?.docker_containers || '');
-  if (!dockerContainers.trim()) return false;
-
-  const containerId = fuzzContainerId.value;
-  if (containerId) {
-    return (
-      dockerContainers.includes(containerId) ||
-      dockerContainers.includes(containerId.slice(0, 12))
-    );
-  }
-  return dockerContainers.includes('protocolguard:latest');
-}
-
-function finishFuzzFromCurrentOutput(reason: 'fallback' | 'stopped') {
+function finishFuzzFromCurrentOutput() {
   clearTimer('fuzz');
   clearTimer('elapsed');
-  lastFuzzLogGrowthAt = 0;
-  switchingToFallbackOutput = false;
-  fuzzPid.value = null;
-  fuzzContainerId.value = null;
   stageStatus.fuzz = 'done';
   stage.value = 'done';
   activeStageView.value = 'done';
   stageStatus.done = 'done';
   appendResultHistoryRecord(fuzzStats.crashes > 0 ? 'crash' : 'stopped');
-  stageMessage.value = getFuzzCompletionMessage(reason);
+  stageMessage.value = getFuzzCompletionMessage();
 }
 
-function getFuzzCompletionMessage(reason: 'fallback' | 'stopped') {
+function getFuzzCompletionMessage() {
   if (fuzzStats.crashes > 0) {
     return '已发现崩溃，结果验证模块已生成证据摘要';
   }
-  if (reason === 'fallback') return '模糊测试结果已汇总';
   return '检测到容器停止，已读取当前输出数据';
-}
-
-async function switchToFallbackFuzzOutput(runId: number) {
-  if (!isCurrentPipelineRun(runId) || switchingToFallbackOutput) return;
-  switchingToFallbackOutput = true;
-  clearTimer('fuzz');
-  activeAflNetOutputSource = 'fallback';
-  fuzzLogReadPosition.value = 0;
-  fuzzPid.value = null;
-  fuzzContainerId.value = null;
-  stageMessage.value = '模糊测试运行中，正在同步 AFLNET 状态…';
-
-  switchingToFallbackOutput = false;
-  scheduleFallbackReplay(runId);
-}
-
-async function checkAndFallbackStaleSolAflNetFuzzer() {
-  if (!isSolAflNetFuzzing.value || stageStatus.fuzz !== 'running') return;
-  if (switchingToFallbackOutput || activeAflNetOutputSource === 'fallback')
-    return;
-  if (!lastFuzzLogGrowthAt) {
-    lastFuzzLogGrowthAt = Date.now();
-    return;
-  }
-  if (Date.now() - lastFuzzLogGrowthAt < SOL_AFLNET_STALE_LOG_FALLBACK_MS)
-    return;
-
-  const runId = pipelineRunId;
-  try {
-    const status: any = await checkStatus({
-      protocol: protocolKindForApi.value,
-      protocolImplementations: protocolImplementationsKey.value,
-    });
-    if (!isCurrentPipelineRun(runId)) return;
-
-    const statusData = status?.data ?? status;
-    updateAflNetPocPath(statusData);
-    if (isCurrentFuzzContainerRunning(statusData)) {
-      lastFuzzLogGrowthAt = Date.now();
-      return;
-    }
-
-    await switchToFallbackFuzzOutput(runId);
-  } catch (error: any) {
-    if (!isCurrentPipelineRun(runId)) return;
-    console.warn(
-      '[workbench] SOL/AFLNET status check failed',
-      error?.message || error,
-    );
-    lastFuzzLogGrowthAt = Date.now();
-  } finally {
-    switchingToFallbackOutput = false;
-  }
 }
 
 function buildRulesFile(): File {
@@ -1491,18 +1305,6 @@ async function refreshCodeLocateEvidenceFromResult(
       error?.message || error,
     );
   }
-}
-
-function buildFuzzScript(): string {
-  if (projectConfig.fuzzScript && projectConfig.fuzzScript.trim().length > 0) {
-    return projectConfig.fuzzScript;
-  }
-  return buildDefaultFuzzScript(
-    projectConfig.protocolType,
-    projectConfig.implementation,
-    projectConfig.targetHost,
-    projectConfig.targetPort,
-  );
 }
 
 async function ensureProjectReady(): Promise<boolean> {
@@ -1865,22 +1667,16 @@ function parseStatsLine(line: string) {
   }
 }
 
-async function readFuzzLogs(
-  options: { replayFallback?: boolean; runId?: number } = {},
-) {
-  if (!options.replayFallback && !fuzzPollTimer && stage.value !== 'fuzz')
-    return;
+async function readFuzzLogs(options: { runId?: number } = {}) {
+  if (!fuzzPollTimer && stage.value !== 'fuzz') return;
+  const jobId = fuzzJobId.value;
+  if (!jobId) return;
   try {
-    const response: any = await readLog({
-      protocol: protocolKindForApi.value,
-      lastPosition: fuzzLogReadPosition.value,
-      maxLines: options.replayFallback
-        ? AFLNET_FALLBACK_REPLAY_LINES_PER_TICK
-        : undefined,
-      protocolImplementations: protocolImplementationsKey.value,
-      outputSource: activeAflNetOutputSource,
-    } as any);
-    const data = response?.data ?? response;
+    const data = await fetchProtocolFuzzingLogs(
+      jobId,
+      fuzzLogReadPosition.value,
+    );
+    fuzzJob.value = data.job;
     updateAflNetPocPath(data);
     const content: string = data?.content || '';
     const position: number =
@@ -1889,7 +1685,6 @@ async function readFuzzLogs(
         : fuzzLogReadPosition.value;
     if (position > fuzzLogReadPosition.value) {
       fuzzLogReadPosition.value = position;
-      lastFuzzLogGrowthAt = Date.now();
     }
     if (content) {
       const lines = content.split(/\r?\n/);
@@ -1915,41 +1710,33 @@ async function readFuzzLogs(
         }
       }
     }
-    if (!options.replayFallback && (await enterResultVerificationAfterCrash()))
-      return;
-    if (options.replayFallback) {
-      const isEof =
-        data?.is_eof === true ||
-        (typeof data?.file_size === 'number' &&
-          fuzzLogReadPosition.value >= data.file_size);
-      if (isEof && (!options.runId || isCurrentPipelineRun(options.runId))) {
-        finishFuzzFromCurrentOutput('fallback');
-      }
-      return;
-    }
-    await checkAndFallbackStaleSolAflNetFuzzer();
-  } catch (error: any) {
-    // Non-fatal: keep polling until user stops
-    console.warn('[workbench] readLog error', error?.message || error);
+    if (await enterResultVerificationAfterCrash()) return;
     if (
-      options.replayFallback &&
+      data.job?.status &&
+      !['queued', 'running'].includes(data.job.status) &&
       (!options.runId || isCurrentPipelineRun(options.runId))
     ) {
-      appendFuzzLog(
-        `读取仓库 fuzz-output 备份数据失败: ${error?.message || error}`,
-        'ERROR',
-      );
-      finishFuzzFromCurrentOutput('fallback');
+      finishFuzzFromCurrentOutput();
     }
+  } catch (error: any) {
+    // Non-fatal: keep polling until user stops
+    console.warn('[workbench] fetch fuzz logs error', error?.message || error);
   }
 }
 
 async function runFuzzStep(runId: number) {
   if (!isCurrentPipelineRun(runId)) return;
-  setStage('fuzz', 'running', '写入 Fuzz 脚本…');
+  const artifactPath = assertResult.value?.artifacts?.instrumentedCodeZipPath;
+  if (!assertJobId.value || !artifactPath) {
+    markStageError('fuzz', '缺少插桩源码压缩包，无法启动模糊测试');
+    return;
+  }
+  setStage('fuzz', 'running', '使用插桩源码包启动 Fuzz…');
   fuzzLogs.value = [];
   aflNetPocPath.value = '';
   fuzzLogReadPosition.value = 0;
+  fuzzJobId.value = null;
+  fuzzJob.value = null;
   resultHistoryAppended = false;
   Object.assign(fuzzStats, {
     executions: 0,
@@ -1968,71 +1755,42 @@ async function runFuzzStep(runId: number) {
     edges: 0,
   });
   fuzzSpeedSeries.value = [];
-  lastFuzzLogGrowthAt = Date.now();
-  activeAflNetOutputSource = 'primary';
-  switchingToFallbackOutput = false;
   await nextTick();
   if (!isCurrentPipelineRun(runId)) return;
   try {
-    await cleanupBeforeFuzzStart(runId);
-    if (!isCurrentPipelineRun(runId)) return;
-
-    const script = buildFuzzScript();
-    stageMessage.value = '写入 Fuzz 脚本…';
-    await writeScript({
-      content: script,
+    if (pendingPocSnapshotPromise) {
+      stageMessage.value = '等待上次 POC 归档完成…';
+      appendFuzzLog('等待上次 POC 归档完成后再启动 Fuzz', 'INFO');
+      await pendingPocSnapshotPromise;
+      if (!isCurrentPipelineRun(runId)) return;
+    }
+    appendFuzzLog(`使用插桩源码包: ${artifactPath}`, 'INFO');
+    const job = await startProtocolFuzzingJob({
+      assertGenerationJobId: assertJobId.value,
+      notes: projectConfig.notes,
       protocol: protocolKindForApi.value,
       protocolImplementations: protocolImplementationsKey.value,
-    } as any);
+    });
     if (!isCurrentPipelineRun(runId)) return;
-    stageMessage.value = '启动 Fuzzer 容器/进程…';
-    const launch: any = await executeCommand({
-      protocol: protocolKindForApi.value,
-      protocolImplementations: protocolImplementationsKey.value,
-    } as any);
-    if (!isCurrentPipelineRun(runId)) return;
-    const launchData = launch?.data ?? launch;
-    updateAflNetPocPath(launchData);
-    if (launchData?.pid) fuzzPid.value = String(launchData.pid);
-    if (launchData?.container_id)
-      fuzzContainerId.value = String(launchData.container_id);
-    lastFuzzLogGrowthAt = Date.now();
-    stageMessage.value = '模糊测试运行中，点击"停止"结束';
-    void readFuzzLogs();
-    fuzzPollTimer = setInterval(readFuzzLogs, 1000);
-  } catch (error: any) {
-    if (!isCurrentPipelineRun(runId)) return;
-    if (isSolAflNetFuzzing.value) {
-      await switchToFallbackFuzzOutput(runId);
+    fuzzJobId.value = job.jobId;
+    fuzzJob.value = job;
+    updateAflNetPocPath(job.artifacts);
+    if (job.status === 'failed') {
+      markStageError('fuzz', job.error || '模糊测试启动失败');
       return;
     }
+    stageMessage.value = '模糊测试运行中，点击"停止"结束';
+    void readFuzzLogs({ runId });
+    fuzzPollTimer = setInterval(() => {
+      void readFuzzLogs({ runId });
+    }, 1000);
+  } catch (error: any) {
+    if (!isCurrentPipelineRun(runId)) return;
     markStageError('fuzz', error?.message || '模糊测试启动失败');
   }
 }
 
 async function runConfiguredPipeline(runId: number) {
-  if (WORKBENCH_PIPELINE_PROFILE === 'fuzz-only') {
-    staticJobId.value = null;
-    staticJob.value = null;
-    staticResult.value = null;
-    staticLogText.value = '';
-    staticLogHtml.value = '';
-    staticLastEventId.value = 0;
-    codeLocateEvidence.value = null;
-    assertJobId.value = null;
-    assertJob.value = null;
-    assertResult.value = null;
-    assertLogText.value = '';
-    assertDiffContent.value = '';
-    markStageSkipped('code_locate');
-    markStageSkipped(
-      'assert_gen',
-      '已跳过代码定位和断言生成，直接进入模糊测试',
-    );
-    await nextTick();
-    await runFuzzStep(runId);
-    return;
-  }
   await runStaticAnalysisStep(runId);
 }
 
@@ -2058,27 +1816,13 @@ async function stopPipeline() {
     clearTimer('assert');
     clearTimer('fuzz');
     isAwaitingAssertConfirmation.value = false;
-    lastFuzzLogGrowthAt = 0;
-    activeAflNetOutputSource = 'primary';
-    switchingToFallbackOutput = false;
-    if (stage.value === 'fuzz' && (fuzzPid.value || fuzzContainerId.value)) {
+    if (stage.value === 'fuzz' && fuzzJobId.value) {
       try {
-        if (fuzzContainerId.value) {
-          await stopAndCleanup({
-            container_id: fuzzContainerId.value,
-            protocol: protocolKindForApi.value,
-          } as any);
-        } else if (fuzzPid.value) {
-          await stopProcess({
-            pid: fuzzPid.value,
-            protocol: protocolKindForApi.value,
-          } as any);
-        }
+        await stopProtocolFuzzingJob(fuzzJobId.value);
       } catch (error: any) {
         console.warn('[workbench] stop fuzz failed', error?.message || error);
       }
-      fuzzPid.value = null;
-      fuzzContainerId.value = null;
+      fuzzJob.value = null;
     }
     if (stageStatus.fuzz === 'running') {
       stageStatus.fuzz = 'done';
@@ -2111,8 +1855,6 @@ function resetWorkbench() {
   clearTimer('fuzz');
   isAwaitingAssertConfirmation.value = false;
   clearTimer('elapsed');
-  activeAflNetOutputSource = 'primary';
-  switchingToFallbackOutput = false;
   for (const s of STAGE_LIST) stageStatus[s.key] = 'idle';
   stageStatus.setup = 'idle';
   stage.value = 'setup';
@@ -2133,16 +1875,13 @@ function resetWorkbench() {
   assertResult.value = null;
   assertLogText.value = '';
   assertDiffContent.value = '';
-  fuzzPid.value = null;
-  fuzzContainerId.value = null;
+  fuzzJobId.value = null;
+  fuzzJob.value = null;
   aflNetPocPath.value = '';
   downloadingPocArtifactId.value = null;
   fuzzLogs.value = [];
   fuzzLogReadPosition.value = 0;
   resultHistoryAppended = false;
-  lastFuzzLogGrowthAt = 0;
-  activeAflNetOutputSource = 'primary';
-  switchingToFallbackOutput = false;
   Object.assign(fuzzStats, {
     executions: 0,
     paths: 0,
@@ -2194,8 +1933,8 @@ export function useWorkbench() {
     resultHistory,
     fuzzStats,
     fuzzSpeedSeries,
-    fuzzPid,
-    fuzzContainerId,
+    fuzzJob,
+    fuzzJobId,
     aflNetPocPath,
     downloadingPocArtifactId,
 

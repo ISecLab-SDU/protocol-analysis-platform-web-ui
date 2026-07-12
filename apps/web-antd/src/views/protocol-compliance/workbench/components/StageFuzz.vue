@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import type { ProtocolExtractRuleItem } from '#/api/protocol-compliance';
+import type {
+  ProtocolExtractRuleItem,
+  ProtocolFuzzingJob,
+} from '#/api/protocol-compliance';
 
 import { computed } from 'vue';
 
@@ -18,6 +21,7 @@ interface LogEntry {
 interface Props {
   elapsed: string;
   implementation: string;
+  job: null | ProtocolFuzzingJob;
   logs: LogEntry[];
   protocolType: string;
   rule: null | ProtocolExtractRuleItem;
@@ -94,6 +98,18 @@ const monitorStatusText = computed(() => {
   return '待启动';
 });
 
+const artifactLabel = computed(() => {
+  return (
+    props.job?.inputs?.instrumentedCodeZipFileName ||
+    props.job?.artifacts?.instrumentedCodeZipPath?.split('/').pop() ||
+    '等待插桩源码包'
+  );
+});
+
+const workspaceLabel = computed(() => {
+  return props.job?.artifacts?.fuzzWorkspacePath || '未创建 Fuzz 工作区';
+});
+
 function formatNumber(value: number) {
   return Math.trunc(value).toLocaleString();
 }
@@ -152,6 +168,12 @@ function formatRate(value: number) {
         <div class="status-card">
           <span>监控状态</span>
           <strong>{{ monitorStatusText }}</strong>
+        </div>
+
+        <div class="status-card status-card--artifact">
+          <span>插桩源码包</span>
+          <strong>{{ artifactLabel }}</strong>
+          <small>{{ workspaceLabel }}</small>
         </div>
       </aside>
 

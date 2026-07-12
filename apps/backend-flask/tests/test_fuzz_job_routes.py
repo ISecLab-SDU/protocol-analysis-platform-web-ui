@@ -39,7 +39,7 @@ def test_aflnet_artifact_routes_keep_result_endpoint_names() -> None:
     }
 
 
-def test_fuzz_job_routes_coexist_with_legacy_public_routes() -> None:
+def test_fuzz_job_routes_replace_legacy_public_routes() -> None:
     app = Flask(__name__)
     app.register_blueprint(routes.bp)
 
@@ -70,15 +70,7 @@ def test_fuzz_job_routes_coexist_with_legacy_public_routes() -> None:
         "/api/protocol-compliance/fuzzing/jobs/<job_id>/logs": "protocol_compliance.read_fuzz_job_logs",
         "/api/protocol-compliance/fuzzing/jobs/<job_id>/stop": "protocol_compliance.stop_fuzz_job",
     }
-    assert legacy_rules == {
-        "/api/protocol-compliance/check-status": "protocol_compliance.check_status",
-        "/api/protocol-compliance/execute-command": "protocol_compliance.execute_command",
-        "/api/protocol-compliance/pre-start-cleanup": "protocol_compliance.pre_start_cleanup",
-        "/api/protocol-compliance/read-log": "protocol_compliance.read_log",
-        "/api/protocol-compliance/stop-and-cleanup": "protocol_compliance.stop_and_cleanup",
-        "/api/protocol-compliance/stop-process": "protocol_compliance.stop_process",
-        "/api/protocol-compliance/write-script": "protocol_compliance.write_script",
-    }
+    assert legacy_rules == {}
 
 
 def test_start_fuzz_job_stages_instrumented_code_zip(

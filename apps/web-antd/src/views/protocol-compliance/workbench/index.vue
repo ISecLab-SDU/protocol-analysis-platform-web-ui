@@ -61,6 +61,7 @@ const {
   assertDiffContent,
   assertResult,
   fuzzLogs,
+  fuzzJob,
   aflNetPocPath,
   fuzzStats,
   fuzzSpeedSeries,
@@ -1352,6 +1353,7 @@ function switchRule() {
                 :elapsed="elapsedDisplay"
                 :implementation="projectConfig.implementation"
                 :logs="fuzzLogs"
+                :job="fuzzJob"
                 :protocol-type="projectConfig.protocolType"
                 :rule="selectedRule"
                 :stats="fuzzStats"
