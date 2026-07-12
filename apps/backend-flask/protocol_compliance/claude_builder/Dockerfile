@@ -57,7 +57,7 @@ RUN ln -sf /usr/bin/clang-14 /usr/local/bin/clang \
     && ln -sf /usr/bin/clang-cpp-14 /usr/local/bin/clang-cpp \
     && mkdir -p /workspace /out /usr/local/lib/protocolguard-builder
 
-COPY pg-claude-builder pg_claude_builder_sdk.py /usr/local/bin/
+COPY pg-claude-builder pg_claude_builder_sdk.py claude_agent_events.py /usr/local/bin/
 RUN chmod +x /usr/local/bin/pg-claude-builder /usr/local/bin/pg_claude_builder_sdk.py
 
 WORKDIR /workspace

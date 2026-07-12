@@ -15,12 +15,11 @@ from pathlib import Path
 from typing import Any, BinaryIO, Callable, Dict, List, Optional, Sequence, Tuple
 from openai import OpenAI
 
+from protocol_compliance.claude_agent_events import decode_progress_line
 from protocol_compliance.job_logging import JobStageLogger
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-
-CLAUDE_BUILDER_PROGRESS_PREFIX = "PG_PROGRESS_JSON "
 
 
 class AgentExecutorError(Exception):
@@ -957,17 +956,9 @@ class AgentExecutor:
         *,
         stage_selector: Optional[Callable[[str, str], str]] = None,
     ) -> tuple[str, str]:
-        if line.startswith(CLAUDE_BUILDER_PROGRESS_PREFIX):
-            raw_payload = line[len(CLAUDE_BUILDER_PROGRESS_PREFIX):]
-            try:
-                payload = json.loads(raw_payload)
-            except json.JSONDecodeError:
-                return "claude-status", line[:500]
-            stage = str(payload.get("stage") or default_stage)
-            message = payload.get("message")
-            if not message:
-                message = payload.get("type") or raw_payload
-            return stage, str(message)
+        progress = decode_progress_line(line, default_stage)
+        if progress:
+            return progress
 
         progress_stage = stage_selector(line, default_stage) if stage_selector else default_stage
         return progress_stage, line

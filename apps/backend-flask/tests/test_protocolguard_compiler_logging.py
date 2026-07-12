@@ -31,11 +31,14 @@ if "claude_agent_sdk" not in sys.modules:
 
 from protocol_compliance.compiler import CompilerController  # noqa: E402
 from protocol_compliance.compiler import AgentExecutor, AgentExecutorSettings  # noqa: E402
+from protocol_compliance.claude_agent_events import (  # noqa: E402
+    is_hidden_system_message as _is_hidden_system_message,
+    progress_events_from_message,
+    sanitize_event_value as _sanitize_event_value,
+)
 from protocol_compliance.claude_builder.pg_claude_builder_sdk import (  # noqa: E402
     CLAUDE_CLI_PATH,
     _build_claude_environment,
-    _is_hidden_system_message,
-    _sanitize_event_value,
 )
 
 
@@ -455,3 +458,37 @@ def test_claude_sdk_identifies_hidden_thinking_token_system_events() -> None:
     assert _is_hidden_system_message(hidden_by_subtype)
     assert _is_hidden_system_message(hidden_by_data)
     assert not _is_hidden_system_message(visible)
+
+
+def test_claude_agent_event_conversion_is_reusable_without_builder_runner() -> None:
+    fake_sdk = cast(Any, sys.modules["claude_agent_sdk"])
+    tool_block = fake_sdk.ToolUseBlock.__new__(fake_sdk.ToolUseBlock)
+    tool_block.name = "Bash"
+    tool_block.input = {"command": "cmake -S . -B build"}
+    tool_block.id = "tool-1"
+    message = fake_sdk.AssistantMessage.__new__(fake_sdk.AssistantMessage)
+    message.session_id = "session-1"
+    message.model = "claude-test"
+    message.content = [tool_block]
+
+    events = progress_events_from_message(message, result_label="Assertion insertion")
+
+    assert events == [
+        {
+            "type": "sdk-message",
+            "stage": "claude-status",
+            "message": "Assistant turn received from claude-test",
+            "sdk_message_type": "AssistantMessage",
+            "session_id": "session-1",
+            "model": "claude-test",
+        },
+        {
+            "type": "progress",
+            "stage": "claude-command",
+            "message": "Bash: cmake -S . -B build",
+            "sdk_message_type": "ToolUseBlock",
+            "tool": "Bash",
+            "tool_use_id": "tool-1",
+            "tool_input": {"command": "cmake -S . -B build"},
+        },
+    ]
