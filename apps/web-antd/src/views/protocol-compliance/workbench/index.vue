@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { ProjectConfig } from './types';
+
 import type {
   ProtocolDatabaseOverviewStats,
   ProtocolDatabaseOverviewSummary,
@@ -85,6 +87,10 @@ const isRunning = computed(() => {
 });
 
 const elapsedDisplay = computed(() => formatDuration(elapsedSeconds.value));
+
+function handleProjectConfigUpdate(value: ProjectConfig) {
+  Object.assign(projectConfig, value);
+}
 
 const currentRuleText = computed(() => {
   return (
@@ -1341,8 +1347,9 @@ async function handleLoadDemoConfig() {
             <section class="workbench-content">
               <StageSetup
                 v-if="activeStageView === 'setup'"
-                v-model:config="projectConfig"
+                :config="projectConfig"
                 :disabled="isRunning"
+                @update:config="handleProjectConfigUpdate"
                 @commit="commitSetup"
               />
 
