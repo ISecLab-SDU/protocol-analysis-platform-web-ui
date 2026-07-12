@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import shutil
 import time
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict
@@ -12,6 +13,8 @@ from typing import Any, Callable, Dict
 from flask import make_response, request
 
 from utils.responses import error_response, success_response
+
+from .job_logging import ExcInfo, JobStageLogger
 
 
 # MQTT协议配置 - MBFuzzer相关路径
@@ -29,6 +32,57 @@ SNMP_CONFIG = {
 }
 
 
+class _FuzzBackendLogger:
+    """Expose the legacy logger shape through the shared ProtocolGuard logger."""
+
+    def __init__(self, logger: logging.Logger) -> None:
+        self._job_logger = JobStageLogger(job_id="fuzz", logger=logger)
+
+    def debug(self, message: str, *args: object, **fields: object) -> None:
+        self._job_logger.debug(
+            message,
+            *args,
+            emit_progress=False,
+            stage="fuzz",
+            **fields,
+        )
+
+    def info(self, message: str, *args: object, **fields: object) -> None:
+        self._job_logger.info(
+            message,
+            *args,
+            emit_progress=False,
+            stage="fuzz",
+            **fields,
+        )
+
+    def warning(
+        self,
+        message: str,
+        *args: object,
+        exc_info: ExcInfo = None,
+        **fields: object,
+    ) -> None:
+        self._job_logger.warning(
+            message,
+            *args,
+            emit_progress=False,
+            exc_info=exc_info,
+            stage="fuzz",
+            **fields,
+        )
+
+    def exception(self, message: str, *args: object, **fields: object) -> None:
+        self._job_logger.error(
+            message,
+            *args,
+            emit_progress=False,
+            exc_info=True,
+            stage="fuzz",
+            **fields,
+        )
+
+
 def create_legacy_fuzz_handlers(
     ensure_authenticated: Callable[[], tuple[object, object]],
     *,
@@ -42,6 +96,8 @@ def create_legacy_fuzz_handlers(
     aflnet_fallback_output_root: Callable[[], Path],
     resolve_aflnet_output_source: Callable[[Dict[str, Any]], str],
 ) -> Dict[str, Callable[..., Any]]:
+    logger = _FuzzBackendLogger(logger)
+
     def write_script():
         """写入脚本文件到指定路径"""
         _, error = ensure_authenticated()
@@ -305,8 +361,8 @@ def create_legacy_fuzz_handlers(
             try:
                 files_in_dir = os.listdir(log_dir)
                 logger.debug("日志目录中的文件: %s", files_in_dir)
-            except Exception as e:
-                logger.debug("无法列出目录文件: %s", e)
+            except Exception:
+                logger.warning("无法列出目录文件", exc_info=True, log_dir=log_dir)
 
             if not os.path.exists(file_path):
                 logger.debug("日志文件不存在: %s", file_path)
@@ -371,7 +427,7 @@ def create_legacy_fuzz_handlers(
             return success_response(response_data)
 
         except Exception as e:
-            logger.debug("读取日志文件异常: %s", e)
+            logger.exception("读取日志文件异常")
             return make_response(error_response(f"读取日志文件失败: {str(e)}"), 500)
 
     def check_status():
@@ -431,6 +487,7 @@ def create_legacy_fuzz_handlers(
                         files = os.listdir(log_dir)
                         status_info["files_in_log_dir"] = files
                     except Exception as e:
+                        logger.warning("无法列出日志目录文件", exc_info=True, log_dir=log_dir)
                         status_info["files_in_log_dir"] = f"无法列出文件: {e}"
 
                 # 如果日志文件存在，获取文件信息
@@ -458,6 +515,7 @@ def create_legacy_fuzz_handlers(
                         status_info["docker_error"] = result.stderr
 
                 except Exception as e:
+                    logger.warning("Docker状态检查失败", exc_info=True)
                     status_info["docker_error"] = str(e)
 
             logger.debug("状态检查结果: %s", status_info)
@@ -465,7 +523,7 @@ def create_legacy_fuzz_handlers(
             return success_response(status_info)
 
         except Exception as e:
-            logger.debug("状态检查异常: %s", e)
+            logger.exception("状态检查异常")
             return make_response(error_response(f"状态检查失败: {str(e)}"), 500)
 
     def stop_process():
@@ -496,8 +554,10 @@ def create_legacy_fuzz_handlers(
             })
 
         except subprocess_module.CalledProcessError:
+            logger.warning("进程停止失败，进程不存在或已停止", pid=pid, protocol=protocol)
             return make_response(error_response(f"进程 {pid} 不存在或已停止"), 404)
         except Exception as e:
+            logger.exception("停止进程失败", pid=pid, protocol=protocol)
             return make_response(error_response(f"停止进程失败: {str(e)}"), 500)
 
     def pre_start_cleanup():

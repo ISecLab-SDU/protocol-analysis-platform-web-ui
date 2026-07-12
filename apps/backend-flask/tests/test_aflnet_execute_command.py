@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import os
 import sys
+import logging
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any, cast
 
 from flask import Flask
 
@@ -103,6 +105,39 @@ def test_execute_command_passes_host_identity_to_protocolguard_container(monkeyp
     docker_run_command = commands[0]
     assert f"-e PG_HOST_UID={os.getuid()}" in docker_run_command
     assert f"-e PG_HOST_GID={os.getgid()}" in docker_run_command
+
+
+def test_legacy_fuzz_status_logs_use_protocolguard_context(
+    caplog,
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    app = Flask(__name__)
+    app.register_blueprint(routes.bp)
+    monkeypatch.setattr(routes, "verify_access_token", lambda _header: {"username": "admin"})
+    monkeypatch.setenv("PG_RUNTIME_ROOT", str(tmp_path / "protocolguard"))
+
+    def fake_run(command, *args, **kwargs):
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(routes.subprocess, "run", fake_run)
+
+    with caplog.at_level(logging.DEBUG, logger="protocol_compliance.routes"):
+        response = app.test_client().post(
+            "/api/protocol-compliance/check-status",
+            headers={"Authorization": "Bearer test-token"},
+            json={
+                "protocol": "MQTT",
+                "protocolImplementations": ["SOL"],
+            },
+        )
+
+    assert response.status_code == 200
+    status_log = next(
+        record for record in caplog.records if "状态检查结果" in record.getMessage()
+    )
+    assert "[job fuzz][fuzz] 状态检查结果:" in status_log.getMessage()
+    assert cast(Any, status_log).protocolguard_context == {}
 
 
 def test_aflnet_output_defaults_to_protocolguard_runtime_tree(monkeypatch, tmp_path: Path) -> None:
