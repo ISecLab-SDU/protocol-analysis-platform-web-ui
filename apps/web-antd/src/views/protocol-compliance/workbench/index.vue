@@ -70,6 +70,7 @@ const {
   backToSetup,
   selectStageView,
   startPipeline,
+  startFuzzDebugReplay,
   stopPipeline,
   resetWorkbench,
   canViewStage,
@@ -1212,15 +1213,23 @@ function switchRule() {
                   <code>{{ currentRuleText }}</code>
                 </div>
               </div>
-              <Button
-                :disabled="isRunning || stage === 'setup'"
-                @click="switchRule"
-              >
-                切换规则
-                <template #icon>
-                  <IconifyIcon icon="mdi:chevron-down" />
-                </template>
-              </Button>
+              <div class="task-actions">
+                <Button :disabled="isRunning" @click="startFuzzDebugReplay">
+                  复用插桩产物启动 Fuzz
+                  <template #icon>
+                    <IconifyIcon icon="mdi:rocket-launch-outline" />
+                  </template>
+                </Button>
+                <Button
+                  :disabled="isRunning || stage === 'setup'"
+                  @click="switchRule"
+                >
+                  切换规则
+                  <template #icon>
+                    <IconifyIcon icon="mdi:chevron-down" />
+                  </template>
+                </Button>
+              </div>
             </header>
 
             <section class="pipeline-stepper">
@@ -2780,6 +2789,14 @@ function switchRule() {
   min-width: 0;
 }
 
+.task-actions {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
 .task-title-line {
   display: flex;
   flex-wrap: wrap;
@@ -3573,6 +3590,11 @@ function switchRule() {
 
   .topbar-actions {
     flex-wrap: wrap;
+  }
+
+  .task-actions {
+    justify-content: flex-start;
+    width: 100%;
   }
 
   .extract-shell,

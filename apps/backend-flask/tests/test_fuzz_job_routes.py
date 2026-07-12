@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import sys
 import zipfile
+import logging
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -79,7 +80,9 @@ def test_start_fuzz_job_stages_instrumented_code_zip(
 ) -> None:
     app = Flask(__name__)
     app.register_blueprint(routes.bp)
-    monkeypatch.setattr(routes, "verify_access_token", lambda _header: {"username": "admin"})
+    monkeypatch.setattr(
+        routes, "verify_access_token", lambda _header: {"username": "admin"}
+    )
 
     runtime_root = tmp_path / "protocolguard"
     monkeypatch.setenv("PG_RUNTIME_ROOT", str(runtime_root))
@@ -127,21 +130,27 @@ def test_start_fuzz_job_stages_instrumented_code_zip(
     payload = response.get_json()["data"]
     staged_zip = Path(payload["artifacts"]["instrumentedCodeZipPath"])
     instrumented_dir = Path(payload["artifacts"]["instrumentedCodePath"])
+    output_root = Path(payload["artifacts"]["outputRoot"])
 
     assert payload["assertGenerationJobId"] == "assert-job-1"
     assert staged_zip.exists()
     assert (instrumented_dir / "instrumented_code" / "main.c").exists()
+    assert output_root == Path(payload["artifacts"]["outputPath"]) / "aflnet-output"
+    assert output_root.exists()
     assert commands
     assert f"-e PG_HOST_UID={os.getuid()}" in commands[0]
     assert f"-e PG_HOST_GID={os.getgid()}" in commands[0]
     assert "PG_FUZZ_INSTRUMENTED_CODE_DIR=/workspace/instrumented_code" in commands[0]
     assert f"{instrumented_dir}:/workspace/instrumented_code:ro" in commands[0]
+    assert f"{output_root}:/out/fuzz-output" in commands[0]
 
 
 def test_start_fuzz_job_rejects_missing_instrumented_zip(monkeypatch) -> None:
     app = Flask(__name__)
     app.register_blueprint(routes.bp)
-    monkeypatch.setattr(routes, "verify_access_token", lambda _header: {"username": "admin"})
+    monkeypatch.setattr(
+        routes, "verify_access_token", lambda _header: {"username": "admin"}
+    )
 
     monkeypatch.setattr(
         fuzz_job_routes,
@@ -172,7 +181,9 @@ def test_start_dev_fuzz_job_accepts_instrumented_zip_path(
 ) -> None:
     app = Flask(__name__)
     app.register_blueprint(routes.bp)
-    monkeypatch.setattr(routes, "verify_access_token", lambda _header: {"username": "admin"})
+    monkeypatch.setattr(
+        routes, "verify_access_token", lambda _header: {"username": "admin"}
+    )
 
     runtime_root = tmp_path / "protocolguard"
     source_dir = runtime_root / "outputs" / "assert-job-2"
@@ -208,13 +219,16 @@ def test_start_dev_fuzz_job_accepts_instrumented_zip_path(
     payload = response.get_json()["data"]
     staged_zip = Path(payload["artifacts"]["instrumentedCodeZipPath"])
     instrumented_dir = Path(payload["artifacts"]["instrumentedCodePath"])
+    output_root = Path(payload["artifacts"]["outputRoot"])
 
     assert payload["assertGenerationJobId"] == "debug:assert-job-2"
     assert payload["debugSource"] == "instrumentedCodeZipPath"
     assert staged_zip.exists()
     assert (instrumented_dir / "instrumented_code" / "main.c").exists()
+    assert output_root == Path(payload["artifacts"]["outputPath"]) / "aflnet-output"
     assert commands
     assert f"{instrumented_dir}:/workspace/instrumented_code:ro" in commands[0]
+    assert f"{output_root}:/out/fuzz-output" in commands[0]
 
 
 def test_start_dev_fuzz_job_uses_latest_instrumented_zip(
@@ -223,7 +237,9 @@ def test_start_dev_fuzz_job_uses_latest_instrumented_zip(
 ) -> None:
     app = Flask(__name__)
     app.register_blueprint(routes.bp)
-    monkeypatch.setattr(routes, "verify_access_token", lambda _header: {"username": "admin"})
+    monkeypatch.setattr(
+        routes, "verify_access_token", lambda _header: {"username": "admin"}
+    )
 
     runtime_root = tmp_path / "protocolguard"
     monkeypatch.setenv("PG_RUNTIME_ROOT", str(runtime_root))
@@ -245,7 +261,9 @@ def test_start_dev_fuzz_job_uses_latest_instrumented_zip(
     monkeypatch.setattr(
         fuzz_job_routes.subprocess,
         "run",
-        lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout="abc123def4567890\n", stderr=""),
+        lambda *args, **kwargs: SimpleNamespace(
+            returncode=0, stdout="abc123def4567890\n", stderr=""
+        ),
     )
 
     response = app.test_client().post(
@@ -260,13 +278,113 @@ def test_start_dev_fuzz_job_uses_latest_instrumented_zip(
     assert payload["assertGenerationJobId"] == "debug:newer"
 
 
+def test_fuzz_job_logs_include_docker_and_aflnet_runtime_output(
+    caplog,
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    app = Flask(__name__)
+    app.register_blueprint(routes.bp)
+    monkeypatch.setattr(
+        routes, "verify_access_token", lambda _header: {"username": "admin"}
+    )
+
+    runtime_root = tmp_path / "protocolguard"
+    monkeypatch.setenv("PG_RUNTIME_ROOT", str(runtime_root))
+    monkeypatch.delenv("PG_OUTPUT_ROOT", raising=False)
+    monkeypatch.delenv("AFLNET_OUTPUT_ROOT", raising=False)
+    fuzz_job_routes.FUZZ_JOBS._jobs.clear()
+
+    source_dir = runtime_root / "outputs" / "assert-job-logs"
+    source_dir.mkdir(parents=True)
+    source_zip = source_dir / "instrumented_code.zip"
+    with zipfile.ZipFile(source_zip, "w") as archive:
+        archive.writestr("instrumented_code/main.c", "int main(void) { return 0; }\n")
+
+    def fake_run(command, *args, **kwargs):
+        if isinstance(command, str) and command.startswith("docker run"):
+            return SimpleNamespace(returncode=0, stdout="abc123def4567890\n", stderr="")
+        if command[:2] == ["docker", "logs"]:
+            assert "--timestamps" in command
+            assert "--since" in command
+            return SimpleNamespace(
+                returncode=0,
+                stdout=(
+                    "2026-07-12T14:10:22.000000000Z afl-fuzz started\n"
+                    "2026-07-12T14:10:23.000000000Z execs_done : 128\n"
+                ),
+                stderr=(
+                    "2026-07-12T14:10:24.000000000Z "
+                    "PROGRAM ABORT : No seed corpus found\n"
+                ),
+            )
+        if isinstance(command, str) and command.startswith("docker ps -q"):
+            return SimpleNamespace(returncode=0, stdout="abc123def4567890\n", stderr="")
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(fuzz_job_routes.subprocess, "run", fake_run)
+
+    start_response = app.test_client().post(
+        "/api/protocol-compliance/fuzzing/dev/jobs",
+        headers={"Authorization": "Bearer test-token"},
+        json={"instrumentedCodeZipPath": str(source_zip), "protocol": "MQTT"},
+    )
+
+    assert start_response.status_code == 202
+    job = start_response.get_json()["data"]
+    output_root = Path(job["artifacts"]["outputRoot"])
+    output_root.mkdir(parents=True, exist_ok=True)
+    (output_root / "plot_data").write_text(
+        "# unix_time, cycles_done, cur_path, paths_total, execs_per_sec\n"
+        "1, 2, 3, 4, 5.5\n",
+        encoding="utf-8",
+    )
+    (output_root / "queue").mkdir()
+    (output_root / "queue" / "id:000000").write_text("seed", encoding="utf-8")
+
+    caplog.clear()
+    caplog.set_level(logging.INFO, logger="protocol_compliance.fuzz_job_routes")
+    log_response = app.test_client().get(
+        f"/api/protocol-compliance/fuzzing/jobs/{job['jobId']}/logs",
+        headers={"Authorization": "Bearer test-token"},
+        query_string={"fromPosition": 0},
+    )
+
+    assert log_response.status_code == 200
+    content = log_response.get_json()["data"]["content"]
+    updated_job = log_response.get_json()["data"]["job"]
+    assert "Fuzz job" in content
+    assert "Extracted source preview" in content
+    assert "Synced Docker container logs: 2 stdout line(s), 1 stderr line(s)" in content
+    assert "[container:stdout] afl-fuzz started" in content
+    assert "[container:stdout] execs_done : 128" in content
+    assert "[container:stderr] PROGRAM ABORT : No seed corpus found" in content
+    assert "ERROR: AFLNet startup failed: PROGRAM ABORT : No seed corpus found" in content
+    assert updated_job["status"] == "failed"
+    assert updated_job["stage"] == "error"
+    assert updated_job["error"] == "PROGRAM ABORT : No seed corpus found"
+    assert "AFLNet plot_data emitted 2 new line(s)" in content
+    assert "[plot_data] 1, 2, 3, 4, 5.5" in content
+    assert "AFLNet output snapshot: plot_data" in content
+    assert "queue/ (1 item)" in content
+    assert any(
+        record.name == "protocol_compliance.fuzz_job_routes"
+        and "[container:stderr] PROGRAM ABORT : No seed corpus found"
+        in record.getMessage()
+        and record.protocolguard_context["job_id"] == job["jobId"]
+        for record in caplog.records
+    )
+
+
 def test_start_dev_fuzz_job_rejects_zip_outside_runtime_roots(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
     app = Flask(__name__)
     app.register_blueprint(routes.bp)
-    monkeypatch.setattr(routes, "verify_access_token", lambda _header: {"username": "admin"})
+    monkeypatch.setattr(
+        routes, "verify_access_token", lambda _header: {"username": "admin"}
+    )
 
     runtime_root = tmp_path / "protocolguard"
     outside_dir = tmp_path / "outside"
@@ -288,7 +406,9 @@ def test_start_dev_fuzz_job_rejects_zip_outside_runtime_roots(
     assert response.status_code == 400
 
 
-def test_aflnet_output_defaults_to_protocolguard_runtime_tree(monkeypatch, tmp_path: Path) -> None:
+def test_aflnet_output_defaults_to_protocolguard_runtime_tree(
+    monkeypatch, tmp_path: Path
+) -> None:
     runtime_root = tmp_path / "protocolguard"
     monkeypatch.setenv("PG_RUNTIME_ROOT", str(runtime_root))
     monkeypatch.delenv("PG_OUTPUT_ROOT", raising=False)

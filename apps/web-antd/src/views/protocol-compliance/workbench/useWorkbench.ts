@@ -34,6 +34,7 @@ import {
   runProtocolAssertGeneration,
   runProtocolStaticAnalysis,
   snapshotAflNetPoc,
+  startProtocolFuzzingDebugJob,
   startProtocolFuzzingJob,
   stopProtocolFuzzingJob,
   upsertProtocolViolationHistory,
@@ -736,6 +737,8 @@ function appendResultHistoryRecord(reason: 'crash' | 'no-crash' | 'stopped') {
 }
 
 function isCrashDiscoveryLine(line: string) {
+  if (isFuzzerStartupErrorLine(line)) return false;
+
   const crashCountMatch = line.match(/(?:unique_)?crash\D*(\d+)/i);
   if (crashCountMatch?.[1]) {
     const crashCount = Number(crashCountMatch[1]);
@@ -748,7 +751,13 @@ function isCrashDiscoveryLine(line: string) {
     return Number.isFinite(crashCount) && crashCount > 0;
   }
 
-  return /崩溃|fatal|segmentation fault|assertion.*failed|\bcrash(?:es|ed|ing)?\b/i.test(
+  return /崩溃|segmentation fault|assertion.*failed|\bcrash(?:es|ed|ing)?\b/i.test(
+    line,
+  );
+}
+
+function isFuzzerStartupErrorLine(line: string) {
+  return /PROGRAM ABORT|PG_FUZZ_INSTRUMENTED_CODE_DIR|cannot infer how to build or launch|Seed corpus directory|Target binary not found|AFLNet startup failed/i.test(
     line,
   );
 }
@@ -1678,6 +1687,15 @@ async function readFuzzLogs(options: { runId?: number } = {}) {
     );
     fuzzJob.value = data.job;
     updateAflNetPocPath(data);
+    const jobFailed = data.job?.status === 'failed';
+    if (jobFailed && (!options.runId || isCurrentPipelineRun(options.runId))) {
+      clearTimer('fuzz');
+      clearTimer('elapsed');
+      markStageError(
+        'fuzz',
+        data.job.error || data.job.message || 'AFLNet 启动失败',
+      );
+    }
     const content: string = data?.content || '';
     const position: number =
       typeof data?.position === 'number'
@@ -1694,22 +1712,36 @@ async function readFuzzLogs(options: { runId?: number } = {}) {
         const lower = line.toLowerCase();
         if (/stats|execs|paths|coverage|cycles|pending|nodes|edges/i.test(line))
           level = 'STATS';
-        else if (isCrashDiscoveryLine(line) || lower.includes('error'))
+        else if (
+          isCrashDiscoveryLine(line) ||
+          isFuzzerStartupErrorLine(line) ||
+          lower.includes('error')
+        )
           level = 'ERROR';
         else if (lower.includes('warn')) level = 'WARN';
-        const normalized = normalizeFuzzLogLine(line, level);
+        const normalized = jobFailed
+          ? {
+              level,
+              text: withLogTimestamp(stripFuzzLogPrefix(line) || line.trim()),
+            }
+          : normalizeFuzzLogLine(line, level);
         if (!normalized) continue;
         appendFuzzLog(normalized.text, normalized.level);
-        if (isCrashDiscoveryLine(line)) {
+        if (
+          !jobFailed &&
+          stageStatus.fuzz === 'running' &&
+          isCrashDiscoveryLine(line)
+        ) {
           fuzzStats.crashes = Math.max(fuzzStats.crashes, 1);
         }
-        if (normalized.stats) {
+        if (!jobFailed && normalized.stats) {
           applyAflNetStats(normalized.stats);
-        } else if (normalized.level === 'STATS') {
+        } else if (!jobFailed && normalized.level === 'STATS') {
           parseStatsLine(line);
         }
       }
     }
+    if (data.job?.status === 'failed') return;
     if (await enterResultVerificationAfterCrash()) return;
     if (
       data.job?.status &&
@@ -1788,6 +1820,109 @@ async function runFuzzStep(runId: number) {
     if (!isCurrentPipelineRun(runId)) return;
     markStageError('fuzz', error?.message || '模糊测试启动失败');
   }
+}
+
+async function startFuzzDebugReplay() {
+  if (isRunningFuzzDebugReplay()) return;
+  pipelineRunId += 1;
+  const runId = pipelineRunId;
+  clearTransitionTimer(false);
+  clearTimer('static');
+  clearTimer('assert');
+  clearTimer('fuzz');
+  clearTimer('elapsed');
+  isAwaitingAssertConfirmation.value = false;
+  isStopping.value = false;
+  errorMessage.value = null;
+
+  for (const s of STAGE_LIST) stageStatus[s.key] = 'idle';
+  markStageSkipped('code_locate');
+  markStageSkipped('assert_gen');
+  setStage('fuzz', 'running', '复用最近插桩源码包启动 Fuzz…');
+  startedAt.value = new Date();
+  elapsedSeconds.value = 0;
+  startElapsedTimer();
+
+  selectedRule.value = null;
+  staticJobId.value = null;
+  staticJob.value = null;
+  staticResult.value = null;
+  staticLogText.value = '';
+  staticLogHtml.value = '';
+  staticLastEventId.value = 0;
+  codeLocateEvidence.value = null;
+  assertJobId.value = null;
+  assertJob.value = null;
+  assertResult.value = null;
+  assertLogText.value = '';
+  assertDiffContent.value = '';
+  fuzzJobId.value = null;
+  fuzzJob.value = null;
+  aflNetPocPath.value = '';
+  fuzzLogs.value = [];
+  fuzzLogReadPosition.value = 0;
+  resultHistoryAppended = false;
+  Object.assign(fuzzStats, {
+    executions: 0,
+    paths: 0,
+    currentPath: 0,
+    pathsTotal: 0,
+    pendingTotal: 0,
+    pendingFavs: 0,
+    coverage: 0,
+    crashes: 0,
+    hangs: 0,
+    cycles: 0,
+    speed: 0,
+    maxDepth: 0,
+    nodes: 0,
+    edges: 0,
+  });
+  fuzzSpeedSeries.value = [];
+
+  await nextTick();
+  if (!isCurrentPipelineRun(runId)) return;
+
+  try {
+    appendFuzzLog('正在复用最近一次断言插入产物启动 Fuzz', 'INFO');
+    const job = await startProtocolFuzzingDebugJob({
+      notes: projectConfig.notes || 'Workbench debug replay',
+      protocol: protocolKindForApi.value,
+      protocolImplementations: protocolImplementationsKey.value,
+    });
+    if (!isCurrentPipelineRun(runId)) return;
+    fuzzJobId.value = job.jobId;
+    fuzzJob.value = job;
+    updateAflNetPocPath(job.artifacts);
+    const artifactPath =
+      job.inputs?.instrumentedCodeZipPath ||
+      job.artifacts?.instrumentedCodeZipPath ||
+      '最近插桩源码包';
+    appendFuzzLog(`使用插桩源码包: ${artifactPath}`, 'INFO');
+    if (job.status === 'failed') {
+      markStageError('fuzz', job.error || '模糊测试启动失败');
+      return;
+    }
+    stageMessage.value = '调试 Fuzz 已启动，点击"停止"结束';
+    void readFuzzLogs({ runId });
+    fuzzPollTimer = setInterval(() => {
+      void readFuzzLogs({ runId });
+    }, 1000);
+  } catch (error: any) {
+    if (!isCurrentPipelineRun(runId)) return;
+    clearTimer('elapsed');
+    markStageError('fuzz', error?.message || '调试 Fuzz 启动失败');
+  }
+}
+
+function isRunningFuzzDebugReplay() {
+  return (
+    stageStatus.code_locate === 'running' ||
+    stageStatus.assert_gen === 'running' ||
+    stageStatus.fuzz === 'running' ||
+    isTransitioning.value ||
+    isAwaitingAssertConfirmation.value
+  );
 }
 
 async function runConfiguredPipeline(runId: number) {
@@ -1943,6 +2078,7 @@ export function useWorkbench() {
     confirmAssertGeneration,
     backToSetup,
     startPipeline,
+    startFuzzDebugReplay,
     stopPipeline,
     resetWorkbench,
     selectStageView,

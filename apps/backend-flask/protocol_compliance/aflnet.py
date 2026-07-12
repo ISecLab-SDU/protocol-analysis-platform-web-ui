@@ -40,8 +40,12 @@ def _aflnet_output_root() -> Path:
     configured = os.environ.get("AFLNET_OUTPUT_ROOT")
     if configured:
         return Path(configured).expanduser()
-    runtime_root = Path(os.environ.get("PG_RUNTIME_ROOT", "/tmp/protocolguard")).expanduser()
-    output_root = Path(os.environ.get("PG_OUTPUT_ROOT", runtime_root / "outputs")).expanduser()
+    runtime_root = Path(
+        os.environ.get("PG_RUNTIME_ROOT", "/tmp/protocolguard")
+    ).expanduser()
+    output_root = Path(
+        os.environ.get("PG_OUTPUT_ROOT", runtime_root / "outputs")
+    ).expanduser()
     return output_root.parent / "fuzz-output"
 
 
@@ -66,8 +70,12 @@ def _aflnet_container_host_identity_flags() -> str:
     return f"-e PG_HOST_UID={uid} -e PG_HOST_GID={gid}"
 
 
-def _aflnet_shell_command(instrumented_code_dir: Optional[Path] = None) -> str:
-    output_root = _aflnet_output_root()
+def _aflnet_shell_command(
+    instrumented_code_dir: Optional[Path] = None,
+    *,
+    output_root: Optional[Path] = None,
+) -> str:
+    output_root = output_root or _aflnet_output_root()
     output_root.mkdir(parents=True, exist_ok=True)
     mount = f"{output_root}:{_aflnet_container_output_dir()}"
     command = [
@@ -172,13 +180,28 @@ def _aflnet_artifact_root() -> Path:
     configured = os.environ.get("AFLNET_ARTIFACT_ROOT")
     if configured:
         return Path(configured).expanduser()
-    pg_output_root = Path(os.environ.get("PG_OUTPUT_ROOT", "/tmp/protocolguard/outputs")).expanduser()
+    pg_output_root = Path(
+        os.environ.get("PG_OUTPUT_ROOT", "/tmp/protocolguard/outputs")
+    ).expanduser()
     return pg_output_root.parent / "fuzz-artifacts"
 
 
-def _aflnet_result_path_info(source: str = "primary") -> Dict[str, Any]:
-    output_root = _aflnet_output_root_for_source(source).expanduser()
-    log_file = _aflnet_log_file_for_source(source).expanduser()
+def _aflnet_result_path_info(
+    source: str = "primary",
+    *,
+    output_root: Optional[Path] = None,
+) -> Dict[str, Any]:
+    explicit_output_root = output_root
+    output_root = (
+        output_root.expanduser()
+        if output_root is not None
+        else _aflnet_output_root_for_source(source).expanduser()
+    )
+    log_file = (
+        output_root / _aflnet_log_file_name()
+        if explicit_output_root is not None
+        else _aflnet_log_file_for_source(source).expanduser()
+    )
     poc_path = output_root
     for name in ("replayable-crashes", "crashes", "crash", "crash_logs", "queue"):
         candidate = output_root / name
@@ -194,7 +217,9 @@ def _aflnet_result_path_info(source: str = "primary") -> Dict[str, Any]:
     }
 
 
-def _poc_artifact_candidates(output_root: Path, requested_path: Optional[str]) -> list[Path]:
+def _poc_artifact_candidates(
+    output_root: Path, requested_path: Optional[str]
+) -> list[Path]:
     allowed_roots = [output_root]
     candidates: list[Path] = []
 
@@ -277,7 +302,9 @@ def _write_aflnet_poc_archive(
     added = 0
 
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
+        archive.writestr(
+            "manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2)
+        )
         added += 1
         for candidate in candidates:
             added += _add_path_to_zip(archive, candidate, output_root)
