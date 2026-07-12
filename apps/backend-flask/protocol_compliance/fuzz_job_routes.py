@@ -21,6 +21,10 @@ from .assertion import get_assert_generation_job, get_assert_generation_result
 from .aflnet import _aflnet_result_path_info, _aflnet_shell_command
 
 LOGGER = logging.getLogger(__name__)
+DEBUG_REPLAY_INSTRUMENTED_CODE_ZIP_RELATIVE_PATH = Path(
+    "replay/fuzz-startup-failed-after-instrumentation/latest/"
+    "assertion-output/instrumented_code.zip"
+)
 
 
 class FuzzJobRegistry:
@@ -171,7 +175,10 @@ def create_fuzz_job_handlers(
         if isinstance(requested_zip, str) and requested_zip.strip():
             instrumented_zip = Path(requested_zip.strip()).expanduser()
         else:
-            instrumented_zip = _latest_instrumented_code_zip()
+            instrumented_zip = (
+                _debug_replay_instrumented_code_zip()
+                or _latest_instrumented_code_zip()
+            )
             if instrumented_zip is None:
                 return make_response(
                     error_response("未找到可复用的插桩源码压缩包"), 404
@@ -283,6 +290,13 @@ def _configured_output_root() -> Path:
     ).expanduser()
 
 
+def _repository_root() -> Path:
+    for parent in Path(__file__).resolve().parents:
+        if (parent / ".git").exists():
+            return parent
+    return Path.cwd()
+
+
 def _allowed_instrumented_zip_roots() -> list[Path]:
     roots = [
         _runtime_root(),
@@ -290,6 +304,9 @@ def _allowed_instrumented_zip_roots() -> list[Path]:
         _fuzz_workspace_root(),
         _fuzz_output_root(),
     ]
+    debug_replay_zip = _configured_debug_replay_zip_path()
+    if debug_replay_zip is not None:
+        roots.append(debug_replay_zip.parent)
     configured = os.environ.get("PG_FUZZ_DEBUG_ZIP_ROOTS")
     if configured:
         roots.extend(
@@ -310,6 +327,29 @@ def _allowed_instrumented_zip_roots() -> list[Path]:
         seen.add(resolved)
         deduped.append(resolved)
     return deduped
+
+
+def _configured_debug_replay_zip_path() -> Optional[Path]:
+    configured = os.environ.get("PG_FUZZ_DEBUG_REPLAY_ZIP_PATH")
+    if configured is not None:
+        if not configured.strip():
+            return None
+        return Path(configured.strip()).expanduser()
+    sample_input_root = os.environ.get("PG_PROTOCOLGUARD_SAMPLE_INPUT_ROOT")
+    if sample_input_root is not None and sample_input_root.strip():
+        root = Path(sample_input_root.strip()).expanduser()
+    else:
+        root = _repository_root() / ".sample-input"
+    return root / DEBUG_REPLAY_INSTRUMENTED_CODE_ZIP_RELATIVE_PATH
+
+
+def _debug_replay_instrumented_code_zip() -> Optional[Path]:
+    path = _configured_debug_replay_zip_path()
+    if path is None:
+        return None
+    if not path.exists() or not path.is_file():
+        return None
+    return path
 
 
 def _instrumented_zip_discovery_roots() -> list[Path]:

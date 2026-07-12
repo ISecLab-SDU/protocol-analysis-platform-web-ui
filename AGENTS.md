@@ -4,6 +4,7 @@
 
 - `~/ProtocolGuard` is the core logic repository. Compiler behavior, assertion generation, fuzz configuration, AFLNet orchestration, Docker image logic, and seed handling belong there.
 - `~/ProtocolGuard-Sample-Input` contains test inputs and temporary debugging credentials. Use it for local smoke tests and replay; do not copy credentials from it into commits, docs, logs, screenshots, or PR text.
+- This checkout may contain a local `.sample-input` symlink to `~/ProtocolGuard-Sample-Input`; prefer that stable path for replay/debug wiring when you need to avoid username-specific absolute paths.
 
 ## Repository Scope
 

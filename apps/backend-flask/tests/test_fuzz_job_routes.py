@@ -450,6 +450,7 @@ def test_start_dev_fuzz_job_uses_latest_instrumented_zip(
     monkeypatch.setenv("PG_RUNTIME_ROOT", str(runtime_root))
     monkeypatch.delenv("PG_OUTPUT_ROOT", raising=False)
     monkeypatch.delenv("AFLNET_OUTPUT_ROOT", raising=False)
+    monkeypatch.setenv("PG_FUZZ_DEBUG_REPLAY_ZIP_PATH", "")
     fuzz_job_routes.FUZZ_JOBS._jobs.clear()
 
     older_zip = runtime_root / "outputs" / "older" / "instrumented_code.zip"
@@ -481,6 +482,169 @@ def test_start_dev_fuzz_job_uses_latest_instrumented_zip(
     payload = response.get_json()["data"]
     assert payload["inputs"]["instrumentedCodeZipPath"] == str(newer_zip)
     assert payload["assertGenerationJobId"] == "debug:newer"
+
+
+def test_start_dev_fuzz_job_prefers_debug_replay_zip(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    app = Flask(__name__)
+    app.register_blueprint(routes.bp)
+    monkeypatch.setattr(
+        routes, "verify_access_token", lambda _header: {"username": "admin"}
+    )
+
+    runtime_root = tmp_path / "protocolguard"
+    replay_dir = tmp_path / "replay" / "assertion-output"
+    runtime_zip = runtime_root / "outputs" / "newer" / "instrumented_code.zip"
+    replay_zip = replay_dir / "instrumented_code.zip"
+    runtime_zip.parent.mkdir(parents=True)
+    replay_zip.parent.mkdir(parents=True)
+    monkeypatch.setenv("PG_RUNTIME_ROOT", str(runtime_root))
+    monkeypatch.setenv("PG_FUZZ_DEBUG_REPLAY_ZIP_PATH", str(replay_zip))
+    monkeypatch.delenv("PG_OUTPUT_ROOT", raising=False)
+    monkeypatch.delenv("AFLNET_OUTPUT_ROOT", raising=False)
+    fuzz_job_routes.FUZZ_JOBS._jobs.clear()
+
+    with zipfile.ZipFile(runtime_zip, "w") as archive:
+        archive.writestr("instrumented_code/runtime.c", "int runtime(void) { return 0; }\n")
+    with zipfile.ZipFile(replay_zip, "w") as archive:
+        archive.writestr("instrumented_code/replay.c", "int replay(void) { return 0; }\n")
+    os.utime(runtime_zip, (1_800_000_000, 1_800_000_000))
+    os.utime(replay_zip, (1_700_000_000, 1_700_000_000))
+
+    monkeypatch.setattr(
+        fuzz_job_routes.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(
+            returncode=0, stdout="abc123def4567890\n", stderr=""
+        ),
+    )
+
+    response = app.test_client().post(
+        "/api/protocol-compliance/fuzzing/dev/jobs",
+        headers={"Authorization": "Bearer test-token"},
+        json={"protocol": "MQTT"},
+    )
+
+    assert response.status_code == 202
+    payload = response.get_json()["data"]
+    assert payload["inputs"]["instrumentedCodeZipPath"] == str(replay_zip)
+    assert payload["assertGenerationJobId"] == "debug:assertion-output"
+    assert (
+        Path(payload["artifacts"]["instrumentedCodePath"])
+        / "instrumented_code"
+        / "replay.c"
+    ).exists()
+
+
+def test_start_dev_fuzz_job_uses_sample_input_root_for_default_replay_zip(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    app = Flask(__name__)
+    app.register_blueprint(routes.bp)
+    monkeypatch.setattr(
+        routes, "verify_access_token", lambda _header: {"username": "admin"}
+    )
+
+    runtime_root = tmp_path / "protocolguard"
+    sample_input_root = tmp_path / "sample-input"
+    replay_zip = (
+        sample_input_root
+        / "replay"
+        / "fuzz-startup-failed-after-instrumentation"
+        / "latest"
+        / "assertion-output"
+        / "instrumented_code.zip"
+    )
+    replay_zip.parent.mkdir(parents=True)
+    monkeypatch.setenv("PG_RUNTIME_ROOT", str(runtime_root))
+    monkeypatch.delenv("PG_FUZZ_DEBUG_REPLAY_ZIP_PATH", raising=False)
+    monkeypatch.setenv("PG_PROTOCOLGUARD_SAMPLE_INPUT_ROOT", str(sample_input_root))
+    monkeypatch.delenv("PG_OUTPUT_ROOT", raising=False)
+    monkeypatch.delenv("AFLNET_OUTPUT_ROOT", raising=False)
+    fuzz_job_routes.FUZZ_JOBS._jobs.clear()
+
+    with zipfile.ZipFile(replay_zip, "w") as archive:
+        archive.writestr(
+            "instrumented_code/default-replay.c",
+            "int default_replay(void) { return 0; }\n",
+        )
+
+    monkeypatch.setattr(
+        fuzz_job_routes.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(
+            returncode=0, stdout="abc123def4567890\n", stderr=""
+        ),
+    )
+
+    response = app.test_client().post(
+        "/api/protocol-compliance/fuzzing/dev/jobs",
+        headers={"Authorization": "Bearer test-token"},
+        json={"protocol": "MQTT"},
+    )
+
+    assert response.status_code == 202
+    payload = response.get_json()["data"]
+    assert payload["inputs"]["instrumentedCodeZipPath"] == str(replay_zip)
+    assert payload["assertGenerationJobId"] == "debug:assertion-output"
+
+
+def test_start_dev_fuzz_job_defaults_to_repository_sample_input_symlink(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    app = Flask(__name__)
+    app.register_blueprint(routes.bp)
+    monkeypatch.setattr(
+        routes, "verify_access_token", lambda _header: {"username": "admin"}
+    )
+
+    repo_root = tmp_path / "repo"
+    replay_zip = (
+        repo_root
+        / ".sample-input"
+        / "replay"
+        / "fuzz-startup-failed-after-instrumentation"
+        / "latest"
+        / "assertion-output"
+        / "instrumented_code.zip"
+    )
+    replay_zip.parent.mkdir(parents=True)
+    monkeypatch.setattr(fuzz_job_routes, "_repository_root", lambda: repo_root)
+    monkeypatch.delenv("PG_FUZZ_DEBUG_REPLAY_ZIP_PATH", raising=False)
+    monkeypatch.delenv("PG_PROTOCOLGUARD_SAMPLE_INPUT_ROOT", raising=False)
+    monkeypatch.delenv("PG_RUNTIME_ROOT", raising=False)
+    monkeypatch.delenv("PG_OUTPUT_ROOT", raising=False)
+    monkeypatch.delenv("AFLNET_OUTPUT_ROOT", raising=False)
+    fuzz_job_routes.FUZZ_JOBS._jobs.clear()
+
+    with zipfile.ZipFile(replay_zip, "w") as archive:
+        archive.writestr(
+            "instrumented_code/symlink-default.c",
+            "int symlink_default(void) { return 0; }\n",
+        )
+
+    monkeypatch.setattr(
+        fuzz_job_routes.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(
+            returncode=0, stdout="abc123def4567890\n", stderr=""
+        ),
+    )
+
+    response = app.test_client().post(
+        "/api/protocol-compliance/fuzzing/dev/jobs",
+        headers={"Authorization": "Bearer test-token"},
+        json={"protocol": "MQTT"},
+    )
+
+    assert response.status_code == 202
+    payload = response.get_json()["data"]
+    assert payload["inputs"]["instrumentedCodeZipPath"] == str(replay_zip)
+    assert payload["assertGenerationJobId"] == "debug:assertion-output"
 
 
 def test_fuzz_job_logs_include_docker_and_aflnet_runtime_output(

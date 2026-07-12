@@ -72,6 +72,7 @@ fuzz-output/
 .tmux.conf
 uv.lock
 .python-version
+.sample-input
 *.html
 compiler_test.py
 demo_mqtt_integration.py
