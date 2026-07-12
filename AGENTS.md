@@ -1,50 +1,36 @@
-# Repository Orientation
+# AGENTS.md
 
-## Mission & Context
+## Local Repositories
 
-- Vue 3 admin UI that showcases the protocol security lab's capabilities to potential collaborators. It is currently front-end heavy and used mainly for guided demos.
-- Forked and heavily modified from `vbenjs/vue-vben-admin`; expect to encounter template-era naming, utilities, and layout choices that can be repurposed or trimmed.
-- Delivery pace is aggressive. Favor production-ready patterns (clean separation of view layer, state, and API calls) even for demo flows.
+- `~/ProtocolGuard` is the core logic repository. Compiler behavior, assertion generation, fuzz configuration, AFLNet orchestration, Docker image logic, and seed handling belong there.
+- `~/ProtocolGuard-Sample-Input` contains test inputs and temporary debugging credentials. Use it for local smoke tests and replay; do not copy credentials from it into commits, docs, logs, screenshots, or PR text.
 
-## Primary Surface Areas
+## Repository Scope
 
-- `Protocol Compliance` (`apps/web-antd/src/views/protocol-compliance/*`): real feature work starts here. Key routes include Extract, Static Analysis, and Fuzz Testing. The Extract view is live; the rest still point at placeholders.
-- `Password/Cryptanalysis` (`apps/web-antd/src/views/placeholders` for now): menu placeholders for future cryptographic misuse analysis and formal verification flows. Keep route names stable while wiring new modules.
-- `LLM Automated Penetration` (`apps/web-antd/src/views/placeholders`): three scaffolded slots for LLM prompt templates, execution logs, etc. Replace placeholders with main-view modules as specs arrive.
-- Each top-level page is exposed through `apps/web-antd/src/router/routes/modules/*.ts`. New modules should register there and live under matching `views` subdirectories.
+- This repository is the ProtocolGuard web UI and Flask integration layer.
+- Use this repository for workflow orchestration, request validation, input staging, job registries, log streaming, artifact exposure, and frontend display.
+- Do not reimplement ProtocolGuard core algorithms here. If behavior depends on compiler, assertion insertion, fuzz configuration, AFLNet launch semantics, seeds, or Docker entrypoints, inspect `~/ProtocolGuard`.
 
-## Data & Backend Strategy
+## Main Surfaces
 
-- A Nitro-based mock backend (`apps/backend-mock`) supplies API contracts during UI work. Treat it as the source of truth for demo data and teed-up integration.
-- Prefer pulling mock data through typed API clients in `apps/web-antd/src/api`. Hard-coded fixtures inside `.vue` files are acceptable only as a temporary bridge; migrate them into the mock backend once an endpoint shape stabilizes.
-- Keep request/response models, stores, and composables in `packages/*` when they are shared across tools.
+- `apps/backend-flask/protocol_compliance/*`: Protocol Compliance API routes, job state, Docker command construction, artifact staging, and log streaming.
+- `apps/backend-flask/tests/*`: backend regression tests for Protocol Compliance routes and jobs.
+- `apps/web-antd/src/views/protocol-compliance/*`: Protocol Compliance UI and workbench orchestration.
+- `apps/web-antd/src/api/protocol-compliance.ts`: frontend API contract for Protocol Compliance workflows.
 
-## Monorepo Layout
+## Protocol Compliance Workflow
 
-- Applications live under `apps/*`; `apps/web-antd` is the primary UX target, while `apps/backend-mock` mirrors expected backend contracts.
-- Shared domains, composables, and styling primitives live under `packages/*` (`@core`, `stores`, `styles`, etc.). Reuse before re-creating.
-- Internal developer tooling (Vite, ESLint, Tailwind configs) is under `internal/*`. Documentation sources reside in `docs`.
+- Assertion generation, fuzz configuration, and fuzzing are separate job stages. Keep job IDs, status, logs, and artifacts explicit between stages.
+- A formal AFLNet fuzz job should consume a completed fuzz configuration bundle, not a raw source tree alone.
+- Fuzzing requires `PG_FUZZ_TARGET_BINARY`, `PG_FUZZ_TARGET_ARGS`, `PG_FUZZ_SEED_DIR`, and `PG_FUZZ_NETSPEC` from the completed fuzz configuration artifact or explicit overrides.
+- Prefer deterministic code/config for stable runtime parameters such as protocol defaults, seed catalog selection, target args, ports, and AFLNet net specs.
+- Use Agents only for source-dependent work, such as identifying how to build and copy a target binary from an instrumented source tree.
 
-## Build & Development
+## Local Validation
 
-- Install: `pnpm install` (Node >= 20.10, pnpm >= 9.12).
-- Dev servers: `pnpm dev` for the workspace loop or `pnpm dev:antd` for the admin UI. Start the mock backend with `pnpm --filter @vben/backend-mock dev` when exercising API flows or Playwright specs.
-- Bundles: `pnpm build` for the workspace, `pnpm build:docs` for docs, and `pnpm preview` to inspect production output.
-- Checks: `pnpm check` aggregates circular dependency, type, and spell checks.
-
-## Coding & Style Guardrails
-
-- Vue SFCs and TypeScript use two-space indentation and single quotes. Directories/routes stay kebab-case; components, composables, and stores follow PascalCase.
-- Share utilities through packages instead of relative imports inside apps. Remove leftover vben demo pages as the new flows mature.
-- Formatting and linting go through `pnpm lint` or `pnpm format`, powered by the shared `@vben` configs and Lefthook hooks.
-
-## Testing Expectations
-
-- Unit: colocate `*.spec.ts` with source and run via `pnpm test:unit` or `pnpm vitest -- --ui`.
-- E2E: launch both the target app and the mock backend before executing `pnpm test:e2e`. Keep Playwright fixtures in sync with mock API responses.
-- Prefer writing tests against real API mocks instead of stubbed components to keep parity with eventual backend integration.
-
-## Collaboration Hygiene
-
-- Commits follow Conventional Commit syntax, preferably scoped to the affected package/app (e.g., `feat(web-antd): ...`). Use `pnpm commit` for the guided workflow.
-- For PRs: summarize scope, link issues, list validation commands (`pnpm test:unit`, `pnpm lint`, etc.), and include before/after screenshots for UI changes. Ensure CI is green and the relevant domain owner reviews before merge.
+- Backend validation should use `apps/backend-flask/.venv`.
+- Prefer focused checks for changed surfaces, for example:
+  - `apps/backend-flask/.venv/bin/python -m pytest apps/backend-flask/tests/<test_file>.py -q`
+  - `apps/backend-flask/.venv/bin/python -m ruff check <paths>`
+  - `pnpm exec eslint <paths>`
+  - `pnpm exec prettier --check <paths>`
