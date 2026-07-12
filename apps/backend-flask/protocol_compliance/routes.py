@@ -28,6 +28,7 @@ from .assertion_history_routes import create_assertion_history_handlers
 from .assertion_routes import create_assertion_handlers
 from .aflnet_routes import create_aflnet_handlers
 from .fuzz_job_routes import create_fuzz_job_handlers
+from .fuzz_config_routes import create_fuzz_config_handlers
 from .legacy_analysis_history import (
     read_analysis_history as read_analysis_history,
 )
@@ -205,6 +206,23 @@ def add_analysis_history():
 _fuzz_job_handlers = create_fuzz_job_handlers(
     _ensure_authenticated,
 )
+_fuzz_config_handlers = create_fuzz_config_handlers(
+    _ensure_authenticated,
+)
+
+@bp.route("/fuzzing/config-jobs", methods=["POST"])
+def start_fuzz_config_job():
+    return _fuzz_config_handlers["start_fuzz_config_job"]()
+
+
+@bp.route("/fuzzing/config-jobs/<job_id>", methods=["GET"])
+def get_fuzz_config_job(job_id: str):
+    return _fuzz_config_handlers["get_fuzz_config_job"](job_id)
+
+
+@bp.route("/fuzzing/config-jobs/<job_id>/logs", methods=["GET"])
+def read_fuzz_config_logs(job_id: str):
+    return _fuzz_config_handlers["read_fuzz_config_logs"](job_id)
 
 @bp.route("/fuzzing/jobs", methods=["POST"])
 def start_fuzz_job():

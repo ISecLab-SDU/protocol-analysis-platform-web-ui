@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import json
 import os
 import shutil
 import subprocess
@@ -35,6 +36,7 @@ class FuzzJobRegistry:
         notes: Optional[str],
         protocol: str,
         protocol_implementations: list[str],
+        fuzz_config_job_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         job_id = str(uuid.uuid4())
         now = _now_iso()
@@ -51,6 +53,7 @@ class FuzzJobRegistry:
             "protocol": protocol,
             "protocolImplementations": protocol_implementations,
             "debugSource": debug_source,
+            "fuzzConfigJobId": fuzz_config_job_id,
             "notes": notes,
             "inputs": {
                 "instrumentedCodeZipPath": str(instrumented_code_zip_path),
@@ -97,6 +100,17 @@ def create_fuzz_job_handlers(
         assert_generation_job_id = str(data.get("assertGenerationJobId") or "").strip()
         if not assert_generation_job_id:
             return make_response(error_response("缺少断言生成任务 ID"), 400)
+        fuzz_config_job_id = str(data.get("fuzzConfigJobId") or "").strip()
+        if not fuzz_config_job_id:
+            return make_response(error_response("缺少 Fuzz 配置任务 ID"), 400)
+
+        from .fuzz_config_routes import completed_fuzz_config_job
+
+        config_snapshot = completed_fuzz_config_job(fuzz_config_job_id)
+        if not config_snapshot:
+            return make_response(error_response("Fuzz 配置任务尚未完成或产物不可用"), 409)
+        if config_snapshot.get("assertGenerationJobId") != assert_generation_job_id:
+            return make_response(error_response("Fuzz 配置任务与断言生成任务不匹配"), 409)
 
         assert_snapshot = get_assert_generation_job(assert_generation_job_id)
         if not assert_snapshot:
@@ -109,8 +123,14 @@ def create_fuzz_job_handlers(
                 409,
             )
 
-        assert_result = get_assert_generation_result(assert_generation_job_id)
-        instrumented_zip = _instrumented_code_zip_path(assert_result)
+        config_artifacts = cast(Dict[str, Any], config_snapshot.get("artifacts") or {})
+        configured_zip = config_artifacts.get("instrumentedCodeZipPath")
+        if isinstance(configured_zip, str) and configured_zip:
+            instrumented_zip = Path(configured_zip).expanduser()
+        else:
+            instrumented_zip = _instrumented_code_zip_path(
+                get_assert_generation_result(assert_generation_job_id)
+            )
         if instrumented_zip is None:
             return make_response(error_response("断言生成结果缺少插桩源码压缩包"), 400)
         if not instrumented_zip.exists() or not instrumented_zip.is_file():
@@ -134,8 +154,9 @@ def create_fuzz_job_handlers(
             notes=notes_text,
             protocol=protocol,
             protocol_implementations=protocol_implementations,
+            fuzz_config_job_id=fuzz_config_job_id,
         )
-        _prepare_and_launch_fuzz(snapshot["jobId"], instrumented_zip)
+        _prepare_and_launch_fuzz(snapshot["jobId"], instrumented_zip, config_snapshot)
         return make_response(
             success_response(FUZZ_JOBS.snapshot(snapshot["jobId"])), 202
         )
@@ -391,7 +412,11 @@ def _parse_protocol_implementations(data: Dict[str, Any]) -> list[str]:
     ]
 
 
-def _prepare_and_launch_fuzz(job_id: str, instrumented_zip: Path) -> None:
+def _prepare_and_launch_fuzz(
+    job_id: str,
+    instrumented_zip: Path,
+    config_snapshot: Optional[Dict[str, Any]] = None,
+) -> None:
     snapshot = FUZZ_JOBS.snapshot(job_id)
     if not snapshot:
         return
@@ -456,8 +481,38 @@ def _prepare_and_launch_fuzz(job_id: str, instrumented_zip: Path) -> None:
         for line in _path_preview_lines(instrumented_dir, limit=24):
             _append_log(log_file, f"  {line}")
 
+        bundle_dir: Optional[Path] = None
+        runtime_env: Dict[str, str] = {}
+        if config_snapshot:
+            config_artifacts = cast(Dict[str, Any], config_snapshot.get("artifacts") or {})
+            bundle_dir = Path(str(config_artifacts.get("bundlePath") or "")).expanduser()
+            env_path = Path(str(config_artifacts.get("envPath") or "")).expanduser()
+            if not bundle_dir.is_dir():
+                raise RuntimeError(f"Fuzz configuration bundle missing: {bundle_dir}")
+            if not env_path.is_file():
+                raise RuntimeError(f"Fuzz configuration env missing: {env_path}")
+            runtime_env = {
+                str(key): str(value)
+                for key, value in json.loads(env_path.read_text(encoding="utf-8")).items()
+            }
+            FUZZ_JOBS.update(
+                job_id,
+                artifacts={
+                    **cast(Dict[str, Any], (FUZZ_JOBS.snapshot(job_id) or snapshot)["artifacts"]),
+                    "fuzzBundlePath": str(bundle_dir),
+                    "fuzzConfigManifestPath": str(config_artifacts.get("manifestPath") or ""),
+                    "fuzzConfigEnvPath": str(env_path),
+                },
+            )
+            _append_log(log_file, f"Using fuzz configuration job: {config_snapshot.get('jobId')}")
+            _append_log(log_file, f"Fuzz bundle: {bundle_dir}")
+            for key in sorted(runtime_env):
+                _append_log(log_file, f"Runtime {key}: {runtime_env[key]}")
+
         command = _aflnet_shell_command(
-            instrumented_dir,
+            instrumented_dir if bundle_dir is None else None,
+            bundle_dir=bundle_dir,
+            runtime_env=runtime_env,
             output_root=aflnet_output,
         )
         _append_log(log_file, f"Launching fuzzer command: {command}")
@@ -498,7 +553,7 @@ def _prepare_and_launch_fuzz(job_id: str, instrumented_zip: Path) -> None:
                 "command": command,
             },
             artifacts={
-                **cast(Dict[str, Any], FUZZ_JOBS.snapshot(job_id)["artifacts"]),
+                **cast(Dict[str, Any], (FUZZ_JOBS.snapshot(job_id) or snapshot)["artifacts"]),
                 **result_info,
                 "fuzzerLogFilePath": fuzzer_log_file,
                 "fuzzerLogReadPosition": 0,
@@ -568,7 +623,7 @@ def _read_job_log(snapshot: Dict[str, Any], from_position: int) -> Dict[str, Any
             handle.seek(from_position)
             content = handle.read()
             position = handle.tell()
-    payload = {
+    payload: Dict[str, Any] = {
         "content": content,
         "position": position,
         "fileSize": log_file.stat().st_size if log_file.exists() else 0,
@@ -848,8 +903,12 @@ def _coerce_str_list(value: object) -> list[str]:
 
 
 def _coerce_int(value: object) -> int:
+    if value is None:
+        return 0
+    if not isinstance(value, (int, float, str)):
+        return 0
     try:
-        return max(0, int(value or 0))
+        return max(0, int(value))
     except (TypeError, ValueError):
         return 0
 

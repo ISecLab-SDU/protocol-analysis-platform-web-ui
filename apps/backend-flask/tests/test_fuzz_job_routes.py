@@ -4,6 +4,8 @@ import os
 import sys
 import zipfile
 import logging
+import time
+from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -14,7 +16,57 @@ if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
 from protocol_compliance import routes  # noqa: E402
-from protocol_compliance import aflnet, fuzz_job_routes  # noqa: E402
+from protocol_compliance import aflnet, fuzz_config_routes, fuzz_job_routes  # noqa: E402
+
+
+def _create_completed_fuzz_config_job(
+    tmp_path: Path,
+    *,
+    source_zip: Path,
+    protocol: str = "MQTT",
+) -> str:
+    snapshot = fuzz_config_routes.FUZZ_CONFIG_JOBS.create(
+        assert_generation_job_id="assert-job-1",
+        instrumented_code_zip_path=source_zip,
+        notes=None,
+        protocol=protocol,
+        protocol_implementations=["SOL"],
+    )
+    artifacts = snapshot["artifacts"]
+    bundle = Path(artifacts["bundlePath"])
+    (bundle / "target").mkdir(parents=True)
+    (bundle / "seeds").mkdir(parents=True)
+    program = bundle / "target" / "program"
+    program.write_text("#!/usr/bin/env sh\n", encoding="utf-8")
+    program.chmod(0o755)
+    (bundle / "seeds" / "seed.raw").write_bytes(b"seed")
+    Path(artifacts["manifestPath"]).write_text(
+        "{}\n",
+        encoding="utf-8",
+    )
+    Path(artifacts["envPath"]).write_text(
+        (
+            "{\n"
+            '  "PG_FUZZ_PROTOCOL": "MQTT",\n'
+            '  "PG_FUZZ_TARGET_BINARY": "/workspace/target/program",\n'
+            '  "PG_FUZZ_TARGET_ARGS": "1883",\n'
+            '  "PG_FUZZ_SEED_DIR": "/workspace/seeds",\n'
+            '  "PG_FUZZ_NETSPEC": "tcp://127.0.0.1/1883"\n'
+            "}\n"
+        ),
+        encoding="utf-8",
+    )
+    fuzz_config_routes.FUZZ_CONFIG_JOBS.update(
+        snapshot["jobId"],
+        status="completed",
+        stage="completed",
+        artifacts={
+            **artifacts,
+            "instrumentedCodeZipPath": str(source_zip),
+            "instrumentedCodePath": str(tmp_path / "instrumented_code"),
+        },
+    )
+    return str(snapshot["jobId"])
 
 
 def test_aflnet_artifact_routes_keep_result_endpoint_names() -> None:
@@ -89,6 +141,7 @@ def test_start_fuzz_job_stages_instrumented_code_zip(
     monkeypatch.delenv("PG_OUTPUT_ROOT", raising=False)
     monkeypatch.delenv("AFLNET_OUTPUT_ROOT", raising=False)
     fuzz_job_routes.FUZZ_JOBS._jobs.clear()
+    fuzz_config_routes.FUZZ_CONFIG_JOBS._jobs.clear()
 
     source_zip = tmp_path / "instrumented_code.zip"
     with zipfile.ZipFile(source_zip, "w") as archive:
@@ -115,12 +168,14 @@ def test_start_fuzz_job_stages_instrumented_code_zip(
         return SimpleNamespace(returncode=0, stdout="abc123def4567890\n", stderr="")
 
     monkeypatch.setattr(fuzz_job_routes.subprocess, "run", fake_run)
+    fuzz_config_job_id = _create_completed_fuzz_config_job(tmp_path, source_zip=source_zip)
 
     response = app.test_client().post(
         "/api/protocol-compliance/fuzzing/jobs",
         headers={"Authorization": "Bearer test-token"},
         json={
             "assertGenerationJobId": "assert-job-1",
+            "fuzzConfigJobId": fuzz_config_job_id,
             "protocol": "MQTT",
             "protocolImplementations": ["SOL"],
         },
@@ -140,9 +195,136 @@ def test_start_fuzz_job_stages_instrumented_code_zip(
     assert commands
     assert f"-e PG_HOST_UID={os.getuid()}" in commands[0]
     assert f"-e PG_HOST_GID={os.getgid()}" in commands[0]
-    assert "PG_FUZZ_INSTRUMENTED_CODE_DIR=/workspace/instrumented_code" in commands[0]
-    assert f"{instrumented_dir}:/workspace/instrumented_code:ro" in commands[0]
+    assert "PG_FUZZ_TARGET_BINARY=/workspace/target/program" in commands[0]
+    assert "PG_FUZZ_TARGET_ARGS=1883" in commands[0]
+    assert "PG_FUZZ_SEED_DIR=/workspace/seeds" in commands[0]
+    assert "PG_FUZZ_NETSPEC=tcp://127.0.0.1/1883" in commands[0]
+    assert "PG_FUZZ_PROTOCOL=MQTT" in commands[0]
+    assert f"{Path(payload['artifacts']['fuzzBundlePath'])}:/workspace:ro" in commands[0]
     assert f"{output_root}:/out/fuzz-output" in commands[0]
+
+
+def test_start_fuzz_job_requires_completed_fuzz_config(monkeypatch, tmp_path: Path) -> None:
+    app = Flask(__name__)
+    app.register_blueprint(routes.bp)
+    monkeypatch.setattr(
+        routes, "verify_access_token", lambda _header: {"username": "admin"}
+    )
+    source_zip = tmp_path / "instrumented_code.zip"
+    with zipfile.ZipFile(source_zip, "w") as archive:
+        archive.writestr("instrumented_code/main.c", "int main(void) { return 0; }\n")
+    monkeypatch.setattr(
+        fuzz_job_routes,
+        "get_assert_generation_job",
+        lambda job_id: {"jobId": job_id, "status": "completed"},
+    )
+    monkeypatch.setattr(
+        fuzz_job_routes,
+        "get_assert_generation_result",
+        lambda job_id: {
+            "jobId": job_id,
+            "artifacts": {"instrumentedCodeZipPath": str(source_zip)},
+        },
+    )
+
+    response = app.test_client().post(
+        "/api/protocol-compliance/fuzzing/jobs",
+        headers={"Authorization": "Bearer test-token"},
+        json={"assertGenerationJobId": "assert-job-1", "protocol": "MQTT"},
+    )
+
+    assert response.status_code == 400
+
+
+def test_fuzz_config_job_streams_agent_logs_and_artifacts(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    app = Flask(__name__)
+    app.register_blueprint(routes.bp)
+    monkeypatch.setattr(
+        routes, "verify_access_token", lambda _header: {"username": "admin"}
+    )
+
+    runtime_root = tmp_path / "protocolguard"
+    monkeypatch.setenv("PG_RUNTIME_ROOT", str(runtime_root))
+    fuzz_config_routes.FUZZ_CONFIG_JOBS._jobs.clear()
+
+    source_zip = tmp_path / "instrumented_code.zip"
+    with zipfile.ZipFile(source_zip, "w") as archive:
+        archive.writestr("instrumented_code/main.c", "int main(void) { return 0; }\n")
+
+    monkeypatch.setattr(
+        fuzz_config_routes,
+        "get_assert_generation_job",
+        lambda job_id: {"jobId": job_id, "status": "completed"},
+    )
+    monkeypatch.setattr(
+        fuzz_config_routes,
+        "get_assert_generation_result",
+        lambda job_id: {
+            "jobId": job_id,
+            "artifacts": {"instrumentedCodeZipPath": str(source_zip)},
+        },
+    )
+
+    class FakeProcess:
+        def __init__(self, command, **_kwargs):
+            self.command = command
+            self.pid = 1234
+            self.stdout = StringIO(
+                'PG_PROGRESS_JSON {"stage":"claude-command","message":"Bash: make"}\n'
+            )
+            self.stderr = StringIO("")
+
+        def wait(self):
+            bundle_arg = next(
+                item for item in self.command if item.endswith(":/out/fuzz-bundle:rw")
+            )
+            bundle = Path(bundle_arg.split(":", 1)[0])
+            (bundle / "target").mkdir(parents=True, exist_ok=True)
+            (bundle / "seeds").mkdir(parents=True, exist_ok=True)
+            (bundle / "evidence").mkdir(parents=True, exist_ok=True)
+            (bundle / "target" / "program").write_text("#!/usr/bin/env sh\n", encoding="utf-8")
+            (bundle / "seeds" / "seed.raw").write_bytes(b"seed")
+            (bundle / "fuzz-runtime.json").write_text('{"schemaVersion":1}\n', encoding="utf-8")
+            (bundle / "fuzz-env.json").write_text(
+                '{"PG_FUZZ_TARGET_BINARY":"/workspace/target/program"}\n',
+                encoding="utf-8",
+            )
+            return 0
+
+    monkeypatch.setattr(fuzz_config_routes.subprocess, "Popen", FakeProcess)
+
+    response = app.test_client().post(
+        "/api/protocol-compliance/fuzzing/config-jobs",
+        headers={"Authorization": "Bearer test-token"},
+        json={
+            "assertGenerationJobId": "assert-job-1",
+            "protocol": "MQTT",
+            "protocolImplementations": ["SOL"],
+        },
+    )
+
+    assert response.status_code == 202
+    job = response.get_json()["data"]
+    log_response = None
+    for _ in range(20):
+        log_response = app.test_client().get(
+            f"/api/protocol-compliance/fuzzing/config-jobs/{job['jobId']}/logs",
+            headers={"Authorization": "Bearer test-token"},
+            query_string={"fromPosition": 0},
+        )
+        if log_response.get_json()["data"]["job"]["status"] == "completed":
+            break
+        time.sleep(0.01)
+
+    assert log_response is not None
+    assert log_response.status_code == 200
+    payload = log_response.get_json()["data"]
+    assert payload["job"]["status"] == "completed"
+    assert "PG_PROGRESS_JSON" in payload["content"]
+    assert "Bash: make" in payload["content"]
 
 
 def test_start_fuzz_job_rejects_missing_instrumented_zip(monkeypatch) -> None:

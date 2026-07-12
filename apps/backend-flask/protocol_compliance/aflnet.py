@@ -73,6 +73,8 @@ def _aflnet_container_host_identity_flags() -> str:
 def _aflnet_shell_command(
     instrumented_code_dir: Optional[Path] = None,
     *,
+    bundle_dir: Optional[Path] = None,
+    runtime_env: Optional[Dict[str, str]] = None,
     output_root: Optional[Path] = None,
 ) -> str:
     output_root = output_root or _aflnet_output_root()
@@ -96,6 +98,10 @@ def _aflnet_shell_command(
                 shlex.quote(f"{instrumented_code_dir}:/workspace/instrumented_code:ro"),
             ]
         )
+    if bundle_dir is not None:
+        command.extend(["-v", shlex.quote(f"{bundle_dir}:/workspace:ro")])
+    for key, value in (runtime_env or {}).items():
+        command.extend(["-e", shlex.quote(f"{key}={value}")])
     command.extend(
         [
             shlex.quote(cast(str, RTSP_CONFIG["image"])),
