@@ -171,8 +171,23 @@ def create_fuzz_job_handlers(
             return error
 
         data = request.get_json(silent=True) or {}
+        fuzz_config_job_id = str(data.get("fuzzConfigJobId") or "").strip()
+        config_snapshot: Optional[Dict[str, Any]] = None
+        if fuzz_config_job_id:
+            from .fuzz_config_routes import completed_fuzz_config_job
+
+            config_snapshot = completed_fuzz_config_job(fuzz_config_job_id)
+            if not config_snapshot:
+                return make_response(error_response("Fuzz 配置任务尚未完成或产物不可用"), 409)
+
         requested_zip = data.get("instrumentedCodeZipPath")
-        if isinstance(requested_zip, str) and requested_zip.strip():
+        if config_snapshot is not None:
+            config_artifacts = cast(Dict[str, Any], config_snapshot.get("artifacts") or {})
+            configured_zip = config_artifacts.get("instrumentedCodeZipPath")
+            if not isinstance(configured_zip, str) or not configured_zip:
+                return make_response(error_response("Fuzz 配置任务缺少插桩源码压缩包"), 400)
+            instrumented_zip = Path(configured_zip).expanduser()
+        elif isinstance(requested_zip, str) and requested_zip.strip():
             instrumented_zip = Path(requested_zip.strip()).expanduser()
         else:
             instrumented_zip = (
@@ -188,23 +203,38 @@ def create_fuzz_job_handlers(
         if zip_error:
             return make_response(error_response(zip_error), 400)
 
-        protocol = str(data.get("protocol") or "MQTT").strip() or "MQTT"
+        protocol = str(
+            data.get("protocol")
+            or (config_snapshot or {}).get("protocol")
+            or "MQTT"
+        ).strip() or "MQTT"
         protocol_implementations = _parse_protocol_implementations(data)
+        if not protocol_implementations and config_snapshot is not None:
+            protocol_implementations = [
+                str(item)
+                for item in cast(list[object], config_snapshot.get("protocolImplementations") or [])
+                if str(item).strip()
+            ]
         notes = data.get("notes")
         notes_text = notes.strip() if isinstance(notes, str) and notes.strip() else None
         assert_generation_job_id = str(data.get("assertGenerationJobId") or "").strip()
+        if not assert_generation_job_id and config_snapshot is not None:
+            assert_generation_job_id = str(
+                config_snapshot.get("assertGenerationJobId") or ""
+            ).strip()
         if not assert_generation_job_id:
             assert_generation_job_id = _infer_assert_generation_job_id(instrumented_zip)
 
         snapshot = FUZZ_JOBS.create(
             assert_generation_job_id=assert_generation_job_id,
-            debug_source="instrumentedCodeZipPath",
+            debug_source="fuzzConfigJobId" if config_snapshot is not None else "instrumentedCodeZipPath",
             instrumented_code_zip_path=instrumented_zip,
             notes=notes_text,
             protocol=protocol,
             protocol_implementations=protocol_implementations,
+            fuzz_config_job_id=fuzz_config_job_id or None,
         )
-        _prepare_and_launch_fuzz(snapshot["jobId"], instrumented_zip)
+        _prepare_and_launch_fuzz(snapshot["jobId"], instrumented_zip, config_snapshot)
         return make_response(
             success_response(FUZZ_JOBS.snapshot(snapshot["jobId"])), 202
         )

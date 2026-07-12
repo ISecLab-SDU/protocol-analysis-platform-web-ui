@@ -22,9 +22,11 @@ from .assertion import get_assert_generation_job, get_assert_generation_result
 from .fuzz_job_routes import (
     _allowed_instrumented_zip_roots,
     _append_log,
+    _debug_replay_instrumented_code_zip,
     _format_bytes,
     _instrumented_code_zip_path,
     _is_path_inside,
+    _latest_instrumented_code_zip,
     _path_preview_lines,
     _validate_instrumented_code_zip,
 )
@@ -131,7 +133,15 @@ def create_fuzz_config_handlers(
                 instrumented_zip = Path(requested_zip.strip()).expanduser()
                 assert_generation_job_id = _infer_assert_generation_job_id(instrumented_zip)
             else:
-                return make_response(error_response("缺少断言生成任务 ID"), 400)
+                instrumented_zip = (
+                    _debug_replay_instrumented_code_zip()
+                    or _latest_instrumented_code_zip()
+                )
+                if instrumented_zip is None:
+                    return make_response(
+                        error_response("未找到可复用的插桩源码压缩包"), 404
+                    )
+                assert_generation_job_id = _infer_assert_generation_job_id(instrumented_zip)
 
         zip_error = _validate_or_existing_assert_zip(instrumented_zip)
         if zip_error:
