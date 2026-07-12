@@ -19,6 +19,7 @@ from utils.responses import (
 from .analysis import (
     get_static_analysis_job,
     list_static_analysis_history,
+    submit_static_analysis_job as _submit_static_analysis_job_impl,
 )
 from .assertion_database import (
     _candidate_sqlite_roots_for_job as _candidate_sqlite_roots_for_job_impl,
@@ -140,6 +141,8 @@ LOGGER = logging.getLogger(__name__)
 bp = Blueprint("protocol_compliance", __name__, url_prefix="/api/protocol-compliance")
 
 VISIBLE_VIOLATION_HISTORY_LIMIT = 5
+
+submit_static_analysis_job = _submit_static_analysis_job_impl
 
 
 # Authentication -------------------------------------------------------------
@@ -310,13 +313,16 @@ def download_assertion_diff(job_id: str):
     return _assertion_history_handlers["download_assertion_diff"](job_id)
 
 _static_analysis_submission_handlers = create_static_analysis_submission_handlers(
-    _ensure_authenticated,
+    lambda: _ensure_authenticated(),
     extract_protocol_metadata_from_config=_extract_protocol_metadata_from_config,
     list_static_analysis_history=(
         lambda *args, **kwargs: list_static_analysis_history(*args, **kwargs)
     ),
     read_upload=_read_upload,
     strip_extension=_strip_extension,
+    submit_static_analysis_job=(
+        lambda *args, **kwargs: submit_static_analysis_job(*args, **kwargs)
+    ),
     to_int=_to_int,
 )
 

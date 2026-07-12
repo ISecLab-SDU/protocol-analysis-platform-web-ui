@@ -15,7 +15,6 @@ from .analysis import (
     delete_static_analysis_job,
     extract_protocol_version,
     normalize_protocol_name,
-    submit_static_analysis_job,
     try_extract_rules_summary,
 )
 
@@ -32,6 +31,7 @@ def create_static_analysis_submission_handlers(
     list_static_analysis_history: Callable[..., list[dict[str, object]]],
     read_upload: Callable[[FileStorage], tuple[str, Optional[bytes]]],
     strip_extension: Callable[[str], str],
+    submit_static_analysis_job: Callable[..., dict[str, object]],
     to_int: Callable[[object, int], int],
 ) -> dict[str, Callable[..., Any]]:
     def static_analysis():
@@ -47,7 +47,6 @@ def create_static_analysis_submission_handlers(
         uploads_map = {
             "codeArchive": request.files.get("codeArchive"),
             "rules": request.files.get("rules"),
-            "config": request.files.get("config"),
         }
 
         required_missing = [
@@ -58,7 +57,6 @@ def create_static_analysis_submission_handlers(
             labels = {
                 "codeArchive": "源码压缩包",
                 "rules": "协议规则 JSON",
-                "config": "分析配置 TOML",
             }
             readable = "、".join(labels.get(item, item) for item in required_missing)
             return make_response(
@@ -67,14 +65,19 @@ def create_static_analysis_submission_handlers(
 
         code_upload = cast(FileStorage, uploads_map["codeArchive"])
         rules_upload = cast(FileStorage, uploads_map["rules"])
-        config_upload = cast(FileStorage, uploads_map["config"])
+        config_upload = request.files.get("config")
 
         code_name, code_data = read_upload(code_upload)
         rules_name, rules_data = read_upload(rules_upload)
-        config_name, config_data = read_upload(config_upload)
+        if isinstance(config_upload, FileStorage):
+            config_name, config_data = read_upload(config_upload)
+        else:
+            config_name, config_data = "generated-config.toml", None
 
-        if code_data is None or config_data is None or rules_data is None:
+        if code_data is None or rules_data is None:
             return make_response(error_response("上传的文件内容为空，请重新上传"), 400)
+        if isinstance(config_upload, FileStorage) and config_data is None:
+            return make_response(error_response("上传的配置文件内容为空，请重新上传"), 400)
 
         parsed_rules = None
         if rules_data:
@@ -83,21 +86,30 @@ def create_static_analysis_submission_handlers(
             except (json.JSONDecodeError, UnicodeDecodeError):
                 parsed_rules = None
 
-        config_protocol_name, config_protocol_version = extract_protocol_metadata_from_config(
-            config_data,
-            config_name,
-        )
+        if config_data is not None:
+            config_protocol_name, config_protocol_version = extract_protocol_metadata_from_config(
+                config_data,
+                config_name,
+            )
+        else:
+            config_protocol_name, config_protocol_version = None, None
 
         rules_protocol_fallback = normalize_protocol_name(
             parsed_rules,
             strip_extension(rules_name),
         )
-        protocol_name = config_protocol_name or rules_protocol_fallback
+        form_protocol_name = (request.form.get("protocolName") or "").strip() or None
+        protocol_name = form_protocol_name or config_protocol_name or rules_protocol_fallback
         if config_protocol_name:
             LOGGER.info(
                 "Static analysis protocol resolved from config %s: %s",
                 config_name,
                 config_protocol_name,
+            )
+        elif form_protocol_name:
+            LOGGER.info(
+                "Static analysis protocol resolved from request form: %s",
+                form_protocol_name,
             )
         else:
             LOGGER.info(
@@ -107,12 +119,18 @@ def create_static_analysis_submission_handlers(
             )
 
         rules_version_fallback = extract_protocol_version(parsed_rules, None)
-        protocol_version = config_protocol_version or rules_version_fallback
+        form_protocol_version = (request.form.get("protocolVersion") or "").strip() or None
+        protocol_version = form_protocol_version or config_protocol_version or rules_version_fallback
         if config_protocol_version:
             LOGGER.info(
                 "Static analysis protocol version resolved from config %s: %s",
                 config_name,
                 config_protocol_version,
+            )
+        elif form_protocol_version:
+            LOGGER.info(
+                "Static analysis protocol version resolved from request form: %s",
+                form_protocol_version,
             )
         elif rules_version_fallback:
             LOGGER.info(
