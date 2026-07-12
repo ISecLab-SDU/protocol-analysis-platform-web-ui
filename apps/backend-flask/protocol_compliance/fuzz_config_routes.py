@@ -44,6 +44,7 @@ class FuzzConfigJobRegistry:
         notes: Optional[str],
         protocol: str,
         protocol_implementations: list[str],
+        runtime_overrides: Dict[str, Any],
     ) -> Dict[str, Any]:
         job_id = str(uuid.uuid4())
         now = _now_iso()
@@ -60,6 +61,7 @@ class FuzzConfigJobRegistry:
             "updatedAt": now,
             "protocol": protocol,
             "protocolImplementations": protocol_implementations,
+            "runtimeOverrides": runtime_overrides,
             "notes": notes,
             "inputs": {
                 "instrumentedCodeZipPath": str(instrumented_code_zip_path),
@@ -137,6 +139,9 @@ def create_fuzz_config_handlers(
 
         protocol = str(data.get("protocol") or "UNKNOWN").strip() or "UNKNOWN"
         protocol_implementations = _parse_protocol_implementations(data)
+        runtime_overrides, runtime_override_error = _parse_runtime_overrides(data)
+        if runtime_override_error:
+            return make_response(error_response(runtime_override_error), 400)
         notes = data.get("notes")
         notes_text = notes.strip() if isinstance(notes, str) and notes.strip() else None
 
@@ -146,6 +151,7 @@ def create_fuzz_config_handlers(
             notes=notes_text,
             protocol=protocol,
             protocol_implementations=protocol_implementations,
+            runtime_overrides=runtime_overrides,
         )
         thread = threading.Thread(
             target=_prepare_fuzz_config_job,
@@ -383,6 +389,19 @@ def _docker_env_flags(snapshot: Dict[str, Any]) -> list[str]:
     notes = snapshot.get("notes")
     if isinstance(notes, str) and notes:
         flags.extend(["-e", f"PG_FUZZ_CONFIG_NOTES={notes}"])
+    overrides = snapshot.get("runtimeOverrides")
+    if isinstance(overrides, dict):
+        env_names = {
+            "targetArgs": "PG_FUZZ_TARGET_ARGS",
+            "transport": "PG_FUZZ_TRANSPORT",
+            "host": "PG_FUZZ_HOST",
+            "port": "PG_FUZZ_PORT",
+            "netSpec": "PG_FUZZ_NETSPEC",
+        }
+        for key, env_name in env_names.items():
+            value = overrides.get(key)
+            if value is not None and str(value).strip():
+                flags.extend(["-e", f"{env_name}={value}"])
     return flags
 
 
@@ -460,6 +479,37 @@ def _parse_protocol_implementations(data: Dict[str, Any]) -> list[str]:
         for item in raw
         if isinstance(item, (int, str)) and str(item).strip()
     ]
+
+
+def _parse_runtime_overrides(data: Dict[str, Any]) -> tuple[Dict[str, Any], Optional[str]]:
+    overrides: Dict[str, Any] = {}
+
+    target_args = data.get("targetArgs")
+    if target_args is not None:
+        if not isinstance(target_args, list) or not all(
+            isinstance(item, (int, str)) and str(item).strip() for item in target_args
+        ):
+            return {}, "targetArgs 必须是非空字符串数组"
+        overrides["targetArgs"] = " ".join(str(item).strip() for item in target_args)
+
+    for key in ("transport", "host", "netSpec"):
+        value = data.get(key)
+        if value is not None:
+            if not isinstance(value, str) or not value.strip():
+                return {}, f"{key} 必须是非空字符串"
+            overrides[key] = value.strip()
+
+    port = data.get("port")
+    if port is not None:
+        try:
+            port_int = int(port)
+        except (TypeError, ValueError):
+            return {}, "port 必须是整数"
+        if port_int <= 0 or port_int > 65535:
+            return {}, "port 必须在 1 到 65535 之间"
+        overrides["port"] = str(port_int)
+
+    return overrides, None
 
 
 def _infer_assert_generation_job_id(path: Path) -> str:

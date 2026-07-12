@@ -1006,9 +1006,14 @@ export type ProtocolFuzzConfigJobStatus =
 
 export interface StartProtocolFuzzConfigJobPayload {
   assertGenerationJobId: string;
+  host?: string;
+  netSpec?: string;
   notes?: string;
+  port?: number;
   protocol: string;
   protocolImplementations?: string[];
+  targetArgs?: string[];
+  transport?: string;
 }
 
 export interface ProtocolFuzzConfigJob {
@@ -1043,6 +1048,13 @@ export interface ProtocolFuzzConfigJob {
   result?: null | {
     manifest?: Record<string, any>;
     runtimeEnv?: Record<string, string>;
+  };
+  runtimeOverrides?: {
+    host?: string;
+    netSpec?: string;
+    port?: string;
+    targetArgs?: string;
+    transport?: string;
   };
   stage: string;
   status: ProtocolFuzzConfigJobStatus;

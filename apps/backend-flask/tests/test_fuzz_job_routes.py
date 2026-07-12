@@ -31,6 +31,7 @@ def _create_completed_fuzz_config_job(
         notes=None,
         protocol=protocol,
         protocol_implementations=["SOL"],
+        runtime_overrides={},
     )
     artifacts = snapshot["artifacts"]
     bundle = Path(artifacts["bundlePath"])
@@ -268,9 +269,12 @@ def test_fuzz_config_job_streams_agent_logs_and_artifacts(
         },
     )
 
+    commands: list[list[str]] = []
+
     class FakeProcess:
         def __init__(self, command, **_kwargs):
             self.command = command
+            commands.append(command)
             self.pid = 1234
             self.stdout = StringIO(
                 'PG_PROGRESS_JSON {"stage":"claude-command","message":"Bash: make"}\n'
@@ -303,6 +307,11 @@ def test_fuzz_config_job_streams_agent_logs_and_artifacts(
             "assertGenerationJobId": "assert-job-1",
             "protocol": "MQTT",
             "protocolImplementations": ["SOL"],
+            "targetArgs": ["--port", "2883"],
+            "transport": "tcp",
+            "host": "127.0.0.1",
+            "port": 2883,
+            "netSpec": "tcp://127.0.0.1/2883",
         },
     )
 
@@ -323,8 +332,22 @@ def test_fuzz_config_job_streams_agent_logs_and_artifacts(
     assert log_response.status_code == 200
     payload = log_response.get_json()["data"]
     assert payload["job"]["status"] == "completed"
+    assert payload["job"]["runtimeOverrides"] == {
+        "host": "127.0.0.1",
+        "netSpec": "tcp://127.0.0.1/2883",
+        "port": "2883",
+        "targetArgs": "--port 2883",
+        "transport": "tcp",
+    }
     assert "PG_PROGRESS_JSON" in payload["content"]
     assert "Bash: make" in payload["content"]
+    assert commands
+    launched = " ".join(commands[0])
+    assert "PG_FUZZ_TARGET_ARGS=--port 2883" in launched
+    assert "PG_FUZZ_TRANSPORT=tcp" in launched
+    assert "PG_FUZZ_HOST=127.0.0.1" in launched
+    assert "PG_FUZZ_PORT=2883" in launched
+    assert "PG_FUZZ_NETSPEC=tcp://127.0.0.1/2883" in launched
 
 
 def test_start_fuzz_job_rejects_missing_instrumented_zip(monkeypatch) -> None:
