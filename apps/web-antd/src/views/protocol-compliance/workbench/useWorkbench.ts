@@ -26,6 +26,7 @@ import {
   downloadAflNetPocArtifact,
   fetchProtocolAssertGenerationProgress,
   fetchProtocolAssertGenerationResult,
+  fetchProtocolFuzzConfigLogs,
   fetchProtocolFuzzingLogs,
   fetchProtocolInstrumentationDiff,
   fetchProtocolStaticAnalysisDatabaseInsights,
@@ -34,6 +35,7 @@ import {
   runProtocolAssertGeneration,
   runProtocolStaticAnalysis,
   snapshotAflNetPoc,
+  startProtocolFuzzConfigJob,
   startProtocolFuzzingDebugJob,
   startProtocolFuzzingJob,
   stopProtocolFuzzingJob,
@@ -96,6 +98,7 @@ const assertLogText = ref('');
 const assertDiffContent = ref('');
 
 const fuzzJobId = ref<null | string>(null);
+const fuzzConfigJobId = ref<null | string>(null);
 const fuzzJob = ref<null | ProtocolFuzzingJob>(null);
 const aflNetPocPath = ref('');
 type FuzzLogLevel = 'ERROR' | 'INFO' | 'STATS' | 'WARN';
@@ -150,6 +153,7 @@ const resultHistory = ref<
   }>
 >([]);
 const fuzzLogReadPosition = ref(0);
+const fuzzConfigLogReadPosition = ref(0);
 const fuzzStats = reactive({
   executions: 0,
   paths: 0,
@@ -902,6 +906,8 @@ function resetPipelineStageState() {
   assertResult.value = null;
   assertLogText.value = '';
   assertDiffContent.value = '';
+  fuzzConfigJobId.value = null;
+  fuzzConfigLogReadPosition.value = 0;
   fuzzJobId.value = null;
   fuzzJob.value = null;
   aflNetPocPath.value = '';
@@ -1756,6 +1762,55 @@ async function readFuzzLogs(options: { runId?: number } = {}) {
   }
 }
 
+async function waitForFuzzConfigJob(runId: number) {
+  if (!assertJobId.value) throw new Error('缺少断言生成任务 ID');
+  appendFuzzLog('启动 Fuzz 配置生成 Agent', 'INFO');
+  const configJob = await startProtocolFuzzConfigJob({
+    assertGenerationJobId: assertJobId.value,
+    notes: projectConfig.notes,
+    protocol: protocolKindForApi.value,
+    protocolImplementations: protocolImplementationsKey.value,
+  });
+  fuzzConfigJobId.value = configJob.jobId;
+  fuzzConfigLogReadPosition.value = 0;
+  stageMessage.value = 'Fuzz 配置生成 Agent 正在构建并验证运行参数…';
+
+  while (isCurrentPipelineRun(runId)) {
+    const data = await fetchProtocolFuzzConfigLogs(
+      configJob.jobId,
+      fuzzConfigLogReadPosition.value,
+    );
+    const position =
+      typeof data.position === 'number'
+        ? data.position
+        : fuzzConfigLogReadPosition.value;
+    if (position > fuzzConfigLogReadPosition.value) {
+      fuzzConfigLogReadPosition.value = position;
+    }
+    if (data.content) {
+      for (const line of data.content.split(/\r?\n/)) {
+        if (!line.trim()) continue;
+        appendFuzzLog(
+          `[fuzz-config] ${stripFuzzLogPrefix(line) || line.trim()}`,
+          'INFO',
+        );
+      }
+    }
+    if (data.job.status === 'completed') {
+      appendFuzzLog(
+        `Fuzz 配置生成完成: ${data.job.artifacts?.manifestPath || data.job.jobId}`,
+        'INFO',
+      );
+      return data.job;
+    }
+    if (data.job.status === 'failed') {
+      throw new Error(data.job.error || 'Fuzz 配置生成失败');
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  throw new Error('流水线已取消');
+}
+
 async function runFuzzStep(runId: number) {
   if (!isCurrentPipelineRun(runId)) return;
   const artifactPath = assertResult.value?.artifacts?.instrumentedCodeZipPath;
@@ -1767,6 +1822,8 @@ async function runFuzzStep(runId: number) {
   fuzzLogs.value = [];
   aflNetPocPath.value = '';
   fuzzLogReadPosition.value = 0;
+  fuzzConfigLogReadPosition.value = 0;
+  fuzzConfigJobId.value = null;
   fuzzJobId.value = null;
   fuzzJob.value = null;
   resultHistoryAppended = false;
@@ -1797,8 +1854,12 @@ async function runFuzzStep(runId: number) {
       if (!isCurrentPipelineRun(runId)) return;
     }
     appendFuzzLog(`使用插桩源码包: ${artifactPath}`, 'INFO');
+    const configJob = await waitForFuzzConfigJob(runId);
+    if (!isCurrentPipelineRun(runId)) return;
+    stageMessage.value = '使用已验证配置启动 AFLNet…';
     const job = await startProtocolFuzzingJob({
       assertGenerationJobId: assertJobId.value,
+      fuzzConfigJobId: configJob.jobId,
       notes: projectConfig.notes,
       protocol: protocolKindForApi.value,
       protocolImplementations: protocolImplementationsKey.value,
@@ -1856,6 +1917,8 @@ async function startFuzzDebugReplay() {
   assertResult.value = null;
   assertLogText.value = '';
   assertDiffContent.value = '';
+  fuzzConfigJobId.value = null;
+  fuzzConfigLogReadPosition.value = 0;
   fuzzJobId.value = null;
   fuzzJob.value = null;
   aflNetPocPath.value = '';
@@ -2010,6 +2073,8 @@ function resetWorkbench() {
   assertResult.value = null;
   assertLogText.value = '';
   assertDiffContent.value = '';
+  fuzzConfigJobId.value = null;
+  fuzzConfigLogReadPosition.value = 0;
   fuzzJobId.value = null;
   fuzzJob.value = null;
   aflNetPocPath.value = '';

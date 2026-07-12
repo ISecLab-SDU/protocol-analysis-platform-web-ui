@@ -947,6 +947,7 @@ export type ProtocolFuzzingJobStatus =
 
 export interface StartProtocolFuzzingJobPayload {
   assertGenerationJobId: string;
+  fuzzConfigJobId: string;
   notes?: string;
   protocol: string;
   protocolImplementations?: string[];
@@ -977,6 +978,7 @@ export interface ProtocolFuzzingJob {
   createdAt: string;
   debugSource?: null | string;
   error?: null | string;
+  fuzzConfigJobId?: null | string;
   inputs?: {
     instrumentedCodeZipFileName?: string;
     instrumentedCodeZipPath?: string;
@@ -994,6 +996,92 @@ export interface ProtocolFuzzingJob {
   stage: string;
   status: ProtocolFuzzingJobStatus;
   updatedAt: string;
+}
+
+export type ProtocolFuzzConfigJobStatus =
+  | 'completed'
+  | 'failed'
+  | 'queued'
+  | 'running';
+
+export interface StartProtocolFuzzConfigJobPayload {
+  assertGenerationJobId: string;
+  notes?: string;
+  protocol: string;
+  protocolImplementations?: string[];
+}
+
+export interface ProtocolFuzzConfigJob {
+  artifacts?: {
+    bundlePath?: string;
+    envPath?: string;
+    eventsPath?: string;
+    instrumentedCodePath?: string;
+    instrumentedCodeZipPath?: string;
+    logFilePath?: string;
+    manifestPath?: string;
+    outputPath?: string;
+    workspacePath?: string;
+  };
+  assertGenerationJobId: string;
+  createdAt: string;
+  error?: null | string;
+  inputs?: {
+    instrumentedCodeZipFileName?: string;
+    instrumentedCodeZipPath?: string;
+  };
+  jobId: string;
+  message: string;
+  notes?: null | string;
+  process?: null | {
+    command?: string[];
+    pid?: null | number;
+    threadName?: string;
+  };
+  protocol: string;
+  protocolImplementations?: string[];
+  result?: null | {
+    manifest?: Record<string, any>;
+    runtimeEnv?: Record<string, string>;
+  };
+  stage: string;
+  status: ProtocolFuzzConfigJobStatus;
+  updatedAt: string;
+}
+
+export interface ProtocolFuzzConfigLogResponse {
+  content: string;
+  fileSize: number;
+  job: ProtocolFuzzConfigJob;
+  logFilePath?: string;
+  position: number;
+}
+
+export function startProtocolFuzzConfigJob(
+  payload: StartProtocolFuzzConfigJobPayload,
+) {
+  return requestClient.post<ProtocolFuzzConfigJob>(
+    '/protocol-compliance/fuzzing/config-jobs',
+    payload,
+  );
+}
+
+export function fetchProtocolFuzzConfigJob(jobId: string) {
+  return requestClient.get<ProtocolFuzzConfigJob>(
+    `/protocol-compliance/fuzzing/config-jobs/${jobId}`,
+  );
+}
+
+export function fetchProtocolFuzzConfigLogs(
+  jobId: string,
+  fromPosition: number,
+) {
+  return requestClient.get<ProtocolFuzzConfigLogResponse>(
+    `/protocol-compliance/fuzzing/config-jobs/${jobId}/logs`,
+    {
+      params: { fromPosition },
+    },
+  );
 }
 
 export interface ProtocolFuzzingLogResponse {
