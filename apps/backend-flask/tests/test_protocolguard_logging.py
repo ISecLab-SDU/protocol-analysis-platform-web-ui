@@ -17,6 +17,7 @@ from protocol_compliance._docker_runner.config import ProtocolGuardDockerSetting
 from protocol_compliance._docker_runner.job import JobPaths  # noqa: E402
 from protocol_compliance._docker_runner.runner import ProtocolGuardDockerRunner  # noqa: E402
 from protocol_compliance.job_logging import JobStageLogger  # noqa: E402
+from logging_format import ContextFormatter  # noqa: E402
 
 
 def _load_configure_logging():
@@ -81,10 +82,40 @@ def test_app_logging_config_uses_protocol_compliance_prefix(
     assert logging.getLogger("werkzeug").getEffectiveLevel() == logging.WARNING
 
     logging.getLogger("protocol_compliance.test_file").info("file logging probe")
+    logging.getLogger("protocol_compliance.test_file").info(
+        "file context probe",
+        extra={"protocolguard_context": {"artifact": "source.tar", "workspace": "/tmp/work"}},
+    )
     logging.shutdown()
 
-    assert "file logging probe" in log_file.read_text(encoding="utf-8")
+    log_text = log_file.read_text(encoding="utf-8")
+    assert "file logging probe" in log_text
+    assert "\tINFO    \t[protocol_compliance.test_file]\tfile context probe" in log_text
+    assert "\tartifact=source.tar workspace=/tmp/work" in log_text
     assert any(isinstance(handler, WatchedFileHandler) for handler in logging.getLogger().handlers)
+
+
+def test_context_formatter_appends_stable_context_fields() -> None:
+    formatter = ContextFormatter("%(levelname)-8s\t%(message)s")
+    record = logging.LogRecord(
+        name="protocol_compliance.test",
+        level=logging.INFO,
+        pathname=__file__,
+        lineno=1,
+        msg="Prepared %s",
+        args=("workspace",),
+        exc_info=None,
+    )
+    record.protocolguard_context = {  # type: ignore[attr-defined]
+        "artifact": "source archive.tar",
+        "empty": "",
+        "workspace": "/tmp/work",
+    }
+
+    assert (
+        formatter.format(record)
+        == 'INFO    \tPrepared workspace\tartifact="source archive.tar" empty="" workspace=/tmp/work'
+    )
 
 
 def test_job_stage_logger_emits_backend_and_frontend_logs(caplog: pytest.LogCaptureFixture) -> None:
