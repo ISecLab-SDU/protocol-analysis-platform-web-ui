@@ -79,3 +79,5 @@ demo_mqtt_integration.py
 **/.tmux.conf
 
 .vscode/**
+
+**/_state/
