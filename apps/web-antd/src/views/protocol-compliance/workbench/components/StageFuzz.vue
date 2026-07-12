@@ -1,10 +1,11 @@
 <script setup lang="ts">
+import type { ProtocolExtractRuleItem } from '#/api/protocol-compliance';
+
 import { computed } from 'vue';
 
-import { Card, Tag } from 'ant-design-vue';
 import { IconifyIcon } from '@vben/icons';
 
-import type { ProtocolExtractRuleItem } from '#/api/protocol-compliance';
+import { Card, Tag } from 'ant-design-vue';
 
 import ProtocolLogViewer from './ProtocolLogViewer.vue';
 
@@ -43,33 +44,48 @@ interface Props {
 const props = defineProps<Props>();
 
 const fuzzerName = computed(() => {
-  if (props.protocolType === 'MQTT' && props.implementation === 'SOL') return 'SOLAFLNET';
+  if (props.protocolType === 'MQTT' && props.implementation === 'SOL')
+    return 'SOLAFLNET';
   if (props.protocolType === 'MQTT') return 'MBFuzzer';
   return 'AFLNet';
 });
 
-const totalPaths = computed(() => props.stats.pathsTotal || props.stats.paths || 0);
+const totalPaths = computed(
+  () => props.stats.pathsTotal || props.stats.paths || 0,
+);
 const currentPath = computed(() => props.stats.currentPath || 0);
-const pendingTotal = computed(() => props.stats.pendingTotal ?? Math.max(totalPaths.value - currentPath.value, 0));
+const pendingTotal = computed(
+  () =>
+    props.stats.pendingTotal ??
+    Math.max(totalPaths.value - currentPath.value, 0),
+);
 const pendingFavs = computed(() => props.stats.pendingFavs ?? 0);
 const coverage = computed(() => props.stats.coverage ?? 0);
 const nodes = computed(() => props.stats.nodes ?? 0);
 const edges = computed(() => props.stats.edges ?? 0);
 const maxDepth = computed(() => props.stats.maxDepth ?? 0);
-const maxDepthDisplay = computed(() => (maxDepth.value > 0 ? String(maxDepth.value) : '-'));
+const maxDepthDisplay = computed(() =>
+  maxDepth.value > 0 ? String(maxDepth.value) : '-',
+);
 
 const latestStatsLine = computed(() => {
-  return [...props.logs].reverse().find((log) => log.level === 'STATS')?.text || '';
+  return (
+    [...props.logs].reverse().find((log) => log.level === 'STATS')?.text || ''
+  );
 });
 
 const logCaption = computed(() => {
-  if (latestStatsLine.value) return `正在同步 ${fuzzerName.value} 状态、路径和异常统计`;
+  if (latestStatsLine.value)
+    return `正在同步 ${fuzzerName.value} 状态、路径和异常统计`;
   return '等待 Fuzzer 输出运行状态';
 });
 
 const pathProgress = computed(() => {
   if (totalPaths.value <= 0) return 0;
-  return Math.min(100, Math.round((currentPath.value / totalPaths.value) * 100));
+  return Math.min(
+    100,
+    Math.round((currentPath.value / totalPaths.value) * 100),
+  );
 });
 
 const monitorStatusText = computed(() => {
@@ -115,7 +131,9 @@ function formatRate(value: number) {
       <aside class="panel panel--monitor">
         <div class="panel-header panel-header--compact">
           <h3>运行监控</h3>
-          <Tag :color="running ? 'processing' : 'default'">{{ monitorStatusText }}</Tag>
+          <Tag :color="running ? 'processing' : 'default'">
+            {{ monitorStatusText }}
+          </Tag>
         </div>
 
         <div class="alert-metrics">
@@ -175,7 +193,9 @@ function formatRate(value: number) {
             <div class="topology-line"></div>
             <div class="topology-node topology-node--success">{{ edges }}</div>
           </div>
-          <div class="topology-caption">{{ nodes }} 个状态节点 · {{ edges }} 个状态转换</div>
+          <div class="topology-caption">
+            {{ nodes }} 个状态节点 · {{ edges }} 个状态转换
+          </div>
           <div class="topology-footer">
             <div>
               <strong>{{ maxDepthDisplay }}</strong>
@@ -198,9 +218,14 @@ function formatRate(value: number) {
           <strong class="path-index">#{{ currentPath || '-' }}</strong>
         </div>
 
-        <div class="progress-copy">{{ currentPath }} / {{ totalPaths }} 路径</div>
+        <div class="progress-copy">
+          {{ currentPath }} / {{ totalPaths }} 路径
+        </div>
         <div class="progress-track">
-          <div class="progress-fill" :style="{ width: `${pathProgress}%` }"></div>
+          <div
+            class="progress-fill"
+            :style="{ width: `${pathProgress}%` }"
+          ></div>
         </div>
 
         <div class="runtime-grid">
@@ -336,9 +361,9 @@ function formatRate(value: number) {
 .runtime-tile strong {
   display: block;
   overflow: hidden;
+  text-overflow: ellipsis;
   font-weight: 900;
   line-height: 1.1;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 

@@ -3,7 +3,7 @@
  * italic, underline, etc.) and ignores cursor/erase sequences.
  */
 
-const ESC = String.fromCharCode(0x1b);
+const ESC = String.fromCodePoint(27);
 
 const ANSI_STANDARD_COLORS = [
   '#000000',
@@ -31,14 +31,8 @@ const ANSI_ESCAPE_PATTERN = new RegExp(
   `${ESC}\\[(\\d{1,3}(?:;\\d{1,3})*)m`,
   'g',
 );
-const ANSI_CSI_NON_SGR = new RegExp(
-  `${ESC}\\[[0-9;?]*[A-HJKSTfnisu]`,
-  'g',
-);
-const ANSI_OSC = new RegExp(
-  `${ESC}\\][^\\u0007]*(?:\\u0007|${ESC}\\\\)`,
-  'g',
-);
+const ANSI_CSI_NON_SGR = new RegExp(`${ESC}\\[[0-9;?]*[A-HJKSTfnisu]`, 'g');
+const ANSI_OSC = new RegExp(`${ESC}\\][^\\u0007]*(?:\\u0007|${ESC}\\\\)`, 'g');
 
 interface AnsiStyleState {
   color: null | string;
@@ -106,7 +100,8 @@ function buildStyleString(state: AnsiStyleState) {
   const decls: string[] = [];
   if (state.conceal) decls.push('color: transparent', 'text-shadow: none');
   else if (state.color) decls.push(`color: ${state.color}`);
-  if (state.backgroundColor) decls.push(`background-color: ${state.backgroundColor}`);
+  if (state.backgroundColor)
+    decls.push(`background-color: ${state.backgroundColor}`);
   if (state.bold) decls.push('font-weight: 600');
   if (state.italic) decls.push('font-style: italic');
   const td: string[] = [];
@@ -144,21 +139,67 @@ function applyCodes(state: AnsiStyleState, codes: number[]) {
     if (!Number.isFinite(codeRaw)) continue;
     const code = Number(codeRaw);
     switch (code) {
-      case 0: { reset(state); break; }
-      case 1: { state.bold = true; state.dim = false; break; }
-      case 2: { state.dim = true; state.bold = false; break; }
-      case 3: { state.italic = true; break; }
+      case 0: {
+        reset(state);
+        break;
+      }
+      case 1: {
+        state.bold = true;
+        state.dim = false;
+        break;
+      }
+      case 2: {
+        state.dim = true;
+        state.bold = false;
+        break;
+      }
+      case 3: {
+        state.italic = true;
+        break;
+      }
       case 4:
-      case 21: { state.underline = true; break; }
-      case 8: { state.conceal = true; break; }
-      case 9: { state.strikethrough = true; break; }
-      case 22: { state.bold = false; state.dim = false; break; }
-      case 23: { state.italic = false; break; }
-      case 24: { state.underline = false; break; }
-      case 28: { state.conceal = false; break; }
-      case 29: { state.strikethrough = false; break; }
-      case 39: { state.color = null; state.conceal = false; break; }
-      case 49: { state.backgroundColor = null; break; }
+      case 21: {
+        state.underline = true;
+        break;
+      }
+      case 8: {
+        state.conceal = true;
+        break;
+      }
+      case 9: {
+        state.strikethrough = true;
+        break;
+      }
+      case 22: {
+        state.bold = false;
+        state.dim = false;
+        break;
+      }
+      case 23: {
+        state.italic = false;
+        break;
+      }
+      case 24: {
+        state.underline = false;
+        break;
+      }
+      case 28: {
+        state.conceal = false;
+        break;
+      }
+      case 29: {
+        state.strikethrough = false;
+        break;
+      }
+      case 39: {
+        state.color = null;
+        state.conceal = false;
+        break;
+      }
+      case 49: {
+        state.backgroundColor = null;
+        break;
+      }
       default: {
         if (code >= 30 && code <= 37) {
           state.color = ANSI_STANDARD_COLORS[code - 30] ?? null;
@@ -195,7 +236,9 @@ function applyCodes(state: AnsiStyleState, codes: number[]) {
           }
           if (mode === 5 && codes.length >= i + 3) {
             const palette = Number(codes[i + 2]);
-            const color = Number.isFinite(palette) ? ansi256ToHex(palette) : null;
+            const color = Number.isFinite(palette)
+              ? ansi256ToHex(palette)
+              : null;
             if (color) {
               if (isForeground) {
                 state.color = color;
@@ -230,8 +273,8 @@ export function ansiToHtml(raw: string): string {
     result += escapeHtml(segment).replaceAll('\n', '<br/>');
   };
 
-  let match: null | RegExpExecArray;
-  while ((match = ANSI_ESCAPE_PATTERN.exec(normalized)) !== null) {
+  let match = ANSI_ESCAPE_PATTERN.exec(normalized);
+  while (match !== null) {
     append(normalized.slice(lastIndex, match.index));
     lastIndex = match.index + match[0].length;
     const codeText = match[1] ?? '';
@@ -245,14 +288,15 @@ export function ansiToHtml(raw: string): string {
       result += `<span style="${buildStyleString(state)}">`;
       hasOpen = true;
     }
+    match = ANSI_ESCAPE_PATTERN.exec(normalized);
   }
   append(normalized.slice(lastIndex));
   if (hasOpen) result += '</span>';
   return result;
 }
 
-export function formatBytes(size?: number | null): string {
-  if (size == null || !Number.isFinite(size)) return '-';
+export function formatBytes(size?: null | number): string {
+  if (size === null || size === undefined || !Number.isFinite(size)) return '-';
   if (size < 1024) return `${size} B`;
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
   return `${(size / 1024 / 1024).toFixed(2)} MB`;

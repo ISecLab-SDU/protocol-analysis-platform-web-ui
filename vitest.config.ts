@@ -7,9 +7,9 @@ import { configDefaults, defineConfig } from 'vitest/config';
 export default defineConfig({
   plugins: [Vue(), VueJsx()],
   resolve: {
-        alias: {
-          '@': path.resolve(__dirname, 'apps/web-antd/src'),
-          },
+    alias: {
+      '@': path.resolve(import.meta.dirname, 'apps/web-antd/src'),
+    },
   },
   test: {
     environment: 'happy-dom',

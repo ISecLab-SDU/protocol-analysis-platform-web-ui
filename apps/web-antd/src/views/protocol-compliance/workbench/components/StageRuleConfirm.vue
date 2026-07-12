@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
-
-import { Button, Card, Empty, message, Table, Tag } from 'ant-design-vue';
-import { IconifyIcon } from '@vben/icons';
+import type { ProtocolKind, RuleOption } from '../types';
 
 import type { ProtocolExtractRuleItem } from '#/api/protocol-compliance';
 
-import type { ProtocolKind, RuleOption } from '../types';
+import { computed, ref, watch } from 'vue';
+
+import { IconifyIcon } from '@vben/icons';
+
+import { Button, Card, Empty, message, Table, Tag } from 'ant-design-vue';
+
 import { BUILTIN_RULESET_INDEX } from '../types';
 import { normalizeList } from '../utils';
 
@@ -69,7 +71,9 @@ function normalizeRulesPayload(data: any, sourceLabel: string) {
       req_type: rule.req_type ?? [],
       res_fields: normalizeList(rule.res_fields),
       res_type: rule.res_type ?? [],
-      rule: String(rule.rule || rule.requirement || rule.description || '').trim(),
+      rule: String(
+        rule.rule || rule.requirement || rule.description || '',
+      ).trim(),
     }))
     .filter((rule) => rule.rule);
 }
@@ -103,13 +107,9 @@ async function loadRules() {
 
     const flatRules: RuleOption[] = normalizeRulesPayload(data, sourceLabel);
     rules.value = flatRules;
-    if (flatRules.length > 0) {
-      selectedRowKeys.value = [flatRules[0]!.id!];
-    } else {
-      selectedRowKeys.value = [];
-    }
-  } catch (err: any) {
-    message.error(`加载规则失败: ${err?.message || err}`);
+    selectedRowKeys.value = flatRules.length > 0 ? [flatRules[0]!.id!] : [];
+  } catch (error: any) {
+    message.error(`加载规则失败: ${error?.message || error}`);
   } finally {
     loading.value = false;
   }
@@ -165,12 +165,20 @@ watch(
     >
       <template #bodyCell="{ column, record }">
         <template v-if="column.dataIndex === 'req_type'">
-          <Tag v-for="(field, i) in normalizeList(record.req_type)" :key="i" color="green">
+          <Tag
+            v-for="(field, i) in normalizeList(record.req_type)"
+            :key="i"
+            color="green"
+          >
             {{ field }}
           </Tag>
         </template>
         <template v-else-if="column.dataIndex === 'res_type'">
-          <Tag v-for="(field, i) in normalizeList(record.res_type)" :key="i" color="orange">
+          <Tag
+            v-for="(field, i) in normalizeList(record.res_type)"
+            :key="i"
+            color="orange"
+          >
             {{ field }}
           </Tag>
         </template>
@@ -232,8 +240,8 @@ watch(
 }
 
 .rule-actions {
-  margin-top: 20px;
   padding-top: 20px;
+  margin-top: 20px;
   border-top: 1px solid var(--ant-color-border-secondary);
 }
 </style>

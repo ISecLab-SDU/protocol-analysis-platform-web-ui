@@ -1,17 +1,19 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-
-import { Button, Card, Empty, message, Tag } from 'ant-design-vue';
-import { IconifyIcon } from '@vben/icons';
+import type { CodeLocateEvidence, CodeLocateFunctionSlice } from '../types';
 
 import type {
   ProtocolAssertGenerationResult,
   ProtocolExtractRuleItem,
   ProtocolStaticAnalysisResult,
 } from '#/api/protocol-compliance';
-import { downloadAflNetPoc } from '#/api/protocol-compliance';
 
-import type { CodeLocateEvidence, CodeLocateFunctionSlice } from '../types';
+import { computed, ref } from 'vue';
+
+import { IconifyIcon } from '@vben/icons';
+
+import { Button, Card, Empty, message, Tag } from 'ant-design-vue';
+
+import { downloadAflNetPoc } from '#/api/protocol-compliance';
 
 interface FuzzLogEntry {
   id: number;
@@ -21,7 +23,7 @@ interface FuzzLogEntry {
 
 interface Props {
   assertDiffContent: string;
-  assertResult: ProtocolAssertGenerationResult | null;
+  assertResult: null | ProtocolAssertGenerationResult;
   evidence: CodeLocateEvidence | null;
   implementation: string;
   logs: FuzzLogEntry[];
@@ -47,7 +49,9 @@ interface RenderedDiffLine {
 const props = defineProps<Props>();
 const isPocDownloading = ref(false);
 
-const verdicts = computed(() => props.staticResult?.modelResponse?.verdicts ?? []);
+const verdicts = computed(
+  () => props.staticResult?.modelResponse?.verdicts ?? [],
+);
 const primaryVerdict = computed(() => {
   return (
     verdicts.value.find((verdict) => verdict.compliance === 'non_compliant') ??
@@ -77,7 +81,9 @@ const violationReason = computed(() => {
 });
 
 const evidenceFunctionSlices = computed(() => {
-  return (props.evidence?.functions ?? []).filter((fn) => fn.name.trim() && fn.codeRows.length > 0);
+  return (props.evidence?.functions ?? []).filter(
+    (fn) => fn.name.trim() && fn.codeRows.length > 0,
+  );
 });
 
 const effectiveDiffContent = computed(() => {
@@ -117,17 +123,21 @@ const crashLogPath = computed(() => {
 
   for (const log of props.logs) {
     const text = log.text;
-    const cnMatch = text.match(/崩溃队列信息导出[:：]\s*(.+)$/);
-    if (cnMatch?.[1]) return cnMatch[1].trim();
+    const cnSeparatorIndex = text.search(/[:：]/);
+    if (text.startsWith('崩溃队列信息导出') && cnSeparatorIndex !== -1) {
+      const queuePath = text.slice(cnSeparatorIndex + 1).trim();
+      if (queuePath) return queuePath;
+    }
 
-    const aflMatch = text.match(/(?:crash(?:es)?|queue|poc)[^:：]*[:：]\s*(\/\S+)/i);
+    const aflMatch = text.match(/(?:crash|queue|poc)[^:：]*[:：]\s*(\/\S+)/i);
     if (aflMatch?.[1]) return aflMatch[1].trim();
   }
   return '';
 });
 
 const fuzzerName = computed(() => {
-  if (props.protocolType === 'MQTT' && props.implementation === 'SOL') return 'AFLNET';
+  if (props.protocolType === 'MQTT' && props.implementation === 'SOL')
+    return 'AFLNET';
   if (props.protocolType === 'MQTT') return 'MBFuzzer';
   return 'AFLNET';
 });
@@ -151,16 +161,16 @@ async function handleDownloadPoc() {
     const link = document.createElement('a');
     const timestamp = new Date()
       .toISOString()
-      .replace(/[:.]/g, '-')
+      .replaceAll(/[:.]/g, '-')
       .slice(0, 19);
     link.href = url;
     link.download = `${props.implementation || 'aflnet'}-poc-${timestamp}.zip`;
-    document.body.appendChild(link);
+    document.body.append(link);
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
-  } catch (err: any) {
-    message.error(err?.message || 'POC 下载失败，请检查 AFLNET 输出目录');
+  } catch (error: any) {
+    message.error(error?.message || 'POC 下载失败，请检查 AFLNET 输出目录');
   } finally {
     isPocDownloading.value = false;
   }
@@ -179,7 +189,9 @@ function normalizeDiffContent(content: string) {
 
   const detailedDiffMatch = normalized.match(/^Detailed Diff:\s*$/m);
   if (detailedDiffMatch?.index !== undefined) {
-    return normalized.slice(detailedDiffMatch.index + detailedDiffMatch[0].length).trim();
+    return normalized
+      .slice(detailedDiffMatch.index + detailedDiffMatch[0].length)
+      .trim();
   }
 
   return normalized;
@@ -246,7 +258,10 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
               <Tag color="blue">{{ evidenceFunctionSlices.length }} 个函数</Tag>
             </div>
 
-            <div v-if="evidenceFunctionSlices.length > 0" class="function-source-frame">
+            <div
+              v-if="evidenceFunctionSlices.length > 0"
+              class="function-source-frame"
+            >
               <section
                 v-for="fn in evidenceFunctionSlices"
                 :key="fn.name"
@@ -282,7 +297,11 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
                 <span class="panel-kicker">断言生成结果</span>
                 <h3>插桩代码差异</h3>
               </div>
-              <Tag :color="assertResult || effectiveDiffContent ? 'success' : 'default'">
+              <Tag
+                :color="
+                  assertResult || effectiveDiffContent ? 'success' : 'default'
+                "
+              >
                 {{ assertionSummary }}
               </Tag>
             </div>
@@ -319,7 +338,9 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
           <div class="poc-body">
             <div>
               <span>POC 输出</span>
-              <strong>{{ stats.crashes > 0 ? '已生成可下载 POC 包' : '等待崩溃证据' }}</strong>
+              <strong>{{
+                stats.crashes > 0 ? '已生成可下载 POC 包' : '等待崩溃证据'
+              }}</strong>
             </div>
             <Button
               type="primary"
@@ -516,8 +537,8 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
 }
 
 .diff-wrapper {
-  height: 440px;
   min-width: 0;
+  height: 440px;
   padding: 8px 0;
   overflow: auto;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -611,10 +632,10 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
   max-width: 780px;
   margin-top: 4px;
   overflow: hidden;
+  text-overflow: ellipsis;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 14px;
   color: #172033;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -625,8 +646,8 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
   }
 
   .poc-body {
-    align-items: stretch;
     flex-direction: column;
+    align-items: stretch;
   }
 }
 </style>

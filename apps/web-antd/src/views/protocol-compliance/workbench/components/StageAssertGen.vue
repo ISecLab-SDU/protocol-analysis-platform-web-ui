@@ -471,7 +471,6 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
   if (text.startsWith('-')) return 'delete';
   return 'context';
 }
-
 </script>
 
 <template>
@@ -622,8 +621,8 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
 }
 
 .diff-wrapper {
-  height: 440px;
   min-width: 0;
+  height: 440px;
   padding: 8px 0;
   overflow: auto;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;

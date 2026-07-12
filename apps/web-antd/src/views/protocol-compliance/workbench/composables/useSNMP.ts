@@ -3,14 +3,22 @@
  * 包含SNMP_Fuzz相关的数据处理和UI逻辑
  */
 
-import { ref, nextTick, type Ref } from 'vue';
-import type { FuzzPacket, SNMPStats, SNMPMessageStats } from './types';
+import type { Ref } from 'vue';
+
+import type { FuzzPacket, SNMPMessageStats, SNMPStats } from './types';
+
+import { nextTick, ref } from 'vue';
 
 export function useSNMP() {
   // SNMP统计数据
   const protocolStats: Ref<SNMPStats> = ref({ v1: 0, v2c: 0, v3: 0 });
-  const messageTypeStats: Ref<SNMPMessageStats> = ref({ get: 0, set: 0, getnext: 0, getbulk: 0 });
-  
+  const messageTypeStats: Ref<SNMPMessageStats> = ref({
+    get: 0,
+    set: 0,
+    getnext: 0,
+    getbulk: 0,
+  });
+
   // 数据状态
   const fuzzData = ref<FuzzPacket[]>([]);
   const totalPacketsInFile = ref(0);
@@ -67,8 +75,7 @@ export function useSNMP() {
     }
 
     const lines = text.split('\n');
-    console.log('解析文本总行数:', lines.length);
-    
+
     if (lines.length < 5) {
       console.error('Insufficient fuzz data');
       return [];
@@ -79,21 +86,19 @@ export function useSNMP() {
     let localFailedCount = 0;
 
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
+      const line = (lines[i] ?? '').trim();
 
-      const packetMatch = line.match(/^\[(\d+)\]\s+版本=([^,]+),\s+类型=([^,]+)/);
+      const packetMatch = line.match(
+        /^\[(\d+)\]\s+版本=([^,]+),\s+类型=([^,]+)/,
+      );
       if (packetMatch) {
         if (currentPacket) parsedData.push(currentPacket);
-        const packetNumber = parseInt(packetMatch[1]);
-        
-        // 调试信息：每100个包输出一次
-        if (packetNumber % 100 === 0 || packetNumber <= 5) {
-          console.log(`解析数据包 #${packetNumber}: 版本=${packetMatch[2]}, 类型=${packetMatch[3]}`);
-        }
+        const packetNumber = Number.parseInt(packetMatch[1] ?? '0');
+
         currentPacket = {
           id: packetNumber,
-          version: packetMatch[2],
-          type: packetMatch[3],
+          version: packetMatch[2] ?? 'unknown',
+          type: packetMatch[3] ?? 'unknown',
           oids: [],
           hex: '',
           result: 'unknown',
@@ -106,7 +111,7 @@ export function useSNMP() {
 
       const failedMatch = line.match(/^\[(\d+)\]\s+生成失败:/);
       if (failedMatch) {
-        const failedId = parseInt(failedMatch[1]);
+        const failedId = Number.parseInt(failedMatch[1] ?? '0');
         localFailedCount++;
         if (currentPacket && currentPacket.id === failedId) {
           currentPacket.result = 'failed';
@@ -116,17 +121,17 @@ export function useSNMP() {
           parsedData.push(currentPacket);
           currentPacket = null;
         } else {
-          parsedData.push({ 
-            id: failedId, 
-            version: 'unknown', 
-            type: 'unknown', 
-            oids: [], 
-            hex: '', 
-            result: 'failed', 
-            responseSize: 0, 
-            timestamp: new Date().toLocaleTimeString(), 
-            failed: true, 
-            failedReason: line 
+          parsedData.push({
+            id: failedId,
+            version: 'unknown',
+            type: 'unknown',
+            oids: [],
+            hex: '',
+            result: 'failed',
+            responseSize: 0,
+            timestamp: new Date().toLocaleTimeString(),
+            failed: true,
+            failedReason: line,
           });
         }
         continue;
@@ -134,85 +139,94 @@ export function useSNMP() {
 
       if (line.includes('选择OIDs=') && currentPacket) {
         const oidMatch = line.match(/选择OIDs=\[(.*?)\]/);
-        if (oidMatch) currentPacket.oids = oidMatch[1].split(',').map((oid) => oid.trim().replace(/'/g, ''));
+        if (oidMatch)
+          currentPacket.oids = (oidMatch[1] ?? '')
+            .split(',')
+            .map((oid) => oid.trim().replaceAll("'", ''));
         continue;
       }
 
       if (line.includes('报文HEX:') && currentPacket) {
         const hexMatch = line.match(/报文HEX:\s*([A-F0-9]+)/);
-        if (hexMatch) currentPacket.hex = hexMatch[1];
+        if (hexMatch) currentPacket.hex = hexMatch[1] ?? '';
         continue;
       }
 
       if (line.includes('[发送尝试]') && currentPacket) {
         const sizeMatch = line.match(/长度=(\d+)\s*字节/);
-        if (sizeMatch) (currentPacket as any).sendSize = parseInt(sizeMatch[1]);
+        if (sizeMatch)
+          (currentPacket as any).sendSize = Number.parseInt(
+            sizeMatch[1] ?? '0',
+          );
         continue;
       }
 
       if (line.includes('[接收成功]') && currentPacket) {
         const sizeMatch = line.match(/(\d+)\s*字节/);
         if (sizeMatch) {
-          currentPacket.responseSize = parseInt(sizeMatch[1]);
+          currentPacket.responseSize = Number.parseInt(sizeMatch[1] ?? '0');
           currentPacket.result = 'success';
         }
         continue;
       }
-      
+
       if (line.includes('[接收超时]') && currentPacket) {
         currentPacket.result = 'timeout';
         continue;
       }
 
       if (line.includes('[运行监控]')) {
-        const isExactCrashNotice = line.includes('[运行监控] 收到崩溃通知: 健康服务报告 VM 不可达');
+        const isExactCrashNotice = line.includes(
+          '[运行监控] 收到崩溃通知: 健康服务报告 VM 不可达',
+        );
         if (isExactCrashNotice || line.includes('崩溃通知')) {
-          const crashEvent = { 
-            type: 'crash_notification', 
-            message: line, 
-            timestamp: new Date().toLocaleTimeString(), 
-            crashPacket: '', 
-            crashLogPath: '' 
+          const crashEvent = {
+            type: 'crash_notification',
+            message: line,
+            timestamp: new Date().toLocaleTimeString(),
+            crashPacket: '',
+            crashLogPath: '',
           };
-          
+
           for (let j = i + 1; j < lines.length && j < i + 30; j++) {
-            const nextLine = lines[j].trim();
+            const nextLine = (lines[j] ?? '').trim();
             if (nextLine.includes('[崩溃信息] 疑似崩溃数据包:')) {
-              crashEvent.crashPacket = nextLine.replace('[崩溃信息] 疑似崩溃数据包: ', '');
+              crashEvent.crashPacket = nextLine.replace(
+                '[崩溃信息] 疑似崩溃数据包: ',
+                '',
+              );
             } else if (nextLine.includes('[崩溃信息] 崩溃队列信息导出:')) {
-              crashEvent.crashLogPath = nextLine.replace('[崩溃信息] 崩溃队列信息导出: ', '');
+              crashEvent.crashLogPath = nextLine.replace(
+                '[崩溃信息] 崩溃队列信息导出: ',
+                '',
+              );
             }
             if (crashEvent.crashPacket && crashEvent.crashLogPath) break;
           }
-          
-          parsedData.push({ 
-            id: 'crash_event', 
-            version: 'crash', 
-            type: 'crash', 
-            oids: [], 
-            hex: crashEvent.crashPacket, 
-            result: 'crash', 
-            responseSize: 0, 
-            timestamp: crashEvent.timestamp, 
-            crashEvent 
+
+          parsedData.push({
+            id: 'crash_event',
+            version: 'crash',
+            type: 'crash',
+            oids: [],
+            hex: crashEvent.crashPacket,
+            result: 'crash',
+            responseSize: 0,
+            timestamp: crashEvent.timestamp,
+            crashEvent,
           });
-          
-          if (currentPacket) { 
-            currentPacket.result = 'crash'; 
-            (currentPacket as any).crashInfo = line; 
+
+          if (currentPacket) {
+            currentPacket.result = 'crash';
+            (currentPacket as any).crashInfo = line;
           }
-        } else if (line.includes('检测到崩溃')) {
-          if (currentPacket) (currentPacket as any).monitorInfo = line;
-        }
+        } else if (line.includes('检测到崩溃') && currentPacket)
+          (currentPacket as any).monitorInfo = line;
         continue;
       }
     }
 
     if (currentPacket) parsedData.push(currentPacket);
-    
-    console.log('解析完成统计:');
-    console.log('- 总数据包数:', parsedData.length);
-    console.log('- 失败数据包数:', localFailedCount);
 
     // 解析统计信息
     const statsLine = (text.match(/^统计:.*$/m) || [])[0];
@@ -220,20 +234,20 @@ export function useSNMP() {
       const objMatch = statsLine.match(/统计:\s*(\{[^}]+\})\s*,\s*(\{[^}]+\})/);
       if (objMatch) {
         try {
-          const versionJson = objMatch[1].replace(/'/g, '"');
-          const typeJson = objMatch[2].replace(/'/g, '"');
+          const versionJson = (objMatch[1] ?? '{}').replaceAll("'", '"');
+          const typeJson = (objMatch[2] ?? '{}').replaceAll("'", '"');
           const parsedVersion = JSON.parse(versionJson);
           const parsedType = JSON.parse(typeJson);
-          protocolStats.value = { 
-            v1: parsedVersion.v1 || 0, 
-            v2c: parsedVersion.v2c || 0, 
-            v3: parsedVersion.v3 || 0 
+          protocolStats.value = {
+            v1: parsedVersion.v1 || 0,
+            v2c: parsedVersion.v2c || 0,
+            v3: parsedVersion.v3 || 0,
           };
-          messageTypeStats.value = { 
-            get: parsedType.get || 0, 
-            set: parsedType.set || 0, 
-            getnext: parsedType.getnext || 0, 
-            getbulk: parsedType.getbulk || 0 
+          messageTypeStats.value = {
+            get: parsedType.get || 0,
+            set: parsedType.set || 0,
+            getnext: parsedType.getnext || 0,
+            getbulk: parsedType.getbulk || 0,
           };
         } catch (error) {
           console.warn('解析统计信息失败:', error);
@@ -243,36 +257,72 @@ export function useSNMP() {
 
     // 更新状态变量
     fuzzData.value = parsedData;
-    totalPacketsInFile.value = parsedData.filter((p) => typeof p.id === 'number').length;
+    totalPacketsInFile.value = parsedData.filter(
+      (p) => typeof p.id === 'number',
+    ).length;
     fileTotalPackets.value = parsedData.length;
-    fileSuccessCount.value = parsedData.filter(p => p.result === 'success').length;
-    fileTimeoutCount.value = parsedData.filter(p => p.result === 'timeout').length;
+    fileSuccessCount.value = parsedData.filter(
+      (p) => p.result === 'success',
+    ).length;
+    fileTimeoutCount.value = parsedData.filter(
+      (p) => p.result === 'timeout',
+    ).length;
     fileFailedCount.value = localFailedCount;
-    
+
     return parsedData;
   }
 
   // 处理SNMP数据包
-  function processSNMPPacket(packet: FuzzPacket, addLogToUI: (packet: FuzzPacket, isCrash: boolean) => void, updateCounters?: (result: string) => void) {
+  function processSNMPPacket(
+    packet: FuzzPacket,
+    addLogToUI: (packet: FuzzPacket, isCrash: boolean) => void,
+    updateCounters?: (result: string) => void,
+  ) {
     try {
       // Update protocol stats
-      if (packet.version === 'v1') protocolStats.value.v1++;
-      else if (packet.version === 'v2c') protocolStats.value.v2c++;
-      else if (packet.version === 'v3') protocolStats.value.v3++;
-      
+      switch (packet.version) {
+        case 'v1': {
+          protocolStats.value.v1++;
+          break;
+        }
+        case 'v2c': {
+          protocolStats.value.v2c++;
+          break;
+        }
+        case 'v3': {
+          protocolStats.value.v3++;
+          break;
+        }
+      }
+
       // Update message type stats
-      if (packet.type === 'get') messageTypeStats.value.get++;
-      else if (packet.type === 'set') messageTypeStats.value.set++;
-      else if (packet.type === 'getnext') messageTypeStats.value.getnext++;
-      else if (packet.type === 'getbulk') messageTypeStats.value.getbulk++;
-      
+      switch (packet.type) {
+        case 'get': {
+          messageTypeStats.value.get++;
+          break;
+        }
+        case 'getbulk': {
+          messageTypeStats.value.getbulk++;
+          break;
+        }
+        case 'getnext': {
+          messageTypeStats.value.getnext++;
+          break;
+        }
+        case 'set': {
+          messageTypeStats.value.set++;
+          break;
+        }
+      }
+
       // Update result counters through callback if provided
       if (updateCounters) {
         updateCounters(packet.result || 'unknown');
       }
-      
+
       // Add to UI log (sparse updates for performance)
-      if (packet.result !== 'crash' && Math.random() < 0.1) { // 10% chance to show
+      if (packet.result !== 'crash' && Math.random() < 0.1) {
+        // 10% chance to show
         addLogToUI(packet, false);
       } else if (packet.result === 'crash') {
         addLogToUI(packet, true);
@@ -282,24 +332,51 @@ export function useSNMP() {
     }
   }
 
+  function formatPacketResultText(packet: FuzzPacket) {
+    if (packet.result === 'success') {
+      return `正常响应 (${packet.responseSize || 0}字节)`;
+    }
+    if (packet.result === 'timeout') return '接收超时';
+    if (packet.result === 'failed') return '构造失败';
+    return '未知状态';
+  }
+
+  function formatPacketResultClass(packet: FuzzPacket) {
+    if (packet.result === 'success') return 'text-success';
+    if (packet.result === 'timeout') return 'text-warning';
+    if (packet.result === 'failed') return 'text-danger';
+    return 'text-warning';
+  }
+
   // SNMP专用的日志显示函数
-  function addSNMPLogToUI(packet: FuzzPacket, isCrash: boolean, logContainer: HTMLElement | null, showHistoryView: boolean, isRunning: boolean) {
+  function addSNMPLogToUI(
+    packet: FuzzPacket,
+    isCrash: boolean,
+    logContainer: HTMLElement | null,
+    showHistoryView: boolean,
+    isRunning: boolean,
+  ) {
     // 检查DOM元素是否存在且在实时测试视图中
     if (!logContainer || showHistoryView || !isRunning) {
       return;
     }
-    
+
     // Use nextTick to ensure DOM is stable before manipulation
     nextTick(() => {
       try {
         // Double-check DOM element still exists after nextTick
-        if (!logContainer || !logContainer.appendChild || showHistoryView || !isRunning) {
+        if (
+          !logContainer ||
+          !logContainer.appendChild ||
+          showHistoryView ||
+          !isRunning
+        ) {
           return;
         }
-        
+
         const div = document.createElement('div');
         div.className = isCrash ? 'crash-highlight' : 'packet-highlight';
-        
+
         if (isCrash) {
           div.innerHTML = `<span class="text-dark/50">[${packet.timestamp || ''}]</span> <span class="text-danger font-bold">CRASH DETECTED</span> <span class="text-danger">${packet.version?.toUpperCase() || 'UNKNOWN'}</span> <span class="text-danger">${packet.type?.toUpperCase() || 'UNKNOWN'}</span>`;
         } else {
@@ -308,30 +385,26 @@ export function useSNMP() {
           const time = packet.timestamp || '';
           const content = packet.oids?.[0] || '';
           const hex = (packet.hex || '').slice(0, 40);
-          const resultText = packet.result === 'success' ? `正常响应 (${packet.responseSize || 0}字节)` : 
-                            packet.result === 'timeout' ? '接收超时' : 
-                            packet.result === 'failed' ? '构造失败' : '未知状态';
-          const resultClass = packet.result === 'success' ? 'text-success' : 
-                             packet.result === 'timeout' ? 'text-warning' : 
-                             packet.result === 'failed' ? 'text-danger' : 'text-warning';
-          
+          const resultText = formatPacketResultText(packet);
+          const resultClass = formatPacketResultClass(packet);
+
           div.innerHTML = `<span class="text-dark/50">[${time}]</span> <span class="text-primary">SNMP${protocol}</span> <span class="text-info">${op}</span> <span class="text-dark/70 truncate inline-block w-32" title="${content}">${content}</span> <span class="${resultClass} font-medium">${resultText}</span> <span class="text-dark/40">${hex}...</span>`;
         }
-        
+
         // Final check before DOM manipulation
-        if (logContainer && logContainer.appendChild) {
-          logContainer.appendChild(div);
-          
+        if (logContainer) {
+          logContainer.append(div);
+
           // Safely update scroll position
           if (logContainer.scrollTop !== undefined) {
             logContainer.scrollTop = logContainer.scrollHeight;
           }
-          
+
           // Limit log entries for performance with safe checks
-          if (logContainer.children && logContainer.children.length > 200) {
+          if (logContainer.children.length > 200) {
             const firstChild = logContainer.firstChild;
-            if (firstChild && logContainer.removeChild) {
-              logContainer.removeChild(firstChild);
+            if (firstChild) {
+              firstChild.remove();
             }
           }
         }
@@ -344,7 +417,6 @@ export function useSNMP() {
   // SNMP测试启动函数
   async function startSNMPTest(loop: () => void) {
     // SNMP协议的原有逻辑
-    console.log('启动SNMP测试...');
     loop();
   }
 
@@ -362,6 +434,6 @@ export function useSNMP() {
     parseSNMPText,
     processSNMPPacket,
     addSNMPLogToUI,
-    startSNMPTest
+    startSNMPTest,
   };
 }

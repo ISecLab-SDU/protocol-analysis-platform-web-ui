@@ -1,4 +1,11 @@
 <script setup lang="ts">
+import type {
+  ProtocolDatabaseOverviewStats,
+  ProtocolDatabaseOverviewSummary,
+  ProtocolStaticAnalysisRuleResultStatus,
+  ProtocolViolationHistoryEntry,
+} from '#/api/protocol-compliance';
+
 import {
   computed,
   nextTick,
@@ -14,12 +21,6 @@ import { IconifyIcon } from '@vben/icons';
 
 import { Button, message, Popconfirm, Select, Tag } from 'ant-design-vue';
 
-import type {
-  ProtocolDatabaseOverviewStats,
-  ProtocolDatabaseOverviewSummary,
-  ProtocolStaticAnalysisRuleResultStatus,
-  ProtocolViolationHistoryEntry,
-} from '#/api/protocol-compliance';
 import {
   deleteProtocolViolationHistory,
   fetchProtocolDatabaseOverview,
@@ -30,8 +31,8 @@ import StageAssertGen from './components/StageAssertGen.vue';
 import StageCodeLocate from './components/StageCodeLocate.vue';
 import StageFuzz from './components/StageFuzz.vue';
 import StageResultVerification from './components/StageResultVerification.vue';
-import StageRuleExtract from './components/StageRuleExtract.vue';
 import StageRuleConfirm from './components/StageRuleConfirm.vue';
+import StageRuleExtract from './components/StageRuleExtract.vue';
 import StageSetup from './components/StageSetup.vue';
 import { STAGE_LIST } from './types';
 import { useWorkbench } from './useWorkbench';
@@ -94,7 +95,7 @@ const currentRuleText = computed(() => {
 });
 
 const currentRuleId = computed(() => {
-  const optionId = (selectedRule.value as { id?: string } | null)?.id;
+  const optionId = (selectedRule.value as null | { id?: string })?.id;
   const matched = currentRuleText.value.match(/\[(MQTT-[^\]]+)\]/i)?.[1];
   return matched || optionId || '未选择';
 });
@@ -355,14 +356,14 @@ const historyTimeRangeOptions = [
   { label: '近一周', value: 'week' },
   { label: '近一个月', value: 'month' },
   { label: '近一年', value: 'year' },
-] as const;
+];
 
 const historyResultOptions = [
   { label: '全部结果', value: '' },
   { label: '发现违规', value: 'violation_found' },
   { label: '合规', value: 'no_violation' },
   { label: '未判定', value: 'unknown' },
-] as const;
+];
 
 const maxImplementationViolation = computed(() => {
   return Math.max(
@@ -393,6 +394,30 @@ function clearBannerProgressTimer() {
   bannerProgressTimer = null;
 }
 
+function getBannerProgressDelay(current: number, isAssertStage: boolean) {
+  if (isAssertStage) {
+    if (current < 70) return 1900 + Math.random() * 1200;
+    if (current < 90) return 3000 + Math.random() * 1800;
+    return 3400 + Math.random() * 2000;
+  }
+
+  if (current < 70) return 950 + Math.random() * 650;
+  if (current < 90) return 1600 + Math.random() * 900;
+  return 1400 + Math.random() * 1300;
+}
+
+function getBannerProgressIncrement(value: number, isAssertStage: boolean) {
+  if (isAssertStage) {
+    if (value < 70) return 0.7 + Math.random() * 1.2;
+    if (value < 90) return 0.22 + Math.random() * 0.55;
+    return 0.1 + Math.random() * 0.25;
+  }
+
+  if (value < 70) return 2 + Math.random() * 2.8;
+  if (value < 90) return 0.7 + Math.random() * 1.2;
+  return 0.3 + Math.random() * 0.9;
+}
+
 function scheduleBannerProgressTick() {
   clearBannerProgressTimer();
   if (
@@ -404,17 +429,7 @@ function scheduleBannerProgressTick() {
 
   const current = bannerProgress.value;
   const isAssertStage = activeStageView.value === 'assert_gen';
-  const delay = isAssertStage
-    ? current < 70
-      ? 1900 + Math.random() * 1200
-      : current < 90
-        ? 3000 + Math.random() * 1800
-        : 3400 + Math.random() * 2000
-    : current < 70
-      ? 950 + Math.random() * 650
-      : current < 90
-        ? 1600 + Math.random() * 900
-        : 1400 + Math.random() * 1300;
+  const delay = getBannerProgressDelay(current, isAssertStage);
 
   bannerProgressTimer = setTimeout(() => {
     if (
@@ -426,17 +441,7 @@ function scheduleBannerProgressTick() {
 
     const value = bannerProgress.value;
     const isCurrentAssertStage = activeStageView.value === 'assert_gen';
-    const increment = isCurrentAssertStage
-      ? value < 70
-        ? 0.7 + Math.random() * 1.2
-        : value < 90
-          ? 0.22 + Math.random() * 0.55
-          : 0.1 + Math.random() * 0.25
-      : value < 70
-        ? 2 + Math.random() * 2.8
-        : value < 90
-          ? 0.7 + Math.random() * 1.2
-          : 0.3 + Math.random() * 0.9;
+    const increment = getBannerProgressIncrement(value, isCurrentAssertStage);
     const cap = value < 90 ? 90 : 98;
     bannerProgress.value = Math.min(cap, value + increment);
     scheduleBannerProgressTick();
@@ -831,7 +836,7 @@ async function handleLoadDemoConfig() {
             <IconifyIcon icon="mdi:shield-check-outline" />
           </div>
           <div class="brand-name">ProtocolGuard</div>
-          <div class="topbar-divider" />
+          <div class="topbar-divider"></div>
           <div class="topbar-section">{{ activeSideNavLabel }}</div>
         </div>
 
@@ -840,7 +845,7 @@ async function handleLoadDemoConfig() {
             class="runtime-status"
             :class="{ 'runtime-status--idle': !isRunning }"
           >
-            <span class="status-dot" />
+            <span class="status-dot"></span>
             <span>{{ isRunning ? '运行中' : '空闲' }}</span>
           </div>
           <div
@@ -992,19 +997,19 @@ async function handleLoadDemoConfig() {
               </div>
 
               <div class="overview-hero-art" aria-hidden="true">
-                <div class="hero-art-plane hero-art-plane--back" />
+                <div class="hero-art-plane hero-art-plane--back"></div>
                 <div class="hero-art-plane">
                   <div class="hero-art-document">
                     <IconifyIcon icon="mdi:shield-check" />
-                    <span />
-                    <span />
-                    <span />
+                    <span></span>
+                    <span></span>
+                    <span></span>
                   </div>
-                  <div class="hero-art-magnifier" />
+                  <div class="hero-art-magnifier"></div>
                 </div>
-                <i class="hero-art-cube hero-art-cube--one" />
-                <i class="hero-art-cube hero-art-cube--two" />
-                <i class="hero-art-cube hero-art-cube--three" />
+                <i class="hero-art-cube hero-art-cube--one"></i>
+                <i class="hero-art-cube hero-art-cube--two"></i>
+                <i class="hero-art-cube hero-art-cube--three"></i>
               </div>
             </header>
 
@@ -1070,7 +1075,7 @@ async function handleLoadDemoConfig() {
                         <strong>{{ formatNumber(item.ruleResults) }} 条</strong>
                       </div>
                       <div class="score-track">
-                        <i class="score-track__ok" />
+                        <i class="score-track__ok"></i>
                       </div>
                     </div>
                     <div class="protocol-meta">
@@ -1132,7 +1137,7 @@ async function handleLoadDemoConfig() {
                               maxImplementationViolation,
                             ),
                           }"
-                        />
+                        ></em>
                       </i>
                     </span>
                     <span>{{ formatNumber(item.violationLocations) }}</span>
@@ -1203,8 +1208,8 @@ async function handleLoadDemoConfig() {
               :disabled="isRunning"
               :protocol-type="projectConfig.protocolType"
               :rules-file="projectConfig.rules"
-              @applyRules="handleApplyExtractedRules"
-              @goWorkbench="handleRuleExtractGoWorkbench"
+              @apply-rules="handleApplyExtractedRules"
+              @go-workbench="handleRuleExtractGoWorkbench"
             />
           </section>
 
@@ -1226,9 +1231,9 @@ async function handleLoadDemoConfig() {
                 @click="switchRule"
               >
                 切换规则
-                <template #icon
-                  ><IconifyIcon icon="mdi:chevron-down"
-                /></template>
+                <template #icon>
+                  <IconifyIcon icon="mdi:chevron-down" />
+                </template>
               </Button>
             </header>
 
@@ -1289,7 +1294,7 @@ async function handleLoadDemoConfig() {
                 v-if="shouldShowBannerProgress"
                 class="workbench-banner-fill"
                 aria-hidden="true"
-              />
+              ></span>
               <IconifyIcon
                 class="workbench-banner-icon"
                 icon="mdi:information-outline"
@@ -1336,7 +1341,7 @@ async function handleLoadDemoConfig() {
             <section class="workbench-content">
               <StageSetup
                 v-if="activeStageView === 'setup'"
-                :config="projectConfig"
+                v-model:config="projectConfig"
                 :disabled="isRunning"
                 @commit="commitSetup"
               />
@@ -1645,7 +1650,7 @@ async function handleLoadDemoConfig() {
             </section>
           </section>
 
-          <section v-else class="overview-blank" />
+          <section v-else class="overview-blank"></section>
         </main>
       </div>
     </div>
@@ -1656,6 +1661,7 @@ async function handleLoadDemoConfig() {
 .guard-shell {
   min-height: calc(100vh - 92px);
   overflow: hidden;
+  font-size: 17px;
   color: #111827;
   background: #f4f7fb;
 }
@@ -1913,10 +1919,10 @@ async function handleLoadDemoConfig() {
   min-width: 0;
   margin: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 12px;
   font-weight: 600;
   color: #172033;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -2279,8 +2285,8 @@ async function handleLoadDemoConfig() {
 }
 
 .hero-art-cube--two {
-  right: 16px;
   top: 58px;
+  right: 16px;
   width: 22px;
   height: 22px;
 }
@@ -2296,8 +2302,8 @@ async function handleLoadDemoConfig() {
   display: flex;
   gap: 10px;
   align-items: center;
-  margin-bottom: 16px;
   padding: 11px 14px;
+  margin-bottom: 16px;
   font-size: 13px;
   color: #dc2626;
   background: #fff5f5;
@@ -2342,11 +2348,11 @@ async function handleLoadDemoConfig() {
   display: block;
   min-width: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 30px;
   font-weight: 850;
   line-height: 1.15;
   color: #111b34;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -2439,9 +2445,9 @@ async function handleLoadDemoConfig() {
 
 .card-count {
   display: flex;
+  flex: 0 0 auto;
   gap: 6px;
   align-items: center;
-  flex: 0 0 auto;
   min-height: 28px;
   padding: 0 10px;
   font-size: 12px;
@@ -2454,7 +2460,9 @@ async function handleLoadDemoConfig() {
 
 .score-track {
   position: relative;
+  display: flex;
   height: 8px;
+  margin: 10px 0 16px;
   overflow: hidden;
   background: transparent;
   border-radius: 999px;
@@ -2526,7 +2534,7 @@ async function handleLoadDemoConfig() {
   width: 38px;
   height: 38px;
   overflow: hidden;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 850;
   color: #fff;
   text-align: center;
@@ -2536,11 +2544,6 @@ async function handleLoadDemoConfig() {
 .protocol-bars strong {
   font-size: 12px;
   color: #0f172a;
-}
-
-.score-track {
-  display: flex;
-  margin: 10px 0 16px;
 }
 
 .score-track__ok {
@@ -2570,9 +2573,9 @@ async function handleLoadDemoConfig() {
 
 .implementation-table {
   overflow: auto;
+  scrollbar-gutter: stable;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  scrollbar-gutter: stable;
 }
 
 .overview-card--ranking .implementation-table {
@@ -2648,9 +2651,9 @@ async function handleLoadDemoConfig() {
 
 .workflow-list {
   display: grid;
+  flex: 1;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 28px;
-  flex: 1;
 }
 
 .workflow-step {
@@ -2726,11 +2729,11 @@ async function handleLoadDemoConfig() {
 .workflow-step strong {
   display: block;
   overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 14px;
   font-weight: 850;
   color: #172033;
   text-align: center;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -2738,19 +2741,19 @@ async function handleLoadDemoConfig() {
   display: -webkit-box;
   margin: 8px 0 0;
   overflow: hidden;
+  -webkit-line-clamp: 2;
   font-size: 12px;
   line-height: 1.55;
   color: #64748b;
   text-align: center;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
 }
 
 .finding-list {
   display: grid;
+  flex: 1;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
-  flex: 1;
 }
 
 .finding-item {
@@ -2772,9 +2775,9 @@ async function handleLoadDemoConfig() {
 .finding-head strong {
   min-width: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 13px;
   color: #0f172a;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -2783,21 +2786,21 @@ async function handleLoadDemoConfig() {
   min-height: 42px;
   margin: 0 0 7px;
   overflow: hidden;
+  -webkit-line-clamp: 2;
   font-size: 13px;
   line-height: 1.6;
   color: #0f172a;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
 }
 
 .finding-item small {
   display: -webkit-box;
   overflow: hidden;
+  -webkit-line-clamp: 3;
   font-size: 12px;
   line-height: 1.6;
   color: #64748b;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
 }
 
 .task-shell {
@@ -2856,9 +2859,9 @@ async function handleLoadDemoConfig() {
   max-width: min(860px, 100%);
   padding: 3px 8px;
   overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 15px;
   color: #172033;
-  text-overflow: ellipsis;
   white-space: nowrap;
   background: #eef5ff;
   border: 1px solid #dceaff;
@@ -2870,8 +2873,8 @@ async function handleLoadDemoConfig() {
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
   align-items: center;
-  margin-bottom: 18px;
   padding: 18px 20px;
+  margin-bottom: 18px;
   background: #fff;
   border: 1px solid #e7edf5;
   border-radius: 8px;
@@ -2927,10 +2930,10 @@ async function handleLoadDemoConfig() {
 
 .stepper-title {
   overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 16px;
   font-weight: 800;
   color: #111827;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -2952,8 +2955,8 @@ async function handleLoadDemoConfig() {
 }
 
 .stepper-item--active .stepper-state {
-  color: #1677ff;
   font-weight: 700;
+  color: #1677ff;
 }
 
 .stepper-item--done .stepper-circle {
@@ -2969,8 +2972,8 @@ async function handleLoadDemoConfig() {
 }
 
 .stepper-item--skipped .stepper-state {
-  color: #475569;
   font-weight: 700;
+  color: #475569;
 }
 
 .stepper-item--error .stepper-circle {
@@ -2980,8 +2983,8 @@ async function handleLoadDemoConfig() {
 }
 
 .stepper-item--error .stepper-state {
-  color: #dc2626;
   font-weight: 700;
+  color: #dc2626;
 }
 
 .workbench-banner,
@@ -2989,8 +2992,8 @@ async function handleLoadDemoConfig() {
   display: flex;
   gap: 10px;
   align-items: center;
-  margin-bottom: 14px;
   padding: 11px 14px;
+  margin-bottom: 14px;
   font-size: 15px;
   border-radius: 8px;
 }
@@ -3172,8 +3175,8 @@ async function handleLoadDemoConfig() {
 }
 
 .history-detail-panel {
-  margin-top: 14px;
   padding-top: 14px;
+  margin-top: 14px;
   border-top: 1px solid #dbeafe;
 }
 
@@ -3182,8 +3185,8 @@ async function handleLoadDemoConfig() {
   gap: 16px;
   align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 14px;
   padding-bottom: 14px;
+  margin-bottom: 14px;
   border-bottom: 1px solid #e2e8f0;
 }
 
@@ -3235,12 +3238,12 @@ async function handleLoadDemoConfig() {
   display: -webkit-box;
   margin: 0;
   overflow: hidden;
+  -webkit-line-clamp: 2;
   font-size: 13px;
   line-height: 1.55;
   color: #334155;
   overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
 }
 
 .history-summary-footer {
@@ -3254,9 +3257,9 @@ async function handleLoadDemoConfig() {
 .history-summary-footer span {
   min-width: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 12px;
   color: #64748b;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -3270,8 +3273,8 @@ async function handleLoadDemoConfig() {
 .history-detail-actions {
   display: flex;
   justify-content: flex-end;
-  margin-top: 14px;
   padding-top: 14px;
+  margin-top: 14px;
   border-top: 1px solid #e2e8f0;
 }
 
@@ -3308,9 +3311,9 @@ async function handleLoadDemoConfig() {
 .history-block strong {
   min-width: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 13px;
   color: #172033;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -3432,8 +3435,8 @@ async function handleLoadDemoConfig() {
 
 .history-diff pre {
   max-height: 360px;
-  margin: 0;
   padding: 12px;
+  margin: 0;
   overflow: auto;
   font-family:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
@@ -3448,8 +3451,8 @@ async function handleLoadDemoConfig() {
 
 .history-source pre {
   max-height: 360px;
-  margin: 0;
   padding: 12px;
+  margin: 0;
   overflow: auto;
   font-family:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
@@ -3483,10 +3486,6 @@ async function handleLoadDemoConfig() {
   margin: 8px 0 0;
   font-size: 13px;
   color: #64748b;
-}
-
-.guard-shell {
-  font-size: 17px;
 }
 
 .overview-card-head p,
@@ -3538,10 +3537,6 @@ async function handleLoadDemoConfig() {
 .stepper-title,
 .result-history-title {
   font-size: 16px;
-}
-
-.protocol-badge {
-  font-size: 13px;
 }
 
 .history-source-code,
@@ -3697,8 +3692,8 @@ async function handleLoadDemoConfig() {
   }
 
   .history-summary-footer {
-    align-items: flex-start;
     flex-direction: column;
+    align-items: flex-start;
   }
 
   .history-summary-footer span {
@@ -3707,8 +3702,8 @@ async function handleLoadDemoConfig() {
   }
 
   .history-summary-actions {
-    width: 100%;
     justify-content: flex-end;
+    width: 100%;
   }
 }
 </style>

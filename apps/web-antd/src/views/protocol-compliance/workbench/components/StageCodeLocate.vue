@@ -447,7 +447,6 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
   if (!fn.targetLine || fn.targetLine === '-') return path;
   return `${path}:${fn.targetLine}`;
 }
-
 </script>
 
 <template>
@@ -589,7 +588,12 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
 }
 
 .finding-label {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 8px;
   font-size: 13px;
+  font-weight: 700;
   color: #64748b;
 }
 
@@ -609,14 +613,6 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
   background: #fbfdff;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-}
-
-.finding-label {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  margin-bottom: 8px;
-  font-weight: 700;
 }
 
 .finding-label :first-child {

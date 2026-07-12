@@ -7,5 +7,3 @@ export interface FuzzTextResponse {
 export function getFuzzText() {
   return requestClient.get<FuzzTextResponse>('/custom/text');
 }
-
-

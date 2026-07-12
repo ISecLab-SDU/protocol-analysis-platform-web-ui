@@ -388,8 +388,8 @@ $namespace: vben;
   padding: var(--menu-item-padding-y) var(--menu-item-padding-x);
   margin: 0 var(--menu-item-margin-x) var(--menu-item-margin-y)
     var(--menu-item-margin-x);
-  font-weight: 600;
   font-size: var(--menu-font-size);
+  font-weight: 600;
   color: var(--menu-item-color);
   white-space: nowrap;
   text-decoration: none;
