@@ -955,6 +955,7 @@ export interface StartProtocolFuzzingJobPayload {
 
 export interface StartProtocolFuzzingDebugJobPayload {
   assertGenerationJobId?: string;
+  fuzzConfigJobId?: string;
   instrumentedCodeZipPath?: string;
   notes?: string;
   protocol?: string;
@@ -1005,8 +1006,9 @@ export type ProtocolFuzzConfigJobStatus =
   | 'running';
 
 export interface StartProtocolFuzzConfigJobPayload {
-  assertGenerationJobId: string;
+  assertGenerationJobId?: string;
   host?: string;
+  instrumentedCodeZipPath?: string;
   netSpec?: string;
   notes?: string;
   port?: number;

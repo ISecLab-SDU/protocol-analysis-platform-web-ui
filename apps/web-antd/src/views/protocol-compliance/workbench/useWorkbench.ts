@@ -1762,12 +1762,22 @@ async function readFuzzLogs(options: { runId?: number } = {}) {
   }
 }
 
-async function waitForFuzzConfigJob(runId: number) {
-  if (!assertJobId.value) throw new Error('缺少断言生成任务 ID');
+async function waitForFuzzConfigJob(
+  runId: number,
+  options?: { debugReplay?: boolean; instrumentedCodeZipPath?: string },
+) {
+  if (!assertJobId.value && !options?.debugReplay) {
+    throw new Error('缺少断言生成任务 ID');
+  }
   appendFuzzLog('启动 Fuzz 配置生成 Agent', 'INFO');
   const configJob = await startProtocolFuzzConfigJob({
-    assertGenerationJobId: assertJobId.value,
-    notes: projectConfig.notes,
+    ...(assertJobId.value ? { assertGenerationJobId: assertJobId.value } : {}),
+    ...(options?.instrumentedCodeZipPath
+      ? { instrumentedCodeZipPath: options.instrumentedCodeZipPath }
+      : {}),
+    notes: options?.debugReplay
+      ? projectConfig.notes || 'Workbench debug replay'
+      : projectConfig.notes,
     protocol: protocolKindForApi.value,
     protocolImplementations: protocolImplementationsKey.value,
   });
@@ -1948,7 +1958,17 @@ async function startFuzzDebugReplay() {
 
   try {
     appendFuzzLog('正在复用最近一次断言插入产物启动 Fuzz', 'INFO');
+    const configJob = await waitForFuzzConfigJob(runId, { debugReplay: true });
+    if (!isCurrentPipelineRun(runId)) return;
+    const artifactPath =
+      configJob.inputs?.instrumentedCodeZipPath ||
+      configJob.artifacts?.instrumentedCodeZipPath ||
+      '调试插桩源码包';
+    appendFuzzLog(`使用插桩源码包: ${artifactPath}`, 'INFO');
+    stageMessage.value = '使用调试配置启动 AFLNet…';
     const job = await startProtocolFuzzingDebugJob({
+      assertGenerationJobId: configJob.assertGenerationJobId,
+      fuzzConfigJobId: configJob.jobId,
       notes: projectConfig.notes || 'Workbench debug replay',
       protocol: protocolKindForApi.value,
       protocolImplementations: protocolImplementationsKey.value,
@@ -1957,11 +1977,6 @@ async function startFuzzDebugReplay() {
     fuzzJobId.value = job.jobId;
     fuzzJob.value = job;
     updateAflNetPocPath(job.artifacts);
-    const artifactPath =
-      job.inputs?.instrumentedCodeZipPath ||
-      job.artifacts?.instrumentedCodeZipPath ||
-      '最近插桩源码包';
-    appendFuzzLog(`使用插桩源码包: ${artifactPath}`, 'INFO');
     if (job.status === 'failed') {
       markStageError('fuzz', job.error || '模糊测试启动失败');
       return;
