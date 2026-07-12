@@ -662,6 +662,7 @@ export interface ProtocolAssertGenerationInputInfo {
 
 export interface ProtocolAssertGenerationArtifactInfo {
   database?: string;
+  instrumentedCodeZipPath?: string;
   logs?: string;
   output?: string;
   workspace?: string;
@@ -688,6 +689,7 @@ export interface ProtocolInstrumentationArtifacts {
   diffFiles?: string[];
   diffOutput?: ProtocolInstrumentationDiffOutput;
   instrumentedCodePath?: null | string;
+  instrumentedCodeZipPath?: null | string;
 }
 
 export interface ProtocolInstrumentationDockerInfo {
@@ -988,6 +990,118 @@ export function checkStatus(data: {
   protocolImplementations?: string[];
 }) {
   return requestClient.post('/protocol-compliance/check-status', data);
+}
+
+// Artifact-backed Fuzz Jobs -----------------------------------------------
+export type ProtocolFuzzingJobStatus =
+  | 'completed'
+  | 'failed'
+  | 'queued'
+  | 'running'
+  | 'stopped';
+
+export interface StartProtocolFuzzingJobPayload {
+  assertGenerationJobId: string;
+  notes?: string;
+  protocol: string;
+  protocolImplementations?: string[];
+}
+
+export interface StartProtocolFuzzingDebugJobPayload {
+  assertGenerationJobId?: string;
+  instrumentedCodeZipPath?: string;
+  notes?: string;
+  protocol?: string;
+  protocolImplementations?: string[];
+}
+
+export interface ProtocolFuzzingJob {
+  artifacts?: {
+    fuzzerLogFilePath?: null | string;
+    fuzzWorkspacePath?: string;
+    instrumentedCodePath?: string;
+    instrumentedCodeZipPath?: string;
+    isFallbackOutput?: boolean;
+    logFilePath?: string;
+    outputPath?: string;
+    outputRoot?: string;
+    outputSource?: string;
+    pocPath?: string;
+  };
+  assertGenerationJobId: string;
+  createdAt: string;
+  debugSource?: null | string;
+  error?: null | string;
+  inputs?: {
+    instrumentedCodeZipFileName?: string;
+    instrumentedCodeZipPath?: string;
+  };
+  jobId: string;
+  message: string;
+  notes?: null | string;
+  process?: null | {
+    command?: string;
+    containerId?: null | string;
+    pid?: null | string;
+  };
+  protocol: string;
+  protocolImplementations?: string[];
+  stage: string;
+  status: ProtocolFuzzingJobStatus;
+  updatedAt: string;
+}
+
+export interface ProtocolFuzzingLogResponse {
+  content: string;
+  fileSize: number;
+  fuzzerLogFilePath?: null | string;
+  isFallbackOutput?: boolean;
+  job: ProtocolFuzzingJob;
+  logFilePath?: string;
+  outputRoot?: string;
+  outputSource?: string;
+  pocPath?: string;
+  position: number;
+}
+
+export function startProtocolFuzzingJob(
+  payload: StartProtocolFuzzingJobPayload,
+) {
+  return requestClient.post<ProtocolFuzzingJob>(
+    '/protocol-compliance/fuzzing/jobs',
+    payload,
+  );
+}
+
+export function startProtocolFuzzingDebugJob(
+  payload: StartProtocolFuzzingDebugJobPayload,
+) {
+  return requestClient.post<ProtocolFuzzingJob>(
+    '/protocol-compliance/fuzzing/dev/jobs',
+    payload,
+  );
+}
+
+export function fetchProtocolFuzzingJob(jobId: string) {
+  return requestClient.get<ProtocolFuzzingJob>(
+    `/protocol-compliance/fuzzing/jobs/${jobId}`,
+  );
+}
+
+export function fetchProtocolFuzzingLogs(jobId: string, fromPosition: number) {
+  return requestClient.get<ProtocolFuzzingLogResponse>(
+    `/protocol-compliance/fuzzing/jobs/${jobId}/logs`,
+    {
+      params: { fromPosition },
+    },
+  );
+}
+
+export function stopProtocolFuzzingJob(jobId: string) {
+  return requestClient.post<ProtocolFuzzingJob>(
+    `/protocol-compliance/fuzzing/jobs/${jobId}/stop`,
+    {},
+  );
 }
 
 export interface RunProtocolExtractPayload {

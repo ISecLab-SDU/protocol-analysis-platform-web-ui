@@ -66,11 +66,11 @@ def _aflnet_container_host_identity_flags() -> str:
     return f"-e PG_HOST_UID={uid} -e PG_HOST_GID={gid}"
 
 
-def _aflnet_shell_command() -> str:
+def _aflnet_shell_command(instrumented_code_dir: Optional[Path] = None) -> str:
     output_root = _aflnet_output_root()
     output_root.mkdir(parents=True, exist_ok=True)
     mount = f"{output_root}:{_aflnet_container_output_dir()}"
-    return " ".join([
+    command = [
         "docker",
         "run",
         "-d",
@@ -78,9 +78,23 @@ def _aflnet_shell_command() -> str:
         _aflnet_container_host_identity_flags(),
         "-v",
         shlex.quote(mount),
-        shlex.quote(cast(str, RTSP_CONFIG["image"])),
-        shlex.quote(cast(str, RTSP_CONFIG["command"])),
-    ])
+    ]
+    if instrumented_code_dir is not None:
+        command.extend(
+            [
+                "-e",
+                "PG_FUZZ_INSTRUMENTED_CODE_DIR=/workspace/instrumented_code",
+                "-v",
+                shlex.quote(f"{instrumented_code_dir}:/workspace/instrumented_code:ro"),
+            ]
+        )
+    command.extend(
+        [
+            shlex.quote(cast(str, RTSP_CONFIG["image"])),
+            shlex.quote(cast(str, RTSP_CONFIG["command"])),
+        ]
+    )
+    return " ".join(command)
 
 
 def _repo_root() -> Path:

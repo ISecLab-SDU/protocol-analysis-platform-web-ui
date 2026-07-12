@@ -13,6 +13,7 @@ import re
 import threading
 import time
 import uuid
+import zipfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from io import BytesIO
@@ -244,6 +245,7 @@ PROGRESS_REGISTRY = AssertGenerationProgressRegistry()
 
 REQUIRED_INSTRUMENTATION_ENVS = ("ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "OPENAI_API_KEY", "OPENAI_BASE_URL")
 INSTRUMENTATION_DIFF_FILENAME = "instrumentation.diff"
+INSTRUMENTED_CODE_ZIP_FILENAME = "instrumented_code.zip"
 INSTRUMENTATION_DIFF_MAX_PREVIEW_BYTES = 512 * 1024  # 512 KiB safety cap
 
 
@@ -379,6 +381,12 @@ def run_assert_generation(
             # Merge instrumentation details into the base result
             if isinstance(base_result, dict):
                 base_result["instrumentation"] = instr_details
+                instr_artifacts = instr_details.get("artifacts")
+                base_artifacts = base_result.get("artifacts")
+                if isinstance(instr_artifacts, dict) and isinstance(base_artifacts, dict):
+                    instrumented_zip = instr_artifacts.get("instrumentedCodeZipPath")
+                    if isinstance(instrumented_zip, str) and instrumented_zip:
+                        base_artifacts["instrumentedCodeZipPath"] = instrumented_zip
             _record_assertion_history_entry(
                 job_id=job_identifier,
                 code_filename=code_file_name,
@@ -420,6 +428,7 @@ def _skipped_instrumentation_details(reason: str) -> Dict[str, object]:
         "reason": reason,
         "artifacts": {
             "instrumentedCodePath": None,
+            "instrumentedCodeZipPath": None,
             "diffFiles": [],
             "diffOutput": {
                 "available": False,
@@ -598,6 +607,13 @@ def _run_instrumentation_container(
 
     # Gather artefacts from /out
     instrumented_code = output / "instrumented_code"
+    if not instrumented_code.exists() or not instrumented_code.is_dir():
+        raise AssertGenerationError(
+            f"Instrumentation completed but instrumented_code directory was not produced: {instrumented_code}"
+        )
+    instrumented_code_zip = output / INSTRUMENTED_CODE_ZIP_FILENAME
+    _zip_directory(instrumented_code, instrumented_code_zip)
+
     diff_files = sorted([str(p) for p in output.glob("*.diff") if p.is_file()])
     diff_output_info: Dict[str, object] = {
         "path": str(diff_host_path) if diff_host_path else None,
@@ -631,7 +647,8 @@ def _run_instrumentation_container(
             "durationMs": duration_ms,
         },
         "artifacts": {
-            "instrumentedCodePath": str(instrumented_code) if instrumented_code.exists() else None,
+            "instrumentedCodePath": str(instrumented_code),
+            "instrumentedCodeZipPath": str(instrumented_code_zip),
             "diffFiles": diff_files or [],
             "diffOutput": diff_output_info,
         },
@@ -640,6 +657,17 @@ def _run_instrumentation_container(
     }
 
     return details
+
+
+def _zip_directory(source: Path, destination: Path) -> Path:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    root_parent = source.parent
+    with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for child in sorted(source.rglob("*")):
+            if not child.is_file() or child.is_symlink():
+                continue
+            zip_file.write(child, child.relative_to(root_parent).as_posix())
+    return destination
 
 
 def submit_assert_generation_job(

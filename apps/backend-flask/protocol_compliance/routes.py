@@ -37,6 +37,7 @@ from .aflnet import (
     _resolve_aflnet_output_source,
 )
 from .aflnet_routes import create_aflnet_handlers
+from .fuzz_job_routes import create_fuzz_job_handlers
 from .legacy_analysis_history import (
     read_analysis_history as read_analysis_history,
 )
@@ -216,6 +217,10 @@ def get_analysis_history():
 def add_analysis_history():
     return _legacy_analysis_handlers["add_analysis_history"]()
 
+_fuzz_job_handlers = create_fuzz_job_handlers(
+    _ensure_authenticated,
+)
+
 _legacy_fuzz_handlers = create_legacy_fuzz_handlers(
     _ensure_authenticated,
     logger=LOGGER,
@@ -228,6 +233,31 @@ _legacy_fuzz_handlers = create_legacy_fuzz_handlers(
     aflnet_fallback_output_root=_aflnet_fallback_output_root,
     resolve_aflnet_output_source=_resolve_aflnet_output_source,
 )
+
+
+@bp.route("/fuzzing/jobs", methods=["POST"])
+def start_fuzz_job():
+    return _fuzz_job_handlers["start_fuzz_job"]()
+
+
+@bp.route("/fuzzing/dev/jobs", methods=["POST"])
+def start_dev_fuzz_job():
+    return _fuzz_job_handlers["start_dev_fuzz_job"]()
+
+
+@bp.route("/fuzzing/jobs/<job_id>", methods=["GET"])
+def get_fuzz_job(job_id: str):
+    return _fuzz_job_handlers["get_fuzz_job"](job_id)
+
+
+@bp.route("/fuzzing/jobs/<job_id>/logs", methods=["GET"])
+def read_fuzz_job_logs(job_id: str):
+    return _fuzz_job_handlers["read_fuzz_logs"](job_id)
+
+
+@bp.route("/fuzzing/jobs/<job_id>/stop", methods=["POST"])
+def stop_fuzz_job(job_id: str):
+    return _fuzz_job_handlers["stop_fuzz_job"](job_id)
 
 
 @bp.route("/write-script", methods=["POST"])

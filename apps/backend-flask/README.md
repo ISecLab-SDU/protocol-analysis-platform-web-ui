@@ -17,6 +17,34 @@ Additional `PG_ARTIFACT_*` overrides let you map artefact filenames if your buil
 
 When Docker integration is active, API error responses include the underlying container status and the last log lines so trusted operators can diagnose issues quickly.
 
+### Fuzz debug replay
+
+For local Fuzz debugging, reuse an assertion-insertion output instead of rerunning static analysis and assertion generation. The backend looks for `instrumented_code.zip` under the ProtocolGuard runtime roots and launches the same artifact-backed Fuzz job used by `/api/protocol-compliance/fuzzing/jobs`.
+
+Use the newest available assertion output:
+
+```bash
+curl -X POST http://localhost:5000/api/protocol-compliance/fuzzing/dev/jobs \
+  -H 'Authorization: Bearer <token>' \
+  -H 'Content-Type: application/json' \
+  -d '{"protocol":"MQTT","protocolImplementations":["SOL"]}'
+```
+
+Or pin a known baseline input:
+
+```bash
+curl -X POST http://localhost:5000/api/protocol-compliance/fuzzing/dev/jobs \
+  -H 'Authorization: Bearer <token>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "instrumentedCodeZipPath": "/tmp/protocolguard/outputs/c633123b-6ddd-489f-ae78-ae1645b5df66/instrumented_code.zip",
+    "protocol": "MQTT",
+    "protocolImplementations": ["SOL"]
+  }'
+```
+
+Poll the returned `jobId` through `/api/protocol-compliance/fuzzing/jobs/<jobId>` and `/api/protocol-compliance/fuzzing/jobs/<jobId>/logs?fromPosition=0`.
+
 ### Multipart contract
 
 `POST /api/protocol-compliance/static-analysis` expects a multipart request with the following parts:
