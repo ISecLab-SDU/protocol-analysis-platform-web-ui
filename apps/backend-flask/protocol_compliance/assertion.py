@@ -37,6 +37,10 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _is_debug_progress_stage(stage: str) -> bool:
+    return stage.startswith("claude-") or stage in {"container-log", "instrumentation-log"}
+
+
 AssertGenerationJobStatus = str  # Literal['queued', 'running', 'completed', 'failed']
 AssertGenerationResult = Dict[str, object]
 
@@ -129,7 +133,11 @@ class AssertGenerationProgressRegistry:
             if not state:
                 return
             self._append_event(state, stage, message)
-            self._job_logger(job_id).info(message, stage=stage, status=state.status)
+            job_logger = self._job_logger(job_id)
+            if _is_debug_progress_stage(stage):
+                job_logger.debug(message, stage=stage, status=state.status)
+            else:
+                job_logger.info(message, stage=stage, status=state.status)
 
     def complete(self, job_id: str, result: Dict[str, object]) -> None:
         with self._lock:
@@ -489,7 +497,8 @@ def _run_instrumentation_container(
     diff_host_path = _resolve_diff_output_path(diff_output_arg)
 
     def _emit(stage: str, message: str) -> None:
-        LOGGER.info("[job %s][%s] %s", job_id or "-", stage, message)
+        log_method = LOGGER.debug if _is_debug_progress_stage(stage) else LOGGER.info
+        log_method("[job %s][%s] %s", job_id or "-", stage, message)
         if progress_callback:
             try:
                 progress_callback(job_id or "", stage, message)

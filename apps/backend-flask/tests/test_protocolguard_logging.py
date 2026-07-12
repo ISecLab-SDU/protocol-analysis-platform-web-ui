@@ -16,7 +16,9 @@ if str(BACKEND_ROOT) not in sys.path:
 from protocol_compliance._docker_runner.config import ProtocolGuardDockerSettings  # noqa: E402
 from protocol_compliance._docker_runner.job import JobPaths  # noqa: E402
 from protocol_compliance._docker_runner.runner import ProtocolGuardDockerRunner  # noqa: E402
+from protocol_compliance.assertion import AssertGenerationProgressRegistry  # noqa: E402
 from protocol_compliance.job_logging import JobStageLogger  # noqa: E402
+from protocol_compliance.analysis import _is_debug_progress_stage as _is_analysis_debug_progress_stage  # noqa: E402
 from logging_format import ColorizedContextFormatter, ContextFormatter  # noqa: E402
 
 
@@ -279,6 +281,26 @@ def test_job_stage_logger_handles_percent_literals(
 
     assert message in caplog.text
     assert events == [("job-percent", "container-log", message)]
+
+
+def test_assertion_claude_output_progress_logs_at_debug(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    registry = AssertGenerationProgressRegistry()
+    state = registry.create_job()
+
+    with caplog.at_level(logging.DEBUG, logger="protocol_compliance.assertion"):
+        registry.append_event(state.job_id, "instrumentation-log", "Executing Claude CLI")
+
+    snapshot = registry.snapshot(state.job_id)
+    assert snapshot is not None
+    assert snapshot["events"][-1]["stage"] == "instrumentation-log"
+    assert snapshot["events"][-1]["message"] == "Executing Claude CLI"
+    assert caplog.records[-1].levelno == logging.DEBUG
+
+
+def test_static_analysis_claude_progress_stage_is_debug() -> None:
+    assert _is_analysis_debug_progress_stage("claude-command")
 
 
 def test_runner_reads_docker_stdout_and_stderr_streams(

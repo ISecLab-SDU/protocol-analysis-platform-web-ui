@@ -32,6 +32,10 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _is_debug_progress_stage(stage: str) -> bool:
+    return stage.startswith("claude-") or stage in {"analysis-log", "builder-log", "container-log"}
+
+
 AnalysisJobStatus = Literal["queued", "running", "completed", "failed"]
 
 
@@ -109,7 +113,11 @@ class AnalysisProgressRegistry:
             if not state:
                 return
             self._append_event(state, stage, message)
-            self._job_logger(job_id).info(message, stage=stage, status=state.status)
+            job_logger = self._job_logger(job_id)
+            if _is_debug_progress_stage(stage):
+                job_logger.debug(message, stage=stage, status=state.status)
+            else:
+                job_logger.info(message, stage=stage, status=state.status)
 
     def complete(self, job_id: str, result: Dict[str, object]) -> None:
         with self._lock:
