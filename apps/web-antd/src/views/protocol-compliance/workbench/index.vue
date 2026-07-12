@@ -50,7 +50,6 @@ const {
   isStopping,
   isTransitioning,
   isAwaitingAssertConfirmation,
-  demoModeActive,
   errorMessage,
   projectConfig,
   selectedRule,
@@ -72,7 +71,6 @@ const {
   startPipeline,
   stopPipeline,
   resetWorkbench,
-  loadDemoConfig,
   canViewStage,
 } = useWorkbench();
 
@@ -141,7 +139,6 @@ type SideNavKey =
   | (typeof workbenchSubNavItems)[number]['key'];
 
 const activeSideNav = ref<SideNavKey>('overview');
-const demoConfigLoading = ref(false);
 const VISIBLE_HISTORY_LIMIT = 5;
 const violationHistory = ref<ProtocolViolationHistoryEntry[]>([]);
 const violationHistoryError = ref('');
@@ -818,16 +815,6 @@ function switchRule() {
   activeStageView.value = 'rule_confirm';
   stageMessage.value = '请选择一条规则后启动自动化分析流程';
 }
-
-async function handleLoadDemoConfig() {
-  if (demoConfigLoading.value || isRunning.value) return;
-  demoConfigLoading.value = true;
-  try {
-    await loadDemoConfig();
-  } finally {
-    demoConfigLoading.value = false;
-  }
-}
 </script>
 
 <template>
@@ -853,14 +840,6 @@ async function handleLoadDemoConfig() {
           >
             <span class="status-dot"></span>
             <span>{{ isRunning ? '运行中' : '空闲' }}</span>
-          </div>
-          <div
-            v-if="demoModeActive"
-            class="demo-mode-indicator"
-            title="当前为演示模式"
-          >
-            <IconifyIcon icon="mdi:presentation-play" />
-            <span>演示模式</span>
           </div>
           <div class="runtime-clock">{{ elapsedDisplay }}</div>
           <Button
@@ -1313,18 +1292,6 @@ async function handleLoadDemoConfig() {
                 {{ bannerProgressText }}
               </span>
               <Button
-                v-if="activeStageView === 'setup'"
-                class="demo-mode-button"
-                size="small"
-                type="primary"
-                :disabled="isRunning"
-                :loading="demoConfigLoading"
-                title="自动上传 New-Input 中的演示文件"
-                @click="handleLoadDemoConfig"
-              >
-                演示模式
-              </Button>
-              <Button
                 v-if="isAwaitingAssertConfirmation"
                 class="confirm-assert-button"
                 size="small"
@@ -1751,27 +1718,6 @@ async function handleLoadDemoConfig() {
     monospace;
   font-weight: 700;
   text-align: right;
-}
-
-.demo-mode-indicator {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-  justify-content: center;
-  height: 32px;
-  padding: 0 12px;
-  font-size: 14px;
-  font-weight: 500;
-  color: #1f2937;
-  white-space: nowrap;
-  background: #fff;
-  border: 1px solid #d9d9d9;
-  border-radius: 6px;
-}
-
-.demo-mode-indicator svg {
-  font-size: 16px;
-  color: #1677ff;
 }
 
 .avatar {
@@ -3073,10 +3019,6 @@ async function handleLoadDemoConfig() {
   100% {
     transform: translateX(120%);
   }
-}
-
-.demo-mode-button {
-  flex: none;
 }
 
 .workbench-error {

@@ -55,15 +55,12 @@ const stageStatus = reactive<Record<WorkbenchStage, StageStatus>>({
   fuzz: 'idle',
   done: 'idle',
 });
-const stageMessage = ref(
-  '请先在“项目设置”中上传所需文件，或点击演示模式自动加载配置文件',
-);
+const stageMessage = ref('请先在“项目设置”中上传所需文件');
 const elapsedSeconds = ref(0);
 const startedAt = ref<Date | null>(null);
 const isStopping = ref(false);
 const isTransitioning = ref(false);
 const isAwaitingAssertConfirmation = ref(false);
-const demoModeActive = ref(false);
 const errorMessage = ref<null | string>(null);
 
 const projectConfig = reactive<ProjectConfig>({
@@ -212,17 +209,6 @@ interface ParsedAflNetStats {
   speed: number;
 }
 
-type DemoProjectFileField = 'archive' | 'rules';
-
-const DEMO_INPUT_FILES: Array<{
-  field: DemoProjectFileField;
-  mimeType: string;
-  name: string;
-}> = [
-  { field: 'archive', mimeType: 'application/x-tar', name: 'sol.tar' },
-  { field: 'rules', mimeType: 'application/json', name: 'rule_config.json' },
-];
-
 function clearTimer(holder: 'assert' | 'elapsed' | 'fuzz' | 'static') {
   if (holder === 'static' && staticPollTimer) {
     clearInterval(staticPollTimer);
@@ -244,12 +230,6 @@ function clearTimer(holder: 'assert' | 'elapsed' | 'fuzz' | 'static') {
     clearInterval(elapsedTimer);
     elapsedTimer = null;
   }
-}
-
-function buildDemoInputUrl(fileName: string) {
-  const appBase = import.meta.env.BASE_URL || '/';
-  const normalizedBase = appBase.endsWith('/') ? appBase : `${appBase}/`;
-  return `${normalizedBase}New-Input/${encodeURIComponent(fileName)}`;
 }
 
 function randomIntInclusive(min: number, max: number) {
@@ -284,21 +264,6 @@ function scheduleFallbackReplay(runId: number) {
       scheduleFallbackReplay(runId);
     }
   }, delay);
-}
-
-async function fetchDemoInputFile(fileName: string, mimeType: string) {
-  const response = await fetch(buildDemoInputUrl(fileName), {
-    cache: 'no-store',
-  });
-  if (!response.ok) {
-    throw new Error(
-      `无法读取 New-Input/${fileName} (${response.status} ${response.statusText})`,
-    );
-  }
-  const blob = await response.blob();
-  return new File([blob], fileName, {
-    type: blob.type || mimeType,
-  });
 }
 
 function clearTransitionTimer(shouldContinue = false) {
@@ -1571,58 +1536,6 @@ function commitSetup() {
   stageMessage.value = '请选择一条规则后启动自动化分析流程';
 }
 
-async function loadDemoConfig() {
-  if (
-    stageStatus.code_locate === 'running' ||
-    stageStatus.assert_gen === 'running' ||
-    stageStatus.fuzz === 'running' ||
-    isTransitioning.value
-  ) {
-    message.warning('请先停止当前分析流程');
-    return false;
-  }
-
-  try {
-    const files = await Promise.all(
-      DEMO_INPUT_FILES.map(async (item) => ({
-        field: item.field,
-        file: await fetchDemoInputFile(item.name, item.mimeType),
-      })),
-    );
-
-    resetWorkbench();
-
-    for (const { field, file } of files) {
-      projectConfig[field] = file;
-    }
-
-    projectConfig.protocolType = 'MQTT';
-    projectConfig.protocolVersion = '3.1.1';
-    projectConfig.implementation = 'SOL';
-    projectConfig.targetHost = DEFAULT_TARGET.MQTT.host;
-    projectConfig.targetPort = DEFAULT_TARGET.MQTT.port;
-    projectConfig.buildInstructions = 'make all';
-    projectConfig.fuzzScript = buildDefaultFuzzScript(
-      projectConfig.protocolType,
-      projectConfig.implementation,
-      projectConfig.targetHost,
-      projectConfig.targetPort,
-    );
-    projectConfig.notes = 'Demo mode: loaded from local New-Input folder';
-
-    demoModeActive.value = true;
-    stageStatus.setup = 'done';
-    stage.value = 'rule_confirm';
-    activeStageView.value = 'rule_confirm';
-    stageMessage.value = '演示模式已加载，请选择一条规则后启动自动化分析流程';
-    message.success('演示模式配置已加载');
-    return true;
-  } catch (error: any) {
-    message.error(error?.message || '演示模式配置加载失败');
-    return false;
-  }
-}
-
 function backToSetup() {
   if (
     stageStatus.code_locate === 'running' ||
@@ -2206,7 +2119,6 @@ function resetWorkbench() {
   activeStageView.value = 'setup';
   startedAt.value = null;
   isTransitioning.value = false;
-  demoModeActive.value = false;
   elapsedSeconds.value = 0;
   selectedRule.value = null;
   staticJobId.value = null;
@@ -2249,8 +2161,7 @@ function resetWorkbench() {
   });
   fuzzSpeedSeries.value = [];
   errorMessage.value = null;
-  stageMessage.value =
-    '请先在“项目设置”中上传所需文件，或点击演示模式自动加载配置文件';
+  stageMessage.value = '请先在“项目设置”中上传所需文件';
 }
 
 export function useWorkbench() {
@@ -2265,7 +2176,6 @@ export function useWorkbench() {
     isStopping,
     isTransitioning,
     isAwaitingAssertConfirmation,
-    demoModeActive,
     errorMessage,
     projectConfig,
     selectedRule,
@@ -2292,7 +2202,6 @@ export function useWorkbench() {
     // Methods
     commitSetup,
     confirmAssertGeneration,
-    loadDemoConfig,
     backToSetup,
     startPipeline,
     stopPipeline,
