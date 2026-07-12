@@ -34,6 +34,8 @@ from protocol_compliance.compiler import AgentExecutor, AgentExecutorSettings  #
 from protocol_compliance.claude_builder.pg_claude_builder_sdk import (  # noqa: E402
     CLAUDE_CLI_PATH,
     _build_claude_environment,
+    _is_hidden_system_message,
+    _sanitize_event_value,
 )
 
 
@@ -404,3 +406,52 @@ def test_claude_sdk_environment_passes_all_anthropic_credentials(
 def test_claude_sdk_uses_system_cli_instead_of_bundled_cli() -> None:
     assert CLAUDE_CLI_PATH
     assert "_bundled" not in CLAUDE_CLI_PATH
+
+
+def test_claude_sdk_sanitizes_hidden_thinking_tokens() -> None:
+    payload = {
+        "usage": {
+            "input_tokens": 42,
+            "thinking_tokens": 1024,
+            "nested": [{"thinking_tokens": 256, "output_tokens": 7}],
+        },
+        "model_usage": {
+            "claude": {
+                "cache_creation_input_tokens": 3,
+                "thinking_tokens": 512,
+            }
+        },
+    }
+
+    sanitized = _sanitize_event_value(payload)
+    serialized = str(sanitized)
+
+    assert "thinking_tokens" not in serialized
+    assert sanitized == {
+        "usage": {
+            "input_tokens": 42,
+            "nested": [{"output_tokens": 7}],
+        },
+        "model_usage": {
+            "claude": {
+                "cache_creation_input_tokens": 3,
+            }
+        },
+    }
+
+
+def test_claude_sdk_identifies_hidden_thinking_token_system_events() -> None:
+    hidden_by_subtype = types.SimpleNamespace(subtype="thinking_tokens", data={})
+    hidden_by_data = types.SimpleNamespace(
+        subtype="system",
+        data={
+            "subtype": "thinking_tokens",
+            "estimated_tokens": 82,
+            "estimated_tokens_delta": 2,
+        },
+    )
+    visible = types.SimpleNamespace(subtype="hook_pre_tool", data={"subtype": "hook_pre_tool"})
+
+    assert _is_hidden_system_message(hidden_by_subtype)
+    assert _is_hidden_system_message(hidden_by_data)
+    assert not _is_hidden_system_message(visible)

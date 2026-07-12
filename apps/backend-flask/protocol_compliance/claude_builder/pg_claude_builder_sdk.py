@@ -30,6 +30,8 @@ EVENTS_PATH = WORKSPACE / "claude_builder_events.jsonl"
 CLAUDE_CONFIG_DIR = Path(os.environ.get("CLAUDE_CONFIG_DIR", "/root/.claude"))
 CLAUDE_SETTINGS_PATH = CLAUDE_CONFIG_DIR / "settings.json"
 CLAUDE_CLI_PATH = os.environ.get("PG_CLAUDE_CLI_PATH") or shutil.which("claude") or "claude"
+HIDDEN_THINKING_KEYS = frozenset({"thinking_tokens"})
+HIDDEN_SYSTEM_SUBTYPES = frozenset({"thinking_tokens"})
 
 
 def _json_default(value: Any) -> Any:
@@ -40,6 +42,22 @@ def _json_default(value: Any) -> Any:
     return repr(value)
 
 
+def _sanitize_event_value(value: Any) -> Any:
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        value = dataclasses.asdict(value)
+    if isinstance(value, dict):
+        return {
+            key: _sanitize_event_value(item)
+            for key, item in value.items()
+            if str(key) not in HIDDEN_THINKING_KEYS
+        }
+    if isinstance(value, list):
+        return [_sanitize_event_value(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_sanitize_event_value(item) for item in value)
+    return value
+
+
 def _now_ms() -> int:
     return int(time.time() * 1000)
 
@@ -48,7 +66,7 @@ def _emit(event: dict[str, Any]) -> None:
     payload = {
         "source": "claude-agent-sdk",
         "ts_ms": _now_ms(),
-        **event,
+        **_sanitize_event_value(event),
     }
     line = json.dumps(payload, ensure_ascii=False, default=_json_default)
     print(f"{PROGRESS_PREFIX}{line}", flush=True)
@@ -95,8 +113,14 @@ def _tool_stage(name: str) -> str:
 
 def _message_to_dict(message: Any) -> dict[str, Any]:
     if dataclasses.is_dataclass(message) and not isinstance(message, type):
-        return dataclasses.asdict(message)
+        return _sanitize_event_value(dataclasses.asdict(message))
     return {"repr": repr(message)}
+
+
+def _is_hidden_system_message(message: Any) -> bool:
+    subtype = getattr(message, "subtype", "")
+    data = getattr(message, "data", {}) or {}
+    return str(subtype) in HIDDEN_SYSTEM_SUBTYPES or str(data.get("subtype", "")) in HIDDEN_SYSTEM_SUBTYPES
 
 
 def _handle_assistant(message: AssistantMessage) -> None:
@@ -245,6 +269,9 @@ def _handle_result(message: ResultMessage) -> int:
 
 
 def _handle_message(message: Any) -> int | None:
+    if isinstance(message, SystemMessage) and _is_hidden_system_message(message):
+        return None
+
     raw = _message_to_dict(message)
     with EVENTS_PATH.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps({"raw": raw}, ensure_ascii=False, default=_json_default) + "\n")
