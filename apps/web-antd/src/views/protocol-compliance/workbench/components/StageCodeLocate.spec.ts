@@ -38,4 +38,38 @@ describe('stageCodeLocate log parsing', () => {
       '[pg worker] Launching analysis container image',
     );
   });
+
+  it('does not extract bracketed backend metadata as a source label', () => {
+    const wrapper = mount(StageCodeLocate, {
+      global: {
+        stubs: {
+          Card: {
+            template:
+              '<section><slot name="title" /><slot /><slot name="extra" /></section>',
+          },
+          Empty: true,
+          IconifyIcon: true,
+          Tag: true,
+        },
+      },
+      props: {
+        evidence: null,
+        logHtml: '',
+        logText: [
+          '(init) [10:19:25] Preparing analysis inputs',
+          '(init) [10:19:25] [pg-builder][2026-07-12T02:19:25Z] Preparing analysis inputs',
+        ].join('\n'),
+        result: null,
+        rule: null,
+        running: true,
+      },
+    });
+
+    const secondLine = wrapper.findAll('.log-line')[1]!;
+
+    expect(secondLine.findAll('.log-chip')).toHaveLength(1);
+    expect(secondLine.find('.log-text').text()).toBe(
+      '[pg-builder][2026-07-12T02:19:25Z] Preparing analysis inputs',
+    );
+  });
 });

@@ -27,7 +27,6 @@ interface LogLine {
   id: string;
   kind: 'function' | 'normal' | 'path' | 'slice' | 'summary';
   phase: string;
-  source: string;
   stage: string;
   text: string;
   time: string;
@@ -323,7 +322,6 @@ function parseLogLine(raw: string, index: number): LogLine {
   let rest = raw.trim();
   let stage = '';
   let time = '';
-  let source = '';
 
   const leadingStage = consumeDelimitedPrefix(rest, '(', ')');
   if (leadingStage) {
@@ -343,19 +341,10 @@ function parseLogLine(raw: string, index: number): LogLine {
     rest = inlineStage.rest;
   }
 
-  if (!/^(?:Function|Path|func):|\d+\s+/.test(rest)) {
-    const sourcePrefix = consumeSourcePrefix(rest);
-    if (sourcePrefix) {
-      source = sourcePrefix.value;
-      rest = sourcePrefix.rest;
-    }
-  }
-
   return {
     id: `${index}-${raw}`,
     kind: classifyLogLine(rest),
     phase: '',
-    source,
     stage,
     text: rest || raw,
     time,
@@ -383,26 +372,6 @@ function isTimestampValue(value: string) {
     /^\d{1,2}:\d{2}(?::\d{2})?(?:\s?[AP]M)?$/i.test(value) ||
     /^\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}/.test(value)
   );
-}
-
-function consumeSourcePrefix(text: string) {
-  const firstColonIndex = text.indexOf(':');
-  if (firstColonIndex <= 0) return null;
-
-  const firstWhitespaceIndex = text.search(/\s/);
-  const secondColonIndex = text.indexOf(':', firstColonIndex + 1);
-  const delimiterIndex =
-    secondColonIndex > 0 &&
-    (firstWhitespaceIndex === -1 || secondColonIndex < firstWhitespaceIndex)
-      ? secondColonIndex
-      : firstColonIndex;
-  const value = text.slice(0, delimiterIndex);
-  if (/\s/.test(value)) return null;
-
-  return {
-    rest: text.slice(delimiterIndex + 1).trimStart(),
-    value,
-  };
 }
 
 function formatCurrentTime() {

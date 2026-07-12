@@ -7,7 +7,6 @@ interface StageLiveLogLine {
   id: string;
   kind?: string;
   phase: string;
-  source?: string;
   stage?: string;
   text: string;
   time?: string;
@@ -53,7 +52,7 @@ function getAllLogText() {
 }
 
 function formatLogLineForCopy(line: StageLiveLogLine) {
-  const metaSegments = [line.time || '--:--:--', line.phase, line.source]
+  const metaSegments = [line.time || '--:--:--', line.phase]
     .filter(Boolean)
     .map((segment) => `[${segment}]`);
   return `${metaSegments.join(' ')} ${line.text}`.trim();
@@ -89,9 +88,6 @@ function formatLogLineForCopy(line: StageLiveLogLine) {
       >
         <span class="log-time">{{ line.time || '--:--:--' }}</span>
         <span class="log-chip log-chip--phase">{{ line.phase }}</span>
-        <span v-if="line.source" class="log-chip log-chip--source">{{
-          line.source
-        }}</span>
         <span class="log-text">{{ line.text }}</span>
       </div>
       <div v-if="lines.length === 0" class="log-empty">
@@ -259,11 +255,6 @@ function formatLogLineForCopy(line: StageLiveLogLine) {
 .log-chip--phase {
   max-width: 260px;
   font-weight: 700;
-  color: #0b5cad;
-  background: #e8f2ff;
-}
-
-.log-chip--source {
   color: #0b5cad;
   background: #e8f2ff;
 }

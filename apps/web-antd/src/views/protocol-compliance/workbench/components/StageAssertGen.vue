@@ -20,7 +20,6 @@ interface AssertLogLine {
   id: string;
   kind: 'code' | 'diff' | 'normal' | 'success' | 'summary' | 'task';
   phase: string;
-  source: string;
   stage: string;
   text: string;
   time: string;
@@ -278,7 +277,6 @@ function parseLogLine(raw: string, index: number): AssertLogLine {
   let rest = raw.trim();
   let stage = '';
   let time = '';
-  let source = '';
 
   const timeMatch = consumeDelimitedPrefix(rest, '[', ']');
   if (timeMatch) {
@@ -292,17 +290,10 @@ function parseLogLine(raw: string, index: number): AssertLogLine {
     rest = stageMatch.rest;
   }
 
-  const sourcePrefix = consumeSourcePrefix(rest);
-  if (sourcePrefix && shouldExtractSource(rest)) {
-    source = sourcePrefix.value;
-    rest = sourcePrefix.rest;
-  }
-
   return {
     id: `${index}-${raw}`,
     kind: classifyLogLine(rest),
     phase: '',
-    source,
     stage,
     text: rest || raw,
     time,
@@ -317,38 +308,6 @@ function consumeDelimitedPrefix(text: string, open: string, close: string) {
     rest: text.slice(endIndex + close.length).trimStart(),
     value: text.slice(open.length, endIndex),
   };
-}
-
-function consumeSourcePrefix(text: string) {
-  const firstColonIndex = text.indexOf(':');
-  if (firstColonIndex <= 0) return null;
-
-  const firstWhitespaceIndex = text.search(/\s/);
-  const secondColonIndex = text.indexOf(':', firstColonIndex + 1);
-  const delimiterIndex =
-    secondColonIndex > 0 &&
-    (firstWhitespaceIndex === -1 || secondColonIndex < firstWhitespaceIndex)
-      ? secondColonIndex
-      : firstColonIndex;
-  const value = text.slice(0, delimiterIndex);
-  if (/\s/.test(value)) return null;
-
-  return {
-    rest: text.slice(delimiterIndex + 1).trimStart(),
-    value,
-  };
-}
-
-function shouldExtractSource(text: string) {
-  return (
-    !text.startsWith('INFO:') &&
-    !text.startsWith('ERROR:') &&
-    !text.startsWith('WARNING:') &&
-    !text.startsWith('✓') &&
-    !text.startsWith('diff --git') &&
-    !/^[+-]{3}\s/.test(text) &&
-    !/^@@\s/.test(text)
-  );
 }
 
 function classifyLogLine(text: string): AssertLogLine['kind'] {

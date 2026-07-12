@@ -38,7 +38,6 @@ describe('stageLiveLogPanel', () => {
     expect(directClasses).toEqual([
       ['log-time'],
       ['log-chip', 'log-chip--phase'],
-      ['log-chip', 'log-chip--source'],
       ['log-text'],
     ]);
   });
