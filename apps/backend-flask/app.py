@@ -28,6 +28,10 @@ def _configure_logging() -> None:
             "version": 1,
             "disable_existing_loggers": False,
             "formatters": {
+                "console": {
+                    "()": "logging_format.ColorizedContextFormatter",
+                    "format": "%(asctime)s\t%(levelname)s\t[%(name)s]\t%(message)s",
+                },
                 "plain": {
                     "()": "logging_format.ContextFormatter",
                     "format": "%(asctime)s\t%(levelname)-8s\t[%(name)s]\t%(message)s",
@@ -36,7 +40,7 @@ def _configure_logging() -> None:
             "handlers": {
                 "console": {
                     "class": "logging.StreamHandler",
-                    "formatter": "plain",
+                    "formatter": "console",
                     "level": "DEBUG",
                 },
                 "tmp_file": {

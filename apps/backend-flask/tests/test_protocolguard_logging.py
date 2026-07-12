@@ -17,7 +17,7 @@ from protocol_compliance._docker_runner.config import ProtocolGuardDockerSetting
 from protocol_compliance._docker_runner.job import JobPaths  # noqa: E402
 from protocol_compliance._docker_runner.runner import ProtocolGuardDockerRunner  # noqa: E402
 from protocol_compliance.job_logging import JobStageLogger  # noqa: E402
-from logging_format import ContextFormatter  # noqa: E402
+from logging_format import ColorizedContextFormatter, ContextFormatter  # noqa: E402
 
 
 def _load_configure_logging():
@@ -92,6 +92,7 @@ def test_app_logging_config_uses_protocol_compliance_prefix(
     assert "file logging probe" in log_text
     assert "\tINFO    \t[protocol_compliance.test_file]\tfile context probe" in log_text
     assert "\tartifact=source.tar workspace=/tmp/work" in log_text
+    assert "\x1b[" not in log_text
     assert any(isinstance(handler, WatchedFileHandler) for handler in logging.getLogger().handlers)
 
 
@@ -116,6 +117,42 @@ def test_context_formatter_appends_stable_context_fields() -> None:
         formatter.format(record)
         == 'INFO    \tPrepared workspace\tartifact="source archive.tar" empty="" workspace=/tmp/work'
     )
+
+
+def test_colorized_formatter_colors_console_level_when_forced(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.setenv("FORCE_COLOR", "1")
+    formatter = ColorizedContextFormatter("%(levelname)s\t%(message)s")
+    record = logging.LogRecord(
+        name="protocol_compliance.test",
+        level=logging.WARNING,
+        pathname=__file__,
+        lineno=1,
+        msg="Retrying operation",
+        args=(),
+        exc_info=None,
+    )
+
+    assert formatter.format(record) == "\x1b[33mWARNING \x1b[0m\tRetrying operation"
+
+
+def test_colorized_formatter_respects_no_color(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("FORCE_COLOR", "1")
+    monkeypatch.setenv("NO_COLOR", "1")
+    formatter = ColorizedContextFormatter("%(levelname)s\t%(message)s")
+    record = logging.LogRecord(
+        name="protocol_compliance.test",
+        level=logging.ERROR,
+        pathname=__file__,
+        lineno=1,
+        msg="Workflow failed",
+        args=(),
+        exc_info=None,
+    )
+
+    assert formatter.format(record) == "ERROR   \tWorkflow failed"
 
 
 def test_job_stage_logger_emits_backend_and_frontend_logs(caplog: pytest.LogCaptureFixture) -> None:
