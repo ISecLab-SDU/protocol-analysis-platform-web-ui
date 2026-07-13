@@ -1146,12 +1146,10 @@ export function stopProtocolFuzzingJob(jobId: string) {
 }
 
 export interface RunProtocolExtractPayload {
-  apiKey: string;
   protocol: string;
   version: string;
   htmlFile: File;
   filterHeadings?: boolean;
-  llmBaseUrl?: string;
 }
 
 export interface ProtocolExtractRuleItem {
@@ -1175,13 +1173,9 @@ export interface RunProtocolExtractResponse {
 
 export async function runProtocolExtract(payload: RunProtocolExtractPayload) {
   const formData = new FormData();
-  formData.append('apiKey', payload.apiKey);
   formData.append('protocol', payload.protocol);
   formData.append('version', payload.version);
   formData.append('htmlFile', payload.htmlFile);
-  if (payload.llmBaseUrl?.trim()) {
-    formData.append('llmBaseUrl', payload.llmBaseUrl.trim());
-  }
   if (payload.filterHeadings) {
     formData.append('filterHeadings', '1');
   }

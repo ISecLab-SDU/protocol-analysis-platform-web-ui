@@ -86,7 +86,12 @@ Text Block:
 
 [prompt_specify_keywords]
 user = '''
-Please list all message types defined in {protocol} {version}, and enumerate every field defined in each message type according to the corresponding RFC specification.
+Extract all message types and their fields defined in the supplied {protocol} {version} protocol document.
+
+Use only the supplied document. Do not rely on fields, message types, or examples from other protocols. If the supplied protocol or version label conflicts with the document, follow the document.
+
+# Protocol document
+{document}
 
 #Output Requirements:
 1. Output the result strictly in JSON format as shown below. Include only field and subfield names — omit any type information (e.g., "string", "uint8"):
@@ -105,9 +110,9 @@ Please list all message types defined in {protocol} {version}, and enumerate eve
   }}
 }}
 
-2. For any composite, structured, or sequence-type fields (e.g., SEQUENCE, CHOICE, VarBindList, NetworkAddress):
+2. For any composite, structured, or sequence-type fields:
    (1) Fully expand and list all subfield names recursively, according to the ASN.1 definition in the RFC.
-   (2) If a field has enumerated values (e.g., INTEGER {{ coldStart(0), ...}}), list the enumeration identifiers as subfields.
+   (2) If a field has enumerated values, list the enumeration identifiers as subfields.
 
 3. For optional fields, list only the commonly used or required subfields.
 

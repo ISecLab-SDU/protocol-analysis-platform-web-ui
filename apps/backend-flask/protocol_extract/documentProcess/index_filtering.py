@@ -1,3 +1,4 @@
+import ast
 import re
 import json
 import os
@@ -17,6 +18,60 @@ this_url = (
 this_model = toml_config["llm"]["model2"]
 
 
+def _parse_selected_headings(content):
+    content = content.strip()
+    fenced = re.fullmatch(
+        r"```(?:json|python)?\s*\n?(.*?)\n?```", content, re.DOTALL | re.IGNORECASE
+    )
+    if fenced:
+        content = fenced.group(1).strip()
+
+    try:
+        selected = json.loads(content)
+    except json.JSONDecodeError:
+        selected = ast.literal_eval(content)
+
+    if not isinstance(selected, list) or not all(
+        isinstance(item, str) for item in selected
+    ):
+        raise ValueError("Heading selection response must be a list of strings")
+    return selected
+
+
+def _normalize_heading(heading):
+    return re.sub(r"\s+", " ", heading).strip().casefold()
+
+
+def _heading_title(heading):
+    return re.sub(r"^\d+(?:\.\d+)*[.\s]+", "", _normalize_heading(heading)).strip()
+
+
+def _resolve_selected_headings(selected, headings):
+    exact = {_normalize_heading(heading): heading for heading in headings}
+    by_title = defaultdict(list)
+    for heading in headings:
+        by_title[_heading_title(heading)].append(heading)
+
+    resolved = []
+    unknown = []
+    for candidate in selected:
+        match = exact.get(_normalize_heading(candidate))
+        if match is None:
+            title_matches = by_title.get(_heading_title(candidate), [])
+            if len(title_matches) == 1:
+                match = title_matches[0]
+        if match is None:
+            unknown.append(candidate)
+        elif match not in resolved:
+            resolved.append(match)
+
+    if unknown:
+        raise ValueError(
+            f"Heading selection returned unknown or ambiguous headings: {unknown[:3]}"
+        )
+    return resolved
+
+
 def filter_headings(config):
     print("🔄 Filtering protocol headings...")
     with open(config["paths"]["text_processed"], "r") as f:
@@ -30,19 +85,22 @@ def filter_headings(config):
         if match:
             grouped[match.group(1)].append(heading)
 
+    if not grouped:
+        raise ValueError("No numbered protocol headings are available for selection")
+
     # 生成提示词
     headings_str = "\n".join(h for sub in grouped.values() for h in sub)
     with open(config["paths"]["keywords"], "r") as f:
         keywords = f.read()
 
     prompt = f"""
-给定以下{config['protocol']} {config['version']}协议文档的目录，请预测哪些章节下的内容可能包含关于{config['protocol']} {config['version']}消息报文及各个字段的描述。请依据以下标准进行筛选：
+给定以下{config["protocol"]} {config["version"]}协议文档的目录，请预测哪些章节下的内容可能包含关于{config["protocol"]} {config["version"]}消息报文及各个字段的描述。请依据以下标准进行筛选：
 
-1. **消息类型和控制**：若此条目包含关于{config['protocol']} {config['version']}的具体消息报文名称，则此条目是我们所需要的条目,将其筛选出来,{config['protocol']} {config['version']}具体报文名称可以参考如下提供的具体信息。
-2. **字段信息**：若此条目包含关于{config['protocol']} {config['version']}的具体消息报文内部各个字段信息的名称，则此条目是我们所需要的条目,将其筛选出来,{config['protocol']} {config['version']}具体报文内部字段信息可以参考如下提供的具体信息。
-3. **协议行为影响字段**：若预测此条目下的内容描述了会话管理、消息流转、QoS 机制、订阅管理、流控、错误处理等协议行为，且这些行为可能影响{config['protocol']} {config['version']}消息的字段，则此条目也是我们需要的条目,也需要将其筛选出来。 
+1. **消息类型和控制**：若此条目包含关于{config["protocol"]} {config["version"]}的具体消息报文名称，则此条目是我们所需要的条目,将其筛选出来,{config["protocol"]} {config["version"]}具体报文名称可以参考如下提供的具体信息。
+2. **字段信息**：若此条目包含关于{config["protocol"]} {config["version"]}的具体消息报文内部各个字段信息的名称，则此条目是我们所需要的条目,将其筛选出来,{config["protocol"]} {config["version"]}具体报文内部字段信息可以参考如下提供的具体信息。
+3. **协议行为影响字段**：若预测此条目下的内容描述了会话管理、消息流转、QoS 机制、订阅管理、流控、错误处理等协议行为，且这些行为可能影响{config["protocol"]} {config["version"]}消息的字段，则此条目也是我们需要的条目,也需要将其筛选出来。
 
-以下是关于{config['protocol']} {config['version']}的具体消息类型和消息内部的字段：
+以下是关于{config["protocol"]} {config["version"]}的具体消息类型和消息内部的字段：
 {keywords}
 
 这是你要进行筛选的章节目录：
@@ -59,21 +117,23 @@ def filter_headings(config):
 
     # 调用AI筛选
     client = OpenAI(api_key=config["api_key"], base_url=this_url)
-    #print(prompt)
+    # print(prompt)
     try:
         response = client.chat.completions.create(
             model=this_model,
             messages=[
                 {"role": "system", "content": "你是一位协议文档分析专家"},
-                {"role": "user", "content": prompt}
-            ]
+                {"role": "user", "content": prompt},
+            ],
         )
         content = response.choices[0].message.content
         if content is None:
             raise ValueError("Empty heading selection response")
-        selected = eval(content)
-        with open(config["paths"]["headings"], "w") as f:
-            json.dump(selected, f)
+        selected = _parse_selected_headings(content)
+        selected = _resolve_selected_headings(selected, headings)
+        with open(config["paths"]["headings"], "w", encoding="utf-8") as f:
+            json.dump(selected, f, ensure_ascii=False)
         print(f"✅ Selected {len(selected)} headings")
     except Exception as e:
         print(f"❌ Heading selection failed: {str(e)}")
+        raise

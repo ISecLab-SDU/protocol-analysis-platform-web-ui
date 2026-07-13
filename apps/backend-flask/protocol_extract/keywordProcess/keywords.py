@@ -40,13 +40,13 @@ def extract_quoted_keywords(config: Dict) -> List[str]:
         def _extract(obj):
             if isinstance(obj, dict):
                 for k, v in obj.items():
-                    keywords.append(f'"{k}"')
+                    keywords.append(k)
                     _extract(v)
             elif isinstance(obj, list):
                 for item in obj:
                     _extract(item)
             elif isinstance(obj, str):
-                keywords.append(f'"{obj}"')
+                keywords.append(obj)
 
         _extract(data)
         return list(set(keywords))  # 去重
@@ -64,7 +64,7 @@ def extract_txt_keywords(config: Dict) -> List[str]:
         config: 包含路径配置的字典
 
     返回:
-        带引号的关键词列表
+        关键词列表
     """
     try:
         txt_path = Path(config["paths"]["specify_keywords"])
@@ -74,8 +74,7 @@ def extract_txt_keywords(config: Dict) -> List[str]:
 
         with open(txt_path, "r", encoding="utf-8") as f:
             content = f.read()
-            return [f'"{m}"' for m in re.findall(r'"([^"]*)"', content, re.DOTALL)]  # ✅ 支持跨行
-            #return [f'"{line.strip()}"' for line in f if line.strip()]
+            return re.findall(r'"([^"]*)"', content, re.DOTALL)
 
     except Exception as e:
         print(f"❌ 文本关键词提取失败: {str(e)}")

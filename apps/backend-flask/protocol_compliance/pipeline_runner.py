@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import logging
 import os
 import re
 import subprocess
@@ -12,13 +13,17 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterable, Sequence
+from typing import TYPE_CHECKING, Any, Iterable, Optional, Sequence
 from urllib.parse import urlparse
 
 if TYPE_CHECKING:  # 仅在类型检查时导入
     from werkzeug.datastructures import FileStorage  # type: ignore[import]
 else:  # pragma: no cover - 运行时用宽松类型，避免依赖缺失
     FileStorage = Any  # type: ignore[assignment]
+
+from .job_logging import JobStageLogger, ProgressCallback
+
+LOGGER = logging.getLogger(__name__)
 
 
 class PipelineExecutionError(RuntimeError):
@@ -47,7 +52,6 @@ PIPELINE_ROOT = (Path(__file__).resolve().parents[1] / "protocol_extract").resol
 STORAGE_ROOT = PIPELINE_ROOT / "project_store"
 UPLOAD_ROOT = PIPELINE_ROOT / "uploads"
 LOG_ROOT = PIPELINE_ROOT / "logs"
-DEFAULT_LLM_BASE_URL = "https://api.deepseek.com"
 
 
 UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
@@ -81,13 +85,10 @@ def _ensure_pipeline_root() -> None:
         raise FileNotFoundError(f"pipeline root does not exist: {PIPELINE_ROOT}")
 
 
-def _resolve_llm_base_url(value: str | None) -> str:
-    base_url = (
-        (value or "").strip()
-        or os.environ.get("PROTOCOL_EXTRACT_LLM_BASE_URL", "").strip()
-        or os.environ.get("OPENAI_BASE_URL", "").strip()
-        or DEFAULT_LLM_BASE_URL
-    ).rstrip("/")
+def _resolve_llm_base_url() -> str:
+    base_url = os.environ.get("OPENAI_BASE_URL", "").strip().rstrip("/")
+    if not base_url:
+        raise ValueError("环境变量 OPENAI_BASE_URL 不能为空")
     parsed = urlparse(base_url)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise ValueError("模型接口地址必须是有效的 http(s) URL")
@@ -266,12 +267,12 @@ def _build_command(
 
 def run_protocol_pipeline(
     *,
-    api_key: str,
     protocol: str,
     version: str,
     html_upload: FileStorage,
     filter_headings: bool = False,
-    llm_base_url: str | None = None,
+    job_id: str = "standalone",
+    progress_callback: Optional[ProgressCallback] = None,
 ) -> PipelineResult:
     """Execute the protocol extraction pipeline and load its results."""
 
@@ -283,12 +284,10 @@ def run_protocol_pipeline(
         raise ValueError("protocol 不能为空")
     if not version:
         raise ValueError("version 不能为空")
-    api_key = api_key.strip()
+    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
     if not api_key:
-        api_key = os.environ.get("OPENAI_API_KEY", "").strip()
-        if not api_key:
-            raise ValueError("API 密钥不能为空")
-    resolved_llm_base_url = _resolve_llm_base_url(llm_base_url)
+        raise ValueError("环境变量 OPENAI_API_KEY 不能为空")
+    resolved_llm_base_url = _resolve_llm_base_url()
 
     saved_path = _save_upload(html_upload)
 
@@ -302,27 +301,73 @@ def run_protocol_pipeline(
     child_env = os.environ.copy()
     child_env["OPENAI_API_KEY"] = api_key
     child_env["OPENAI_BASE_URL"] = resolved_llm_base_url
-    child_env["PROTOCOL_EXTRACT_LLM_BASE_URL"] = resolved_llm_base_url
+    child_env.pop("PROTOCOL_EXTRACT_LLM_BASE_URL", None)
+    child_env["PYTHONUNBUFFERED"] = "1"
+
+    job_logger = JobStageLogger(
+        job_id=job_id,
+        logger=LOGGER,
+        progress_callback=progress_callback,
+    )
+    output_lines: list[str] = []
+    current_stage = "pipeline"
+    job_logger.info(
+        "Preparing protocol extraction pipeline",
+        stage="inputs",
+        protocol=protocol,
+        version=version,
+        filter_headings=filter_headings,
+    )
+    job_logger.info(
+        "Launching protocol extraction subprocess",
+        stage="pipeline",
+        command=command,
+        pipeline_root=str(PIPELINE_ROOT),
+    )
 
     try:
-        subprocess.run(
+        process = subprocess.Popen(
             command,
             cwd=str(PIPELINE_ROOT),
             env=child_env,
-            check=True,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             text=True,
+            bufsize=1,
         )
-    except subprocess.CalledProcessError as exc:  # pragma: no cover - interactive error handling
-        stdout = _redact_pipeline_output(exc.stdout, [api_key])
-        stderr = _redact_pipeline_output(exc.stderr, [api_key])
+        assert process.stdout is not None
+        for raw_line in process.stdout:
+            line = _redact_pipeline_output(raw_line.rstrip(), [api_key])
+            if not line:
+                continue
+            current_stage = _pipeline_stage_for_line(line, current_stage)
+            output_lines.append(line)
+            job_logger.log(
+                _pipeline_level_for_line(line),
+                line,
+                stage=current_stage,
+                stream="stdout-stderr",
+                emit_progress=False,
+            )
+        return_code = process.wait()
+        if return_code:
+            raise subprocess.CalledProcessError(return_code, command)
+    except subprocess.CalledProcessError as exc:
+        stdout = "\n".join(output_lines)
+        stderr = ""
         log_path = _write_pipeline_log(
             command=command,
             protocol=protocol,
             stderr=stderr,
             stdout=stdout,
             version=version,
+        )
+        job_logger.error(
+            "Protocol extraction subprocess failed with exit code %s",
+            exc.returncode,
+            stage=current_stage,
+            return_code=exc.returncode,
+            log_path=str(log_path),
         )
         raise PipelineExecutionError(
             "协议分析流程执行失败",
@@ -335,9 +380,30 @@ def run_protocol_pipeline(
         with contextlib.suppress(Exception):
             saved_path.unlink()
 
-    # 解析结果
-    store_dir, result_path = _resolve_result_path(protocol, version)
-    rules = _load_rules(result_path)
+    job_logger.info("Loading extracted rule artifacts", stage="artifacts")
+    try:
+        store_dir, result_path = _resolve_result_path(protocol, version)
+        rules = _load_rules(result_path)
+    except Exception as exc:
+        job_logger.error(
+            "Failed to load protocol extraction artifacts: %s",
+            exc,
+            stage="artifacts",
+            exc_info=True,
+        )
+        raise
+    job_logger.info(
+        "Loaded %s extracted rules",
+        len(rules),
+        stage="artifacts",
+        result_path=str(result_path),
+        rule_count=len(rules),
+    )
+    job_logger.info(
+        "Protocol extraction pipeline completed successfully",
+        stage="completed",
+        rule_count=len(rules),
+    )
 
     return PipelineResult(
         protocol=protocol,
@@ -346,6 +412,33 @@ def run_protocol_pipeline(
         result_path=result_path,
         rules=rules,
     )
+
+
+def _pipeline_stage_for_line(line: str, current_stage: str) -> str:
+    lowered = line.lower()
+    markers = (
+        (("文档处理阶段", "processing html", "processing text", "filtering protocol headings"), "document"),
+        (("关键词处理阶段", "正在执行 keywords", "关键词"), "keywords"),
+        (("规则处理阶段", "stage 1", "基础规则过滤"), "rule-filter"),
+        (("enhance", "增强阶段", "句子增强"), "rule-enhance"),
+        (("stage 2", "ai 规则验证"), "rule-validation"),
+        (("stage 3", "协议字段解析"), "rule-fields"),
+    )
+    for candidates, stage in markers:
+        if any(candidate in lowered for candidate in candidates):
+            return stage
+    return current_stage
+
+
+def _pipeline_level_for_line(line: str) -> int:
+    lowered = line.lower()
+    if any(marker in lowered for marker in ("traceback", "error", "failed", "失败", "错误")):
+        return logging.ERROR
+    if any(marker in lowered for marker in ("[warn", "warning", "警告", "⚠")):
+        return logging.WARNING
+    if any(marker in lowered for marker in ("[debug]", "debug")):
+        return logging.DEBUG
+    return logging.INFO
 
 
 def _ensure_pipeline_dependencies() -> None:

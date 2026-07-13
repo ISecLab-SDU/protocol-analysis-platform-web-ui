@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import uuid
 from typing import Any, Callable, Iterable, Optional
 
 from flask import make_response, request
@@ -44,21 +45,19 @@ def create_task_handlers(
         if not isinstance(html_upload, FileStorage):
             return make_response(error_response("请上传协议 HTML 文件"), 400)
 
-        api_key = (request.form.get("apiKey") or "").strip()
-        llm_base_url = (request.form.get("llmBaseUrl") or "").strip()
         protocol = (request.form.get("protocol") or "").strip()
         version = (request.form.get("version") or "").strip()
         filter_flag = (request.form.get("filterHeadings") or "").strip().lower()
         filter_headings = filter_flag in {"1", "true", "yes", "on"}
 
         try:
+            job_id = str(uuid.uuid4())
             result = run_protocol_pipeline(
-                api_key=api_key,
                 protocol=protocol,
                 version=version,
                 html_upload=html_upload,
                 filter_headings=filter_headings,
-                llm_base_url=llm_base_url,
+                job_id=job_id,
             )
         except ValueError as exc:
             payload = make_error_payload("参数错误", details=str(exc))

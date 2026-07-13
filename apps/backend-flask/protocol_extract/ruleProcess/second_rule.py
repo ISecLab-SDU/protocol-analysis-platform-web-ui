@@ -143,12 +143,21 @@ def run_second_rule(api_key, protocol, version, config):
     table_md_path = Path(config["paths"]["table"])
 
     df = pd.read_excel(excel_path, engine='openpyxl')
+    df["Second_Filter_Result"] = "Not evaluated"
     matched_rows = df[df["Is_Matched"]]
+
+    prompts = []
+    if matched_rows.empty:
+        df.to_excel(excel_path, index=False, engine='openpyxl')
+        output_path = excel_path.parent / "generated_prompts_with_results.json"
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(prompts, f, ensure_ascii=False, indent=2)
+        print("没有通过第一阶段的候选句子，已写回空的第二阶段结果")
+        return
 
     sections = load_sections_with_blocks(table_md_path)
     client = OpenAI(api_key=api_key, base_url=this_url)
 
-    prompts = []
     """
     with ThreadPoolExecutor(max_workers=this_max_workers) as executor:
         #2025-10-29修改

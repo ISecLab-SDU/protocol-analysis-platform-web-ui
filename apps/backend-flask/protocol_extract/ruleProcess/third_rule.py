@@ -31,7 +31,10 @@ def run_third_rule(api_key, protocol, version, config):
     df = pd.read_excel(excel_path, engine='openpyxl')
 
     # 只筛选通过第二阶段的句子
-    df = df[df["Second_Filter_Result"] == "Conforms"]
+    if "Second_Filter_Result" in df.columns:
+        df = df[df["Second_Filter_Result"] == "Conforms"]
+    elif not df.empty:
+        raise ValueError("Second_Filter_Result column is missing from a non-empty workbook")
 
     # 处理缺失的 Heading 列
     if "Heading" not in df.columns:

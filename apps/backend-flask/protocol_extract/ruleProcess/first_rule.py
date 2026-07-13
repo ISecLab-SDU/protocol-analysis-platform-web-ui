@@ -73,18 +73,21 @@ def main():
         with open(txt_path, "w", encoding="utf-8") as txt_file:
             txt_file.writelines(text_output)
         excel_path=config["paths"]["excel_sentences"]
-        df = pd.DataFrame(df_data)
-        df.columns = ["Heading", "Sentence", "Is_Matched"]
+        columns = pd.Index(["Heading", "Sentence", "Is_Matched"])
+        df = pd.DataFrame(df_data, columns=columns)
         df.to_excel(excel_path, index=False, engine='openpyxl')
         print(f"总句子数：{count}")
         print(f"匹配句子数：{cnt}")
 
     except FileNotFoundError as e:
         print(f"关键文件缺失: {str(e)}")
+        raise
     except json.JSONDecodeError as e:
         print(f"JSON解析错误: {str(e)}")
+        raise
     except Exception as e:
         print(f"未捕获错误: {str(e)}")
+        raise
 
 if __name__ == "__main__":
     main()

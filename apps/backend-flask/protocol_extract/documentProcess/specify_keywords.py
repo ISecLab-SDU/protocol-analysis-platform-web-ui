@@ -1,7 +1,9 @@
-from openai import OpenAI
+import json
 import os
-import toml
 from pathlib import Path
+
+import toml
+from openai import OpenAI
 
 # 获取当前脚本所在目录
 script_dir = Path(__file__).parent.parent
@@ -17,32 +19,43 @@ this_url = (
 )
 this_model = toml_config["llm"]["model2"]
 
-print(f"⚠️  实际 base_url 值：{this_url}")
+
+def _build_prompt(config):
+    markdown_path = Path(config["paths"]["markdown"])
+    document = markdown_path.read_text(encoding="utf-8").strip()
+    if not document:
+        raise ValueError(f"Protocol document is empty: {markdown_path}")
+    return PROMPT_TEMPLATE.format(
+        protocol=config["protocol"],
+        version=config["version"],
+        document=document,
+    )
+
 
 def process_keywords(config):
     client = OpenAI(api_key=config["api_key"], base_url=this_url)
 
-    prompt = PROMPT_TEMPLATE.format(protocol=config["protocol"],version=config["version"])
-
     try:
+        prompt = _build_prompt(config)
         response = client.chat.completions.create(
-            # 指定使用的模型为deepseek-chat
             model=this_model,
-            # 定义对话消息列表
-            messages=[
-                {"role": "user", "content": prompt},
-            ],
-            # 设置非流式响应（等待完整响应返回）
+            messages=[{"role": "user", "content": prompt}],
             stream=False,
-            response_format={
-            'type': 'json_object'
-            }
+            response_format={"type": "json_object"},
         )
         keywords = response.choices[0].message.content
         if keywords is None:
             raise ValueError("Empty keyword extraction response")
-        with open(config["paths"]["keywords"], "w", encoding="utf-8") as f:
-            f.write(keywords)
+        payload = json.loads(keywords)
+        if not isinstance(payload, dict) or not payload:
+            raise ValueError(
+                "Keyword extraction response must be a non-empty JSON object"
+            )
+        Path(config["paths"]["keywords"]).write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
         print("✅ Keywords extracted")
     except Exception as e:
         print(f"❌ Keyword extraction failed: {str(e)}")
+        raise

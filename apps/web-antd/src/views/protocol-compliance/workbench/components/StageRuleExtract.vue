@@ -35,13 +35,9 @@ interface Emits {
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
-const DEFAULT_LLM_BASE_URL = 'https://api.deepseek.com';
-
 const form = reactive({
-  apiKey: '',
   filterHeadings: true,
   htmlFile: null as File | null,
-  llmBaseUrl: DEFAULT_LLM_BASE_URL,
   protocol: 'MQTT',
   version: defaultProtocolVersion('MQTT'),
 });
@@ -172,18 +168,6 @@ function validateForm() {
     message.warning('请填写版本名');
     return false;
   }
-  if (!form.apiKey.trim()) {
-    message.warning('请填写 API Key');
-    return false;
-  }
-  if (!form.llmBaseUrl.trim()) {
-    message.warning('请填写模型接口地址');
-    return false;
-  }
-  if (!/^https?:\/\//i.test(form.llmBaseUrl.trim())) {
-    message.warning('模型接口地址需要以 http:// 或 https:// 开头');
-    return false;
-  }
   if (!form.htmlFile) {
     message.warning('请上传 HTML 协议文档');
     return false;
@@ -201,10 +185,8 @@ async function handleExtract() {
 
   try {
     const result = await runProtocolExtract({
-      apiKey: form.apiKey.trim(),
       filterHeadings: form.filterHeadings,
       htmlFile: form.htmlFile,
-      llmBaseUrl: form.llmBaseUrl.trim(),
       protocol: form.protocol.trim(),
       version: form.version.trim(),
     });
@@ -279,7 +261,7 @@ function ruleTypeText(rule: ProtocolExtractRuleItem) {
         <header class="panel-head">
           <div>
             <h2>提取参数</h2>
-            <p>协议文档、协议版本与模型访问参数</p>
+            <p>协议文档与协议版本</p>
           </div>
         </header>
 
@@ -300,26 +282,6 @@ function ruleTypeText(rule: ProtocolExtractRuleItem) {
               v-model:value="form.version"
               :disabled="extracting || disabled"
               placeholder="3.1.1"
-              @change="clearResult"
-            />
-          </label>
-
-          <label class="form-field form-field--wide">
-            <span>API Key *</span>
-            <Input
-              v-model:value="form.apiKey"
-              :disabled="extracting || disabled"
-              placeholder="sk-..."
-              type="password"
-            />
-          </label>
-
-          <label class="form-field form-field--wide">
-            <span>模型接口地址 *</span>
-            <Input
-              v-model:value="form.llmBaseUrl"
-              :disabled="extracting || disabled"
-              placeholder="https://api.deepseek.com"
               @change="clearResult"
             />
           </label>

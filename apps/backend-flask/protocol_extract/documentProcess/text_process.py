@@ -21,7 +21,9 @@ def extract_markdown_hierarchy(file_path):
     result = {}
     heading_stack = []  # [(level, title)]
     content_stack = []
-    heading_pattern = re.compile(r'^(#{1,6})\s*(.*)')  # 支持多个空格
+    # HTML-to-Markdown converters may preserve source indentation before a
+    # heading (RFC 959 does this for its first two sections).
+    heading_pattern = re.compile(r'^\s*(#{1,6})\s+(.*)')
 
     def save_content():
         """保存当前 heading_stack 对应的内容到 result"""
