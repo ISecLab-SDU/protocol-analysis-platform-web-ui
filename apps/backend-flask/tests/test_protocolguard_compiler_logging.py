@@ -25,6 +25,7 @@ if "claude_agent_sdk" not in sys.modules:
         "TextBlock",
         "ToolResultBlock",
         "ToolUseBlock",
+        "UserMessage",
     ):
         setattr(fake_claude_agent_sdk, name, type(name, (), {}))
     cast(Any, fake_claude_agent_sdk).query = None
@@ -358,6 +359,63 @@ def test_run_logged_command_emits_claude_sdk_progress_json(
     assert events == [("job-sdk", "claude-write", "Write: /workspace/program.bc")]
 
 
+def test_run_logged_command_preserves_claude_sdk_metadata_for_compatible_callback(
+    tmp_path: Path,
+) -> None:
+    settings = ClaudeBuilderRunnerSettings(
+        enabled=True,
+        api_key="anthropic-key",
+        base_url="",
+        model="unused",
+        workspace_root=tmp_path,
+        max_runtime=60,
+        env_passthrough=(),
+        builder_image="protocolguard-claude-builder:test",
+    )
+    executor = ClaudeBuilderRunner(settings)
+    events: list[tuple[str, str, str, dict[str, object]]] = []
+    command = [
+        sys.executable,
+        "-c",
+        (
+            "print("
+            "'PG_PROGRESS_JSON "
+            "{\"source\":\"claude-agent-sdk\","
+            "\"stage\":\"claude-command\","
+            "\"message\":\"Bash: make\","
+            "\"sdk_message_type\":\"ToolUseBlock\","
+            "\"tool\":\"Bash\","
+            "\"tool_input\":{\"command\":\"make\",\"content\":\"private source\"}}'"
+            ")"
+        ),
+    ]
+
+    executor._run_logged_command(
+        command,
+        cwd=tmp_path,
+        log_path=tmp_path / "command.log",
+        progress_callback=lambda job_id, stage, message, metadata: events.append(
+            (job_id, stage, message, metadata)
+        ),
+        job_identifier="job-sdk-metadata",
+        stage="builder-log",
+        timeout=10,
+    )
+
+    assert events == [
+        (
+            "job-sdk-metadata",
+            "claude-command",
+            "Bash: make",
+            {
+                "sdk_message_type": "ToolUseBlock",
+                "tool": "Bash",
+                "tool_input": {"command": "make"},
+            },
+        )
+    ]
+
+
 def test_claude_sdk_environment_passes_all_anthropic_credentials(
     monkeypatch: Any,
 ) -> None:
@@ -457,4 +515,25 @@ def test_claude_agent_event_conversion_is_reusable_without_builder_runner() -> N
             "tool_use_id": "tool-1",
             "tool_input": {"command": "cmake -S . -B build"},
         },
+    ]
+
+
+def test_claude_agent_user_message_exposes_tool_result_without_raw_payload() -> None:
+    fake_sdk = cast(Any, sys.modules["claude_agent_sdk"])
+    result_block = fake_sdk.ToolResultBlock.__new__(fake_sdk.ToolResultBlock)
+    result_block.tool_use_id = "tool-1"
+    result_block.content = "Exit code 127\nunzip: command not found"
+    result_block.is_error = True
+    message = fake_sdk.UserMessage.__new__(fake_sdk.UserMessage)
+    message.content = [result_block]
+
+    assert progress_events_from_message(message) == [
+        {
+            "type": "progress",
+            "stage": "claude-observation",
+            "message": "Exit code 127\nunzip: command not found",
+            "sdk_message_type": "ToolResultBlock",
+            "tool_use_id": "tool-1",
+            "is_error": True,
+        }
     ]

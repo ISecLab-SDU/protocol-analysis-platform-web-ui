@@ -186,19 +186,28 @@ class AnalysisStateRepository:
         }
         self._upsert(payload)
 
-    def add_event(self, *, job_id: str, timestamp: str, stage: str, message: str) -> None:
+    def add_event(
+        self,
+        *,
+        job_id: str,
+        timestamp: str,
+        stage: str,
+        message: str,
+        metadata: Optional[Mapping[str, Any]] = None,
+    ) -> None:
         try:
             with self._connect() as conn:
                 conn.execute(
                     """
-                    INSERT INTO analysis_job_events (job_id, timestamp, stage, message)
-                    VALUES (:job_id, :timestamp, :stage, :message)
+                    INSERT INTO analysis_job_events (job_id, timestamp, stage, message, metadata_json)
+                    VALUES (:job_id, :timestamp, :stage, :message, :metadata_json)
                     """,
                     {
                         "job_id": job_id,
                         "timestamp": timestamp,
                         "stage": stage,
                         "message": message,
+                        "metadata_json": _dump_json(metadata),
                     },
                 )
         except sqlite3.DatabaseError as exc:
@@ -214,7 +223,7 @@ class AnalysisStateRepository:
         self._ensure_initialized()
         if from_event_id is None:
             query = """
-                SELECT id, timestamp, stage, message
+                SELECT id, timestamp, stage, message, metadata_json
                 FROM analysis_job_events
                 WHERE job_id = ?
                 ORDER BY id ASC
@@ -222,7 +231,7 @@ class AnalysisStateRepository:
             params = (job_id,)
         else:
             query = """
-                SELECT id, timestamp, stage, message
+                SELECT id, timestamp, stage, message, metadata_json
                 FROM analysis_job_events
                 WHERE job_id = ? AND id > ?
                 ORDER BY id ASC
@@ -251,6 +260,7 @@ class AnalysisStateRepository:
                     "timestamp": row["timestamp"],
                     "stage": row["stage"],
                     "message": row["message"],
+                    "metadata": _load_json(row["metadata_json"]),
                 }
             )
         return events
@@ -383,10 +393,19 @@ class AnalysisStateRepository:
                             timestamp TEXT NOT NULL,
                             stage TEXT NOT NULL,
                             message TEXT NOT NULL,
+                            metadata_json TEXT,
                             FOREIGN KEY(job_id) REFERENCES analysis_jobs(job_id) ON DELETE CASCADE
                         );
                         """
                     )
+                    columns = {
+                        row[1]
+                        for row in conn.execute("PRAGMA table_info(analysis_job_events)").fetchall()
+                    }
+                    if "metadata_json" not in columns:
+                        conn.execute(
+                            "ALTER TABLE analysis_job_events ADD COLUMN metadata_json TEXT"
+                        )
                     conn.commit()
             except sqlite3.DatabaseError as exc:
                 LOGGER.error("Unable to initialize analysis state database at %s: %s", self._db_path, exc)

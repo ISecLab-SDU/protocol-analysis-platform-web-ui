@@ -55,6 +55,7 @@ const {
   selectedRule,
   staticLogHtml,
   staticLogText,
+  staticProgressEvents,
   staticResult,
   codeLocateEvidence,
   assertLogText,
@@ -1318,6 +1319,7 @@ function switchRule() {
                 :evidence="codeLocateEvidence"
                 :log-html="staticLogHtml"
                 :log-text="staticLogText"
+                :events="staticProgressEvents"
                 :result="staticResult"
                 :rule="selectedRule"
                 :running="stageStatus.code_locate === 'running'"
