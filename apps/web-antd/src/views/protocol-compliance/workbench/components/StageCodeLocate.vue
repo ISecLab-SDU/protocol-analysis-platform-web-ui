@@ -3,6 +3,7 @@ import type { CodeLocateEvidence, CodeLocateFunctionSlice } from '../types';
 
 import type {
   ProtocolExtractRuleItem,
+  ProtocolStaticAnalysisProgressEvent,
   ProtocolStaticAnalysisResult,
 } from '#/api/protocol-compliance';
 
@@ -16,6 +17,7 @@ import StageLiveLogPanel from './StageLiveLogPanel.vue';
 
 interface Props {
   evidence: CodeLocateEvidence | null;
+  events?: ProtocolStaticAnalysisProgressEvent[];
   logHtml: string;
   logText: string;
   result: null | ProtocolStaticAnalysisResult;
@@ -26,6 +28,7 @@ interface Props {
 interface LogLine {
   id: string;
   kind: 'function' | 'normal' | 'path' | 'slice' | 'summary';
+  metadata?: ProtocolStaticAnalysisProgressEvent['metadata'];
   phase: string;
   stage: string;
   text: string;
@@ -127,6 +130,11 @@ const stageStateText = computed(() => {
 });
 
 const rawLogLines = computed(() => {
+  if (props.events && props.events.length > 0) {
+    return props.events
+      .map((event, index) => parseProgressEvent(event, index))
+      .filter((line) => !isWaitingLogLine(line));
+  }
   const rawLines = props.logText
     .split(/\r?\n/)
     .map((line) => line.trimEnd())
@@ -135,6 +143,22 @@ const rawLogLines = computed(() => {
     .map((line, index) => parseLogLine(line, index))
     .filter((line) => !isWaitingLogLine(line));
 });
+
+function parseProgressEvent(
+  event: ProtocolStaticAnalysisProgressEvent,
+  index: number,
+): LogLine {
+  const text = event.message || '';
+  return {
+    id: String(event.id ?? `${event.timestamp}-${index}`),
+    kind: classifyLogLine(text),
+    metadata: event.metadata,
+    phase: '',
+    stage: event.stage || '',
+    text,
+    time: event.timestamp ? new Date(event.timestamp).toLocaleTimeString() : '',
+  };
+}
 
 const logLines = computed<LogLine[]>(() => {
   let currentStepIndex = -1;

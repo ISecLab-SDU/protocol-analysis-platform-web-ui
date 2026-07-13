@@ -15,11 +15,33 @@ from claude_agent_sdk import (
     TextBlock,
     ToolResultBlock,
     ToolUseBlock,
+    UserMessage,
 )
 
 PROGRESS_PREFIX = "PG_PROGRESS_JSON "
 HIDDEN_THINKING_KEYS = frozenset({"thinking_tokens"})
 HIDDEN_SYSTEM_SUBTYPES = frozenset({"thinking_tokens"})
+FRONTEND_METADATA_KEYS = frozenset(
+    {
+        "duration_api_ms",
+        "duration_ms",
+        "errors",
+        "is_error",
+        "model",
+        "model_usage",
+        "result",
+        "sdk_message_type",
+        "session_id",
+        "status",
+        "tool",
+        "tool_input",
+        "tool_use_id",
+        "usage",
+    }
+)
+FRONTEND_TOOL_INPUT_KEYS = frozenset(
+    {"command", "description", "file_path", "path", "pattern"}
+)
 
 
 def json_default(value: Any) -> Any:
@@ -103,6 +125,8 @@ def progress_events_from_message(
         return []
     if isinstance(message, AssistantMessage):
         return _assistant_events(message)
+    if isinstance(message, UserMessage):
+        return _user_events(message)
     if isinstance(message, ResultMessage):
         return [_result_event(message, result_label=result_label)]
     if isinstance(message, StreamEvent):
@@ -135,18 +159,40 @@ def encode_progress_event(event: dict[str, Any], *, ts_ms: int) -> str:
 
 
 def decode_progress_line(line: str, default_stage: str) -> tuple[str, str] | None:
+    event = decode_progress_event(line, default_stage)
+    if event is None:
+        return None
+    return str(event["stage"]), str(event["message"])
+
+
+def decode_progress_event(line: str, default_stage: str) -> dict[str, Any] | None:
     if not line.startswith(PROGRESS_PREFIX):
         return None
     raw_payload = line[len(PROGRESS_PREFIX):]
     try:
         payload = json.loads(raw_payload)
     except json.JSONDecodeError:
-        return "claude-status", line[:500]
+        return {"stage": "claude-status", "message": line[:500]}
     stage = str(payload.get("stage") or default_stage)
     message = payload.get("message")
     if not message:
         message = payload.get("type") or raw_payload
-    return stage, str(message)
+    metadata = {}
+    for key, value in payload.items():
+        if key not in FRONTEND_METADATA_KEYS or value is None:
+            continue
+        if key == "tool_input" and isinstance(value, dict):
+            value = {
+                input_key: input_value
+                for input_key, input_value in value.items()
+                if input_key in FRONTEND_TOOL_INPUT_KEYS
+            }
+        metadata[key] = sanitize_event_value(value)
+    return {
+        "stage": stage,
+        "message": str(message),
+        **({"metadata": metadata} if metadata else {}),
+    }
 
 
 def _assistant_events(message: AssistantMessage) -> list[dict[str, Any]]:
@@ -211,6 +257,36 @@ def _assistant_events(message: AssistantMessage) -> list[dict[str, Any]]:
                 }
             )
     return events
+
+
+def _user_events(message: UserMessage) -> list[dict[str, Any]]:
+    events: list[dict[str, Any]] = []
+    for block in message.content:
+        if not isinstance(block, ToolResultBlock):
+            continue
+        content = block.content
+        if isinstance(content, list):
+            content = json.dumps(content, ensure_ascii=False, default=json_default)
+        events.append(
+            {
+                "type": "progress",
+                "stage": "claude-observation",
+                "message": truncate(content or "<empty tool result>"),
+                "sdk_message_type": "ToolResultBlock",
+                "tool_use_id": block.tool_use_id,
+                "is_error": bool(block.is_error),
+            }
+        )
+    if events:
+        return events
+    return [
+        {
+            "type": "sdk-message",
+            "stage": "claude-message",
+            "message": truncate(message),
+            "sdk_message_type": "UserMessage",
+        }
+    ]
 
 
 def _system_event(message: SystemMessage) -> dict[str, Any]:

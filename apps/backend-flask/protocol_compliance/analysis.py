@@ -44,6 +44,7 @@ class AnalysisProgressEvent:
     timestamp: str
     stage: str
     message: str
+    metadata: Optional[Dict[str, object]] = None
     event_id: Optional[int] = None  # Event ID from database, None for in-memory events
 
 
@@ -107,12 +108,18 @@ class AnalysisProgressRegistry:
             self._append_event(state, stage, message)
             self._job_logger(job_id).info(message, stage=stage, status="running")
 
-    def append_event(self, job_id: str, stage: str, message: str) -> None:
+    def append_event(
+        self,
+        job_id: str,
+        stage: str,
+        message: str,
+        metadata: Optional[Dict[str, object]] = None,
+    ) -> None:
         with self._lock:
             state = self._states.get(job_id)
             if not state:
                 return
-            self._append_event(state, stage, message)
+            self._append_event(state, stage, message, metadata=metadata)
             job_logger = self._job_logger(job_id)
             if _is_debug_progress_stage(stage):
                 job_logger.debug(message, stage=stage, status=state.status)
@@ -214,6 +221,7 @@ class AnalysisProgressRegistry:
                 "timestamp": event["timestamp"],
                 "stage": event["stage"],
                 "message": event["message"],
+                **({"metadata": event["metadata"]} if event.get("metadata") else {}),
             }
             for event in db_events
         ]
@@ -231,12 +239,26 @@ class AnalysisProgressRegistry:
             "details": state_copy.details,
         }
 
-    def _append_event(self, state: AnalysisProgressState, stage: str, message: str) -> None:
+    def _append_event(
+        self,
+        state: AnalysisProgressState,
+        stage: str,
+        message: str,
+        *,
+        metadata: Optional[Dict[str, object]] = None,
+    ) -> None:
         timestamp = _now_iso()
         state.stage = stage
         state.message = message
         state.updated_at = timestamp
-        state.events.append(AnalysisProgressEvent(timestamp=timestamp, stage=stage, message=message))
+        state.events.append(
+            AnalysisProgressEvent(
+                timestamp=timestamp,
+                stage=stage,
+                message=message,
+                metadata=metadata,
+            )
+        )
         self._repository.record_progress(
             job_id=state.job_id,
             status=state.status,
@@ -244,13 +266,24 @@ class AnalysisProgressRegistry:
             message=state.message,
             updated_at=timestamp,
         )
-        self._repository.add_event(job_id=state.job_id, timestamp=timestamp, stage=stage, message=message)
+        self._repository.add_event(
+            job_id=state.job_id,
+            timestamp=timestamp,
+            stage=stage,
+            message=message,
+            metadata=metadata,
+        )
 
-    def make_callback(self, job_id: str) -> Callable[[str, str, str], None]:
-        def callback(_job_id: str, stage: str, message: str) -> None:
+    def make_callback(self, job_id: str) -> Callable[..., None]:
+        def callback(
+            _job_id: str,
+            stage: str,
+            message: str,
+            metadata: Optional[Dict[str, object]] = None,
+        ) -> None:
             # Ignore mismatched job ids to keep callback tolerant.
             target_id = job_id or _job_id
-            self.append_event(target_id, stage, message)
+            self.append_event(target_id, stage, message, metadata=metadata)
 
         return callback
 

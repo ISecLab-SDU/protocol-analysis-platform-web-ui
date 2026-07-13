@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import inspect
 import re
 import shutil
 import sqlite3
@@ -12,7 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, BinaryIO, Callable, Dict, List, Optional, Sequence, Tuple
 
-from protocol_compliance.claude_agent_events import decode_progress_line
+from protocol_compliance.claude_agent_events import decode_progress_event, decode_progress_line
 from protocol_compliance.job_logging import JobStageLogger
 
 logger = logging.getLogger(__name__)
@@ -336,14 +337,22 @@ class ClaudeBuilderRunner:
                 lines.append(line)
                 log_file.write(line + "\n")
                 if line:
-                    progress_stage, progress_message = self._extract_progress_line(
+                    progress_event = self._extract_progress_event(
                         line,
                         stage,
                         stage_selector=stage_selector,
                     )
+                    progress_stage = str(progress_event["stage"])
+                    progress_message = str(progress_event["message"])
                     logger.debug("[%s] %s", progress_stage.upper(), progress_message)
                     if progress_callback:
-                        progress_callback(job_identifier, progress_stage, progress_message[:500])
+                        self._emit_progress_callback(
+                            progress_callback,
+                            job_identifier,
+                            progress_stage,
+                            progress_message[:500],
+                            progress_event.get("metadata"),
+                        )
 
         try:
             process.wait(timeout=timeout)
@@ -380,6 +389,43 @@ class ClaudeBuilderRunner:
 
         progress_stage = stage_selector(line, default_stage) if stage_selector else default_stage
         return progress_stage, line
+
+    @staticmethod
+    def _extract_progress_event(
+        line: str,
+        default_stage: str,
+        *,
+        stage_selector: Optional[Callable[[str, str], str]] = None,
+    ) -> dict[str, object]:
+        progress = decode_progress_event(line, default_stage)
+        if progress:
+            return progress
+
+        progress_stage = stage_selector(line, default_stage) if stage_selector else default_stage
+        return {"stage": progress_stage, "message": line}
+
+    @staticmethod
+    def _emit_progress_callback(
+        progress_callback: Callable[..., None],
+        job_identifier: str,
+        stage: str,
+        message: str,
+        metadata: object,
+    ) -> None:
+        if metadata:
+            try:
+                inspect.signature(progress_callback).bind(
+                    job_identifier,
+                    stage,
+                    message,
+                    metadata,
+                )
+            except (TypeError, ValueError):
+                pass
+            else:
+                progress_callback(job_identifier, stage, message, metadata)
+                return
+        progress_callback(job_identifier, stage, message)
 
     @staticmethod
     def _claude_builder_progress_stage(line: str, default_stage: str) -> str:

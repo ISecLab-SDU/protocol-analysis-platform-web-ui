@@ -14,6 +14,7 @@ import type {
   ProtocolFuzzingJob,
   ProtocolStaticAnalysisDatabaseRuleInsight,
   ProtocolStaticAnalysisJob,
+  ProtocolStaticAnalysisProgressEvent,
   ProtocolStaticAnalysisResult,
   ProtocolStaticAnalysisRuleViolationDetail,
 } from '#/api/protocol-compliance';
@@ -74,6 +75,7 @@ const staticJob = ref<null | ProtocolStaticAnalysisJob>(null);
 const staticResult = ref<null | ProtocolStaticAnalysisResult>(null);
 const staticLogHtml = ref('');
 const staticLogText = ref('');
+const staticProgressEvents = ref<ProtocolStaticAnalysisProgressEvent[]>([]);
 const staticLastEventId = ref(0);
 const codeLocateEvidence = ref<CodeLocateEvidence | null>(null);
 
@@ -742,6 +744,7 @@ function resetPipelineStageState() {
   staticJob.value = null;
   staticResult.value = null;
   staticLogText.value = '';
+  staticProgressEvents.value = [];
   staticLogHtml.value = '';
   staticLastEventId.value = 0;
   codeLocateEvidence.value = null;
@@ -1177,6 +1180,7 @@ async function pollStaticAnalysis(jobId: string, runId: number) {
       const events = snapshot.events ?? [];
       if (events.length > 0) {
         for (const evt of events) {
+          staticProgressEvents.value.push(evt);
           const ts = evt.timestamp
             ? new Date(evt.timestamp).toLocaleTimeString()
             : '';
@@ -1276,6 +1280,7 @@ async function runStaticAnalysisStep(runId: number) {
   setStage('code_locate', 'running', '提交静态分析任务…');
   staticResult.value = null;
   staticLogText.value = '';
+  staticProgressEvents.value = [];
   staticLogHtml.value = '';
   staticLastEventId.value = 0;
   codeLocateEvidence.value = null;
@@ -1701,6 +1706,7 @@ async function startFuzzDebugReplay() {
   staticJob.value = null;
   staticResult.value = null;
   staticLogText.value = '';
+  staticProgressEvents.value = [];
   staticLogHtml.value = '';
   staticLastEventId.value = 0;
   codeLocateEvidence.value = null;
@@ -1860,6 +1866,7 @@ function resetWorkbench() {
   staticJob.value = null;
   staticResult.value = null;
   staticLogText.value = '';
+  staticProgressEvents.value = [];
   staticLogHtml.value = '';
   staticLastEventId.value = 0;
   codeLocateEvidence.value = null;
@@ -1917,6 +1924,7 @@ export function useWorkbench() {
     staticResult,
     staticLogHtml,
     staticLogText,
+    staticProgressEvents,
     codeLocateEvidence,
     assertJob,
     assertJobId,

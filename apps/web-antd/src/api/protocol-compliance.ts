@@ -150,8 +150,43 @@ export type ProtocolStaticAnalysisJobStatus =
 export interface ProtocolStaticAnalysisProgressEvent {
   id?: number;
   message: string;
+  metadata?: ProtocolClaudeProgressMetadata;
   stage: string;
   timestamp: string;
+}
+
+export interface ProtocolClaudeProgressMetadata {
+  duration_api_ms?: number;
+  duration_ms?: number;
+  errors?: null | string[];
+  is_error?: boolean;
+  model?: string;
+  model_usage?: Record<string, ProtocolClaudeModelUsage>;
+  result?: string;
+  sdk_message_type?: string;
+  session_id?: string;
+  status?: 'completed' | 'failed' | string;
+  tool?: string;
+  tool_input?: Record<string, unknown>;
+  tool_use_id?: string;
+  usage?: ProtocolClaudeTokenUsage;
+}
+
+export interface ProtocolClaudeModelUsage {
+  cacheCreationInputTokens?: number;
+  cacheReadInputTokens?: number;
+  contextWindow?: number;
+  costUSD?: number;
+  inputTokens?: number;
+  maxOutputTokens?: number;
+  outputTokens?: number;
+}
+
+export interface ProtocolClaudeTokenUsage {
+  cache_creation_input_tokens?: number;
+  cache_read_input_tokens?: number;
+  input_tokens?: number;
+  output_tokens?: number;
 }
 
 export interface ProtocolStaticAnalysisJob {
