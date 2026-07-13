@@ -28,21 +28,6 @@ def _executor(tmp_path: Path) -> AgentExecutor:
     return executor
 
 
-class _FakeCompiler:
-    docker: Any
-
-    def run(self, **_kwargs: Any) -> str:
-        return "FROM scratch\n"
-
-
-class _FakeDocker:
-    def build(self, *_args: Any, **_kwargs: Any) -> tuple[bool, str]:
-        return True, "build ok"
-
-    def copy_output(self, *_args: Any, **_kwargs: Any) -> tuple[bool, str]:
-        return True, "copy ok"
-
-
 def test_generated_analysis_config_prefers_discovered_workspace_artifacts(tmp_path: Path) -> None:
     workspace = tmp_path / "job-1"
     build_dir = workspace / "project" / "demo" / "build"
@@ -93,10 +78,8 @@ def test_generated_analysis_config_falls_back_to_workspace_conventions(tmp_path:
 def test_run_compilation_reports_generated_config_content(tmp_path: Path) -> None:
     executor = _executor(tmp_path)
     dynamic_executor = cast(Any, executor)
-    dynamic_executor.compiler = _FakeCompiler()
     executor._docker_available = True
     executor._builder_image = "protocolguard-claude-builder:test"
-    dynamic_executor.compiler.docker = _FakeDocker()
     dynamic_executor._run_claude_builder_container = lambda *args, **kwargs: []
     dynamic_executor._validate_builder_outputs = lambda *args, **kwargs: None
     dynamic_executor._run_analysis_container = lambda *args, **kwargs: None
