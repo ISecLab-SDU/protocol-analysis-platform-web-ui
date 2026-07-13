@@ -30,7 +30,11 @@ if "claude_agent_sdk" not in sys.modules:
     cast(Any, fake_claude_agent_sdk).query = None
     sys.modules["claude_agent_sdk"] = fake_claude_agent_sdk
 
-from protocol_compliance.compiler import ClaudeBuilderRunner, ClaudeBuilderRunnerSettings  # noqa: E402
+from protocol_compliance.compiler import (  # noqa: E402
+    ClaudeBuilderRunner,
+    ClaudeBuilderRunnerExecutionError,
+    ClaudeBuilderRunnerSettings,
+)
 from protocol_compliance.claude_agent_events import (  # noqa: E402
     is_hidden_system_message as _is_hidden_system_message,
     progress_events_from_message,
@@ -146,6 +150,44 @@ def test_claude_builder_runner_classifies_claude_builder_log_markers() -> None:
         )
         == "builder-log"
     )
+
+
+def test_validate_builder_outputs_requires_replayable_compile_commands(
+    tmp_path: Path,
+) -> None:
+    workspace_dir = tmp_path / "workspace"
+    inputs_dir = workspace_dir / "inputs"
+    inputs_dir.mkdir(parents=True)
+    (workspace_dir / "program.bc").write_bytes(b"bitcode")
+    (workspace_dir / "program.ll").write_text("; llvm ir\n", encoding="utf-8")
+    (inputs_dir / "rules.json").write_text("{}\n", encoding="utf-8")
+    (workspace_dir / "build_log.txt").write_text(
+        "Compiler: gclang\nBuild completed with warnings\n",
+        encoding="utf-8",
+    )
+    executor = ClaudeBuilderRunner.__new__(ClaudeBuilderRunner)
+
+    with pytest.raises(
+        ClaudeBuilderRunnerExecutionError,
+        match="build log contains no replayable compiler commands",
+    ):
+        executor._validate_builder_outputs(workspace_dir)
+
+
+def test_validate_builder_outputs_accepts_plain_compile_commands(tmp_path: Path) -> None:
+    workspace_dir = tmp_path / "workspace"
+    inputs_dir = workspace_dir / "inputs"
+    inputs_dir.mkdir(parents=True)
+    (workspace_dir / "program.bc").write_bytes(b"bitcode")
+    (workspace_dir / "program.ll").write_text("; llvm ir\n", encoding="utf-8")
+    (inputs_dir / "rules.json").write_text("{}\n", encoding="utf-8")
+    (workspace_dir / "build_log.txt").write_text(
+        "gclang -g -O0 -c src/server.c -o build/server.o\n",
+        encoding="utf-8",
+    )
+    executor = ClaudeBuilderRunner.__new__(ClaudeBuilderRunner)
+
+    executor._validate_builder_outputs(workspace_dir)
 
 
 def test_claude_builder_runner_streams_analysis_container_logs(

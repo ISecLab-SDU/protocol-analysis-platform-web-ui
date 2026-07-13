@@ -327,6 +327,28 @@ def normalize_protocol_name(parsed_rules: Optional[dict], fallback: str) -> str:
         for key, value in parsed_rules.items()
         if isinstance(value, list)
     }
+
+    packet_type_fields = {
+        "message_type",
+        "packet_type",
+        "req_type",
+        "request_type",
+    }
+
+    def collect_nested_packet_types(value: object) -> None:
+        if isinstance(value, dict):
+            for key, nested_value in value.items():
+                normalized_key = str(key).strip().lower()
+                if normalized_key in packet_type_fields and isinstance(
+                    nested_value, str
+                ):
+                    rule_types.add(nested_value.strip().upper())
+                collect_nested_packet_types(nested_value)
+        elif isinstance(value, list):
+            for item in value:
+                collect_nested_packet_types(item)
+
+    collect_nested_packet_types(parsed_rules)
     protocol_packet_types = {
         "MQTT": {
             "CONNECT", "CONNACK", "PUBLISH", "PUBACK", "PUBREC", "PUBREL",
@@ -538,7 +560,26 @@ def run_static_analysis(
         )
         database_path = _extract_database_path(result)
         if database_path:
-            result["staticAnalysisCheck"] = check_static_analysis_database(database_path)
+            analysis_check = check_static_analysis_database(database_path)
+            if analysis_check["totalCount"] == 0:
+                raise AnalysisExecutionError(
+                    "ProtocolGuard analysis produced no rule results",
+                    details={
+                        "databasePath": database_path,
+                        "staticAnalysisCheck": analysis_check,
+                    },
+                )
+            result["staticAnalysisCheck"] = analysis_check
+        else:
+            raise AnalysisExecutionError(
+                "ProtocolGuard analysis did not produce a result database"
+            )
+        if progress_callback:
+            progress_callback(
+                job_identifier,
+                "completed",
+                "Compilation and analysis completed successfully",
+            )
         return result
     except ClaudeBuilderRunnerExecutionError as exc:
         LOGGER.exception("ProtocolGuard analysis execution failed")

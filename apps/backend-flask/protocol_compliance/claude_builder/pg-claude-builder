@@ -90,7 +90,7 @@ Container facts:
 Required final artefacts:
 - `/workspace/program.bc`
 - `/workspace/program.ll`
-- `/workspace/build_log.txt`
+- `/workspace/build_log.txt`, containing complete compiler command lines as plain text so ProtocolGuard can replay compilation with its AST pass.
 - `/workspace/inputs/rules.json`
 - `/workspace/inputs/config.toml`
 - The compiled executable copied to `/workspace/program` when possible.
@@ -99,7 +99,7 @@ Required final artefacts:
 Recommended procedure:
 1. Print a concise inventory with `pwd`, `ls -la /workspace`, and `tree -a -L 3 /workspace`.
 2. Identify the actual project root by locating `CMakeLists.txt`, `configure`, `Makefile`, or other build files.
-3. For CMake projects, create a clean build directory and run CMake with `gclang`/`gclang++`. Then run the build with verbose output and tee all output to `/workspace/build_log.txt`.
+3. Build with verbose command output and tee it to `/workspace/build_log.txt` (`cmake --build ... --verbose`, `ninja -v`, `make V=1`, or the project's equivalent). The log must contain each compiler invocation as an ordinary line, including the compiler, `-c`, source path, flags, and output path. If the build files suppress commands, append a non-executing forced rebuild such as `make -n -B` with the same compiler and flags. SDK event JSON or warning output alone is not a usable build log.
 4. Run `get-bc` on the produced executable or linked binary. Copy the resulting `.bc` file to `/workspace/program.bc`, and run `llvm-dis-14 /workspace/program.bc -o /workspace/program.ll`.
 5. Copy `rule_config.json` to `/workspace/inputs/rules.json` and `config.toml` to `/workspace/inputs/config.toml`.
 6. Copy useful build outputs, `.db` files, callgraph reports, and function summaries back under `/workspace` without deleting the project directory.

@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -542,6 +543,29 @@ class ClaudeBuilderRunner:
                     "workspace": str(workspace_dir),
                     "missing": missing,
                     "contents": [str(path.relative_to(workspace_dir)) for path in workspace_dir.rglob("*")][:200],
+                },
+            )
+
+        build_log_path = required["build log"]
+        compiler_pattern = re.compile(
+            r"^\s*(?:\S+/)?(?:gclang|gclang\+\+|clang|clang\+\+|gcc|g\+\+|cc|c\+\+)"
+            r"(?:-[0-9]+)?\b"
+        )
+        source_pattern = re.compile(r"\.(?:c|cc|cpp|cxx)(?:\s|$)")
+        has_compile_command = any(
+            compiler_pattern.search(line)
+            and " -c " in f" {line.strip()} "
+            and source_pattern.search(line)
+            for line in build_log_path.read_text(
+                encoding="utf-8", errors="replace"
+            ).splitlines()
+        )
+        if not has_compile_command:
+            raise ClaudeBuilderRunnerExecutionError(
+                "Claude builder build log contains no replayable compiler commands",
+                details={
+                    "workspace": str(workspace_dir),
+                    "buildLog": str(build_log_path),
                 },
             )
 
@@ -1462,9 +1486,6 @@ class ClaudeBuilderRunner:
             "database": db_path_for_findings if db_path_for_findings and Path(db_path_for_findings).exists() else None,
             "workspaceSnapshots": [],
         }
-
-        if progress_callback:
-            progress_callback(job_identifier, "completed", "Compilation and analysis completed successfully")
 
         now_iso = datetime.now(timezone.utc).isoformat()
 
