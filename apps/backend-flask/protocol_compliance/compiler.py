@@ -940,6 +940,8 @@ class ClaudeBuilderRunner:
 
         workspace_log_path = workspace_dir / "analysis_log.txt"
         output_log_path = output_dir / "analysis.log"
+        log_lines: List[str] = []
+        process: Optional[subprocess.Popen[str]] = None
 
         try:
             process = subprocess.Popen(
@@ -952,7 +954,6 @@ class ClaudeBuilderRunner:
             if process.stdout is None:
                 raise ClaudeBuilderRunnerExecutionError("Analysis container did not expose stdout")
 
-            log_lines = []
             step_keywords = [
                 ("函数入口", "function-entry"),
                 ("程序切片", "program-slicing"),
@@ -1185,14 +1186,49 @@ class ClaudeBuilderRunner:
                 if progress_callback:
                     progress_callback(job_identifier, "error", f"Analysis failed with exit code {process.returncode}")
 
-        except subprocess.TimeoutExpired:
+                raise ClaudeBuilderRunnerExecutionError(
+                    f"Analysis container exited with status {process.returncode}",
+                    logs=log_lines,
+                    details={
+                        "command": self._redact_command(command),
+                        "workspace": str(workspace_dir),
+                        "output": str(output_dir),
+                        "logExcerpt": "\n".join(log_lines[-40:]),
+                    },
+                )
+
+        except subprocess.TimeoutExpired as exc:
+            if process is not None:
+                process.kill()
             logger.debug("❌ ANALYSIS TIMEOUT")
             if progress_callback:
                 progress_callback(job_identifier, "error", "Analysis timeout after 300 seconds")
-        except Exception as e:
+            raise ClaudeBuilderRunnerExecutionError(
+                "Analysis container timed out after 300 seconds",
+                logs=log_lines,
+                details={
+                    "command": self._redact_command(command),
+                    "workspace": str(workspace_dir),
+                    "output": str(output_dir),
+                    "logExcerpt": "\n".join(log_lines[-40:]),
+                },
+            ) from exc
+        except ClaudeBuilderRunnerExecutionError:
+            raise
+        except Exception as exc:
             logger.exception("Analysis execution raised an exception")
             if progress_callback:
-                progress_callback(job_identifier, "error", str(e))
+                progress_callback(job_identifier, "error", str(exc))
+            raise ClaudeBuilderRunnerExecutionError(
+                f"Analysis container execution failed: {exc}",
+                logs=log_lines,
+                details={
+                    "command": self._redact_command(command),
+                    "workspace": str(workspace_dir),
+                    "output": str(output_dir),
+                    "logExcerpt": "\n".join(log_lines[-40:]),
+                },
+            ) from exc
 
     def run_compilation(
         self,
