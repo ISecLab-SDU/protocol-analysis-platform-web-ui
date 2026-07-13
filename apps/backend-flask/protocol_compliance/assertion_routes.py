@@ -82,7 +82,6 @@ def create_assertion_handlers(
         if not code_data or not database_data:
             return make_response(error_response("上传的文件内容为空，请重新上传"), 400)
 
-        build_instructions_raw = request.form.get("buildInstructions", "")
         notes = request.form.get("notes")
 
         LOGGER.info(
@@ -91,7 +90,6 @@ def create_assertion_handlers(
                 "codeArchive": code_name,
                 "database": database_name,
                 "databaseSource": database_source,
-                "hasBuildInstructions": bool(build_instructions_raw.strip()),
                 "notesLength": len(notes.strip()) if isinstance(notes, str) else 0,
             },
         )
@@ -99,7 +97,6 @@ def create_assertion_handlers(
         snapshot = submit_assert_generation_job(
             code_payload=(code_name, code_data),
             database_payload=(database_name, database_data),
-            build_instructions=build_instructions_raw,
             notes=notes,
         )
         return make_response(success_response(snapshot), 202)

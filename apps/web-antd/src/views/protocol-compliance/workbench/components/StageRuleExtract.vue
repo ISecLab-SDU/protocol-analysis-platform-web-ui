@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import type { ProtocolKind } from '../types';
-
 import type {
   ProtocolExtractRuleItem,
   RunProtocolExtractResponse,
@@ -26,7 +24,7 @@ import { runProtocolExtract } from '#/api/protocol-compliance';
 
 interface Props {
   disabled?: boolean;
-  protocolType: ProtocolKind;
+  protocolType: string;
   rulesFile?: File | null;
 }
 

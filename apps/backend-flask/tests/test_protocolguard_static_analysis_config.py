@@ -12,6 +12,7 @@ if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
 from protocol_compliance import routes  # noqa: E402
+from protocol_compliance.analysis import normalize_protocol_name  # noqa: E402
 
 
 def _app(monkeypatch) -> Flask:
@@ -19,6 +20,10 @@ def _app(monkeypatch) -> Flask:
     app = Flask(__name__)
     app.register_blueprint(routes.bp)
     return app
+
+
+def test_protocol_name_is_inferred_from_ftp_rule_type_when_metadata_is_unknown() -> None:
+    assert normalize_protocol_name({"protocol": "UNKNOWN", "CCC": []}, "rules") == "FTP"
 
 
 def test_static_analysis_accepts_generated_config_inputs(monkeypatch) -> None:

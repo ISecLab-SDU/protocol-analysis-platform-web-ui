@@ -301,7 +301,6 @@ class ProtocolGuardDockerRunner:
         code_filename: str,
         database_stream: BinaryIO,
         database_filename: str,
-        build_instructions: Optional[str],
         notes: Optional[str],
         job_id: Optional[str] = None,
         progress_callback: Optional[Callable[[str, str, str], None]] = None,
@@ -318,10 +317,7 @@ class ProtocolGuardDockerRunner:
         with logger.state(stage="init"):
             logger.info("Starting ProtocolGuard assertion generation job")
 
-        if not build_instructions or not build_instructions.strip():
-            raise ProtocolGuardDockerError("Build instructions are required for assertion generation")
-
-        command = ["assert", "--compile-command", build_instructions.strip()]
+        command = ["assert"]
 
         try:
             with logger.state(stage="workspace", workspace=job_paths.workspace):
@@ -358,14 +354,6 @@ class ProtocolGuardDockerRunner:
                 self._write_stream(database_destination, database_stream)
                 if not database_destination.exists() or database_destination.stat().st_size == 0:
                     raise ProtocolGuardDockerError("Uploaded database file is empty. Please verify the input.")
-
-                build_instructions_text = build_instructions.strip() if build_instructions else ""
-                if build_instructions_text:
-                    instructions_path = job_paths.workspace / "build_instructions.txt"
-                    instructions_path.write_text(build_instructions_text, encoding="utf-8")
-                    logger.info("Build instructions written to build_instructions.txt", path=instructions_path)
-                else:
-                    logger.info("No build instructions provided; skipping file write")
 
                 notes_text = notes.strip() if notes else ""
                 if notes_text:
@@ -414,7 +402,6 @@ class ProtocolGuardDockerRunner:
                     "inputs": {
                         "codeFileName": Path(code_filename_real).name,
                         "databaseFileName": Path(database_filename_real).name,
-                        "buildInstructions": build_instructions_text or None,
                         "notes": notes_text or None,
                     },
                     "artifacts": {

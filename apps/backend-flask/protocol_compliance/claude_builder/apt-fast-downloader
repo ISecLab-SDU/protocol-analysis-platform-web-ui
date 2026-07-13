@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly input_file="${1:?aria2 input file is required}"
+readonly download_dir="${2:?download directory is required}"
+readonly max_downloads="${3:?maximum concurrent downloads is required}"
+readonly connections_per_server="${4:?connections per server is required}"
+readonly split_count="${5:?split count is required}"
+readonly min_split_size="${6:?minimum split size is required}"
+readonly piece_selector="${7:?piece selector is required}"
+
+readonly tuna_base="https://mirrors.tuna.tsinghua.edu.cn/ubuntu"
+readonly archive_base="https://archive.ubuntu.com/ubuntu"
+readonly security_base="https://security.ubuntu.com/ubuntu"
+readonly attempts_per_source=20
+
+discard_incomplete_downloads() {
+  local state_file
+
+  while IFS= read -r -d '' state_file; do
+    rm -f -- "$state_file" "${state_file%.aria2}"
+  done < <(find "$download_dir" -maxdepth 1 -type f -name '*.aria2' -print0)
+}
+
+download_from_source() {
+  local label="$1"
+  local source_base="$2"
+  local source_list
+  local attempt=1
+
+  source_list="$(mktemp /tmp/apt-fast-${label}.XXXXXX.list)"
+  sed "s|${tuna_base}|${source_base}|g" "$input_file" > "$source_list"
+
+  while true; do
+    echo "[apt-fast-downloader] source=${label} attempt=${attempt}/${attempts_per_source}"
+    if aria2c \
+      --no-conf \
+      --continue=true \
+      --max-concurrent-downloads="$max_downloads" \
+      --max-connection-per-server="$connections_per_server" \
+      --split="$split_count" \
+      --min-split-size="$min_split_size" \
+      --stream-piece-selector="$piece_selector" \
+      --input-file="$source_list" \
+      --connect-timeout=30 \
+      --timeout=60 \
+      --lowest-speed-limit=1K \
+      --max-tries=20 \
+      --retry-wait=3 \
+      --max-file-not-found=5 \
+      --file-allocation=none \
+      --auto-file-renaming=false \
+      --header='Accept: */*'; then
+      rm -f -- "$source_list"
+      return 0
+    fi
+
+    if ((attempt >= attempts_per_source)); then
+      rm -f -- "$source_list"
+      return 1
+    fi
+
+    attempt=$((attempt + 1))
+    sleep "$((attempt * 2))"
+  done
+}
+
+if ! grep -qF "$tuna_base" "$input_file"; then
+  download_from_source configured "$tuna_base"
+  exit
+fi
+
+download_from_source tuna "$tuna_base" && exit
+discard_incomplete_downloads
+
+download_from_source archive "$archive_base" && exit
+discard_incomplete_downloads
+
+download_from_source security "$security_base"

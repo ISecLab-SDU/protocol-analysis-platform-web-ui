@@ -39,7 +39,7 @@ import {
   stopProtocolFuzzingJob,
 } from '#/api/protocol-compliance';
 
-import { buildDefaultFuzzScript, DEFAULT_TARGET, STAGE_LIST } from './types';
+import { STAGE_LIST } from './types';
 import { ansiToHtml, normalizeList } from './utils';
 
 const stage = ref<WorkbenchStage>('setup');
@@ -63,19 +63,27 @@ const errorMessage = ref<null | string>(null);
 const projectConfig = reactive<ProjectConfig>({
   archive: null,
   rules: null,
-  buildInstructions: 'make all',
-  protocolType: 'MQTT',
-  protocolVersion: '3.1.1',
-  implementation: 'SOL',
-  targetHost: DEFAULT_TARGET.MQTT.host,
-  targetPort: DEFAULT_TARGET.MQTT.port,
   notes: '',
-  fuzzScript: buildDefaultFuzzScript(
-    'MQTT',
-    'SOL',
-    DEFAULT_TARGET.MQTT.host,
-    DEFAULT_TARGET.MQTT.port,
-  ),
+});
+
+const inferredProtocolName = computed(() => {
+  const name = projectConfig.rules?.name.toLowerCase() ?? '';
+  if (name.includes('mqtt')) return 'MQTT';
+  if (name.includes('snmp')) return 'SNMP';
+  if (name.includes('ftp')) return 'FTP';
+  if (name.includes('coap')) return 'CoAP';
+  if (name.includes('dhcp')) return 'DHCP';
+  if (name.includes('tls')) return 'TLS1.3';
+  return 'UNKNOWN';
+});
+
+const inferredProtocolVersion = computed(() => {
+  const name = projectConfig.rules?.name.toLowerCase() ?? '';
+  if (/mqtt.*5[._-]?0?/i.test(name)) return '5.0';
+  if (/mqtt.*3[._-]?1[._-]?1/i.test(name)) return '3.1.1';
+  if (/snmp.*2c/i.test(name)) return 'v2c';
+  if (/snmp.*3/i.test(name)) return 'v3';
+  return undefined;
 });
 
 const selectedRule = ref<null | ProtocolExtractRuleItem>(null);
@@ -553,8 +561,8 @@ function appendResultHistoryRecord(reason: 'crash' | 'no-crash' | 'stopped') {
     finishedAt: new Date().toISOString(),
     functionCount,
     id: `result-${Date.now()}-${resultHistoryIdSeq}`,
-    implementation: projectConfig.implementation,
-    protocolType: projectConfig.protocolType,
+    implementation: 'Agent inferred',
+    protocolType: inferredProtocolName.value,
     ruleText: getRuleSummaryText(),
     status: reason,
     stats: {
@@ -774,20 +782,6 @@ function resetPipelineStageState() {
   fuzzSpeedSeries.value = [];
 }
 
-const protocolImplementationsKey = computed(() => [
-  String(projectConfig.implementation),
-]);
-
-const protocolKindForApi = computed(() => {
-  if (
-    projectConfig.protocolType === 'MQTT' &&
-    projectConfig.implementation === 'SOL'
-  ) {
-    return 'MQTT';
-  }
-  return projectConfig.protocolType;
-});
-
 function finishFuzzFromCurrentOutput() {
   clearTimer('fuzz');
   clearTimer('elapsed');
@@ -841,7 +835,17 @@ function buildRulesFile(): File {
       res_fields,
     },
   ];
-  const json = JSON.stringify(grouped, null, 2);
+  const json = JSON.stringify(
+    {
+      protocol: inferredProtocolName.value,
+      ...(inferredProtocolVersion.value
+        ? { protocolVersion: inferredProtocolVersion.value }
+        : {}),
+      ...grouped,
+    },
+    null,
+    2,
+  );
   return new File([json], 'rules.json', { type: 'application/json' });
 }
 
@@ -1173,20 +1177,12 @@ async function ensureProjectReady(): Promise<boolean> {
     message.warning('请上传协议规则 JSON');
     return false;
   }
-  if (!projectConfig.buildInstructions.trim()) {
-    message.warning('请填写编译命令');
-    return false;
-  }
   return true;
 }
 
 function commitSetup() {
   if (!projectConfig.archive || !projectConfig.rules) {
     message.warning('请先完成项目设置');
-    return;
-  }
-  if (!projectConfig.buildInstructions.trim()) {
-    message.warning('请填写编译命令');
     return;
   }
   stageStatus.setup = 'done';
@@ -1334,9 +1330,6 @@ async function runStaticAnalysisStep(runId: number) {
       codeArchive: projectConfig.archive,
       rules: buildRulesFile(),
       notes: projectConfig.notes,
-      projectName: String(projectConfig.implementation),
-      protocolName: projectConfig.protocolType,
-      protocolVersion: projectConfig.protocolVersion,
     });
     if (!isCurrentPipelineRun(runId)) return;
     staticJobId.value = job.jobId;
@@ -1389,7 +1382,6 @@ async function runAssertGenStep(runId: number) {
     const job = await runProtocolAssertGeneration({
       codeArchive: projectConfig.archive,
       databasePath: analysisDataPath,
-      buildInstructions: projectConfig.buildInstructions,
       notes: projectConfig.notes,
     });
     if (!isCurrentPipelineRun(runId)) return;
@@ -1620,8 +1612,7 @@ async function waitForFuzzConfigJob(
     notes: options?.debugReplay
       ? projectConfig.notes || 'Workbench debug replay'
       : projectConfig.notes,
-    protocol: protocolKindForApi.value,
-    protocolImplementations: protocolImplementationsKey.value,
+    protocol: inferredProtocolName.value,
   });
   fuzzConfigJobId.value = configJob.jobId;
   fuzzConfigLogReadPosition.value = 0;
@@ -1707,8 +1698,7 @@ async function runFuzzStep(runId: number) {
       assertGenerationJobId: assertJobId.value,
       fuzzConfigJobId: configJob.jobId,
       notes: projectConfig.notes,
-      protocol: protocolKindForApi.value,
-      protocolImplementations: protocolImplementationsKey.value,
+      protocol: inferredProtocolName.value,
     });
     if (!isCurrentPipelineRun(runId)) return;
     fuzzJobId.value = job.jobId;
@@ -1806,8 +1796,7 @@ async function startFuzzDebugReplay() {
       assertGenerationJobId: configJob.assertGenerationJobId,
       fuzzConfigJobId: configJob.jobId,
       notes: projectConfig.notes || 'Workbench debug replay',
-      protocol: protocolKindForApi.value,
-      protocolImplementations: protocolImplementationsKey.value,
+      protocol: inferredProtocolName.value,
     });
     if (!isCurrentPipelineRun(runId)) return;
     fuzzJobId.value = job.jobId;
@@ -1967,6 +1956,8 @@ export function useWorkbench() {
     isAwaitingAssertConfirmation,
     errorMessage,
     projectConfig,
+    inferredProtocolName,
+    inferredProtocolVersion,
     selectedRule,
     staticJob,
     staticJobId,

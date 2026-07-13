@@ -653,7 +653,6 @@ export interface ProtocolAssertGenerationProgressEvent {
 }
 
 export interface ProtocolAssertGenerationInputInfo {
-  buildInstructions?: null | string;
   codeFileName?: string;
   databaseFileName?: string;
   databasePath?: null | string;
@@ -729,7 +728,6 @@ export interface ProtocolAssertGenerationJob {
 }
 
 export interface RunProtocolAssertGenerationPayload {
-  buildInstructions: string;
   codeArchive: File;
   database?: File;
   databasePath?: string;
@@ -739,8 +737,7 @@ export interface RunProtocolAssertGenerationPayload {
 export function runProtocolAssertGeneration(
   payload: RunProtocolAssertGenerationPayload,
 ) {
-  const { buildInstructions, codeArchive, database, databasePath, notes } =
-    payload;
+  const { codeArchive, database, databasePath, notes } = payload;
   const formData = new FormData();
   formData.append('codeArchive', codeArchive);
   if (databasePath?.trim()) {
@@ -748,7 +745,6 @@ export function runProtocolAssertGeneration(
   } else if (database) {
     formData.append('database', database);
   }
-  formData.append('buildInstructions', buildInstructions.trim());
   if (notes?.trim()) {
     formData.append('notes', notes.trim());
   }

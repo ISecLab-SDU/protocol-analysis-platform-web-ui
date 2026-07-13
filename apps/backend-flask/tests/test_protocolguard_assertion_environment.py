@@ -65,7 +65,6 @@ def test_assertion_generation_skips_instrumentation_when_no_tasks(
         code_file_name="source.tar",
         database_stream=BytesIO(b"sqlite"),
         database_file_name="violations.db",
-        build_instructions=None,
         notes=None,
         job_id="job-empty",
         progress_callback=lambda job_id, stage, message: events.append((job_id, stage, message)),

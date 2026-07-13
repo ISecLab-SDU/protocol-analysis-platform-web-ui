@@ -5,22 +5,7 @@ import { computed } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
-import {
-  Button,
-  Card,
-  Input,
-  InputNumber,
-  Select,
-  SelectOption,
-  Textarea,
-  Upload,
-} from 'ant-design-vue';
-
-import {
-  buildDefaultFuzzScript,
-  DEFAULT_TARGET,
-  PROTOCOL_IMPLEMENTATIONS,
-} from '../types';
+import { Button, Card, Upload } from 'ant-design-vue';
 
 interface Props {
   config: ProjectConfig;
@@ -35,55 +20,10 @@ interface Emits {
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
-const implementationOptions = computed(
-  () => PROTOCOL_IMPLEMENTATIONS[props.config.protocolType],
-);
-
 function patchConfig(patch: Partial<ProjectConfig>) {
   emit('update:config', {
     ...props.config,
     ...patch,
-  });
-}
-
-function onProtocolChange(val: unknown) {
-  if (val !== 'MQTT' && val !== 'SNMP') return;
-  const implementation = PROTOCOL_IMPLEMENTATIONS[val][0]!;
-  const targetHost = DEFAULT_TARGET[val].host;
-  const targetPort = DEFAULT_TARGET[val].port;
-  patchConfig({
-    fuzzScript: buildDefaultFuzzScript(
-      val,
-      implementation,
-      targetHost,
-      targetPort,
-    ),
-    implementation,
-    protocolType: val,
-    protocolVersion: val === 'MQTT' ? '3.1.1' : 'v2c/v3',
-    targetHost,
-    targetPort,
-  });
-}
-
-function onImplementationChange(val: unknown) {
-  if (
-    typeof val !== 'string' ||
-    !PROTOCOL_IMPLEMENTATIONS[props.config.protocolType].includes(
-      val as ProjectConfig['implementation'],
-    )
-  ) {
-    return;
-  }
-  const implementation = val as ProjectConfig['implementation'];
-  patchConfig({
-    fuzzScript: buildDefaultFuzzScript(
-      props.config.protocolType,
-      implementation,
-      props.config.targetHost,
-      props.config.targetPort,
-    ),
-    implementation,
   });
 }
 
@@ -97,11 +37,7 @@ function removeFile(field: 'archive' | 'rules') {
 }
 
 const canCommit = computed(() => {
-  return Boolean(
-    props.config.archive &&
-      props.config.rules &&
-      props.config.buildInstructions.trim(),
-  );
+  return Boolean(props.config.archive && props.config.rules);
 });
 </script>
 
@@ -145,90 +81,6 @@ const canCommit = computed(() => {
             选择文件
           </Button>
         </Upload>
-      </div>
-
-      <div class="setup-section">
-        <div class="setup-label">编译命令 *</div>
-        <Input
-          :value="config.buildInstructions"
-          placeholder="例如: make all"
-          :disabled="disabled"
-          @update:value="(value) => patchConfig({ buildInstructions: value })"
-        />
-      </div>
-
-      <div class="setup-section">
-        <div class="setup-label">协议类型</div>
-        <Select
-          :value="config.protocolType"
-          :disabled="disabled"
-          @change="onProtocolChange"
-        >
-          <SelectOption value="MQTT">MQTT</SelectOption>
-          <SelectOption value="SNMP">SNMP</SelectOption>
-        </Select>
-      </div>
-
-      <div class="setup-section">
-        <div class="setup-label">协议版本</div>
-        <Input
-          :value="config.protocolVersion"
-          placeholder="3.1.1"
-          :disabled="disabled"
-          @update:value="(value) => patchConfig({ protocolVersion: value })"
-        />
-      </div>
-
-      <div class="setup-section">
-        <div class="setup-label">实现</div>
-        <Select
-          :value="config.implementation"
-          :disabled="disabled"
-          @change="onImplementationChange"
-        >
-          <SelectOption
-            v-for="impl in implementationOptions"
-            :key="impl"
-            :value="impl"
-          >
-            {{ impl }}
-          </SelectOption>
-        </Select>
-      </div>
-
-      <div class="setup-section">
-        <div class="setup-label">目标主机</div>
-        <Input
-          :value="config.targetHost"
-          placeholder="localhost"
-          :disabled="disabled"
-          @update:value="(value) => patchConfig({ targetHost: value })"
-        />
-      </div>
-
-      <div class="setup-section">
-        <div class="setup-label">目标端口</div>
-        <InputNumber
-          :value="config.targetPort"
-          :min="1"
-          :max="65535"
-          :disabled="disabled"
-          style="width: 100%"
-          @update:value="
-            (value) => patchConfig({ targetPort: Number(value ?? 1) })
-          "
-        />
-      </div>
-
-      <div class="setup-section setup-section--full">
-        <div class="setup-label">Fuzz 脚本</div>
-        <Textarea
-          :value="config.fuzzScript"
-          :rows="4"
-          placeholder="默认 Fuzz 脚本内容"
-          :disabled="disabled"
-          @update:value="(value) => patchConfig({ fuzzScript: value })"
-        />
       </div>
     </div>
 

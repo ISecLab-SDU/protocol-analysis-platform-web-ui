@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ProtocolKind, RuleOption } from '../types';
+import type { RuleOption } from '../types';
 
 import type { ProtocolExtractRuleItem } from '#/api/protocol-compliance';
 
@@ -9,11 +9,9 @@ import { IconifyIcon } from '@vben/icons';
 
 import { Button, Card, Empty, message, Table, Tag } from 'ant-design-vue';
 
-import { BUILTIN_RULESET_INDEX } from '../types';
 import { normalizeList } from '../utils';
 
 interface Props {
-  protocolType: ProtocolKind;
   rulesFile?: File | null;
   disabled?: boolean;
 }
@@ -97,19 +95,7 @@ async function loadRules() {
     if (props.rulesFile) {
       data = JSON.parse(await props.rulesFile.text());
       sourceLabel = props.rulesFile.name.replace(/\.json$/i, '') || sourceLabel;
-    } else {
-      const entry = BUILTIN_RULESET_INDEX.find(
-        (e) => e.protocol === props.protocolType,
-      );
-      if (!entry) {
-        message.error(`未找到 ${props.protocolType} 的内置规则集`);
-        return;
-      }
-      const response = await fetch(entry.path);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      data = await response.json();
-      sourceLabel = entry.key;
-    }
+    } else return;
 
     const flatRules: RuleOption[] = normalizeRulesPayload(data, sourceLabel);
     rules.value = flatRules;
@@ -142,13 +128,7 @@ function onTableChange(nextPagination: {
   pagination.pageSize = nextPagination.pageSize ?? pagination.pageSize;
 }
 
-watch(
-  () => [props.protocolType, props.rulesFile] as const,
-  () => {
-    loadRules();
-  },
-  { immediate: true },
-);
+watch(() => props.rulesFile, loadRules, { immediate: true });
 </script>
 
 <template>
@@ -161,7 +141,7 @@ watch(
     </template>
 
     <div v-if="rules.length > 0" class="rule-info">
-      <Tag color="blue">{{ protocolType }}</Tag>
+      <Tag color="blue">{{ rulesFile?.name }}</Tag>
       <span class="rule-count">共 {{ rules.length }} 条规则</span>
     </div>
 

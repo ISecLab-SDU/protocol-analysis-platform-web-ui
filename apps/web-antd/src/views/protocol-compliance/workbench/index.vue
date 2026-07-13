@@ -52,6 +52,8 @@ const {
   isAwaitingAssertConfirmation,
   errorMessage,
   projectConfig,
+  inferredProtocolName,
+  inferredProtocolVersion,
   selectedRule,
   staticLogHtml,
   staticLogText,
@@ -107,14 +109,13 @@ const currentRuleId = computed(() => {
 });
 
 const taskTitle = computed(() => {
-  if (projectConfig.protocolType === 'MQTT') {
-    return `${projectConfig.implementation} MQTT Broker 分析任务`;
-  }
-  return `${projectConfig.protocolType} 协议实现分析任务`;
+  return `${inferredProtocolName.value} 协议实现分析任务`;
 });
 
 const protocolVersion = computed(() => {
-  return `${projectConfig.protocolType} ${projectConfig.protocolVersion}`;
+  return inferredProtocolVersion.value
+    ? `${inferredProtocolName.value} ${inferredProtocolVersion.value}`
+    : `${inferredProtocolName.value} / 自动识别版本`;
 });
 
 const startedAtDisplay = computed(() => {
@@ -910,15 +911,7 @@ function switchRule() {
             <div class="current-task-title">当前任务</div>
             <dl>
               <div>
-                <dt>项目:</dt>
-                <dd>
-                  {{ projectConfig.protocolType }} ({{
-                    projectConfig.implementation
-                  }})
-                </dd>
-              </div>
-              <div>
-                <dt>协议版本:</dt>
+                <dt>规则上下文:</dt>
                 <dd>{{ protocolVersion }}</dd>
               </div>
               <div>
@@ -1193,7 +1186,7 @@ function switchRule() {
           >
             <StageRuleExtract
               :disabled="isRunning"
-              :protocol-type="projectConfig.protocolType"
+              :protocol-type="inferredProtocolName"
               :rules-file="projectConfig.rules"
               @apply-rules="handleApplyExtractedRules"
               @go-workbench="handleRuleExtractGoWorkbench"
@@ -1332,7 +1325,6 @@ function switchRule() {
 
               <StageRuleConfirm
                 v-else-if="activeStageView === 'rule_confirm'"
-                :protocol-type="projectConfig.protocolType"
                 :rules-file="projectConfig.rules"
                 :disabled="isRunning"
                 @start="startPipeline"
@@ -1360,10 +1352,10 @@ function switchRule() {
               <StageFuzz
                 v-else-if="activeStageView === 'fuzz'"
                 :elapsed="elapsedDisplay"
-                :implementation="projectConfig.implementation"
+                implementation="Agent inferred"
                 :logs="fuzzLogs"
                 :job="fuzzJob"
-                :protocol-type="projectConfig.protocolType"
+                :protocol-type="inferredProtocolName"
                 :rule="selectedRule"
                 :stats="fuzzStats"
                 :speed-series="fuzzSpeedSeries"
@@ -1375,10 +1367,10 @@ function switchRule() {
                 :assert-diff-content="assertDiffContent"
                 :assert-result="assertResult"
                 :evidence="codeLocateEvidence"
-                :implementation="projectConfig.implementation"
+                implementation="Agent inferred"
                 :logs="fuzzLogs"
                 :poc-path="aflNetPocPath"
-                :protocol-type="projectConfig.protocolType"
+                :protocol-type="inferredProtocolName"
                 :rule="selectedRule"
                 :static-result="staticResult"
                 :stats="fuzzStats"

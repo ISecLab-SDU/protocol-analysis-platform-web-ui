@@ -319,8 +319,44 @@ def normalize_protocol_name(parsed_rules: Optional[dict], fallback: str) -> str:
         return fallback
     for key in ("protocol", "protocolName", "title", "name"):
         value = parsed_rules.get(key)
-        if isinstance(value, str):
-            return value
+        if isinstance(value, str) and value.strip().lower() not in {"unknown", "auto"}:
+            return value.strip()
+
+    rule_types = {
+        str(key).strip().upper()
+        for key, value in parsed_rules.items()
+        if isinstance(value, list)
+    }
+    protocol_packet_types = {
+        "MQTT": {
+            "CONNECT", "CONNACK", "PUBLISH", "PUBACK", "PUBREC", "PUBREL",
+            "PUBCOMP", "SUBSCRIBE", "SUBACK", "UNSUBSCRIBE", "UNSUBACK",
+            "PINGREQ", "PINGRESP", "DISCONNECT",
+        },
+        "FTP": {
+            "USER", "PASS", "ACCT", "REIN", "QUIT", "PORT", "PASV", "TYPE",
+            "STRU", "MODE", "RETR", "STOR", "APPE", "DELE", "RNFR", "RNTO",
+            "ABOR", "CWD", "CDUP", "PWD", "MKD", "RMD", "LIST", "NLST",
+            "SYST", "STAT", "FEAT", "HELP", "NOOP", "ALLO", "REST", "MLST",
+            "MLSD", "OPTS", "EPSV", "EPRT", "ADAT", "CCC", "CONF", "ENC",
+            "MIC", "PBSZ", "PROT",
+        },
+        "CoAP": {"CONFIRMABLE", "NON_CONFIRMABLE", "ACKNOWLEDGEMENT", "RESET"},
+    }
+    matches = [
+        (len(rule_types & packet_types), protocol)
+        for protocol, packet_types in protocol_packet_types.items()
+        if rule_types & packet_types
+    ]
+    if matches:
+        return max(matches)[1]
+    if any(packet_type.startswith("DHCP") for packet_type in rule_types):
+        return "DHCP"
+    if rule_types & {
+        "CLIENT_HELLO", "SERVER_HELLO", "NEW_SESSION_TICKET", "FINISHED",
+        "KEY_UPDATE", "HELLO_RETRY_REQUEST",
+    }:
+        return "TLS1.3"
     return fallback
 
 

@@ -373,7 +373,6 @@ def run_assert_generation(
     code_file_name: str,
     database_stream: BinaryIO,
     database_file_name: str,
-    build_instructions: Optional[str],
     notes: Optional[str],
     job_id: Optional[str],
     progress_callback: Optional[ProgressCallback] = None,
@@ -400,7 +399,6 @@ def run_assert_generation(
             code_filename=code_file_name,
             database_stream=database_stream,
             database_filename=database_file_name,
-            build_instructions=build_instructions,
             notes=notes,
             job_id=job_identifier,
             progress_callback=progress_callback,
@@ -756,7 +754,6 @@ def submit_assert_generation_job(
     *,
     code_payload: Tuple[str, bytes],
     database_payload: Tuple[str, bytes],
-    build_instructions: Optional[str],
     notes: Optional[str],
 ) -> Dict[str, object]:
     """Launch assertion generation asynchronously and return initial snapshot."""
@@ -778,7 +775,6 @@ def submit_assert_generation_job(
                 code_file_name=code_name,
                 database_stream=BytesIO(database_bytes),
                 database_file_name=database_name,
-                build_instructions=build_instructions,
                 notes=notes,
                 job_id=job_id,
                 progress_callback=progress_callback,
