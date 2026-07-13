@@ -2,12 +2,19 @@ import argparse
 import pandas as pd
 import json
 import os
+import sys
 import time
 from tqdm import tqdm
 from openai import OpenAI
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 import toml
+
+try:
+    from .output_format import build_legacy_rules_payload
+except ImportError:  # Direct script execution used by ruleProcess/__main__.py.
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from output_format import build_legacy_rules_payload
 
 # 获取当前脚本所在目录
 script_dir = Path(__file__).parent.parent
@@ -106,10 +113,12 @@ def run_third_rule(api_key, protocol, version, config):
             except Exception as e:
                 print(f"Processing failed: {str(e)}")
 
-    # 保存结果
+    # 保存 ProtocolGuard 解析器要求的分组、标量格式。
     processed_file=config["paths"]["processed"]
     with open(processed_file, "w", encoding="utf-8") as f:
-        json.dump(results, f, indent=4, ensure_ascii=False)
+        json.dump(
+            build_legacy_rules_payload(results), f, indent=4, ensure_ascii=False
+        )
 
     print(f"\n[OK] {protocol} {version} 协议分析完成，结果已保存至processed_results.json")
 

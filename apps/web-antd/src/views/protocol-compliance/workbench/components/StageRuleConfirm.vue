@@ -41,20 +41,37 @@ const columns = [
   { title: '响应字段', dataIndex: 'res_type', width: 200 },
 ];
 
+function resolveMessageType(rule: any, fallback: string) {
+  return (
+    rule?.group ||
+    normalizeList(rule?.req_type)[0] ||
+    normalizeList(rule?.res_type)[0] ||
+    fallback
+  );
+}
+
 function normalizeRulesPayload(data: any, sourceLabel: string) {
   const entries: any[] = [];
 
   if (Array.isArray(data)) {
-    entries.push(...data.map((rule) => ({ rule, msgType: sourceLabel })));
+    entries.push(
+      ...data.map((rule) => ({
+        rule,
+        msgType: resolveMessageType(rule, sourceLabel),
+      })),
+    );
   } else if (Array.isArray(data?.rules)) {
     entries.push(
-      ...data.rules.map((rule: any) => ({ rule, msgType: sourceLabel })),
+      ...data.rules.map((rule: any) => ({
+        rule,
+        msgType: resolveMessageType(rule, sourceLabel),
+      })),
     );
   } else if (Array.isArray(data?.data?.rules)) {
     entries.push(
       ...data.data.rules.map((rule: any) => ({
         rule,
-        msgType: sourceLabel,
+        msgType: resolveMessageType(rule, sourceLabel),
       })),
     );
   } else if (data && typeof data === 'object') {
@@ -69,6 +86,7 @@ function normalizeRulesPayload(data: any, sourceLabel: string) {
     .filter(({ rule }) => rule && typeof rule === 'object')
     .map(({ rule, msgType }, index) => ({
       ...rule,
+      group: rule.group || msgType,
       id: `${msgType}-${index}`,
       msgType,
       req_fields: normalizeList(rule.req_fields),

@@ -39,6 +39,7 @@ import {
   stopProtocolFuzzingJob,
 } from '#/api/protocol-compliance';
 
+import { buildLegacyRulesPayload } from './ruleFormat';
 import { STAGE_LIST } from './types';
 import { ansiToHtml, normalizeList } from './utils';
 
@@ -797,37 +798,7 @@ function buildRulesFile(): File {
   if (!selectedRule.value) {
     throw new Error('未选择规则');
   }
-  const grouped: Record<
-    string,
-    Array<{
-      req_fields: string[];
-      req_type: string;
-      res_fields: string[];
-      res_type: string;
-      rule: string;
-    }>
-  > = {};
-  const rule = selectedRule.value;
-  const msgType =
-    (rule as { msgType?: string }).msgType ||
-    normalizeList(rule.req_type)[0] ||
-    normalizeList(rule.res_type)[0] ||
-    'DEFAULT';
-
-  const req_type = normalizeList(rule.req_type)[0] || '';
-  const req_fields = normalizeList(rule.req_fields);
-  const res_type = normalizeList(rule.res_type)[0] || '';
-  const res_fields = normalizeList(rule.res_fields);
-
-  grouped[msgType] = [
-    {
-      rule: rule.rule || '',
-      req_type,
-      req_fields,
-      res_type,
-      res_fields,
-    },
-  ];
+  const grouped = buildLegacyRulesPayload([selectedRule.value]);
   const json = JSON.stringify(grouped, null, 2);
   return new File([json], 'rules.json', { type: 'application/json' });
 }

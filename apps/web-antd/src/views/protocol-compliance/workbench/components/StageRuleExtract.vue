@@ -22,6 +22,8 @@ import {
 
 import { runProtocolExtract } from '#/api/protocol-compliance';
 
+import { buildLegacyRulesPayload } from '../ruleFormat';
+
 interface Props {
   disabled?: boolean;
   rulesFile?: File | null;
@@ -70,7 +72,11 @@ const resultFileName = computed(() => {
 
 const resultJsonText = computed(() => {
   if (!extractResult.value) return '';
-  return JSON.stringify(extractResult.value.rules, null, 2);
+  return JSON.stringify(
+    buildLegacyRulesPayload(extractResult.value.rules),
+    null,
+    2,
+  );
 });
 
 function defaultProtocolVersion(protocol: string) {

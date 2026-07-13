@@ -107,7 +107,7 @@ def test_third_rule_accepts_an_empty_stage_two_workbook(tmp_path: Path) -> None:
         },
     )
 
-    assert json.loads(processed_path.read_text(encoding="utf-8")) == []
+    assert json.loads(processed_path.read_text(encoding="utf-8")) == {}
 
 
 def test_second_rule_writes_result_schema_when_no_sentences_match(
@@ -155,4 +155,4 @@ def test_second_rule_writes_result_schema_when_no_sentences_match(
             }
         },
     )
-    assert json.loads(processed_path.read_text(encoding="utf-8")) == []
+    assert json.loads(processed_path.read_text(encoding="utf-8")) == {}
