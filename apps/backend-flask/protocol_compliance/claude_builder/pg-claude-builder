@@ -30,10 +30,12 @@ fail() {
 
 HOST_UID="${PG_HOST_UID:-}"
 HOST_GID="${PG_HOST_GID:-}"
+WORKSPACE_DIR="${PG_BUILDER_WORKSPACE:-/workspace}"
+OUT_DIR="${PG_BUILDER_OUT:-/out}"
 
 cleanup_ownership() {
   if [[ -n "$HOST_UID" && -n "$HOST_GID" ]]; then
-    chown -R "$HOST_UID:$HOST_GID" /workspace /out 2>/dev/null || true
+    chown -R "$HOST_UID:$HOST_GID" "$WORKSPACE_DIR" "$OUT_DIR" 2>/dev/null || true
   fi
 }
 trap cleanup_ownership EXIT
@@ -68,7 +70,7 @@ EOF
 }
 
 write_prompt() {
-  cat > /workspace/claude_builder_prompt.md <<'EOF'
+  cat > "$WORKSPACE_DIR/claude_builder_prompt.md" <<'EOF'
 You are running inside a disposable Docker container for ProtocolGuard static analysis.
 
 Your job is to compile the uploaded C/C++ protocol implementation and place LLVM build artefacts where the Flask backend expects them. Work autonomously by inspecting files, trying builds, reading errors, and fixing the build commands until the required artefacts exist. Do not ask the user questions.
@@ -79,7 +81,7 @@ markers. Keep any explanatory text concise and focused on decisions and results.
 
 Container facts:
 - The current directory is `/workspace`.
-- A source archive is mounted in `/workspace`; it is usually `sol.tar`, but inspect the directory instead of assuming.
+- Source archives mounted in `/workspace` are extracted to `/workspace/project` before you start. Inspect the directory instead of assuming a specific project name.
 - `/workspace/config.toml` and `/workspace/rule_config.json` are provided by Flask.
 - The installed LLVM toolchain is LLVM/Clang 14. `gclang`, `gclang++`, `get-bc`, `llvm-dis-14`, `cmake`, `make`, `ninja`, `tree`, and `file` are available.
 - Use `gclang`/`gclang++` so `get-bc` can extract bitcode.
@@ -92,44 +94,138 @@ Required final artefacts:
 - `/workspace/inputs/rules.json`
 - `/workspace/inputs/config.toml`
 - The compiled executable copied to `/workspace/program` when possible.
-- Preserve or copy `.cf_*.json` files under the source tree when they exist; for the sol sample they should be under `/workspace/project/sol/src/` if available.
+- Preserve or copy `.cf_*.json` files under the extracted source tree when they exist.
 
 Recommended procedure:
 1. Print a concise inventory with `pwd`, `ls -la /workspace`, and `tree -a -L 3 /workspace`.
-2. Extract the source archive into `/workspace/project` if it is not already extracted.
-3. Identify the actual project root by locating `CMakeLists.txt`, `configure`, `Makefile`, or other build files.
-4. For CMake projects, create a clean build directory and run CMake with `gclang`/`gclang++`. Then run the build with verbose output and tee all output to `/workspace/build_log.txt`.
-5. Run `get-bc` on the produced executable or linked binary. Copy the resulting `.bc` file to `/workspace/program.bc`, and run `llvm-dis-14 /workspace/program.bc -o /workspace/program.ll`.
-6. Copy `rule_config.json` to `/workspace/inputs/rules.json` and `config.toml` to `/workspace/inputs/config.toml`.
-7. Copy useful build outputs, `.db` files, callgraph reports, and function summaries back under `/workspace` without deleting the project directory.
-8. Before exiting, verify the required files with `ls -la` and `file`.
+2. Identify the actual project root by locating `CMakeLists.txt`, `configure`, `Makefile`, or other build files.
+3. For CMake projects, create a clean build directory and run CMake with `gclang`/`gclang++`. Then run the build with verbose output and tee all output to `/workspace/build_log.txt`.
+4. Run `get-bc` on the produced executable or linked binary. Copy the resulting `.bc` file to `/workspace/program.bc`, and run `llvm-dis-14 /workspace/program.bc -o /workspace/program.ll`.
+5. Copy `rule_config.json` to `/workspace/inputs/rules.json` and `config.toml` to `/workspace/inputs/config.toml`.
+6. Copy useful build outputs, `.db` files, callgraph reports, and function summaries back under `/workspace` without deleting the project directory.
+7. Before exiting, verify the required files with `ls -la` and `file`.
 
 Do not fabricate placeholder bitcode. If a required artefact cannot be produced, leave the full attempted command output in `/workspace/build_log.txt` and exit non-zero.
 EOF
-  log "Claude builder prompt written to /workspace/claude_builder_prompt.md"
-  log "Claude builder prompt sha256: $(sha256sum /workspace/claude_builder_prompt.md | awk '{print $1}')"
-  log_file_preview /workspace/claude_builder_prompt.md "prompt-preview" 80
+  log "Claude builder prompt written to $WORKSPACE_DIR/claude_builder_prompt.md"
+  log "Claude builder prompt sha256: $(sha256sum "$WORKSPACE_DIR/claude_builder_prompt.md" | awk '{print $1}')"
+  log_file_preview "$WORKSPACE_DIR/claude_builder_prompt.md" "prompt-preview" 80
 }
 
 log_workspace_inputs() {
   log_section "workspace inputs before Claude Code"
   log "Working directory: $(pwd)"
   log "Mounted workspace inventory"
-  find /workspace -maxdepth 3 -mindepth 1 -printf '[pg-builder][workspace] %y %p\n' | sort
-  log_file_preview /workspace/config.toml "config.toml" 200
-  log_file_preview /workspace/rule_config.json "rule_config.json" 120
-  if compgen -G "/workspace/*.tar" >/dev/null; then
-    for archive in /workspace/*.tar; do
-      log "Source archive candidate: $archive ($(wc -c < "$archive") bytes)"
-      tar -tf "$archive" | sed -n '1,80p' | sed 's/^/[pg-builder][archive] /' || true
-    done
-  else
-    log "No /workspace/*.tar source archive was found before Claude Code"
-  fi
+  find "$WORKSPACE_DIR" -maxdepth 3 -mindepth 1 -printf '[pg-builder][workspace] %y %p\n' | sort
+  log_file_preview "$WORKSPACE_DIR/config.toml" "config.toml" 200
+  log_file_preview "$WORKSPACE_DIR/rule_config.json" "rule_config.json" 120
+}
+
+extract_source_archives() {
+  log_section "source archive extraction"
+  PG_BUILDER_WORKSPACE="$WORKSPACE_DIR" python3 - <<'PY'
+import os
+import tarfile
+import zipfile
+from pathlib import Path
+
+workspace = Path(os.environ.get("PG_BUILDER_WORKSPACE", "/workspace"))
+project_dir = workspace / "project"
+ignored_names = {
+    "build_log.txt",
+    "claude_builder.log",
+    "claude_builder_events.jsonl",
+    "claude_builder_prompt.md",
+    "config.toml",
+    "rule_config.json",
+}
+
+
+def log(message: str) -> None:
+    print(f"[pg-builder][archive] {message}", flush=True)
+
+
+def is_within_directory(base: Path, candidate: Path) -> bool:
+    try:
+        candidate.resolve(strict=False).relative_to(base.resolve(strict=False))
+        return True
+    except ValueError:
+        return False
+
+
+def safe_extract_tar(archive: Path, destination: Path) -> None:
+    with tarfile.open(archive, "r:*") as tar:
+        for member in tar.getmembers():
+            target = destination / member.name
+            if not is_within_directory(destination, target):
+                raise RuntimeError(f"unsafe tar member path: {member.name}")
+            if member.issym() or member.islnk():
+                link_target = Path(member.linkname)
+                if not link_target.is_absolute():
+                    link_target = target.parent / link_target
+                if not is_within_directory(destination, link_target):
+                    raise RuntimeError(f"unsafe tar link target: {member.name} -> {member.linkname}")
+        tar.extractall(destination)
+
+
+def safe_extract_zip(archive: Path, destination: Path) -> None:
+    with zipfile.ZipFile(archive, "r") as zip_file:
+        for member in zip_file.namelist():
+            target = destination / member
+            if not is_within_directory(destination, target):
+                raise RuntimeError(f"unsafe zip member path: {member}")
+        zip_file.extractall(destination)
+
+
+def archive_kind(path: Path) -> str | None:
+    if tarfile.is_tarfile(path):
+        return "tar"
+    if zipfile.is_zipfile(path):
+        return "zip"
+    return None
+
+
+def candidate_archives() -> list[tuple[Path, str]]:
+    candidates: list[tuple[Path, str]] = []
+    for path in sorted(workspace.iterdir(), key=lambda item: item.name):
+        if not path.is_file() or path.name in ignored_names:
+            continue
+        kind = archive_kind(path)
+        if kind:
+            candidates.append((path, kind))
+    return candidates
+
+
+archives = candidate_archives()
+if not archives:
+    log(f"No tar or zip source archives found in {workspace}")
+    raise SystemExit(0)
+
+project_dir.mkdir(parents=True, exist_ok=True)
+for archive, kind in archives:
+    size = archive.stat().st_size
+    log(f"Extracting {kind} archive {archive} ({size} bytes) to {project_dir}")
+    if kind == "tar":
+        safe_extract_tar(archive, project_dir)
+    elif kind == "zip":
+        safe_extract_zip(archive, project_dir)
+
+extracted = sorted(
+    str(path.relative_to(project_dir))
+    for path in project_dir.rglob("*")
+    if path.is_file()
+)[:120]
+if extracted:
+    for relative in extracted:
+        log(f"extracted {relative}")
+else:
+    log("Archive extraction completed, but no regular files were found")
+PY
 }
 
 run_claude() {
   log_workspace_inputs
+  extract_source_archives
   log "Checking Claude Code CLI and Agent SDK"
   claude --version
   python3 - <<'PY'
@@ -140,13 +236,13 @@ PY
   write_prompt
   log "Starting Claude builder agent through Agent SDK typed stream"
   set +e
-  IS_SANDBOX=1 python3 /usr/local/bin/pg_claude_builder_sdk.py \
-    2>&1 | tee /workspace/claude_builder.log
+  IS_SANDBOX=1 PG_CLAUDE_WORKSPACE="$WORKSPACE_DIR" python3 /usr/local/bin/pg_claude_builder_sdk.py \
+    2>&1 | tee "$WORKSPACE_DIR/claude_builder.log"
   local claude_status="${PIPESTATUS[0]}"
   set -e
   log "Claude builder agent exited with status ${claude_status}"
-  if [[ -f /workspace/claude_builder_events.jsonl ]]; then
-    log_file_preview /workspace/claude_builder_events.jsonl "claude-sdk-events" 200
+  if [[ -f "$WORKSPACE_DIR/claude_builder_events.jsonl" ]]; then
+    log_file_preview "$WORKSPACE_DIR/claude_builder_events.jsonl" "claude-sdk-events" 200
   else
     log "Claude SDK event stream was not persisted"
   fi
@@ -155,26 +251,26 @@ PY
 
 fallback_validation() {
   log_section "post-Claude artifact validation"
-  mkdir -p /workspace/inputs
-  if [[ -f /workspace/rule_config.json ]]; then
-    cp /workspace/rule_config.json /workspace/inputs/rules.json
-    log "[claude-artifact] copied /workspace/rule_config.json to /workspace/inputs/rules.json"
+  mkdir -p "$WORKSPACE_DIR/inputs"
+  if [[ -f "$WORKSPACE_DIR/rule_config.json" ]]; then
+    cp "$WORKSPACE_DIR/rule_config.json" "$WORKSPACE_DIR/inputs/rules.json"
+    log "[claude-artifact] copied $WORKSPACE_DIR/rule_config.json to $WORKSPACE_DIR/inputs/rules.json"
   fi
-  if [[ -f /workspace/config.toml ]]; then
-    cp /workspace/config.toml /workspace/inputs/config.toml
-    log "[claude-artifact] copied /workspace/config.toml to /workspace/inputs/config.toml"
+  if [[ -f "$WORKSPACE_DIR/config.toml" ]]; then
+    cp "$WORKSPACE_DIR/config.toml" "$WORKSPACE_DIR/inputs/config.toml"
+    log "[claude-artifact] copied $WORKSPACE_DIR/config.toml to $WORKSPACE_DIR/inputs/config.toml"
   fi
 
-  [[ -f /workspace/program.bc ]] || fail "Missing /workspace/program.bc after Claude builder run"
-  [[ -f /workspace/program.ll ]] || llvm-dis-14 /workspace/program.bc -o /workspace/program.ll
-  [[ -f /workspace/build_log.txt ]] || cp /workspace/claude_builder.log /workspace/build_log.txt
+  [[ -f "$WORKSPACE_DIR/program.bc" ]] || fail "Missing $WORKSPACE_DIR/program.bc after Claude builder run"
+  [[ -f "$WORKSPACE_DIR/program.ll" ]] || llvm-dis-14 "$WORKSPACE_DIR/program.bc" -o "$WORKSPACE_DIR/program.ll"
+  [[ -f "$WORKSPACE_DIR/build_log.txt" ]] || cp "$WORKSPACE_DIR/claude_builder.log" "$WORKSPACE_DIR/build_log.txt"
 
   for artifact in \
-    /workspace/program.bc \
-    /workspace/program.ll \
-    /workspace/build_log.txt \
-    /workspace/inputs/rules.json \
-    /workspace/inputs/config.toml; do
+    "$WORKSPACE_DIR/program.bc" \
+    "$WORKSPACE_DIR/program.ll" \
+    "$WORKSPACE_DIR/build_log.txt" \
+    "$WORKSPACE_DIR/inputs/rules.json" \
+    "$WORKSPACE_DIR/inputs/config.toml"; do
     if [[ -e "$artifact" ]]; then
       log "[claude-artifact] validated $artifact ($(wc -c < "$artifact") bytes)"
       file "$artifact" | sed 's/^/[pg-builder][artifact-file] /'
@@ -184,8 +280,8 @@ fallback_validation() {
   done
 
   log "Final workspace snapshot"
-  ls -la /workspace
-  find /workspace -maxdepth 4 -type f \( -name 'program.bc' -o -name 'program.ll' -o -name 'build_log.txt' -o -name '*.db' -o -name '.cf_*.json' \) -print
+  ls -la "$WORKSPACE_DIR"
+  find "$WORKSPACE_DIR" -maxdepth 4 -type f \( -name 'program.bc' -o -name 'program.ll' -o -name 'build_log.txt' -o -name '*.db' -o -name '.cf_*.json' \) -print
 }
 
 main() {
@@ -196,4 +292,6 @@ main() {
   log "ProtocolGuard Claude builder completed"
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi
