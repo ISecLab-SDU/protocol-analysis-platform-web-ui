@@ -21,4 +21,5 @@ dependencies = [
     "tqdm>=4.68.1",
     "pytest>=9.0.3",
     "claude-agent-sdk>=0.2.116",
+    "vulture>=2.16",
 ]
