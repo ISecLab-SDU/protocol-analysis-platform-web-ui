@@ -57,7 +57,7 @@ def create_aflnet_handlers(
         )
 
         if added <= 1:
-            return make_response(error_response("AFLNET 输出目录中没有可打包的 POC 文件"), 404)
+            return make_response(error_response("AFLNET 输出目录中没有可打包的 findings 文件"), 404)
 
         buffer.seek(0)
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -66,12 +66,12 @@ def create_aflnet_handlers(
             buffer,
             mimetype="application/zip",
             as_attachment=True,
-            download_name=f"{safe_impl}-aflnet-poc-{timestamp}.zip",
+            download_name=f"{safe_impl}-aflnet-findings-{timestamp}.zip",
             max_age=0,
         )
 
     def snapshot_aflnet_result():
-        """Persist the current AFLNET POC bundle for history downloads."""
+        """Persist the current AFLNET findings bundle for history downloads."""
         _, error = ensure_authenticated()
         if error:
             return error
@@ -111,7 +111,7 @@ def create_aflnet_handlers(
                 zip_path.unlink()
             with contextlib.suppress(OSError):
                 artifact_dir.rmdir()
-            return make_response(error_response("AFLNET 输出目录中没有可归档的 POC 文件"), 404)
+            return make_response(error_response("AFLNET 输出目录中没有可归档的 findings 文件"), 404)
 
         file_size = zip_path.stat().st_size
         return success_response({
@@ -122,18 +122,18 @@ def create_aflnet_handlers(
         })
 
     def download_aflnet_result_artifact(artifact_id: str):
-        """Download a persisted AFLNET POC artifact."""
+        """Download a persisted AFLNET findings artifact."""
         _, error = ensure_authenticated()
         if error:
             return error
 
         if not re.fullmatch(r"[A-Za-z0-9_.-]+", artifact_id):
-            return make_response(error_response("POC artifact id 非法"), 400)
+            return make_response(error_response("findings artifact id 非法"), 400)
 
         artifact_root = _aflnet_artifact_root().resolve()
         zip_path = (artifact_root / artifact_id / "poc.zip").resolve()
         if not _is_path_inside(zip_path, [artifact_root]) or not zip_path.is_file():
-            return make_response(error_response("POC artifact 不存在或已过期"), 404)
+            return make_response(error_response("findings artifact 不存在或已过期"), 404)
 
         return send_file(
             zip_path,

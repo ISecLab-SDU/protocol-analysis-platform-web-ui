@@ -23,7 +23,6 @@ import { computed, nextTick, reactive, ref } from 'vue';
 import { message } from 'ant-design-vue';
 
 import {
-  downloadAflNetPocArtifact,
   fetchProtocolAssertGenerationProgress,
   fetchProtocolAssertGenerationResult,
   fetchProtocolFuzzConfigLogs,
@@ -34,12 +33,10 @@ import {
   fetchProtocolStaticAnalysisResult,
   runProtocolAssertGeneration,
   runProtocolStaticAnalysis,
-  snapshotAflNetPoc,
   startProtocolFuzzConfigJob,
   startProtocolFuzzingDebugJob,
   startProtocolFuzzingJob,
   stopProtocolFuzzingJob,
-  upsertProtocolViolationHistory,
 } from '#/api/protocol-compliance';
 
 import { buildDefaultFuzzScript, DEFAULT_TARGET, STAGE_LIST } from './types';
@@ -128,9 +125,6 @@ const resultHistory = ref<
     functionCount: number;
     id: string;
     implementation: string;
-    pocArtifactId?: string;
-    pocArtifactSize?: number;
-    pocSnapshotStatus: 'failed' | 'idle' | 'ready' | 'saving';
     protocolType: string;
     ruleText: string;
     stats: {
@@ -171,7 +165,6 @@ const fuzzStats = reactive({
   edges: 0,
 });
 const fuzzSpeedSeries = ref<number[]>([]);
-const downloadingPocArtifactId = ref<null | string>(null);
 
 let elapsedTimer: null | ReturnType<typeof setInterval> = null;
 let staticPollTimer: null | ReturnType<typeof setInterval> = null;
@@ -183,7 +176,6 @@ let fuzzLogIdSeq = 0;
 let pipelineRunId = 0;
 let resultHistoryAppended = false;
 let resultHistoryIdSeq = 0;
-let pendingPocSnapshotPromise: null | Promise<void> = null;
 
 const STAGE_TRANSITION_DELAY_MS = 2000;
 
@@ -446,7 +438,7 @@ function getViolationSummaryText() {
     codeLocateEvidence.value?.violationReason ||
     getPrimaryStaticVerdict()?.explanation ||
     staticResult.value?.modelResponse?.summary?.notes ||
-    '未生成违规原因'
+    '未生成分析说明'
   );
 }
 
@@ -500,102 +492,6 @@ function updateAflNetPocPath(data: any) {
   if (logDir && logDir !== logFilePath.trim()) aflNetPocPath.value = logDir;
 }
 
-async function snapshotResultPocArtifact(historyId: string) {
-  const entry = resultHistory.value.find((item) => item.id === historyId);
-  if (!entry || entry.stats.crashes <= 0) return;
-
-  const snapshotPromise = (async () => {
-    try {
-      const artifact = await snapshotAflNetPoc({
-        crashLogPath: entry.crashLogPath || undefined,
-        implementation: entry.implementation,
-        protocol: entry.protocolType,
-      });
-      const current = resultHistory.value.find((item) => item.id === historyId);
-      if (!current) return;
-      current.pocArtifactId = artifact.artifactId;
-      current.pocArtifactSize = artifact.fileSize;
-      current.pocSnapshotStatus = 'ready';
-    } catch (error: any) {
-      const current = resultHistory.value.find((item) => item.id === historyId);
-      if (current) current.pocSnapshotStatus = 'failed';
-      appendFuzzLog(
-        `POC 归档失败，历史下载不可用: ${error?.message || error}`,
-        'WARN',
-      );
-    }
-  })();
-
-  pendingPocSnapshotPromise = snapshotPromise;
-  try {
-    await snapshotPromise;
-  } finally {
-    if (pendingPocSnapshotPromise === snapshotPromise) {
-      pendingPocSnapshotPromise = null;
-    }
-  }
-}
-
-async function downloadHistoryPocArtifact(historyId: string) {
-  const entry = resultHistory.value.find((item) => item.id === historyId);
-  if (!entry?.pocArtifactId || entry.pocSnapshotStatus !== 'ready') {
-    message.warning('POC 包仍在归档或不可用');
-    return;
-  }
-  if (downloadingPocArtifactId.value) return;
-
-  downloadingPocArtifactId.value = historyId;
-  try {
-    const blob = await downloadAflNetPocArtifact(entry.pocArtifactId);
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${entry.implementation || 'aflnet'}-history-poc-${entry.pocArtifactId}.zip`;
-    document.body.append(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-  } catch (error: any) {
-    message.error(error?.message || '历史 POC 下载失败');
-  } finally {
-    downloadingPocArtifactId.value = null;
-  }
-}
-
-function parseHistoryTargetLines(targetLine?: number | string) {
-  const text = String(targetLine || '').trim();
-  if (!text || text === '-') return undefined;
-  const lines = new Set<number>();
-  for (const part of text.split(',')) {
-    const rangeMatch = part.trim().match(/^(\d+)(?:-(\d+))?$/);
-    if (!rangeMatch?.[1]) continue;
-    const start = Number(rangeMatch[1]);
-    const end = Number(rangeMatch[2] || rangeMatch[1]);
-    if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
-    const cappedEnd = Math.min(end, start + 50);
-    for (let line = start; line <= cappedEnd; line += 1) lines.add(line);
-  }
-  return lines.size > 0 ? [...lines] : undefined;
-}
-
-function buildHistoryCodeSnippet() {
-  const evidence = codeLocateEvidence.value;
-  const functions = evidence?.functions ?? [];
-  const slices =
-    functions.length > 0
-      ? functions
-      : getEvidenceFallbackFunctionSlices(evidence, '代码片段');
-
-  return slices
-    .map((slice) => {
-      const rows = slice.codeRows
-        .map((row) => `${String(row.line).padStart(5, ' ')} ${row.text}`)
-        .join('\n');
-      return `Function: ${slice.name}\n${rows}`;
-    })
-    .join('\n\n');
-}
-
 function getEvidenceFallbackFunctionSlices(
   evidence: CodeLocateEvidence | null,
   name: string,
@@ -616,59 +512,12 @@ function getResultHistoryConclusion(
   crashCount: number,
 ) {
   if (reason === 'crash' || crashCount > 0) {
-    return `发现 ${crashCount || 1} 个崩溃，已进入结果验证`;
+    return `AFL 发现 ${crashCount || 1} 个崩溃，已汇总运行产物`;
   }
   if (reason === 'no-crash') {
     return '静态分析未发现违规，后续断言生成和模糊测试已跳过';
   }
-  return '分析流程已停止，当前结果已汇总';
-}
-
-async function persistViolationHistoryFromWorkbench(
-  historyEntry: (typeof resultHistory.value)[number],
-) {
-  if (historyEntry.stats.crashes <= 0) return;
-
-  const databasePath = staticResult.value?.artifacts?.database;
-  const workspacePath = staticResult.value?.artifacts?.workspace;
-  if (!databasePath && !workspacePath) {
-    appendFuzzLog('未找到当前静态分析数据库路径，违规历史未写入', 'WARN');
-    return;
-  }
-
-  const firstFunction = historyEntry.codeFunctions[0];
-  const targetFile =
-    firstFunction?.path ||
-    (historyEntry.targetFile === '未生成代码定位结果'
-      ? undefined
-      : historyEntry.targetFile);
-
-  try {
-    await upsertProtocolViolationHistory({
-      codeSnippet: buildHistoryCodeSnippet(),
-      databasePath: databasePath || undefined,
-      jobId: staticJobId.value || undefined,
-      reason: historyEntry.violationReason || historyEntry.conclusion,
-      result: 'violation_found',
-      ruleDesc: historyEntry.ruleText,
-      violations: targetFile
-        ? [
-            {
-              codeLines: parseHistoryTargetLines(
-                firstFunction?.targetLine || historyEntry.targetLine,
-              ),
-              filename: targetFile,
-              functionName: firstFunction?.name,
-            },
-          ]
-        : undefined,
-      workspacePath: workspacePath || undefined,
-    });
-    appendFuzzLog('已将当前结果验证结论写入违规历史数据库', 'INFO');
-    window.dispatchEvent(new CustomEvent('protocol-violation-history-updated'));
-  } catch (error: any) {
-    appendFuzzLog(`写入违规历史失败: ${error?.message || error}`, 'WARN');
-  }
+  return '分析流程已停止，当前 AFL 输出已汇总';
 }
 
 function appendResultHistoryRecord(reason: 'crash' | 'no-crash' | 'stopped') {
@@ -678,8 +527,6 @@ function appendResultHistoryRecord(reason: 'crash' | 'no-crash' | 'stopped') {
   const evidence = codeLocateEvidence.value;
   const functionCount =
     evidence?.functions?.length ?? evidence?.candidateFunctionCount ?? 0;
-  const hasCrash = reason === 'crash' || fuzzStats.crashes > 0;
-  const shouldSnapshotPoc = false;
   const conclusion = getResultHistoryConclusion(reason, fuzzStats.crashes);
   const changedFileCount = (
     assertDiffContent.value.match(/^diff --git\s+/gm) ?? []
@@ -707,7 +554,6 @@ function appendResultHistoryRecord(reason: 'crash' | 'no-crash' | 'stopped') {
     functionCount,
     id: `result-${Date.now()}-${resultHistoryIdSeq}`,
     implementation: projectConfig.implementation,
-    pocSnapshotStatus: shouldSnapshotPoc ? 'saving' : 'idle',
     protocolType: projectConfig.protocolType,
     ruleText: getRuleSummaryText(),
     status: reason,
@@ -731,13 +577,9 @@ function appendResultHistoryRecord(reason: 'crash' | 'no-crash' | 'stopped') {
 
   resultHistory.value.unshift(historyEntry);
 
-  if (hasCrash) void persistViolationHistoryFromWorkbench(historyEntry);
-
   if (resultHistory.value.length > 20) {
     resultHistory.value.splice(20);
   }
-
-  if (shouldSnapshotPoc) void snapshotResultPocArtifact(historyEntry.id);
 }
 
 function isCrashDiscoveryLine(line: string) {
@@ -773,7 +615,7 @@ async function stopFuzzProcessForCrashVerification(runId: number) {
   try {
     await stopProtocolFuzzingJob(jobId);
     if (isCurrentPipelineRun(runId)) {
-      appendFuzzLog('已停止当前 Fuzzer，保留崩溃证据用于结果验证', 'INFO');
+      appendFuzzLog('已停止当前 Fuzzer，保留 AFL 输出用于结果汇总', 'INFO');
     }
   } catch (error: any) {
     if (isCurrentPipelineRun(runId)) {
@@ -791,9 +633,9 @@ async function enterResultVerificationAfterCrash() {
   const runId = pipelineRunId;
   clearTimer('fuzz');
   clearTimer('elapsed');
-  appendFuzzLog('检测到首个崩溃，2 秒后自动进入结果验证阶段', 'ERROR');
+  appendFuzzLog('检测到首个崩溃，2 秒后自动进入 AFL 运行结果', 'ERROR');
   stageStatus.fuzz = 'done';
-  stageMessage.value = '检测到崩溃，2 秒后进入结果验证…';
+  stageMessage.value = '检测到崩溃，2 秒后进入 AFL 运行结果…';
   void stopFuzzProcessForCrashVerification(runId);
 
   if (!(await waitForStageTransition(runId))) return true;
@@ -802,7 +644,7 @@ async function enterResultVerificationAfterCrash() {
   activeStageView.value = 'done';
   stageStatus.done = 'done';
   appendResultHistoryRecord('crash');
-  stageMessage.value = '已发现崩溃，结果验证模块已生成证据摘要';
+  stageMessage.value = 'AFL 已发现崩溃，运行产物已汇总';
   return true;
 }
 
@@ -959,7 +801,7 @@ function finishFuzzFromCurrentOutput() {
 
 function getFuzzCompletionMessage() {
   if (fuzzStats.crashes > 0) {
-    return '已发现崩溃，结果验证模块已生成证据摘要';
+    return 'AFL 已发现崩溃，运行产物已汇总';
   }
   return '检测到容器停止，已读取当前输出数据';
 }
@@ -1857,12 +1699,6 @@ async function runFuzzStep(runId: number) {
   await nextTick();
   if (!isCurrentPipelineRun(runId)) return;
   try {
-    if (pendingPocSnapshotPromise) {
-      stageMessage.value = '等待上次 POC 归档完成…';
-      appendFuzzLog('等待上次 POC 归档完成后再启动 Fuzz', 'INFO');
-      await pendingPocSnapshotPromise;
-      if (!isCurrentPipelineRun(runId)) return;
-    }
     appendFuzzLog(`使用插桩源码包: ${artifactPath}`, 'INFO');
     const configJob = await waitForFuzzConfigJob(runId);
     if (!isCurrentPipelineRun(runId)) return;
@@ -2093,7 +1929,6 @@ function resetWorkbench() {
   fuzzJobId.value = null;
   fuzzJob.value = null;
   aflNetPocPath.value = '';
-  downloadingPocArtifactId.value = null;
   fuzzLogs.value = [];
   fuzzLogReadPosition.value = 0;
   resultHistoryAppended = false;
@@ -2151,7 +1986,6 @@ export function useWorkbench() {
     fuzzJob,
     fuzzJobId,
     aflNetPocPath,
-    downloadingPocArtifactId,
 
     // Methods
     commitSetup,
@@ -2163,6 +1997,5 @@ export function useWorkbench() {
     resetWorkbench,
     selectStageView,
     canViewStage,
-    downloadHistoryPocArtifact,
   };
 }

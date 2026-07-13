@@ -76,7 +76,7 @@ const violationReason = computed(() => {
     props.evidence?.violationReason ||
     primaryVerdict.value?.explanation ||
     props.staticResult?.modelResponse?.summary?.notes ||
-    '已发现崩溃，等待代码定位模块补充违规原因'
+    'AFL 运行中观察到崩溃或异常，未做归因判断'
   );
 });
 
@@ -142,13 +142,23 @@ const fuzzerName = computed(() => {
   return 'AFLNET';
 });
 
+const hasAflOutput = computed(() => {
+  return (
+    props.stats.crashes > 0 ||
+    props.stats.hangs > 0 ||
+    Boolean(crashLogPath.value)
+  );
+});
+
 const verificationStatus = computed(() => {
-  if (props.stats.crashes > 0) return '已触发崩溃验证';
-  return '等待崩溃证据';
+  if (props.stats.crashes > 0) return 'AFL 已发现崩溃';
+  if (props.stats.hangs > 0) return 'AFL 已发现挂起';
+  if (hasAflOutput.value) return 'AFL 输出已生成';
+  return '等待 AFL 结果';
 });
 
 async function handleDownloadPoc() {
-  if (props.stats.crashes <= 0 || isPocDownloading.value) return;
+  if (!hasAflOutput.value || isPocDownloading.value) return;
 
   isPocDownloading.value = true;
   try {
@@ -164,13 +174,15 @@ async function handleDownloadPoc() {
       .replaceAll(/[:.]/g, '-')
       .slice(0, 19);
     link.href = url;
-    link.download = `${props.implementation || 'aflnet'}-poc-${timestamp}.zip`;
+    link.download = `${props.implementation || 'aflnet'}-aflnet-findings-${timestamp}.zip`;
     document.body.append(link);
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
   } catch (error: any) {
-    message.error(error?.message || 'POC 下载失败，请检查 AFLNET 输出目录');
+    message.error(
+      error?.message || 'AFL 产物包下载失败，请检查 AFLNET 输出目录',
+    );
   } finally {
     isPocDownloading.value = false;
   }
@@ -212,13 +224,21 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
     <template #title>
       <div class="stage-title">
         <IconifyIcon icon="mdi:clipboard-check-outline" />
-        <span>结果验证</span>
+        <span>AFL 运行结果</span>
         <small>{{ verificationStatus }}</small>
       </div>
     </template>
     <template #extra>
-      <Tag :color="stats.crashes > 0 ? 'error' : 'default'">
-        {{ stats.crashes > 0 ? '发现崩溃' : '等待结果' }}
+      <Tag
+        :color="stats.crashes > 0 ? 'error' : hasAflOutput ? 'blue' : 'default'"
+      >
+        {{
+          stats.crashes > 0
+            ? '发现 AFL 崩溃'
+            : hasAflOutput
+              ? '已有输出'
+              : '等待结果'
+        }}
       </Tag>
     </template>
 
@@ -228,7 +248,7 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
           <div class="panel-head">
             <div>
               <span class="panel-kicker">规则描述</span>
-              <h3>触发规则</h3>
+              <h3>分析背景</h3>
             </div>
             <Tag color="blue">{{ protocolType }}</Tag>
           </div>
@@ -238,11 +258,11 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
         <section class="panel panel--reason">
           <div class="panel-head">
             <div>
-              <span class="panel-kicker">违规原因</span>
-              <h3>定位结论</h3>
+              <span class="panel-kicker">静态分析背景</span>
+              <h3>插桩上下文</h3>
             </div>
             <Tag :color="evidence ? 'success' : 'default'">
-              {{ evidence ? '代码定位已接入' : '待定位补充' }}
+              {{ evidence ? '已附加源码上下文' : '等待源码上下文' }}
             </Tag>
           </div>
           <p class="reason-text">{{ violationReason }}</p>
@@ -325,31 +345,61 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
           </section>
         </section>
 
-        <section class="panel panel--poc">
+        <section class="panel panel--findings">
           <div class="panel-head">
             <div>
-              <span class="panel-kicker">POC</span>
-              <h3>{{ fuzzerName }} 运行结果</h3>
+              <span class="panel-kicker">产物包</span>
+              <h3>{{ fuzzerName }} 输出</h3>
             </div>
-            <Tag :color="stats.crashes > 0 ? 'error' : 'default'">
-              {{ stats.crashes > 0 ? '可下载' : '未生成' }}
+            <Tag
+              :color="
+                stats.crashes > 0 ? 'error' : hasAflOutput ? 'blue' : 'default'
+              "
+            >
+              {{ hasAflOutput ? '可下载' : '未生成' }}
             </Tag>
           </div>
-          <div class="poc-body">
-            <div>
-              <span>POC 输出</span>
+          <div class="finding-body">
+            <div class="finding-summary">
+              <span>运行产物</span>
               <strong>{{
-                stats.crashes > 0 ? '已生成可下载 POC 包' : '等待崩溃证据'
+                hasAflOutput ? '已生成可下载 AFL 产物包' : '等待 AFL 输出'
               }}</strong>
+              <div class="finding-metrics">
+                <div>
+                  <strong>{{ stats.crashes }}</strong>
+                  <span>Crashes</span>
+                </div>
+                <div>
+                  <strong>{{ stats.hangs }}</strong>
+                  <span>Hangs</span>
+                </div>
+                <div>
+                  <strong>{{ stats.paths }}</strong>
+                  <span>Paths</span>
+                </div>
+                <div>
+                  <strong>{{ stats.speed.toFixed(1) }}</strong>
+                  <span>Exec/s</span>
+                </div>
+              </div>
+              <div class="finding-output-path">
+                <span>输出路径</span>
+                <code>{{ crashLogPath || '-' }}</code>
+              </div>
+              <p class="finding-disclaimer">
+                该结果仅表示 AFL 运行中观察到 crash/hang，不判断 crash
+                是否由特定插桩断言触发。
+              </p>
             </div>
             <Button
               type="primary"
-              :disabled="stats.crashes <= 0 || isPocDownloading"
+              :disabled="!hasAflOutput || isPocDownloading"
               :loading="isPocDownloading"
               @click="handleDownloadPoc"
             >
               <template #icon><IconifyIcon icon="mdi:download" /></template>
-              下载 POC
+              下载 AFL 产物包
             </Button>
           </div>
         </section>
@@ -404,7 +454,7 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
 }
 
 .evidence-output-grid,
-.panel--poc {
+.panel--findings {
   grid-column: 1 / -1;
 }
 
@@ -610,25 +660,25 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
   border-radius: 8px;
 }
 
-.poc-body {
+.finding-body {
   display: flex;
   gap: 16px;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
 }
 
-.poc-body span,
-.poc-body strong {
+.finding-body span,
+.finding-body strong {
   display: block;
 }
 
-.poc-body span {
+.finding-body span {
   font-size: 13px;
   font-weight: 700;
   color: #64748b;
 }
 
-.poc-body strong {
+.finding-body > .finding-summary > strong {
   max-width: 780px;
   margin-top: 4px;
   overflow: hidden;
@@ -639,15 +689,66 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
   white-space: nowrap;
 }
 
+.finding-summary {
+  min-width: 0;
+  flex: 1;
+}
+
+.finding-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.finding-metrics div {
+  min-width: 0;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.finding-metrics strong {
+  font-size: 18px;
+  font-weight: 800;
+  color: #172033;
+}
+
+.finding-output-path {
+  margin-top: 12px;
+}
+
+.finding-output-path code {
+  display: block;
+  min-width: 0;
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: transparent;
+}
+
+.finding-disclaimer {
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #64748b;
+}
+
 @media (max-width: 1024px) {
   .verification-grid,
   .evidence-output-grid {
     grid-template-columns: 1fr;
   }
 
-  .poc-body {
+  .finding-body {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .finding-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 </style>

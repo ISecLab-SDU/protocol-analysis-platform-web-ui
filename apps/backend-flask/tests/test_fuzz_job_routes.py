@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import json
+import logging
 import os
 import sys
-import zipfile
-import logging
 import time
-from io import StringIO
+import zipfile
+from io import BytesIO, StringIO
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -91,6 +92,53 @@ def test_aflnet_artifact_routes_keep_result_endpoint_names() -> None:
             "protocol_compliance.download_aflnet_result_artifact"
         ),
     }
+
+
+def test_aflnet_download_returns_findings_manifest(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    app = Flask(__name__)
+    app.register_blueprint(routes.bp)
+    monkeypatch.setattr(
+        routes, "verify_access_token", lambda _header: {"username": "admin"}
+    )
+
+    output_root = tmp_path / "aflnet-output"
+    crashes = output_root / "crashes"
+    queue = output_root / "queue"
+    crashes.mkdir(parents=True)
+    queue.mkdir()
+    (crashes / "id:000000,sig:06").write_bytes(b"crash-input")
+    (queue / "id:000001").write_bytes(b"queue-input")
+    (output_root / "plot_data").write_text("unix_time,cycles_done\n", encoding="utf-8")
+    monkeypatch.setenv("AFLNET_OUTPUT_ROOT", str(output_root))
+
+    response = app.test_client().get(
+        "/api/protocol-compliance/fuzzing/aflnet-result/download",
+        headers={"Authorization": "Bearer test-token"},
+        query_string={"implementation": "SOL", "protocol": "MQTT"},
+    )
+
+    assert response.status_code == 200
+    assert "SOL-aflnet-findings-" in response.headers["Content-Disposition"]
+
+    with zipfile.ZipFile(BytesIO(response.data)) as archive:
+        names = set(archive.namelist())
+        manifest = json.loads(archive.read("manifest.json").decode("utf-8"))
+
+    assert "manifest.json" in names
+    assert "crashes/id:000000,sig:06" in names
+    assert "queue/id:000001" in names
+    assert "plot_data" in names
+    assert manifest["artifactType"] == "aflnet_finding_bundle"
+    assert manifest["verdict"] == "afl_crash_observed"
+    assert manifest["outputRoot"] == str(output_root)
+    assert set(manifest["includedPaths"]) >= {"crashes", "queue", "plot_data"}
+    manifest_text = json.dumps(manifest)
+    assert "assertionId" not in manifest
+    assert "ruleAttribution" not in manifest
+    assert "violation_found" not in manifest_text
 
 
 def test_fuzz_job_routes_replace_legacy_public_routes() -> None:

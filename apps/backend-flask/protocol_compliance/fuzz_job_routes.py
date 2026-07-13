@@ -607,7 +607,7 @@ def _prepare_and_launch_fuzz(
         fuzzer_log_file = result_info.pop("logFilePath", None)
         _append_log(log_file, f"AFLNet output root: {result_info.get('outputRoot')}")
         _append_log(log_file, f"AFLNet plot_data path: {fuzzer_log_file}")
-        _append_log(log_file, f"AFLNet POC path: {result_info.get('pocPath')}")
+        _append_log(log_file, f"AFLNet findings path: {result_info.get('pocPath')}")
         FUZZ_JOBS.update(
             job_id,
             status="running",

@@ -284,6 +284,24 @@ def _add_path_to_zip(archive: zipfile.ZipFile, path: Path, output_root: Path) ->
     return added
 
 
+def _manifest_path_for_candidate(path: Path, output_root: Path) -> str:
+    try:
+        relative = path.resolve().relative_to(output_root.resolve())
+    except (OSError, RuntimeError, ValueError):
+        return str(path)
+    text = relative.as_posix()
+    return text or "."
+
+
+def _aflnet_finding_verdict(candidates: list[Path]) -> str:
+    crash_names = {"replayable-crashes", "crashes", "crash", "crash_logs"}
+    return (
+        "afl_crash_observed"
+        if any(candidate.name in crash_names for candidate in candidates)
+        else "afl_no_crash_observed"
+    )
+
+
 def _write_aflnet_poc_archive(
     target: Any,
     *,
@@ -298,10 +316,19 @@ def _write_aflnet_poc_archive(
         return 0
 
     manifest = {
+        "artifactType": "aflnet_finding_bundle",
         "artifactId": artifact_id,
         "protocol": protocol,
         "implementation": implementation,
+        "verdict": _aflnet_finding_verdict(candidates),
+        "disclaimer": (
+            "This bundle reports AFLNet runtime findings only. It does not "
+            "attribute crashes to a specific inserted assertion or protocol rule."
+        ),
         "outputRoot": str(output_root),
+        "includedPaths": [
+            _manifest_path_for_candidate(candidate, output_root) for candidate in candidates
+        ],
         "requestedCrashLogPath": crash_log_path,
         "generatedAt": datetime.now(timezone.utc).isoformat(),
     }

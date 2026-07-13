@@ -80,7 +80,7 @@ export const STAGE_LIST: Array<{
   { key: 'code_locate', index: 2, title: '代码定位与一致性分析' },
   { key: 'assert_gen', index: 3, title: '断言生成' },
   { key: 'fuzz', index: 4, title: '模糊测试' },
-  { key: 'done', index: 5, title: '结果验证' },
+  { key: 'done', index: 5, title: 'AFL 结果' },
 ];
 
 export const PROTOCOL_IMPLEMENTATIONS: Record<
