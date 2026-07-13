@@ -247,6 +247,81 @@ REQUIRED_INSTRUMENTATION_ENVS = ("ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "OPE
 INSTRUMENTATION_DIFF_FILENAME = "instrumentation.diff"
 INSTRUMENTED_CODE_ZIP_FILENAME = "instrumented_code.zip"
 INSTRUMENTATION_DIFF_MAX_PREVIEW_BYTES = 512 * 1024  # 512 KiB safety cap
+C_CPP_SOURCE_EXTENSIONS = frozenset(
+    {
+        ".c",
+        ".cc",
+        ".cpp",
+        ".cxx",
+        ".h",
+        ".hh",
+        ".hpp",
+        ".hxx",
+        ".inl",
+        ".ipp",
+    }
+)
+
+
+def _is_c_cpp_source_path(path: str) -> bool:
+    clean_path = path.strip()
+    if not clean_path or clean_path == "/dev/null":
+        return False
+    if clean_path.startswith(("a/", "b/")):
+        clean_path = clean_path[2:]
+    return Path(clean_path).suffix.lower() in C_CPP_SOURCE_EXTENSIONS
+
+
+def _diff_section_paths(section_lines: List[str]) -> List[str]:
+    paths: List[str] = []
+    if section_lines:
+        header_parts = section_lines[0].split()
+        if len(header_parts) >= 4 and header_parts[0:2] == ["diff", "--git"]:
+            paths.extend(header_parts[2:4])
+    for line in section_lines[1:]:
+        if line.startswith(("--- ", "+++ ")):
+            path = line[4:].split("\t", 1)[0].strip()
+            paths.append(path)
+    return paths
+
+
+def _filter_unified_diff_to_c_cpp_sources(content: str) -> str:
+    """Return a unified diff containing only C/C++ source file sections."""
+
+    lines = content.splitlines(keepends=True)
+    if not lines:
+        return content
+
+    preamble: List[str] = []
+    sections: List[List[str]] = []
+    current: Optional[List[str]] = None
+
+    for line in lines:
+        if line.startswith("diff --git "):
+            if current is not None:
+                sections.append(current)
+            current = [line]
+            continue
+        if current is None:
+            preamble.append(line)
+        else:
+            current.append(line)
+
+    if current is not None:
+        sections.append(current)
+
+    if not sections:
+        return content
+
+    kept_sections = [
+        section
+        for section in sections
+        if any(_is_c_cpp_source_path(path) for path in _diff_section_paths(section))
+    ]
+    if not kept_sections:
+        return ""
+
+    return "".join(preamble + [line for section in kept_sections for line in section])
 
 
 def _ensure_env_passthrough_for_instrumentation() -> None:
@@ -620,17 +695,24 @@ def _run_instrumentation_container(
         "available": False,
     }
     if diff_host_path and diff_host_path.exists():
-        diff_size = diff_host_path.stat().st_size
         diff_preview: Optional[str] = None
         truncated = False
         try:
-            diff_preview = diff_host_path.read_text(encoding="utf-8", errors="replace")
+            diff_content = diff_host_path.read_text(encoding="utf-8", errors="replace")
         except Exception as exc:  # pragma: no cover - best effort
             LOGGER.warning("Failed to read instrumentation diff file %s: %s", diff_host_path, exc)
         else:
+            source_diff_content = _filter_unified_diff_to_c_cpp_sources(diff_content)
+            if source_diff_content != diff_content:
+                try:
+                    diff_host_path.write_text(source_diff_content, encoding="utf-8")
+                except Exception as exc:  # pragma: no cover - best effort
+                    LOGGER.warning("Failed to write filtered instrumentation diff file %s: %s", diff_host_path, exc)
+            diff_preview = source_diff_content
             if len(diff_preview) > INSTRUMENTATION_DIFF_MAX_PREVIEW_BYTES:
                 diff_preview = diff_preview[:INSTRUMENTATION_DIFF_MAX_PREVIEW_BYTES]
                 truncated = True
+        diff_size = diff_host_path.stat().st_size
         diff_output_info.update(
             {
                 "available": True,

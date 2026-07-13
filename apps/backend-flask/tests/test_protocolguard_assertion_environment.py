@@ -78,6 +78,7 @@ def test_assertion_generation_skips_instrumentation_when_no_tasks(
         "reason": "assertion generation produced no tasks",
         "artifacts": {
             "instrumentedCodePath": None,
+            "instrumentedCodeZipPath": None,
             "diffFiles": [],
             "diffOutput": {
                 "available": False,
@@ -97,3 +98,26 @@ def test_assertion_generation_skips_instrumentation_when_no_tasks(
             "Skipping instrumentation because assertion generation produced no tasks",
         )
     ]
+
+
+def test_filter_unified_diff_keeps_only_c_cpp_sections() -> None:
+    mixed_diff = """diff --git a/assert_instrumentation_events.jsonl b/assert_instrumentation_events.jsonl
+new file mode 100644
+--- /dev/null
++++ b/assert_instrumentation_events.jsonl
+@@ -0,0 +1,2 @@
++{\"source\":\"claude-agent-sdk\"}
+diff --git a/project/sol/src/server.c b/project/sol/src/server.c
+index 1111111..2222222 100755
+--- a/project/sol/src/server.c
++++ b/project/sol/src/server.c
+@@ -1,2 +1,2 @@
+-old
++new
+"""
+
+    filtered = assertion_module._filter_unified_diff_to_c_cpp_sources(mixed_diff)
+
+    assert "assert_instrumentation_events.jsonl" not in filtered
+    assert "project/sol/src/server.c" in filtered
+    assert filtered.startswith("diff --git a/project/sol/src/server.c b/project/sol/src/server.c")
