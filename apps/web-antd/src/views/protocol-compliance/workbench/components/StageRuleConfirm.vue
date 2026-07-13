@@ -3,7 +3,7 @@ import type { ProtocolKind, RuleOption } from '../types';
 
 import type { ProtocolExtractRuleItem } from '#/api/protocol-compliance';
 
-import { computed, ref, watch } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
@@ -29,6 +29,12 @@ const emit = defineEmits<Emits>();
 const loading = ref(false);
 const rules = ref<RuleOption[]>([]);
 const selectedRowKeys = ref<string[]>([]);
+const pagination = reactive({
+  current: 1,
+  pageSize: 10,
+  pageSizeOptions: ['10', '20', '50', '100'],
+  showSizeChanger: true,
+});
 
 const columns = [
   { title: '消息类型', dataIndex: 'msgType', width: 120 },
@@ -107,6 +113,7 @@ async function loadRules() {
 
     const flatRules: RuleOption[] = normalizeRulesPayload(data, sourceLabel);
     rules.value = flatRules;
+    pagination.current = 1;
     selectedRowKeys.value = flatRules.length > 0 ? [flatRules[0]!.id!] : [];
   } catch (error: any) {
     message.error(`加载规则失败: ${error?.message || error}`);
@@ -125,6 +132,14 @@ function onStart() {
 
 function onSelectionChange(keys: Array<number | string>) {
   selectedRowKeys.value = keys.map(String);
+}
+
+function onTableChange(nextPagination: {
+  current?: number;
+  pageSize?: number;
+}) {
+  pagination.current = nextPagination.current ?? pagination.current;
+  pagination.pageSize = nextPagination.pageSize ?? pagination.pageSize;
 }
 
 watch(
@@ -154,7 +169,7 @@ watch(
       :columns="columns"
       :data-source="rules"
       :loading="loading"
-      :pagination="{ pageSize: 10 }"
+      :pagination="pagination"
       :row-selection="{
         type: 'radio',
         selectedRowKeys,
@@ -162,6 +177,7 @@ watch(
       }"
       row-key="id"
       size="small"
+      @change="onTableChange"
     >
       <template #bodyCell="{ column, record }">
         <template v-if="column.dataIndex === 'req_type'">
