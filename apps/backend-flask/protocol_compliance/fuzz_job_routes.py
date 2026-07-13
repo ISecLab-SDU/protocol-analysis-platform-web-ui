@@ -142,7 +142,9 @@ def create_fuzz_job_handlers(
                 error_response(f"插桩源码压缩包不存在：{instrumented_zip}"), 400
             )
 
-        protocol = str(data.get("protocol") or "UNKNOWN").strip() or "UNKNOWN"
+        protocol = str(config_snapshot.get("protocol") or "").strip()
+        if not protocol:
+            return make_response(error_response("Fuzz 配置任务缺少协议元数据"), 409)
         protocol_implementations_raw = data.get("protocolImplementations") or []
         protocol_implementations = [
             str(item)
@@ -204,10 +206,10 @@ def create_fuzz_job_handlers(
             return make_response(error_response(zip_error), 400)
 
         protocol = str(
-            data.get("protocol")
-            or (config_snapshot or {}).get("protocol")
-            or "MQTT"
-        ).strip() or "MQTT"
+            (config_snapshot or {}).get("protocol") or data.get("protocol") or ""
+        ).strip()
+        if not protocol:
+            return make_response(error_response("Fuzz 配置任务缺少协议元数据"), 409)
         protocol_implementations = _parse_protocol_implementations(data)
         if not protocol_implementations and config_snapshot is not None:
             protocol_implementations = [

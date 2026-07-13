@@ -102,6 +102,24 @@ class FuzzConfigJobRegistry:
 FUZZ_CONFIG_JOBS = FuzzConfigJobRegistry()
 
 
+def _resolved_protocol_name(
+    requested_protocol: object,
+    assert_generation_job_id: str,
+) -> Optional[str]:
+    candidates = [requested_protocol]
+    if assert_generation_job_id:
+        result = get_assert_generation_result(assert_generation_job_id)
+        if isinstance(result, dict):
+            candidates.append(result.get("protocolName"))
+    for candidate in candidates:
+        if not isinstance(candidate, str):
+            continue
+        normalized = candidate.strip()
+        if normalized and normalized.lower() not in {"auto", "unknown"}:
+            return normalized
+    return None
+
+
 def create_fuzz_config_handlers(
     ensure_authenticated: Callable[[], tuple[object, object]],
 ) -> Dict[str, Callable[..., Any]]:
@@ -147,7 +165,12 @@ def create_fuzz_config_handlers(
         if zip_error:
             return make_response(error_response(zip_error), 400)
 
-        protocol = str(data.get("protocol") or "UNKNOWN").strip() or "UNKNOWN"
+        protocol = _resolved_protocol_name(data.get("protocol"), assert_generation_job_id)
+        if protocol is None:
+            return make_response(
+                error_response("无法从静态分析或断言生成结果中确定协议，不能生成 Fuzz 配置"),
+                400,
+            )
         protocol_implementations = _parse_protocol_implementations(data)
         runtime_overrides, runtime_override_error = _parse_runtime_overrides(data)
         if runtime_override_error:

@@ -25,10 +25,8 @@ interface Props {
   assertDiffContent: string;
   assertResult: null | ProtocolAssertGenerationResult;
   evidence: CodeLocateEvidence | null;
-  implementation: string;
   logs: FuzzLogEntry[];
   pocPath?: string;
-  protocolType: string;
   rule: null | ProtocolExtractRuleItem;
   staticResult: null | ProtocolStaticAnalysisResult;
   stats: {
@@ -48,6 +46,7 @@ interface RenderedDiffLine {
 
 const props = defineProps<Props>();
 const isPocDownloading = ref(false);
+const fuzzerName = 'AFLNet';
 
 const verdicts = computed(
   () => props.staticResult?.modelResponse?.verdicts ?? [],
@@ -135,13 +134,6 @@ const crashLogPath = computed(() => {
   return '';
 });
 
-const fuzzerName = computed(() => {
-  if (props.protocolType === 'MQTT' && props.implementation === 'SOL')
-    return 'AFLNET';
-  if (props.protocolType === 'MQTT') return 'MBFuzzer';
-  return 'AFLNET';
-});
-
 const hasAflOutput = computed(() => {
   return (
     props.stats.crashes > 0 ||
@@ -164,8 +156,6 @@ async function handleDownloadPoc() {
   try {
     const blob = await downloadAflNetPoc({
       crashLogPath: crashLogPath.value || undefined,
-      implementation: props.implementation,
-      protocol: props.protocolType,
     });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -174,7 +164,7 @@ async function handleDownloadPoc() {
       .replaceAll(/[:.]/g, '-')
       .slice(0, 19);
     link.href = url;
-    link.download = `${props.implementation || 'aflnet'}-aflnet-findings-${timestamp}.zip`;
+    link.download = `aflnet-findings-${timestamp}.zip`;
     document.body.append(link);
     link.click();
     link.remove();
@@ -250,7 +240,6 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
               <span class="panel-kicker">规则描述</span>
               <h3>分析背景</h3>
             </div>
-            <Tag color="blue">{{ protocolType }}</Tag>
           </div>
           <p class="rule-text">{{ ruleDescription }}</p>
         </section>

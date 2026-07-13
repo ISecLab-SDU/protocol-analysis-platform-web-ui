@@ -18,7 +18,7 @@ import type {
   ProtocolStaticAnalysisRuleViolationDetail,
 } from '#/api/protocol-compliance';
 
-import { computed, nextTick, reactive, ref } from 'vue';
+import { nextTick, reactive, ref } from 'vue';
 
 import { message } from 'ant-design-vue';
 
@@ -64,26 +64,6 @@ const projectConfig = reactive<ProjectConfig>({
   archive: null,
   rules: null,
   notes: '',
-});
-
-const inferredProtocolName = computed(() => {
-  const name = projectConfig.rules?.name.toLowerCase() ?? '';
-  if (name.includes('mqtt')) return 'MQTT';
-  if (name.includes('snmp')) return 'SNMP';
-  if (name.includes('ftp')) return 'FTP';
-  if (name.includes('coap')) return 'CoAP';
-  if (name.includes('dhcp')) return 'DHCP';
-  if (name.includes('tls')) return 'TLS1.3';
-  return 'UNKNOWN';
-});
-
-const inferredProtocolVersion = computed(() => {
-  const name = projectConfig.rules?.name.toLowerCase() ?? '';
-  if (/mqtt.*5[._-]?0?/i.test(name)) return '5.0';
-  if (/mqtt.*3[._-]?1[._-]?1/i.test(name)) return '3.1.1';
-  if (/snmp.*2c/i.test(name)) return 'v2c';
-  if (/snmp.*3/i.test(name)) return 'v3';
-  return undefined;
 });
 
 const selectedRule = ref<null | ProtocolExtractRuleItem>(null);
@@ -133,7 +113,6 @@ const resultHistory = ref<
     functionCount: number;
     id: string;
     implementation: string;
-    protocolType: string;
     ruleText: string;
     stats: {
       coverage: number;
@@ -431,6 +410,21 @@ function getPrimaryStaticVerdict() {
   );
 }
 
+function getResolvedStaticAnalysisProtocol() {
+  const candidates = [
+    staticResult.value?.modelResponse?.metadata?.protocol,
+    staticResult.value?.inputs?.protocolName,
+  ];
+  const protocol = candidates.find((value) => {
+    const normalized = value?.trim().toLowerCase();
+    return normalized && !['auto', 'rules', 'unknown'].includes(normalized);
+  });
+  if (!protocol) {
+    throw new Error('静态分析未能识别协议，无法生成 Fuzz 运行配置');
+  }
+  return protocol.trim();
+}
+
 function getRuleSummaryText() {
   return (
     codeLocateEvidence.value?.ruleText ||
@@ -562,7 +556,6 @@ function appendResultHistoryRecord(reason: 'crash' | 'no-crash' | 'stopped') {
     functionCount,
     id: `result-${Date.now()}-${resultHistoryIdSeq}`,
     implementation: 'Agent inferred',
-    protocolType: inferredProtocolName.value,
     ruleText: getRuleSummaryText(),
     status: reason,
     stats: {
@@ -835,17 +828,7 @@ function buildRulesFile(): File {
       res_fields,
     },
   ];
-  const json = JSON.stringify(
-    {
-      protocol: inferredProtocolName.value,
-      ...(inferredProtocolVersion.value
-        ? { protocolVersion: inferredProtocolVersion.value }
-        : {}),
-      ...grouped,
-    },
-    null,
-    2,
-  );
+  const json = JSON.stringify(grouped, null, 2);
   return new File([json], 'rules.json', { type: 'application/json' });
 }
 
@@ -1604,6 +1587,9 @@ async function waitForFuzzConfigJob(
     throw new Error('缺少断言生成任务 ID');
   }
   appendFuzzLog('启动 Fuzz 配置生成 Agent', 'INFO');
+  const protocol = options?.debugReplay
+    ? undefined
+    : getResolvedStaticAnalysisProtocol();
   const configJob = await startProtocolFuzzConfigJob({
     ...(assertJobId.value ? { assertGenerationJobId: assertJobId.value } : {}),
     ...(options?.instrumentedCodeZipPath
@@ -1612,7 +1598,7 @@ async function waitForFuzzConfigJob(
     notes: options?.debugReplay
       ? projectConfig.notes || 'Workbench debug replay'
       : projectConfig.notes,
-    protocol: inferredProtocolName.value,
+    ...(protocol ? { protocol } : {}),
   });
   fuzzConfigJobId.value = configJob.jobId;
   fuzzConfigLogReadPosition.value = 0;
@@ -1698,7 +1684,6 @@ async function runFuzzStep(runId: number) {
       assertGenerationJobId: assertJobId.value,
       fuzzConfigJobId: configJob.jobId,
       notes: projectConfig.notes,
-      protocol: inferredProtocolName.value,
     });
     if (!isCurrentPipelineRun(runId)) return;
     fuzzJobId.value = job.jobId;
@@ -1796,7 +1781,6 @@ async function startFuzzDebugReplay() {
       assertGenerationJobId: configJob.assertGenerationJobId,
       fuzzConfigJobId: configJob.jobId,
       notes: projectConfig.notes || 'Workbench debug replay',
-      protocol: inferredProtocolName.value,
     });
     if (!isCurrentPipelineRun(runId)) return;
     fuzzJobId.value = job.jobId;
@@ -1956,8 +1940,6 @@ export function useWorkbench() {
     isAwaitingAssertConfirmation,
     errorMessage,
     projectConfig,
-    inferredProtocolName,
-    inferredProtocolVersion,
     selectedRule,
     staticJob,
     staticJobId,

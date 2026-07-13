@@ -20,10 +20,8 @@ interface LogEntry {
 
 interface Props {
   elapsed: string;
-  implementation: string;
   job: null | ProtocolFuzzingJob;
   logs: LogEntry[];
-  protocolType: string;
   rule: null | ProtocolExtractRuleItem;
   running: boolean;
   speedSeries: number[];
@@ -47,12 +45,7 @@ interface Props {
 
 const props = defineProps<Props>();
 
-const fuzzerName = computed(() => {
-  if (props.protocolType === 'MQTT' && props.implementation === 'SOL')
-    return 'SOLAFLNET';
-  if (props.protocolType === 'MQTT') return 'MBFuzzer';
-  return 'AFLNet';
-});
+const fuzzerName = 'AFLNet';
 
 const totalPaths = computed(
   () => props.stats.pathsTotal || props.stats.paths || 0,
@@ -80,7 +73,7 @@ const latestStatsLine = computed(() => {
 
 const logCaption = computed(() => {
   if (latestStatsLine.value)
-    return `正在同步 ${fuzzerName.value} 状态、路径和异常统计`;
+    return `正在同步 ${fuzzerName} 状态、路径和异常统计`;
   return '等待 Fuzzer 输出运行状态';
 });
 

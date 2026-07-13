@@ -24,7 +24,6 @@ import { runProtocolExtract } from '#/api/protocol-compliance';
 
 interface Props {
   disabled?: boolean;
-  protocolType: string;
   rulesFile?: File | null;
 }
 
@@ -43,8 +42,8 @@ const form = reactive({
   filterHeadings: true,
   htmlFile: null as File | null,
   llmBaseUrl: DEFAULT_LLM_BASE_URL,
-  protocol: props.protocolType || 'MQTT',
-  version: defaultProtocolVersion(props.protocolType),
+  protocol: 'MQTT',
+  version: defaultProtocolVersion('MQTT'),
 });
 
 const extracting = ref(false);

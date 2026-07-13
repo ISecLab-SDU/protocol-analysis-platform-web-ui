@@ -52,8 +52,6 @@ const {
   isAwaitingAssertConfirmation,
   errorMessage,
   projectConfig,
-  inferredProtocolName,
-  inferredProtocolVersion,
   selectedRule,
   staticLogHtml,
   staticLogText,
@@ -106,16 +104,6 @@ const currentRuleId = computed(() => {
   const optionId = (selectedRule.value as null | { id?: string })?.id;
   const matched = currentRuleText.value.match(/\[(MQTT-[^\]]+)\]/i)?.[1];
   return matched || optionId || '未选择';
-});
-
-const taskTitle = computed(() => {
-  return `${inferredProtocolName.value} 协议实现分析任务`;
-});
-
-const protocolVersion = computed(() => {
-  return inferredProtocolVersion.value
-    ? `${inferredProtocolName.value} ${inferredProtocolVersion.value}`
-    : `${inferredProtocolName.value} / 自动识别版本`;
 });
 
 const startedAtDisplay = computed(() => {
@@ -911,10 +899,6 @@ function switchRule() {
             <div class="current-task-title">当前任务</div>
             <dl>
               <div>
-                <dt>规则上下文:</dt>
-                <dd>{{ protocolVersion }}</dd>
-              </div>
-              <div>
                 <dt>源码包:</dt>
                 <dd>{{ sourceArchiveName }}</dd>
               </div>
@@ -1186,7 +1170,6 @@ function switchRule() {
           >
             <StageRuleExtract
               :disabled="isRunning"
-              :protocol-type="inferredProtocolName"
               :rules-file="projectConfig.rules"
               @apply-rules="handleApplyExtractedRules"
               @go-workbench="handleRuleExtractGoWorkbench"
@@ -1197,8 +1180,7 @@ function switchRule() {
             <header class="task-header">
               <div class="task-heading">
                 <div class="task-title-line">
-                  <h1>{{ taskTitle }}</h1>
-                  <Tag color="blue">{{ protocolVersion }}</Tag>
+                  <h1>协议实现分析任务</h1>
                 </div>
                 <div class="task-rule">
                   <span>规则:</span>
@@ -1352,10 +1334,8 @@ function switchRule() {
               <StageFuzz
                 v-else-if="activeStageView === 'fuzz'"
                 :elapsed="elapsedDisplay"
-                implementation="Agent inferred"
                 :logs="fuzzLogs"
                 :job="fuzzJob"
-                :protocol-type="inferredProtocolName"
                 :rule="selectedRule"
                 :stats="fuzzStats"
                 :speed-series="fuzzSpeedSeries"
@@ -1367,10 +1347,8 @@ function switchRule() {
                 :assert-diff-content="assertDiffContent"
                 :assert-result="assertResult"
                 :evidence="codeLocateEvidence"
-                implementation="Agent inferred"
                 :logs="fuzzLogs"
                 :poc-path="aflNetPocPath"
-                :protocol-type="inferredProtocolName"
                 :rule="selectedRule"
                 :static-result="staticResult"
                 :stats="fuzzStats"

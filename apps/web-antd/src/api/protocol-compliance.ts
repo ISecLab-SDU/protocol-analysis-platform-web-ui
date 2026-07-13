@@ -510,8 +510,8 @@ export async function downloadStaticAnalysisDatabase(jobId: string) {
 
 export interface DownloadAflNetPocParams {
   crashLogPath?: string;
-  implementation: string;
-  protocol: string;
+  implementation?: string;
+  protocol?: string;
 }
 
 export type SnapshotAflNetPocParams = DownloadAflNetPocParams;
@@ -531,10 +531,9 @@ export async function downloadAflNetPoc(params: DownloadAflNetPocParams) {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const query = new URLSearchParams({
-    implementation: params.implementation,
-    protocol: params.protocol,
-  });
+  const query = new URLSearchParams();
+  if (params.implementation) query.set('implementation', params.implementation);
+  if (params.protocol) query.set('protocol', params.protocol);
   if (params.crashLogPath) {
     query.set('crashLogPath', params.crashLogPath);
   }
@@ -945,7 +944,6 @@ export interface StartProtocolFuzzingJobPayload {
   assertGenerationJobId: string;
   fuzzConfigJobId: string;
   notes?: string;
-  protocol: string;
   protocolImplementations?: string[];
 }
 
@@ -1008,7 +1006,7 @@ export interface StartProtocolFuzzConfigJobPayload {
   netSpec?: string;
   notes?: string;
   port?: number;
-  protocol: string;
+  protocol?: string;
   protocolImplementations?: string[];
   targetArgs?: string[];
   transport?: string;

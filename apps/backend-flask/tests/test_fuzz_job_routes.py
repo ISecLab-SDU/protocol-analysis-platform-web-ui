@@ -217,7 +217,11 @@ def test_start_fuzz_job_stages_instrumented_code_zip(
         return SimpleNamespace(returncode=0, stdout="abc123def4567890\n", stderr="")
 
     monkeypatch.setattr(fuzz_job_routes.subprocess, "run", fake_run)
-    fuzz_config_job_id = _create_completed_fuzz_config_job(tmp_path, source_zip=source_zip)
+    fuzz_config_job_id = _create_completed_fuzz_config_job(
+        tmp_path,
+        source_zip=source_zip,
+        protocol="FTP",
+    )
 
     response = app.test_client().post(
         "/api/protocol-compliance/fuzzing/jobs",
@@ -225,7 +229,6 @@ def test_start_fuzz_job_stages_instrumented_code_zip(
         json={
             "assertGenerationJobId": "assert-job-1",
             "fuzzConfigJobId": fuzz_config_job_id,
-            "protocol": "MQTT",
             "protocolImplementations": ["SOL"],
         },
     )
@@ -237,6 +240,7 @@ def test_start_fuzz_job_stages_instrumented_code_zip(
     output_root = Path(payload["artifacts"]["outputRoot"])
 
     assert payload["assertGenerationJobId"] == "assert-job-1"
+    assert payload["protocol"] == "FTP"
     assert staged_zip.exists()
     assert (instrumented_dir / "instrumented_code" / "main.c").exists()
     assert output_root == Path(payload["artifacts"]["outputPath"]) / "aflnet-output"
@@ -314,6 +318,7 @@ def test_fuzz_config_job_streams_agent_logs_and_artifacts(
         "get_assert_generation_result",
         lambda job_id: {
             "jobId": job_id,
+            "protocolName": "FTP",
             "artifacts": {"instrumentedCodeZipPath": str(source_zip)},
         },
     )
@@ -354,7 +359,6 @@ def test_fuzz_config_job_streams_agent_logs_and_artifacts(
         headers={"Authorization": "Bearer test-token"},
         json={
             "assertGenerationJobId": "assert-job-1",
-            "protocol": "MQTT",
             "protocolImplementations": ["SOL"],
             "targetArgs": ["--port", "2883"],
             "transport": "tcp",
@@ -388,6 +392,7 @@ def test_fuzz_config_job_streams_agent_logs_and_artifacts(
         "targetArgs": "--port 2883",
         "transport": "tcp",
     }
+    assert payload["job"]["protocol"] == "FTP"
     assert "PG_PROGRESS_JSON" in payload["content"]
     assert "Bash: make" in payload["content"]
     assert commands
@@ -397,6 +402,7 @@ def test_fuzz_config_job_streams_agent_logs_and_artifacts(
     assert "PG_FUZZ_HOST=127.0.0.1" in launched
     assert "PG_FUZZ_PORT=2883" in launched
     assert "PG_FUZZ_NETSPEC=tcp://127.0.0.1/2883" in launched
+    assert "--protocol FTP" in launched
 
 
 def test_start_fuzz_job_rejects_missing_instrumented_zip(monkeypatch) -> None:
