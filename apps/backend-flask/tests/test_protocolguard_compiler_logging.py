@@ -28,7 +28,7 @@ if "claude_agent_sdk" not in sys.modules:
     cast(Any, fake_claude_agent_sdk).query = None
     sys.modules["claude_agent_sdk"] = fake_claude_agent_sdk
 
-from protocol_compliance.compiler import AgentExecutor, AgentExecutorSettings  # noqa: E402
+from protocol_compliance.compiler import ClaudeBuilderRunner, ClaudeBuilderRunnerSettings  # noqa: E402
 from protocol_compliance.claude_agent_events import (  # noqa: E402
     is_hidden_system_message as _is_hidden_system_message,
     progress_events_from_message,
@@ -40,7 +40,7 @@ from protocol_compliance.claude_builder.pg_claude_builder_sdk import (  # noqa: 
 )
 
 
-def test_agent_settings_enable_claude_builder_from_anthropic_env(
+def test_claude_builder_runner_settings_enable_from_anthropic_env(
     monkeypatch: Any,
     tmp_path: Path,
 ) -> None:
@@ -50,7 +50,7 @@ def test_agent_settings_enable_claude_builder_from_anthropic_env(
     monkeypatch.setenv("PG_RUNTIME_ROOT", str(tmp_path / "runtime"))
     monkeypatch.setenv("PG_CLAUDE_BUILDER_IMAGE", "protocolguard-claude-builder:test")
 
-    settings = AgentExecutorSettings.from_env()
+    settings = ClaudeBuilderRunnerSettings.from_env()
 
     assert settings.enabled is True
     assert settings.api_key == "test-anthropic-key"
@@ -60,7 +60,7 @@ def test_agent_settings_enable_claude_builder_from_anthropic_env(
     assert "ANTHROPIC_BASE_URL" in settings.env_passthrough
 
 
-def test_agent_executor_forwards_anthropic_env_without_openai_fallback(
+def test_claude_builder_runner_forwards_anthropic_env_without_openai_fallback(
     monkeypatch: Any,
     tmp_path: Path,
 ) -> None:
@@ -68,7 +68,7 @@ def test_agent_executor_forwards_anthropic_env_without_openai_fallback(
     monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "anthropic-key")
     monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://anthropic.example/v1")
-    settings = AgentExecutorSettings(
+    settings = ClaudeBuilderRunnerSettings(
         enabled=True,
         api_key="anthropic-key",
         base_url="https://anthropic.example/v1",
@@ -78,7 +78,7 @@ def test_agent_executor_forwards_anthropic_env_without_openai_fallback(
         env_passthrough=("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL"),
         builder_image="protocolguard-claude-builder:test",
     )
-    executor = AgentExecutor(settings)
+    executor = ClaudeBuilderRunner(settings)
 
     env = executor._build_passthrough_environment()
 
@@ -95,7 +95,7 @@ def test_agent_executor_forwards_anthropic_env_without_openai_fallback(
     assert "IS_SANDBOX=1" in env_args
 
 
-def test_agent_executor_redacts_secret_command_values() -> None:
+def test_claude_builder_runner_redacts_secret_command_values() -> None:
     command = [
         "docker",
         "run",
@@ -105,7 +105,7 @@ def test_agent_executor_redacts_secret_command_values() -> None:
         "PG_HOST_UID=1000",
     ]
 
-    assert AgentExecutor._redact_command(command) == [
+    assert ClaudeBuilderRunner._redact_command(command) == [
         "docker",
         "run",
         "-e",
@@ -115,30 +115,30 @@ def test_agent_executor_redacts_secret_command_values() -> None:
     ]
 
 
-def test_agent_executor_classifies_claude_builder_log_markers() -> None:
+def test_claude_builder_runner_classifies_claude_builder_log_markers() -> None:
     assert (
-        AgentExecutor._claude_builder_progress_stage(
+        ClaudeBuilderRunner._claude_builder_progress_stage(
             "[claude-command] cmake -S . -B build",
             "builder-log",
         )
         == "claude-command"
     )
     assert (
-        AgentExecutor._claude_builder_progress_stage(
+        ClaudeBuilderRunner._claude_builder_progress_stage(
             "[pg-builder][config.toml] protocol_name = \"MQTT\"",
             "builder-log",
         )
         == "claude-config"
     )
     assert (
-        AgentExecutor._claude_builder_progress_stage(
+        ClaudeBuilderRunner._claude_builder_progress_stage(
             "[pg-builder][artifact-file] /workspace/program.bc: LLVM IR bitcode",
             "builder-log",
         )
         == "claude-artifact"
     )
     assert (
-        AgentExecutor._claude_builder_progress_stage(
+        ClaudeBuilderRunner._claude_builder_progress_stage(
             "plain Claude output line",
             "builder-log",
         )
@@ -146,7 +146,7 @@ def test_agent_executor_classifies_claude_builder_log_markers() -> None:
     )
 
 
-def test_agent_executor_streams_analysis_container_logs(
+def test_claude_builder_runner_streams_analysis_container_logs(
     caplog: Any,
     monkeypatch: Any,
     tmp_path: Path,
@@ -159,11 +159,11 @@ def test_agent_executor_streams_analysis_container_logs(
     (workspace_dir / "program.bc").write_text("bitcode\n", encoding="utf-8")
     (workspace_dir / "program.ll").write_text("llvm ir\n", encoding="utf-8")
     (workspace_dir / "program").write_text("binary\n", encoding="utf-8")
-    src_dir = workspace_dir / "project" / "sol" / "src"
+    src_dir = workspace_dir / "project" / "demo" / "src"
     src_dir.mkdir(parents=True)
     (src_dir / ".cf_main.json").write_text("{}\n", encoding="utf-8")
 
-    settings = AgentExecutorSettings(
+    settings = ClaudeBuilderRunnerSettings(
         enabled=True,
         api_key="test",
         base_url="",
@@ -173,7 +173,7 @@ def test_agent_executor_streams_analysis_container_logs(
         env_passthrough=(),
         builder_image="unused",
     )
-    executor = AgentExecutor(settings)
+    executor = ClaudeBuilderRunner(settings)
     executor._docker_available = True
     executor._analysis_image = "protocolguard:latest"
     executor._analysis_command = ["static"]
@@ -213,7 +213,7 @@ def test_agent_executor_streams_analysis_container_logs(
             workspace_dir,
             "job-analysis-stream",
             lambda job_id, stage, message: events.append((job_id, stage, message)),
-            project_name="Sol",
+            project_name="Demo",
         )
 
     output_log = tmp_path / "outputs" / "job-analysis-stream" / "analysis.log"
@@ -227,23 +227,23 @@ def test_agent_executor_streams_analysis_container_logs(
     ) in events
 
 
-def test_agent_executor_extracts_claude_sdk_progress_json() -> None:
+def test_claude_builder_runner_extracts_claude_sdk_progress_json() -> None:
     line = (
         'PG_PROGRESS_JSON {"stage":"claude-command",'
         '"message":"Bash: cmake -S . -B build",'
         '"tool":"Bash"}'
     )
 
-    assert AgentExecutor._extract_progress_line(line, "builder-log") == (
+    assert ClaudeBuilderRunner._extract_progress_line(line, "builder-log") == (
         "claude-command",
         "Bash: cmake -S . -B build",
     )
 
 
-def test_agent_executor_falls_back_for_invalid_claude_sdk_progress_json() -> None:
+def test_claude_builder_runner_falls_back_for_invalid_claude_sdk_progress_json() -> None:
     line = "PG_PROGRESS_JSON {not-json"
 
-    stage, message = AgentExecutor._extract_progress_line(line, "builder-log")
+    stage, message = ClaudeBuilderRunner._extract_progress_line(line, "builder-log")
 
     assert stage == "claude-status"
     assert message == line
@@ -252,7 +252,7 @@ def test_agent_executor_falls_back_for_invalid_claude_sdk_progress_json() -> Non
 def test_run_logged_command_emits_claude_sdk_progress_json(
     tmp_path: Path,
 ) -> None:
-    settings = AgentExecutorSettings(
+    settings = ClaudeBuilderRunnerSettings(
         enabled=True,
         api_key="anthropic-key",
         base_url="",
@@ -262,7 +262,7 @@ def test_run_logged_command_emits_claude_sdk_progress_json(
         env_passthrough=(),
         builder_image="protocolguard-claude-builder:test",
     )
-    executor = AgentExecutor(settings)
+    executor = ClaudeBuilderRunner(settings)
     events: list[tuple[str, str, str]] = []
     command = [
         sys.executable,

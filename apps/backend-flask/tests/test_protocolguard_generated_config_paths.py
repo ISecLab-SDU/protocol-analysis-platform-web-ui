@@ -10,12 +10,12 @@ BACKEND_ROOT = Path(__file__).resolve().parents[1]
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
-from protocol_compliance.compiler import AgentExecutor, AgentExecutorSettings  # noqa: E402
+from protocol_compliance.compiler import ClaudeBuilderRunner, ClaudeBuilderRunnerSettings  # noqa: E402
 
 
-def _executor(tmp_path: Path) -> AgentExecutor:
-    executor = AgentExecutor.__new__(AgentExecutor)
-    executor.settings = AgentExecutorSettings(
+def _executor(tmp_path: Path) -> ClaudeBuilderRunner:
+    executor = ClaudeBuilderRunner.__new__(ClaudeBuilderRunner)
+    executor.settings = ClaudeBuilderRunnerSettings(
         enabled=True,
         api_key="test-key",
         base_url="https://example.test/v1",
@@ -96,14 +96,14 @@ def test_run_compilation_reports_generated_config_content(tmp_path: Path) -> Non
     try:
         executor.run_compilation(
             code_stream=archive,
-            code_filename="sol.tar",
+            code_filename="project.tar",
             config_stream=None,
             config_filename="generated-config.toml",
             rules_stream=BytesIO(b'{"rules": []}'),
             rules_filename="rules.json",
             protocol_name="MQTT",
             protocol_version="3.1.1",
-            project_name="Sol",
+            project_name="Demo",
             job_id="job-generated-config-log",
             progress_callback=lambda job_id, stage, message: events.append((job_id, stage, message)),
         )
@@ -116,4 +116,5 @@ def test_run_compilation_reports_generated_config_content(tmp_path: Path) -> Non
     assert config_events[0][0] == "job-generated-config-log"
     assert "generated-config.toml" in config_events[0][2]
     assert "protocol_name = \"MQTT\"" in config_events[0][2]
-    assert "project_name = \"Sol\"" in config_events[0][2]
+    assert "project_path = \"/workspace/project\"" in config_events[0][2]
+    assert "project_name = \"Demo\"" in config_events[0][2]

@@ -3,7 +3,6 @@ import json
 import logging
 import shutil
 import sqlite3
-import tarfile
 import subprocess
 import tempfile
 import uuid
@@ -19,23 +18,23 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-class AgentExecutorError(Exception):
+class ClaudeBuilderRunnerError(Exception):
     pass
 
 
-class AgentExecutionError(AgentExecutorError):
+class ClaudeBuilderRunnerExecutionError(ClaudeBuilderRunnerError):
     def __init__(self, message: str, *, logs: Optional[list] = None, details: Optional[dict] = None):
         super().__init__(message)
         self.logs = logs or []
         self.details = details or {}
 
 
-class AgentNotAvailableError(AgentExecutorError):
+class ClaudeBuilderRunnerNotAvailableError(ClaudeBuilderRunnerError):
     pass
 
 
 @dataclass(frozen=True)
-class AgentExecutorSettings:
+class ClaudeBuilderRunnerSettings:
     enabled: bool
     api_key: str
     base_url: str
@@ -46,7 +45,7 @@ class AgentExecutorSettings:
     builder_image: str
 
     @classmethod
-    def from_env(cls) -> "AgentExecutorSettings":
+    def from_env(cls) -> "ClaudeBuilderRunnerSettings":
         api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN") or ""
         enabled = bool(api_key) or bool(os.environ.get("PG_CLAUDE_BUILDER_IMAGE"))
         base_url = os.environ.get("ANTHROPIC_BASE_URL") or ""
@@ -79,7 +78,7 @@ class AgentExecutorSettings:
         )
 
 
-class AgentExecutor:
+class ClaudeBuilderRunner:
 
     def _parse_llm_response(
         self,
@@ -241,10 +240,10 @@ class AgentExecutor:
             return "needs_review"
         return "compliant"
 
-    def __init__(self, settings: AgentExecutorSettings):
+    def __init__(self, settings: ClaudeBuilderRunnerSettings):
         self.settings = settings
         if not settings.enabled:
-            raise AgentNotAvailableError("Agent executor is not enabled")
+            raise ClaudeBuilderRunnerNotAvailableError("Claude builder runner is not enabled")
 
         self._docker_available = self._check_docker()
         self._analysis_image = os.environ.get("PG_ANALYSIS_IMAGE", "protocolguard:latest")
@@ -324,10 +323,10 @@ class AgentExecutor:
                 cwd=str(cwd),
             )
         except OSError as exc:
-            raise AgentExecutionError(f"Failed to start command: {exc}") from exc
+            raise ClaudeBuilderRunnerExecutionError(f"Failed to start command: {exc}") from exc
 
         if process.stdout is None:
-            raise AgentExecutionError("Command did not expose stdout")
+            raise ClaudeBuilderRunnerExecutionError("Command did not expose stdout")
 
         lines: List[str] = []
         with log_path.open("a", encoding="utf-8") as log_file:
@@ -349,14 +348,14 @@ class AgentExecutor:
             process.wait(timeout=timeout)
         except subprocess.TimeoutExpired as exc:
             process.kill()
-            raise AgentExecutionError(
+            raise ClaudeBuilderRunnerExecutionError(
                 f"{stage} command timed out after {timeout} seconds",
                 logs=lines,
                 details={"command": list(command), "workspace": str(cwd)},
             ) from exc
 
         if process.returncode != 0:
-            raise AgentExecutionError(
+            raise ClaudeBuilderRunnerExecutionError(
                 f"{stage} command exited with status {process.returncode}",
                 logs=lines,
                 details={
@@ -415,7 +414,7 @@ class AgentExecutor:
         progress_callback: Optional[Callable[[str, str, str], None]],
     ) -> List[str]:
         if not self._docker_available:
-            raise AgentNotAvailableError("Docker is required for the Claude builder compiler")
+            raise ClaudeBuilderRunnerNotAvailableError("Docker is required for the Claude builder compiler")
 
         output_dir = self.settings.workspace_root.parent / "outputs" / job_identifier
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -537,7 +536,7 @@ class AgentExecutor:
         }
         missing = [label for label, path in required.items() if not path.exists()]
         if missing:
-            raise AgentExecutionError(
+            raise ClaudeBuilderRunnerExecutionError(
                 f"Claude builder completed but required artefacts are missing: {', '.join(missing)}",
                 details={
                     "workspace": str(workspace_dir),
@@ -566,7 +565,7 @@ class AgentExecutor:
 
         resolved_protocol = protocol_name or os.environ.get("PG_PROTOCOL_NAME", "MQTT")
         resolved_version = protocol_version or os.environ.get("PG_PROTOCOL_VERSION", "3.1.1")
-        resolved_project = project_name or os.environ.get("PG_PROJECT_NAME", "Sol")
+        resolved_project = project_name or os.environ.get("PG_PROJECT_NAME", "ProtocolGuard project")
         config = {
             "wpa": {"path": "/workspace/ffp.txt"},
             "database": {"path": "/workspace/database"},
@@ -583,7 +582,7 @@ class AgentExecutor:
                 "llm_multithread": 32,
             },
             "project": {
-                "project_path": "/workspace/project/sol",
+                "project_path": "/workspace/project",
                 "packet_related_callgraph_path": "/workspace/callgraph_report.txt",
                 "function_arg_path": "/workspace/function_arg_summary.txt",
                 "rule_path": "/workspace/inputs/rules.json",
@@ -699,47 +698,44 @@ class AgentExecutor:
         project_name: Optional[str],
     ) -> Dict[str, Any]:
         project_root = self._infer_project_root(workspace_dir)
-        bitcode_path = self._first_existing(
-            workspace_dir,
-            [
-                "program.bc",
-                "sol.bc",
-                "project/sol/build/sol.bc",
-            ],
-        ) or self._find_workspace_file(
-            workspace_dir,
-            suffixes=(".bc",),
-            exclude_suffixes=("_ssa.bc",),
-        ) or (workspace_dir / "program.bc")
-        original_ir_path = self._first_existing(
-            workspace_dir,
-            [
-                "program.ll",
-                "project/sol/build/sol.ll",
-            ],
-        ) or self._find_workspace_file(workspace_dir, suffixes=(".ll",)) or bitcode_path
-        build_log_path = self._first_existing(
-            workspace_dir,
-            [
-                "build_log.txt",
-                "project/sol/build/build_log.txt",
-            ],
-        ) or self._find_workspace_file(workspace_dir, suffixes=("build_log.txt",)) or (
-            workspace_dir / "build_log.txt"
+        project_build_dir = project_root / "build"
+
+        bitcode_path = (
+            self._first_existing(workspace_dir, ["program.bc"])
+            or self._first_existing(project_build_dir, ["program.bc"])
+            or self._first_existing(project_root, ["program.bc"])
+            or self._find_workspace_file(
+                workspace_dir,
+                suffixes=(".bc",),
+                exclude_suffixes=("_ssa.bc",),
+            )
+            or (workspace_dir / "program.bc")
+        )
+        original_ir_path = (
+            self._first_existing(workspace_dir, ["program.ll"])
+            or self._first_existing(project_build_dir, ["program.ll"])
+            or self._first_existing(project_root, ["program.ll"])
+            or self._find_workspace_file(workspace_dir, suffixes=(".ll",))
+            or bitcode_path
+        )
+        build_log_path = (
+            self._first_existing(workspace_dir, ["build_log.txt"])
+            or self._first_existing(project_build_dir, ["build_log.txt"])
+            or self._first_existing(project_root, ["build_log.txt"])
+            or self._find_workspace_file(workspace_dir, suffixes=("build_log.txt",))
+            or (workspace_dir / "build_log.txt")
         )
         bitcode_binary = bitcode_path.with_suffix("")
-        binary_path = self._first_existing(
-            workspace_dir,
-            [
-                "program",
-                "sol",
-                "project/sol/build/sol",
-            ],
-        ) or (bitcode_binary if bitcode_binary.exists() else workspace_dir / "program")
+        binary_path = (
+            self._first_existing(workspace_dir, ["program"])
+            or self._first_existing(project_build_dir, [bitcode_binary.name])
+            or self._first_existing(project_root, ["program"])
+            or (bitcode_binary if bitcode_binary.exists() else workspace_dir / "program")
+        )
 
         resolved_protocol = protocol_name or os.environ.get("PG_PROTOCOL_NAME", "MQTT")
         resolved_version = protocol_version or os.environ.get("PG_PROTOCOL_VERSION", "3.1.1")
-        resolved_project = project_name or os.environ.get("PG_PROJECT_NAME", "Sol")
+        resolved_project = project_name or os.environ.get("PG_PROJECT_NAME", "ProtocolGuard project")
 
         return {
             "wpa": {
@@ -877,7 +873,8 @@ class AgentExecutor:
                 logger.debug("⚠️ rules.json not found, skipping analysis container")
                 return
 
-        project_build_dir = workspace_dir / "project" / "sol" / "build"
+        project_root = self._infer_project_root(workspace_dir)
+        project_build_dir = project_root / "build"
         project_build_dir.mkdir(parents=True, exist_ok=True)
 
         workspace_build_log = workspace_dir / "build_log.txt"
@@ -899,30 +896,16 @@ class AgentExecutor:
         project_dir = workspace_dir / "project"
         project_dir.mkdir(parents=True, exist_ok=True)
 
-        src_dir = project_dir / "sol" / "src"
-        cf_files = list(src_dir.glob(".cf_*.json")) if src_dir.exists() else []
+        cf_files = list(project_dir.rglob(".cf_*.json"))
 
         if cf_files:
-            logger.debug("[*] Found %d .cf_*.json files from compiler.py output", len(cf_files))
+            logger.debug("[*] Found %d .cf_*.json files under project directory", len(cf_files))
             for cf_file in cf_files[:5]:
-                logger.debug("    - %s", cf_file.name)
+                logger.debug("    - %s", cf_file.relative_to(project_dir))
             if len(cf_files) > 5:
                 logger.debug("    - ... and %d more", len(cf_files) - 5)
         else:
-            logger.debug("[*] No .cf_*.json files found from compiler.py, extracting sol.tar manually")
-            tar_path = workspace_dir / "sol.tar"
-            if tar_path.exists():
-                with tarfile.open(tar_path, "r") as tar:
-                    tar.extractall(project_dir)
-                logger.debug("[*] sol.tar extracted successfully")
-
-                cf_files = list(src_dir.glob(".cf_*.json")) if src_dir.exists() else []
-                if cf_files:
-                    logger.debug("[*] Found %d .cf_*.json files after manual extraction", len(cf_files))
-                else:
-                    logger.warning("No .cf_*.json files found in %s", src_dir)
-            else:
-                logger.warning("sol.tar not found at %s", tar_path)
+            logger.debug("[*] No .cf_*.json files found under %s", project_dir)
 
         logger.debug("\n%s", "=" * 60)
         logger.debug("RUNNING PROTOCOL GUARD ANALYSIS")
@@ -967,7 +950,7 @@ class AgentExecutor:
                 cwd=str(workspace_dir)
             )
             if process.stdout is None:
-                raise AgentExecutionError("Analysis container did not expose stdout")
+                raise ClaudeBuilderRunnerExecutionError("Analysis container did not expose stdout")
 
             log_lines = []
             step_keywords = [
@@ -1090,7 +1073,7 @@ class AgentExecutor:
                             pass
                     logger.debug("[*] Set permissions on database files")
                 else:
-                    build_dir = workspace_dir / "project" / "sol" / "build"
+                    build_dir = project_build_dir
                     if build_dir.exists():
                         shutil.copytree(build_dir, db_in_workspace, dirs_exist_ok=True)
                         logger.debug("[*] Created database directory from build dir")
@@ -1244,8 +1227,8 @@ class AgentExecutor:
         config_bytes = config_stream.read() if config_stream is not None else None
         rules_bytes = rules_stream.read()
 
-        tar_path = workspace_dir / code_filename
-        with open(tar_path, "wb") as f:
+        archive_path = workspace_dir / code_filename
+        with open(archive_path, "wb") as f:
             f.write(code_bytes)
 
         if config_bytes is None:
@@ -1292,28 +1275,6 @@ class AgentExecutor:
 
         if progress_callback:
             progress_callback(job_identifier, "compile", "Starting Claude builder compilation")
-
-        project_dir = workspace_dir / "project"
-        project_dir.mkdir(parents=True, exist_ok=True)
-
-        tar_path = workspace_dir / code_filename
-        if tar_path.exists():
-            import tarfile
-            with tarfile.open(tar_path, "r:*") as tar:
-                tar.extractall(project_dir)
-            logger.debug("[*] Pre-extracted sol.tar to %s", project_dir)
-
-            cf_files = list(project_dir.rglob(".cf_*.json"))
-            if cf_files:
-                logger.debug("[*] Found %d .cf_*.json files after pre-extraction", len(cf_files))
-                for cf_file in cf_files[:5]:
-                    logger.debug("    - %s", cf_file.relative_to(project_dir))
-                if len(cf_files) > 5:
-                    logger.debug("    - ... and %d more", len(cf_files) - 5)
-            else:
-                logger.warning("No .cf_*.json files found in %s", project_dir)
-        else:
-                logger.warning("sol.tar not found at %s", tar_path)
 
         builder_logs = self._run_claude_builder_container(workspace_dir, job_identifier, progress_callback)
         logger.debug("[*] Claude builder emitted %d log lines", len(builder_logs))
@@ -1365,13 +1326,14 @@ class AgentExecutor:
 
         standard_names = ["rule_code_snippet.db", "analysis.db", "protocolguard.db", "violations.db"]
 
+        project_root = self._infer_project_root(workspace_dir)
         for db_candidate in [
             workspace_dir / "database" / "rule_code_snippet.db",
             workspace_dir / "database" / "analysis.db",
             workspace_dir / "database" / "protocolguard.db",
-            workspace_dir / "project" / "sol" / "build" / "rule_code_snippet.db",
-            workspace_dir / "project" / "sol" / "build" / "analysis.db",
-            workspace_dir / "project" / "sol" / "build" / "protocolguard.db",
+            project_root / "build" / "rule_code_snippet.db",
+            project_root / "build" / "analysis.db",
+            project_root / "build" / "protocolguard.db",
         ]:
             if db_candidate.exists() and _validate_db(db_candidate):
                 database_path = str(db_candidate)
@@ -1396,7 +1358,7 @@ class AgentExecutor:
                         database_path = str(path)
                         logger.debug("[*] Found database file by name (no validation): %s", database_path)
                         break
-                    elif "sqlite" in filename or "sol" in filename:
+                    elif "sqlite" in filename or filename.endswith(".db"):
                         database_path = str(path)
                         logger.debug("[*] Found database file (fallback): %s", database_path)
                         break
@@ -1421,7 +1383,7 @@ class AgentExecutor:
                 if database_path is None:
                     logger.debug("[*] No database file found in database dir: %s", database_dir)
             else:
-                build_dir = workspace_dir / "project" / "sol" / "build"
+                build_dir = project_root / "build"
                 if build_dir.exists():
                     for db_file in build_dir.glob("*.db"):
                         if _validate_db(db_file):

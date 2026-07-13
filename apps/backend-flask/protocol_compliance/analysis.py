@@ -13,11 +13,11 @@ from io import BytesIO
 from typing import BinaryIO, Callable, Dict, List, Literal, Optional, cast
 
 from .compiler import (
-    AgentExecutor,
-    AgentExecutorError,
-    AgentExecutorSettings,
-    AgentExecutionError,
-    AgentNotAvailableError,
+    ClaudeBuilderRunner,
+    ClaudeBuilderRunnerError,
+    ClaudeBuilderRunnerSettings,
+    ClaudeBuilderRunnerExecutionError,
+    ClaudeBuilderRunnerNotAvailableError,
 )
 from .job_logging import JobStageLogger
 from .state_repository import analysis_state_repository
@@ -445,8 +445,8 @@ class AnalysisExecutionError(AnalysisError):
 
 
 @lru_cache(maxsize=1)
-def _agent_settings() -> AgentExecutorSettings:
-    return AgentExecutorSettings.from_env()
+def _agent_settings() -> ClaudeBuilderRunnerSettings:
+    return ClaudeBuilderRunnerSettings.from_env()
 
 
 def run_static_analysis(
@@ -481,8 +481,8 @@ def run_static_analysis(
         )
 
     try:
-        executor = AgentExecutor(settings)
-    except AgentNotAvailableError as exc:
+        executor = ClaudeBuilderRunner(settings)
+    except ClaudeBuilderRunnerNotAvailableError as exc:
         raise AnalysisNotReadyError(str(exc)) from exc
 
     try:
@@ -504,14 +504,14 @@ def run_static_analysis(
         if database_path:
             result["staticAnalysisCheck"] = check_static_analysis_database(database_path)
         return result
-    except AgentExecutionError as exc:
+    except ClaudeBuilderRunnerExecutionError as exc:
         LOGGER.exception("ProtocolGuard analysis execution failed")
         raise AnalysisExecutionError(
             str(exc),
             logs=getattr(exc, "logs", []),
             details=getattr(exc, "details", {}),
         ) from exc
-    except AgentExecutorError as exc:
+    except ClaudeBuilderRunnerError as exc:
         LOGGER.exception("ProtocolGuard Agent error")
         raise AnalysisError(str(exc)) from exc
 
