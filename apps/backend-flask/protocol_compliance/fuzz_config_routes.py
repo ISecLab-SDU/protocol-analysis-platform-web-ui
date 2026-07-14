@@ -389,6 +389,7 @@ def _fuzz_config_docker_command(
         "run",
         "--rm",
         "--privileged",
+        "--network=host",
         *_host_identity_flags(),
         *env,
         "-v",
@@ -413,9 +414,8 @@ def _fuzz_config_docker_command(
 def _docker_env_flags(snapshot: Dict[str, Any]) -> list[str]:
     flags: list[str] = []
     for key in ("ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "PG_CLAUDE_MODEL", "ANTHROPIC_MODEL"):
-        value = os.environ.get(key)
-        if value:
-            flags.extend(["-e", f"{key}={value}"])
+        if os.environ.get(key):
+            flags.extend(["-e", key])
     implementations = snapshot.get("protocolImplementations") or []
     if isinstance(implementations, list) and implementations:
         flags.extend(["-e", "PG_FUZZ_IMPLEMENTATIONS=" + ",".join(str(item) for item in implementations)])

@@ -72,7 +72,6 @@ const {
   backToSetup,
   selectStageView,
   startPipeline,
-  startFuzzDebugReplay,
   stopPipeline,
   resetWorkbench,
   canViewStage,
@@ -1191,12 +1190,6 @@ function switchRule() {
                 </div>
               </div>
               <div class="task-actions">
-                <Button :disabled="isRunning" @click="startFuzzDebugReplay">
-                  复用插桩产物启动 Fuzz
-                  <template #icon>
-                    <IconifyIcon icon="mdi:rocket-launch-outline" />
-                  </template>
-                </Button>
                 <Button
                   :disabled="isRunning || stage === 'setup'"
                   @click="switchRule"

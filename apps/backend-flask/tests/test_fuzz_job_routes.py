@@ -301,6 +301,8 @@ def test_fuzz_config_job_streams_agent_logs_and_artifacts(
 
     runtime_root = tmp_path / "protocolguard"
     monkeypatch.setenv("PG_RUNTIME_ROOT", str(runtime_root))
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "secret-fuzz-config-key")
+    monkeypatch.setenv("ANTHROPIC_BASE_URL", "http://127.0.0.1:4000")
     fuzz_config_routes.FUZZ_CONFIG_JOBS._jobs.clear()
 
     source_zip = runtime_root / "outputs" / "assert-job-config" / "instrumented_code.zip"
@@ -396,7 +398,17 @@ def test_fuzz_config_job_streams_agent_logs_and_artifacts(
     assert "PG_PROGRESS_JSON" in payload["content"]
     assert "Bash: make" in payload["content"]
     assert commands
-    launched = " ".join(commands[0])
+    command = commands[0]
+    launched = " ".join(command)
+    assert "--network=host" in command
+    assert ["-e", "ANTHROPIC_API_KEY"] == command[
+        command.index("ANTHROPIC_API_KEY") - 1 : command.index("ANTHROPIC_API_KEY") + 1
+    ]
+    assert ["-e", "ANTHROPIC_BASE_URL"] == command[
+        command.index("ANTHROPIC_BASE_URL") - 1 : command.index("ANTHROPIC_BASE_URL") + 1
+    ]
+    assert "secret-fuzz-config-key" not in launched
+    assert "http://127.0.0.1:4000" not in launched
     assert "PG_FUZZ_TARGET_ARGS=--port 2883" in launched
     assert "PG_FUZZ_TRANSPORT=tcp" in launched
     assert "PG_FUZZ_HOST=127.0.0.1" in launched
