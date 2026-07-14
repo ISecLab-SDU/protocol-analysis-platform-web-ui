@@ -23,6 +23,7 @@ if "claude_agent_sdk" not in sys.modules:
         "StreamEvent",
         "SystemMessage",
         "TextBlock",
+        "ThinkingBlock",
         "ToolResultBlock",
         "ToolUseBlock",
         "UserMessage",
@@ -189,6 +190,30 @@ def test_validate_builder_outputs_accepts_plain_compile_commands(tmp_path: Path)
     executor = ClaudeBuilderRunner.__new__(ClaudeBuilderRunner)
 
     executor._validate_builder_outputs(workspace_dir)
+
+
+def test_validate_builder_outputs_rejects_interleaved_compile_commands(
+    tmp_path: Path,
+) -> None:
+    workspace_dir = tmp_path / "workspace"
+    inputs_dir = workspace_dir / "inputs"
+    inputs_dir.mkdir(parents=True)
+    (workspace_dir / "program.bc").write_bytes(b"bitcode")
+    (workspace_dir / "program.ll").write_text("; llvm ir\n", encoding="utf-8")
+    (inputs_dir / "rules.json").write_text("{}\n", encoding="utf-8")
+    (workspace_dir / "build_log.txt").write_text(
+        "gclang -g -O0 -c src/server.c -o build/server.o\n"
+        "data.lastModifiedDataStringgclang -g -O0 -c src/connection.c "
+        "-o build/connection.o\n",
+        encoding="utf-8",
+    )
+    executor = ClaudeBuilderRunner.__new__(ClaudeBuilderRunner)
+
+    with pytest.raises(
+        ClaudeBuilderRunnerExecutionError,
+        match="build log contains interleaved compiler commands",
+    ):
+        executor._validate_builder_outputs(workspace_dir)
 
 
 def test_claude_builder_runner_streams_analysis_container_logs(
@@ -577,5 +602,25 @@ def test_claude_agent_user_message_exposes_tool_result_without_raw_payload() -> 
             "sdk_message_type": "ToolResultBlock",
             "tool_use_id": "tool-1",
             "is_error": True,
+        }
+    ]
+
+
+def test_claude_agent_thinking_block_omits_signature_from_progress() -> None:
+    fake_sdk = cast(Any, sys.modules["claude_agent_sdk"])
+    thinking_block = fake_sdk.ThinkingBlock.__new__(fake_sdk.ThinkingBlock)
+    thinking_block.thinking = "Inspect the project before choosing a build command."
+    thinking_block.signature = "private-signature"
+    message = fake_sdk.AssistantMessage.__new__(fake_sdk.AssistantMessage)
+    message.session_id = None
+    message.model = "claude-test"
+    message.content = [thinking_block]
+
+    assert progress_events_from_message(message) == [
+        {
+            "type": "progress",
+            "stage": "claude-thinking",
+            "message": "Inspect the project before choosing a build command.",
+            "sdk_message_type": "ThinkingBlock",
         }
     ]

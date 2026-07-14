@@ -598,13 +598,14 @@ class ClaudeBuilderRunner:
             r"(?:-[0-9]+)?\b"
         )
         source_pattern = re.compile(r"\.(?:c|cc|cpp|cxx)(?:\s|$)")
+        build_log_lines = build_log_path.read_text(
+            encoding="utf-8", errors="replace"
+        ).splitlines()
         has_compile_command = any(
             compiler_pattern.search(line)
             and " -c " in f" {line.strip()} "
             and source_pattern.search(line)
-            for line in build_log_path.read_text(
-                encoding="utf-8", errors="replace"
-            ).splitlines()
+            for line in build_log_lines
         )
         if not has_compile_command:
             raise ClaudeBuilderRunnerExecutionError(
@@ -612,6 +613,30 @@ class ClaudeBuilderRunner:
                 details={
                     "workspace": str(workspace_dir),
                     "buildLog": str(build_log_path),
+                },
+            )
+
+        embedded_compiler_pattern = re.compile(
+            r"(?:gclang|gclang\+\+|clang|clang\+\+|gcc|g\+\+|cc|c\+\+)"
+            r"(?:-[0-9]+)?\b"
+        )
+        malformed_compile_commands = [
+            line
+            for line in build_log_lines
+            if not compiler_pattern.search(line)
+            and embedded_compiler_pattern.search(line)
+            and " -c " in f" {line.strip()} "
+            and source_pattern.search(line)
+            and re.search(r"\s-o\s+\S+\.o(?:\s|$)", line)
+        ]
+        if malformed_compile_commands:
+            raise ClaudeBuilderRunnerExecutionError(
+                "Claude builder build log contains interleaved compiler commands",
+                details={
+                    "workspace": str(workspace_dir),
+                    "buildLog": str(build_log_path),
+                    "malformedCommandCount": len(malformed_compile_commands),
+                    "examples": malformed_compile_commands[:5],
                 },
             )
 

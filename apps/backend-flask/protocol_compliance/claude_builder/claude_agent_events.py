@@ -247,6 +247,15 @@ def _assistant_events(message: AssistantMessage) -> list[dict[str, Any]]:
                     "is_error": bool(block.is_error),
                 }
             )
+        elif type(block).__name__ == "ThinkingBlock":
+            events.append(
+                {
+                    "type": "progress",
+                    "stage": "claude-thinking",
+                    "message": truncate(getattr(block, "thinking", "")),
+                    "sdk_message_type": "ThinkingBlock",
+                }
+            )
         else:
             events.append(
                 {

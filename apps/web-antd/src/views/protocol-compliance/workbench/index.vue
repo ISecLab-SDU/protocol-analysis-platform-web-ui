@@ -820,7 +820,7 @@ function switchRule() {
           <div class="brand-mark">
             <IconifyIcon icon="mdi:shield-check-outline" />
           </div>
-          <div class="brand-name">ProtocolGuard</div>
+          <div class="brand-name">协议实现合规性分析平台</div>
           <div class="topbar-divider"></div>
           <div class="topbar-section">{{ activeSideNavLabel }}</div>
         </div>
@@ -915,7 +915,7 @@ function switchRule() {
           <section v-if="activeSideNav === 'overview'" class="overview-shell">
             <header class="overview-hero">
               <div class="overview-hero-copy">
-                <h1>LLM驱动的协议实现合规与安全分析平台</h1>
+                <h1>LLM 驱动的协议实现合规与安全分析平台</h1>
                 <p>
                   结合协议规则提取、LLM 引导静态分析、断言插桩和动态验证，
                   自动化发现协议实现中的不合规漏洞并完成可验证确认。

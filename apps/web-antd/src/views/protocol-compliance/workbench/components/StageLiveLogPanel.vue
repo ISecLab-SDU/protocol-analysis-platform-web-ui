@@ -38,10 +38,7 @@ const logBodyRef = ref<HTMLElement | null>(null);
 const visibleLines = computed(() =>
   props.lines.filter(
     (line) =>
-      !(
-        line.stage === 'claude-status' &&
-        line.metadata?.sdk_message_type === 'AssistantMessage'
-      ),
+      !isAssistantTurnNoise(line) && !isSuccessfulToolResultUserMessage(line),
   ),
 );
 
@@ -75,10 +72,47 @@ function isClaudeLine(line: StageLiveLogLine) {
   return line.stage?.startsWith('claude-');
 }
 
+function isAssistantTurnNoise(line: StageLiveLogLine) {
+  return (
+    line.stage === 'claude-status' &&
+    line.metadata?.sdk_message_type === 'AssistantMessage'
+  );
+}
+
+function isSuccessfulToolResultUserMessage(line: StageLiveLogLine) {
+  if (!isToolResultUserMessage(line)) return false;
+  return !isToolResultError(line);
+}
+
+function isToolResultUserMessage(line: StageLiveLogLine) {
+  return (
+    line.metadata?.sdk_message_type === 'UserMessage' ||
+    line.text.trimStart().startsWith('UserMessage(content=[ToolResultBlock(')
+  );
+}
+
+function isToolResultError(line: StageLiveLogLine) {
+  return (
+    line.metadata?.is_error === true ||
+    line.text.includes('is_error=True') ||
+    line.text.includes("tool_use_result='Error:")
+  );
+}
+
+function isThinkingLine(line: StageLiveLogLine) {
+  return (
+    line.stage === 'claude-thinking' ||
+    line.metadata?.sdk_message_type === 'ThinkingBlock' ||
+    line.text.trimStart().startsWith('ThinkingBlock(thinking=')
+  );
+}
+
 function claudeLineKind(line: StageLiveLogLine) {
   if (line.metadata?.is_error || line.metadata?.status === 'failed') {
     return 'error';
   }
+  if (isToolResultError(line)) return 'error';
+  if (isThinkingLine(line)) return 'thinking';
   if (line.metadata?.sdk_message_type === 'ResultMessage') return 'result';
   if (line.stage === 'claude-command') return 'command';
   if (line.stage === 'claude-inspect') return 'inspect';
@@ -97,6 +131,7 @@ function claudeIcon(line: StageLiveLogLine) {
     observation: 'mdi:check-circle-outline',
     result: 'mdi:chart-box-outline',
     status: 'mdi:creation-outline',
+    thinking: 'mdi:head-cog-outline',
     write: 'mdi:file-edit-outline',
   }[claudeLineKind(line)];
 }
@@ -107,6 +142,7 @@ function claudeLabel(line: StageLiveLogLine) {
   if (kind === 'inspect') return '查看文件';
   if (kind === 'write') return '修改文件';
   if (kind === 'message') return 'Claude 回复';
+  if (kind === 'thinking') return 'Claude 思考';
   if (kind === 'observation') return '工具结果';
   if (kind === 'result')
     return line.metadata?.status === 'failed' ? '运行失败' : '运行完成';
@@ -115,6 +151,12 @@ function claudeLabel(line: StageLiveLogLine) {
 }
 
 function claudePrimaryText(line: StageLiveLogLine) {
+  if (isThinkingLine(line)) {
+    return extractReprStringField(line.text, 'thinking') || line.text;
+  }
+  if (isToolResultError(line)) {
+    return extractReprStringField(line.text, 'content') || line.text;
+  }
   const input = line.metadata?.tool_input;
   if (line.metadata?.tool === 'Bash' && typeof input?.command === 'string') {
     return input.command;
@@ -122,6 +164,34 @@ function claudePrimaryText(line: StageLiveLogLine) {
   if (typeof input?.file_path === 'string') return input.file_path;
   if (typeof input?.path === 'string') return input.path;
   return line.text.replace(/^[a-z]+:\s*/i, '');
+}
+
+function extractReprStringField(text: string, field: string) {
+  const marker = `${field}=`;
+  const markerIndex = text.lastIndexOf(marker);
+  if (markerIndex === -1) return '';
+  const start = markerIndex + marker.length;
+  const quote = text[start];
+  if (quote !== "'" && quote !== '"') return '';
+
+  let value = '';
+  for (let index = start + 1; index < text.length; index += 1) {
+    const character = text[index];
+    if (character === quote) return value;
+    if (character !== '\\') {
+      value += character;
+      continue;
+    }
+    const escaped = text[index + 1];
+    if (escaped === undefined) break;
+    value += { n: '\n', r: '\r', t: '\t' }[escaped] ?? escaped;
+    index += 1;
+  }
+  const truncatedValue = value.trimEnd();
+  if (!truncatedValue) return '';
+  return truncatedValue.endsWith('...')
+    ? truncatedValue
+    : `${truncatedValue}...`;
 }
 
 function claudeDescription(line: StageLiveLogLine) {
@@ -404,6 +474,26 @@ function formatCount(value: number) {
 .claude-line--result .claude-rail {
   color: #6941a5;
   background: #f3edfb;
+}
+
+.claude-line--thinking {
+  background: #fffef9;
+}
+
+.claude-line--thinking .claude-rail {
+  color: #7a5d0b;
+  background: #fff4c2;
+}
+
+.claude-line--thinking .claude-primary {
+  padding: 7px 9px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #5f5538;
+  background: #fffaf0;
+  border-left: 3px solid #d6b54c;
+  border-radius: 0 4px 4px 0;
 }
 
 .claude-line--error .claude-rail {

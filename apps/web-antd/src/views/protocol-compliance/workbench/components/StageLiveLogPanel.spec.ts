@@ -121,4 +121,107 @@ describe('stageLiveLogPanel', () => {
       '构建完成，所有必需产物均已生成。',
     );
   });
+
+  it('hides successful legacy UserMessage tool results and styles thinking blocks', () => {
+    const wrapper = mount(StageLiveLogPanel, {
+      props: {
+        lines: [
+          {
+            id: 'tool-result',
+            phase: 'Claude 构建',
+            stage: 'claude-message',
+            text: "UserMessage(content=[ToolResultBlock(tool_use_id='call-1', content='build ok', is_error=False)])",
+          },
+          {
+            id: 'thinking',
+            metadata: { sdk_message_type: 'ThinkingBlock' },
+            phase: 'Claude 构建',
+            stage: 'claude-message',
+            text: String.raw`ThinkingBlock(thinking='Inspect the Makefile.\nThen build with gclang.', signature='private-signature')`,
+          },
+        ],
+        progress: {
+          description: 'Claude 正在配置并构建项目。',
+          label: 'Claude 构建',
+        },
+        running: true,
+      },
+    });
+
+    expect(wrapper.findAll('.claude-line')).toHaveLength(1);
+    expect(wrapper.text()).not.toContain('UserMessage');
+    expect(wrapper.get('.claude-line--thinking').text()).toContain(
+      'Inspect the Makefile.\nThen build with gclang.',
+    );
+    expect(wrapper.get('.claude-line--thinking').text()).not.toContain(
+      'private-signature',
+    );
+    expect(wrapper.get('.claude-line--thinking').text()).toContain(
+      'Claude 思考',
+    );
+  });
+
+  it('keeps failed legacy UserMessage tool results visible', () => {
+    const wrapper = mount(StageLiveLogPanel, {
+      props: {
+        lines: [
+          {
+            id: 'failed-tool-result',
+            phase: 'Claude 构建',
+            stage: 'claude-message',
+            text: String.raw`UserMessage(content=[ToolResultBlock(tool_use_id='call-1', content='Exit code 127\nunzip: command not found', is_error=True)])`,
+          },
+        ],
+        progress: {
+          description: 'Claude 正在配置并构建项目。',
+          label: 'Claude 构建',
+        },
+        running: true,
+      },
+    });
+
+    expect(wrapper.get('.claude-line--error').text()).toContain(
+      'Exit code 127\nunzip: command not found',
+    );
+    expect(wrapper.text()).not.toContain('UserMessage');
+  });
+
+  it('keeps the parsed portion of a truncated ThinkingBlock repr', () => {
+    const wrapper = mount(StageLiveLogPanel, {
+      props: {
+        lines: [
+          {
+            id: 'truncated-thinking',
+            metadata: { sdk_message_type: 'ThinkingBlock' },
+            phase: 'Claude 构建',
+            stage: 'claude-message',
+            text: String.raw`ThinkingBlock(thinking='The clean output looks correct.\nNow inspect the Makefile sh`,
+          },
+          {
+            id: 'truncated-escape',
+            metadata: { sdk_message_type: 'ThinkingBlock' },
+            phase: 'Claude 构建',
+            stage: 'claude-message',
+            text: "ThinkingBlock(thinking='Check the next command\\",
+          },
+        ],
+        progress: {
+          description: 'Claude 正在配置并构建项目。',
+          label: 'Claude 构建',
+        },
+        running: true,
+      },
+    });
+
+    const thoughts = wrapper.findAll('.claude-line--thinking');
+    const [firstThought, secondThought] = thoughts;
+    expect(firstThought).toBeDefined();
+    expect(secondThought).toBeDefined();
+    expect(firstThought?.text()).toContain(
+      'The clean output looks correct.\nNow inspect the Makefile sh...',
+    );
+    expect(firstThought?.text()).not.toContain('ThinkingBlock(');
+    expect(secondThought?.text()).toContain('Check the next command...');
+    expect(secondThought?.text()).not.toContain('ThinkingBlock(');
+  });
 });
