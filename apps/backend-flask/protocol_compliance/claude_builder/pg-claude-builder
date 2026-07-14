@@ -242,7 +242,7 @@ PY
   set -e
   log "Claude builder agent exited with status ${claude_status}"
   if [[ -f "$WORKSPACE_DIR/claude_builder_events.jsonl" ]]; then
-    log_file_preview "$WORKSPACE_DIR/claude_builder_events.jsonl" "claude-sdk-events" 200
+    log "Claude SDK audit stream persisted at $WORKSPACE_DIR/claude_builder_events.jsonl ($(wc -l < "$WORKSPACE_DIR/claude_builder_events.jsonl") events, $(wc -c < "$WORKSPACE_DIR/claude_builder_events.jsonl") bytes)"
   else
     log "Claude SDK event stream was not persisted"
   fi

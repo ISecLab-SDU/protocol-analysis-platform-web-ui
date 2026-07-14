@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import asyncio
+import errno
 import json
 import os
+import select
 import shutil
+import sys
 import time
 import traceback
 from pathlib import Path
@@ -50,12 +53,46 @@ def _now_ms() -> int:
     return int(time.time() * 1000)
 
 
-def _emit_progress_event(event: dict[str, Any]) -> None:
+def _append_audit_line(line: str) -> None:
+    try:
+        EVENTS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with EVENTS_PATH.open("a", encoding="utf-8") as handle:
+            handle.write(line + "\n")
+    except OSError:
+        # Audit output must never determine whether the build succeeds.
+        return
+
+
+def _write_progress_line(line: str, *, critical: bool) -> bool:
+    payload = f"{PROGRESS_PREFIX}{line}\n".encode("utf-8", errors="replace")
+    deadline = time.monotonic() + 0.25 if critical else time.monotonic()
+    offset = 0
+    while offset < len(payload):
+        try:
+            written = os.write(sys.stdout.fileno(), payload[offset:])
+            if written <= 0:
+                return False
+            offset += written
+        except BlockingIOError:
+            if time.monotonic() >= deadline:
+                return False
+            select.select([], [sys.stdout.fileno()], [], max(0.0, deadline - time.monotonic()))
+        except OSError as exc:
+            if exc.errno not in {errno.EAGAIN, errno.EWOULDBLOCK}:
+                return False
+            if time.monotonic() >= deadline:
+                return False
+    return True
+
+
+def _emit_progress_event(event: dict[str, Any]) -> bool:
     line = encode_progress_event(event, ts_ms=_now_ms())
-    print(f"{PROGRESS_PREFIX}{line}", flush=True)
-    EVENTS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with EVENTS_PATH.open("a", encoding="utf-8") as handle:
-        handle.write(line + "\n")
+    _append_audit_line(line)
+    critical = event.get("type") == "error" or event.get("stage") in {
+        "claude-result",
+        "claude-status",
+    }
+    return _write_progress_line(line, critical=critical)
 
 
 def _build_claude_environment() -> dict[str, str]:
@@ -77,8 +114,9 @@ def _handle_message(message: Any) -> int | None:
         return None
 
     raw = _message_to_dict(message)
-    with EVENTS_PATH.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps({"raw": raw}, ensure_ascii=False, default=_json_default) + "\n")
+    _append_audit_line(
+        json.dumps({"raw": raw}, ensure_ascii=False, default=_json_default)
+    )
     for event in progress_events_from_message(message, result_label="Claude builder"):
         _emit_progress_event(event)
     return result_code_from_message(message)

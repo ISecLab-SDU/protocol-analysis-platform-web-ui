@@ -195,23 +195,45 @@ class AnalysisStateRepository:
         message: str,
         metadata: Optional[Mapping[str, Any]] = None,
     ) -> None:
+        self.add_events(
+            [
+                {
+                    "job_id": job_id,
+                    "timestamp": timestamp,
+                    "stage": stage,
+                    "message": message,
+                    "metadata": metadata,
+                }
+            ]
+        )
+
+    def add_events(self, events: Sequence[Mapping[str, Any]]) -> None:
+        if not events:
+            return
         try:
             with self._connect() as conn:
-                conn.execute(
+                conn.executemany(
                     """
                     INSERT INTO analysis_job_events (job_id, timestamp, stage, message, metadata_json)
                     VALUES (:job_id, :timestamp, :stage, :message, :metadata_json)
                     """,
-                    {
-                        "job_id": job_id,
-                        "timestamp": timestamp,
-                        "stage": stage,
-                        "message": message,
-                        "metadata_json": _dump_json(metadata),
-                    },
+                    [
+                        {
+                            "job_id": event["job_id"],
+                            "timestamp": event["timestamp"],
+                            "stage": event["stage"],
+                            "message": event["message"],
+                            "metadata_json": _dump_json(event.get("metadata")),
+                        }
+                        for event in events
+                    ],
                 )
         except sqlite3.DatabaseError as exc:
-            LOGGER.warning("Failed to persist analysis job event for %s: %s", job_id, exc)
+            LOGGER.warning(
+                "Failed to persist %d analysis job events: %s",
+                len(events),
+                exc,
+            )
 
     def fetch_events(
         self,
@@ -396,6 +418,9 @@ class AnalysisStateRepository:
                             metadata_json TEXT,
                             FOREIGN KEY(job_id) REFERENCES analysis_jobs(job_id) ON DELETE CASCADE
                         );
+
+                        CREATE INDEX IF NOT EXISTS idx_analysis_job_events_job_id_id
+                        ON analysis_job_events(job_id, id);
                         """
                     )
                     columns = {

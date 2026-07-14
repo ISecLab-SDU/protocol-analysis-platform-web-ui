@@ -38,6 +38,8 @@ from protocol_compliance.compiler import (  # noqa: E402
     ClaudeBuilderRunnerSettings,
 )
 from protocol_compliance.claude_agent_events import (  # noqa: E402
+    MAX_PROGRESS_EVENT_BYTES,
+    encode_progress_event,
     is_hidden_system_message as _is_hidden_system_message,
     progress_events_from_message,
     sanitize_event_value as _sanitize_event_value,
@@ -45,6 +47,7 @@ from protocol_compliance.claude_agent_events import (  # noqa: E402
 from protocol_compliance.claude_builder.pg_claude_builder_sdk import (  # noqa: E402
     CLAUDE_CLI_PATH,
     _build_claude_environment,
+    _write_progress_line,
 )
 
 
@@ -375,6 +378,16 @@ def test_claude_builder_runner_extracts_claude_sdk_progress_json() -> None:
     )
 
 
+def test_claude_builder_runner_preserves_critical_error_priority() -> None:
+    event = ClaudeBuilderRunner._extract_progress_event(
+        'PG_PROGRESS_JSON {"type":"error","stage":"claude-status",'
+        '"message":"builder failed"}',
+        "builder-log",
+    )
+
+    assert event["critical"] is True
+    assert not ClaudeBuilderRunner._is_droppable_progress_event(event)
+
 def test_claude_builder_runner_falls_back_for_invalid_claude_sdk_progress_json() -> None:
     line = "PG_PROGRESS_JSON {not-json"
 
@@ -424,6 +437,54 @@ def test_run_logged_command_emits_claude_sdk_progress_json(
         'PG_PROGRESS_JSON {"stage":"claude-write","message":"Write: /workspace/program.bc"}'
     ]
     assert events == [("job-sdk", "claude-write", "Write: /workspace/program.bc")]
+
+
+def test_run_logged_command_batches_debug_progress_for_registry_callback(
+    tmp_path: Path,
+) -> None:
+    settings = ClaudeBuilderRunnerSettings(
+        enabled=True,
+        api_key="anthropic-key",
+        base_url="",
+        model="unused",
+        workspace_root=tmp_path,
+        max_runtime=60,
+        env_passthrough=(),
+        builder_image="protocolguard-claude-builder:test",
+    )
+    executor = ClaudeBuilderRunner(settings)
+    individual_events: list[tuple[str, str, str]] = []
+    batches: list[list[tuple[str, str, dict[str, object] | None]]] = []
+
+    def callback(job_id: str, stage: str, message: str) -> None:
+        individual_events.append((job_id, stage, message))
+
+    cast(Any, callback).append_debug_batch = batches.append
+    command = [
+        sys.executable,
+        "-c",
+        (
+            "import json; "
+            "[print('PG_PROGRESS_JSON ' + json.dumps("
+            "{'stage': 'claude-message', 'message': f'event {index}'})) "
+            "for index in range(5)]"
+        ),
+    ]
+
+    executor._run_logged_command(
+        command,
+        cwd=tmp_path,
+        log_path=tmp_path / "command.log",
+        progress_callback=callback,
+        job_identifier="job-sdk-batch",
+        stage="builder-log",
+        timeout=10,
+    )
+
+    assert individual_events == []
+    assert [event[1] for batch in batches for event in batch] == [
+        f"event {index}" for index in range(5)
+    ]
 
 
 def test_run_logged_command_preserves_claude_sdk_metadata_for_compatible_callback(
@@ -583,6 +644,60 @@ def test_claude_agent_event_conversion_is_reusable_without_builder_runner() -> N
             "tool_input": {"command": "cmake -S . -B build"},
         },
     ]
+
+
+def test_claude_agent_edit_progress_omits_source_payload() -> None:
+    fake_sdk = cast(Any, sys.modules["claude_agent_sdk"])
+    tool_block = fake_sdk.ToolUseBlock.__new__(fake_sdk.ToolUseBlock)
+    tool_block.name = "Edit"
+    tool_block.input = {
+        "file_path": "/workspace/project/Makefile",
+        "old_string": "CC=gcc\n" * 2000,
+        "new_string": "CC=gclang\n" * 2000,
+        "replace_all": True,
+    }
+    tool_block.id = "tool-edit"
+    message = fake_sdk.AssistantMessage.__new__(fake_sdk.AssistantMessage)
+    message.session_id = None
+    message.model = "claude-test"
+    message.content = [tool_block]
+
+    events = progress_events_from_message(message)
+
+    assert events[0]["message"] == "Edit: /workspace/project/Makefile"
+    assert events[0]["tool_input"] == {
+        "file_path": "/workspace/project/Makefile"
+    }
+    assert "old_string" not in str(events)
+    assert "new_string" not in str(events)
+
+
+def test_claude_progress_encoding_has_hard_byte_limit() -> None:
+    encoded = encode_progress_event(
+        {
+            "type": "error",
+            "stage": "claude-status",
+            "message": "编译输出" * 5000,
+            "traceback": "private traceback" * 5000,
+            "tool_input": {"command": "make" * 5000},
+        },
+        ts_ms=1,
+    )
+
+    assert len(encoded.encode("utf-8")) <= MAX_PROGRESS_EVENT_BYTES
+    assert '"truncated": true' in encoded
+    assert "private traceback" not in encoded
+
+
+def test_noncritical_progress_write_drops_eagain(
+    monkeypatch: Any,
+) -> None:
+    def raise_eagain(_fd: int, _payload: bytes) -> int:
+        raise BlockingIOError(11, "write would block")
+
+    monkeypatch.setattr("os.write", raise_eagain)
+
+    assert not _write_progress_line("{}", critical=False)
 
 
 def test_claude_agent_user_message_exposes_tool_result_without_raw_payload() -> None:

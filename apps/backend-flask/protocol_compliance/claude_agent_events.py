@@ -5,6 +5,7 @@ from __future__ import annotations
 from .claude_builder.claude_agent_events import (
     HIDDEN_SYSTEM_SUBTYPES,
     HIDDEN_THINKING_KEYS,
+    MAX_PROGRESS_EVENT_BYTES,
     PROGRESS_PREFIX,
     decode_progress_event,
     decode_progress_line,
@@ -23,6 +24,7 @@ from .claude_builder.claude_agent_events import (
 __all__ = [
     "HIDDEN_SYSTEM_SUBTYPES",
     "HIDDEN_THINKING_KEYS",
+    "MAX_PROGRESS_EVENT_BYTES",
     "PROGRESS_PREFIX",
     "decode_progress_event",
     "decode_progress_line",

@@ -37,6 +37,7 @@ def _is_debug_progress_stage(stage: str) -> bool:
 
 
 AnalysisJobStatus = Literal["queued", "running", "completed", "failed"]
+MAX_IN_MEMORY_EVENTS = 2000
 
 
 @dataclass
@@ -125,6 +126,39 @@ class AnalysisProgressRegistry:
                 job_logger.debug(message, stage=stage, status=state.status)
             else:
                 job_logger.info(message, stage=stage, status=state.status)
+
+    def append_debug_events(
+        self,
+        job_id: str,
+        events: List[tuple[str, str, Optional[Dict[str, object]]]],
+    ) -> None:
+        persisted_events: List[Dict[str, object]] = []
+        with self._lock:
+            state = self._states.get(job_id)
+            if not state:
+                return
+            for stage, message, metadata in events:
+                timestamp = self._append_event(
+                    state,
+                    stage,
+                    message,
+                    metadata=metadata,
+                    persist=False,
+                )
+                persisted_events.append(
+                    {
+                        "job_id": state.job_id,
+                        "timestamp": timestamp,
+                        "stage": stage,
+                        "message": message,
+                        "metadata": metadata,
+                    }
+                )
+            self._repository.add_events(persisted_events)
+
+        job_logger = self._job_logger(job_id)
+        for stage, message, _metadata in events:
+            job_logger.debug(message, stage=stage, status=state.status)
 
     def complete(self, job_id: str, result: Dict[str, object]) -> None:
         with self._lock:
@@ -246,7 +280,8 @@ class AnalysisProgressRegistry:
         message: str,
         *,
         metadata: Optional[Dict[str, object]] = None,
-    ) -> None:
+        persist: bool = True,
+    ) -> str:
         timestamp = _now_iso()
         state.stage = stage
         state.message = message
@@ -259,20 +294,25 @@ class AnalysisProgressRegistry:
                 metadata=metadata,
             )
         )
-        self._repository.record_progress(
-            job_id=state.job_id,
-            status=state.status,
-            stage=state.stage,
-            message=state.message,
-            updated_at=timestamp,
-        )
-        self._repository.add_event(
-            job_id=state.job_id,
-            timestamp=timestamp,
-            stage=stage,
-            message=message,
-            metadata=metadata,
-        )
+        if len(state.events) > MAX_IN_MEMORY_EVENTS:
+            del state.events[:-MAX_IN_MEMORY_EVENTS]
+        if persist and not _is_debug_progress_stage(stage):
+            self._repository.record_progress(
+                job_id=state.job_id,
+                status=state.status,
+                stage=state.stage,
+                message=state.message,
+                updated_at=timestamp,
+            )
+        if persist:
+            self._repository.add_event(
+                job_id=state.job_id,
+                timestamp=timestamp,
+                stage=stage,
+                message=message,
+                metadata=metadata,
+            )
+        return timestamp
 
     def make_callback(self, job_id: str) -> Callable[..., None]:
         def callback(
@@ -284,6 +324,13 @@ class AnalysisProgressRegistry:
             # Ignore mismatched job ids to keep callback tolerant.
             target_id = job_id or _job_id
             self.append_event(target_id, stage, message, metadata=metadata)
+
+        def append_debug_batch(
+            events: List[tuple[str, str, Optional[Dict[str, object]]]],
+        ) -> None:
+            self.append_debug_events(job_id, events)
+
+        setattr(callback, "append_debug_batch", append_debug_batch)
 
         return callback
 

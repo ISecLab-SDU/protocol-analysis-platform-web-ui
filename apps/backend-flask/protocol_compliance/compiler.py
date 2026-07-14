@@ -2,11 +2,13 @@ import os
 import json
 import logging
 import inspect
+import queue
 import re
 import shutil
 import sqlite3
 import subprocess
 import tempfile
+import threading
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -330,6 +332,84 @@ class ClaudeBuilderRunner:
         if process.stdout is None:
             raise ClaudeBuilderRunnerExecutionError("Command did not expose stdout")
 
+        progress_queue: queue.Queue[object] = queue.Queue(maxsize=128)
+        progress_sentinel = object()
+        dropped_debug_events = 0
+
+        def consume_progress() -> None:
+            while True:
+                item = progress_queue.get()
+                batch = [item]
+                saw_sentinel = item is progress_sentinel
+                while not saw_sentinel and len(batch) < 32:
+                    try:
+                        queued_item = progress_queue.get_nowait()
+                    except queue.Empty:
+                        break
+                    batch.append(queued_item)
+                    saw_sentinel = queued_item is progress_sentinel
+                try:
+                    progress_events = [
+                        queued_item
+                        for queued_item in batch
+                        if isinstance(queued_item, dict)
+                    ]
+                    for progress_event in progress_events:
+                        logger.debug(
+                            "[%s] %s",
+                            str(progress_event["stage"]).upper(),
+                            str(progress_event["message"]),
+                        )
+                    append_debug_batch = getattr(
+                        progress_callback,
+                        "append_debug_batch",
+                        None,
+                    )
+                    if (
+                        progress_events
+                        and callable(append_debug_batch)
+                        and all(
+                            self._is_droppable_progress_event(event)
+                            for event in progress_events
+                        )
+                    ):
+                        append_debug_batch(
+                            [
+                                (
+                                    str(event["stage"]),
+                                    str(event["message"])[:500],
+                                    event.get("metadata"),
+                                )
+                                for event in progress_events
+                            ]
+                        )
+                    elif progress_callback:
+                        for progress_event in progress_events:
+                            self._emit_progress_callback(
+                                progress_callback,
+                                job_identifier,
+                                str(progress_event["stage"]),
+                                str(progress_event["message"])[:500],
+                                progress_event.get("metadata"),
+                            )
+                except Exception:
+                    logger.exception(
+                        "Failed to persist progress event for job %s",
+                        job_identifier,
+                    )
+                finally:
+                    for _queued_item in batch:
+                        progress_queue.task_done()
+                if saw_sentinel:
+                    return
+
+        progress_worker = threading.Thread(
+            target=consume_progress,
+            name=f"protocolguard-progress-{job_identifier[:8]}",
+            daemon=True,
+        )
+        progress_worker.start()
+
         lines: List[str] = []
         with log_path.open("a", encoding="utf-8") as log_file:
             for raw_line in iter(process.stdout.readline, ""):
@@ -342,17 +422,22 @@ class ClaudeBuilderRunner:
                         stage,
                         stage_selector=stage_selector,
                     )
-                    progress_stage = str(progress_event["stage"])
-                    progress_message = str(progress_event["message"])
-                    logger.debug("[%s] %s", progress_stage.upper(), progress_message)
-                    if progress_callback:
-                        self._emit_progress_callback(
-                            progress_callback,
-                            job_identifier,
-                            progress_stage,
-                            progress_message[:500],
-                            progress_event.get("metadata"),
-                        )
+                    try:
+                        progress_queue.put_nowait(progress_event)
+                    except queue.Full:
+                        if self._is_droppable_progress_event(progress_event):
+                            dropped_debug_events += 1
+                        else:
+                            progress_queue.put(progress_event)
+
+        progress_queue.put(progress_sentinel)
+        progress_worker.join()
+        if dropped_debug_events:
+            logger.warning(
+                "Dropped %d debug progress events while draining %s stdout",
+                dropped_debug_events,
+                stage,
+            )
 
         try:
             process.wait(timeout=timeout)
@@ -375,6 +460,20 @@ class ClaudeBuilderRunner:
                 },
             )
         return lines
+
+    @staticmethod
+    def _is_debug_progress_stage(stage: str) -> bool:
+        return stage.startswith("claude-") or stage in {
+            "analysis-log",
+            "builder-log",
+            "container-log",
+        }
+
+    @classmethod
+    def _is_droppable_progress_event(cls, event: dict[str, object]) -> bool:
+        return not bool(event.get("critical")) and cls._is_debug_progress_stage(
+            str(event["stage"])
+        )
 
     @staticmethod
     def _extract_progress_line(

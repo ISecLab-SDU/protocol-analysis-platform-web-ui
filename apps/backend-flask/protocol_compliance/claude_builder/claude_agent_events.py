@@ -19,6 +19,7 @@ from claude_agent_sdk import (
 )
 
 PROGRESS_PREFIX = "PG_PROGRESS_JSON "
+MAX_PROGRESS_EVENT_BYTES = 3500
 HIDDEN_THINKING_KEYS = frozenset({"thinking_tokens"})
 HIDDEN_SYSTEM_SUBTYPES = frozenset({"thinking_tokens"})
 FRONTEND_METADATA_KEYS = frozenset(
@@ -41,6 +42,22 @@ FRONTEND_METADATA_KEYS = frozenset(
 )
 FRONTEND_TOOL_INPUT_KEYS = frozenset(
     {"command", "description", "file_path", "path", "pattern"}
+)
+OVERSIZE_EVENT_KEEP_KEYS = frozenset(
+    {
+        "is_error",
+        "message",
+        "model",
+        "sdk_message_type",
+        "session_id",
+        "source",
+        "stage",
+        "status",
+        "tool",
+        "tool_use_id",
+        "ts_ms",
+        "type",
+    }
 )
 
 
@@ -73,6 +90,14 @@ def truncate(text: Any, limit: int = 1000) -> str:
     if len(value) <= limit:
         return value
     return value[: limit - 3] + "..."
+
+
+def frontend_tool_input(tool_input: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: truncate(value)
+        for key, value in tool_input.items()
+        if key in FRONTEND_TOOL_INPUT_KEYS and value is not None
+    }
 
 
 def summarize_tool_input(name: str, tool_input: dict[str, Any]) -> str:
@@ -155,6 +180,31 @@ def encode_progress_event(event: dict[str, Any], *, ts_ms: int) -> str:
         "ts_ms": ts_ms,
         **sanitize_event_value(event),
     }
+    encoded = json.dumps(payload, ensure_ascii=False, default=json_default)
+    original_bytes = len(encoded.encode("utf-8"))
+    if original_bytes <= MAX_PROGRESS_EVENT_BYTES:
+        return encoded
+
+    payload = {
+        key: value
+        for key, value in payload.items()
+        if key in OVERSIZE_EVENT_KEEP_KEYS
+    }
+    payload["truncated"] = True
+    payload["original_bytes"] = original_bytes
+
+    message = str(payload.get("message") or payload.get("type") or "progress event")
+    low = 0
+    high = len(message)
+    while low < high:
+        midpoint = (low + high + 1) // 2
+        payload["message"] = message[:midpoint]
+        candidate = json.dumps(payload, ensure_ascii=False, default=json_default)
+        if len(candidate.encode("utf-8")) <= MAX_PROGRESS_EVENT_BYTES:
+            low = midpoint
+        else:
+            high = midpoint - 1
+    payload["message"] = message[:low]
     return json.dumps(payload, ensure_ascii=False, default=json_default)
 
 
@@ -182,15 +232,13 @@ def decode_progress_event(line: str, default_stage: str) -> dict[str, Any] | Non
         if key not in FRONTEND_METADATA_KEYS or value is None:
             continue
         if key == "tool_input" and isinstance(value, dict):
-            value = {
-                input_key: input_value
-                for input_key, input_value in value.items()
-                if input_key in FRONTEND_TOOL_INPUT_KEYS
-            }
+            value = frontend_tool_input(value)
         metadata[key] = sanitize_event_value(value)
     return {
         "stage": stage,
         "message": str(message),
+        "critical": payload.get("type") in {"error", "result"}
+        or payload.get("is_error") is True,
         **({"metadata": metadata} if metadata else {}),
     }
 
@@ -230,7 +278,7 @@ def _assistant_events(message: AssistantMessage) -> list[dict[str, Any]]:
                     "sdk_message_type": "ToolUseBlock",
                     "tool": block.name,
                     "tool_use_id": block.id,
-                    "tool_input": block.input,
+                    "tool_input": frontend_tool_input(block.input),
                 }
             )
         elif isinstance(block, ToolResultBlock):
