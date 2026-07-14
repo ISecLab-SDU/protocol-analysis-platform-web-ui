@@ -117,8 +117,11 @@ async function loadRules() {
 
     const flatRules: RuleOption[] = normalizeRulesPayload(data, sourceLabel);
     rules.value = flatRules;
-    pagination.current = 1;
-    selectedRowKeys.value = flatRules.length > 0 ? [flatRules[0]!.id!] : [];
+    const lastRule = flatRules.at(-1);
+    pagination.current = lastRule
+      ? Math.ceil(flatRules.length / pagination.pageSize)
+      : 1;
+    selectedRowKeys.value = lastRule ? [lastRule.id!] : [];
   } catch (error: any) {
     message.error(`加载规则失败: ${error?.message || error}`);
   } finally {
