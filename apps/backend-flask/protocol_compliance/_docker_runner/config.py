@@ -267,7 +267,7 @@ class ProtocolGuardDockerSettings:
         )
         assert_keep_full_artifacts = _env_bool("PG_ASSERT_KEEP_FULL_ARTIFACTS", default=False)
         analysis_timeout = _env_int("PG_ANALYSIS_TIMEOUT_SECONDS", None)
-        network = os.environ.get("PG_DOCKER_NETWORK") or None
+        network = os.environ.get("PG_DOCKER_NETWORK") or "host"
 
         project_name = os.environ.get("PG_PROJECT_NAME", "protocolguard-project")
         default_protocol_name = os.environ.get("PG_PROTOCOL_NAME", "MQTT")

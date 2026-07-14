@@ -26,6 +26,26 @@ def test_instrumentation_environment_includes_host_identity() -> None:
     }
 
 
+def test_protocolguard_containers_use_host_network_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("PG_DOCKER_NETWORK", raising=False)
+
+    settings = ProtocolGuardDockerSettings.from_env()
+
+    assert settings.network == "host"
+
+
+def test_protocolguard_container_network_can_be_overridden(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PG_DOCKER_NETWORK", "protocolguard-network")
+
+    settings = ProtocolGuardDockerSettings.from_env()
+
+    assert settings.network == "protocolguard-network"
+
+
 def test_assertion_generation_skips_instrumentation_when_no_tasks(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

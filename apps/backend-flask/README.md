@@ -8,6 +8,7 @@ Configure the following environment variables for the ProtocolGuard Docker integ
 - `PG_WORKSPACE_ROOT`, `PG_OUTPUT_ROOT`, `PG_CONFIG_ROOT` — host directories used for per-job mounts.
 - `PG_TEMPLATE_WORKSPACE` — optional directory with pre-built artefacts copied into each job workspace.
 - `PG_ENV_VARS` — comma separated environment variable names to forward (defaults to `OPENAI_API_KEY`).
+- `PG_DOCKER_NETWORK` — Docker network for ProtocolGuard analysis and assertion containers (defaults to `host`).
 - `PG_WORKSPACE_SNAPSHOTS_ENABLED=1` — opt in to full workspace snapshots; snapshots are disabled by default.
 - `PG_RUNTIME_CLEANUP_ENABLED=0` — opt out of runtime rotation; cleanup is enabled by default.
 - `PG_RUNTIME_RETENTION_DAYS`, `PG_RUNTIME_RETENTION_MAX_JOBS` — rotation limits for runtime artefacts (defaults: `7` days and `20` jobs).
