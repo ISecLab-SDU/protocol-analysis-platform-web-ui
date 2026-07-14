@@ -205,9 +205,9 @@ const locateProgressSteps: LocateProgressStep[] = [
         hasLogText(line, 'Starting builder container')),
   },
   {
-    description: '由 Claude Code 配置项目、执行构建并抽取 LLVM bitcode。',
+    description: '由 Agent 配置项目、执行构建并抽取 LLVM bitcode。',
     key: 'claude-builder',
-    label: 'Claude 构建',
+    label: 'Agent 构建',
     match: (line) => isClaudeBuilderLogLine(line),
   },
   {
@@ -442,7 +442,8 @@ function isClaudeBuilderLogLine(line: LogLine) {
     line.stage.startsWith('claude-') ||
     line.stage === 'builder-log' ||
     (line.stage === 'builder' &&
-      hasLogText(line, 'Starting Claude builder image'))
+      (hasLogText(line, 'Starting Agent builder image') ||
+        hasLogText(line, 'Starting Claude builder image')))
   );
 }
 

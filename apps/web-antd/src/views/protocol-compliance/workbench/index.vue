@@ -58,6 +58,7 @@ const {
   staticProgressEvents,
   staticResult,
   codeLocateEvidence,
+  assertJob,
   assertLogText,
   assertDiffContent,
   assertResult,
@@ -1327,6 +1328,7 @@ function switchRule() {
 
               <StageAssertGen
                 v-else-if="activeStageView === 'assert_gen'"
+                :events="assertJob?.events"
                 :log-text="assertLogText"
                 :diff-content="assertDiffContent"
                 :result="assertResult"

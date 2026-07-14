@@ -144,7 +144,7 @@ def is_hidden_system_message(message: Any) -> bool:
 def progress_events_from_message(
     message: Any,
     *,
-    result_label: str = "Claude agent",
+    result_label: str = "Agent",
 ) -> list[dict[str, Any]]:
     if is_hidden_system_message(message):
         return []

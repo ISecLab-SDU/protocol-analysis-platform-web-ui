@@ -682,6 +682,7 @@ export type ProtocolAssertGenerationJobStatus =
 
 export interface ProtocolAssertGenerationProgressEvent {
   message: string;
+  metadata?: ProtocolClaudeProgressMetadata;
   stage: string;
   timestamp: string;
 }

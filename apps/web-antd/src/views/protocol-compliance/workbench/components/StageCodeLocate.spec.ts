@@ -65,7 +65,7 @@ describe('stageCodeLocate log parsing', () => {
       },
     });
 
-    const secondLine = wrapper.findAll('.log-line')[1]!;
+    const secondLine = wrapper.findAll('.log-line')[1];
 
     expect(secondLine.findAll('.log-chip')).toHaveLength(1);
     expect(secondLine.find('.log-text').text()).toBe(
@@ -73,7 +73,7 @@ describe('stageCodeLocate log parsing', () => {
     );
   });
 
-  it('groups Claude builder events under a dedicated phase', () => {
+  it('groups agent builder events under a dedicated phase', () => {
     const wrapper = mount(StageCodeLocate, {
       global: {
         stubs: {
@@ -105,9 +105,9 @@ describe('stageCodeLocate log parsing', () => {
 
     expect(phaseChips.map((chip) => chip.text())).toEqual([
       '输入与工作区准备',
-      'Claude 构建',
-      'Claude 构建',
-      'Claude 构建',
+      'Agent 构建',
+      'Agent 构建',
+      'Agent 构建',
     ]);
   });
 });

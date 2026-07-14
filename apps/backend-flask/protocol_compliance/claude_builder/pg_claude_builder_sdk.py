@@ -117,7 +117,7 @@ def _handle_message(message: Any) -> int | None:
     _append_audit_line(
         json.dumps({"raw": raw}, ensure_ascii=False, default=_json_default)
     )
-    for event in progress_events_from_message(message, result_label="Claude builder"):
+    for event in progress_events_from_message(message, result_label="Agent builder"):
         _emit_progress_event(event)
     return result_code_from_message(message)
 
@@ -164,7 +164,7 @@ async def _run() -> int:
         {
             "type": "progress",
             "stage": "claude-status",
-            "message": "Starting Claude Agent SDK builder typed stream",
+            "message": "Starting Agent builder typed stream",
             "sdk_message_type": "runner",
         }
     )

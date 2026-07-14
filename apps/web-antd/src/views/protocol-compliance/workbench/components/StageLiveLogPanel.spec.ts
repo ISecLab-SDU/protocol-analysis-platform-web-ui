@@ -54,7 +54,7 @@ describe('stageLiveLogPanel', () => {
     expect(source).toMatch(/\.log-chip\s*\{[^}]*vertical-align:\s*middle;/);
   });
 
-  it('renders Claude tool activity and result telemetry as a structured timeline', () => {
+  it('renders agent tool activity and result telemetry as a structured timeline', () => {
     const wrapper = mount(StageLiveLogPanel, {
       props: {
         lines: [
@@ -120,6 +120,8 @@ describe('stageLiveLogPanel', () => {
     expect(wrapper.get('.claude-line--result').text()).toContain(
       '构建完成，所有必需产物均已生成。',
     );
+    expect(wrapper.text()).toContain('Agent 构建');
+    expect(wrapper.text()).not.toContain('Claude');
   });
 
   it('hides successful legacy UserMessage tool results and styles thinking blocks', () => {
@@ -157,7 +159,7 @@ describe('stageLiveLogPanel', () => {
       'private-signature',
     );
     expect(wrapper.get('.claude-line--thinking').text()).toContain(
-      'Claude 思考',
+      'Agent 思考',
     );
   });
 

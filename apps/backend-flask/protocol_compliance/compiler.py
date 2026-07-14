@@ -560,7 +560,7 @@ class ClaudeBuilderRunner:
         progress_callback: Optional[Callable[[str, str, str], None]],
     ) -> List[str]:
         if not self._docker_available:
-            raise ClaudeBuilderRunnerNotAvailableError("Docker is required for the Claude builder compiler")
+            raise ClaudeBuilderRunnerNotAvailableError("Docker is required for the Agent builder compiler")
 
         output_dir = self.settings.workspace_root.parent / "outputs" / job_identifier
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -633,7 +633,7 @@ class ClaudeBuilderRunner:
             },
         )
         if progress_callback:
-            progress_callback(job_identifier, "builder", f"Starting Claude builder image {self._builder_image}")
+            progress_callback(job_identifier, "builder", f"Starting Agent builder image {self._builder_image}")
 
         command = [
             "docker",
@@ -683,7 +683,7 @@ class ClaudeBuilderRunner:
         missing = [label for label, path in required.items() if not path.exists()]
         if missing:
             raise ClaudeBuilderRunnerExecutionError(
-                f"Claude builder completed but required artefacts are missing: {', '.join(missing)}",
+                f"Agent builder completed but required artefacts are missing: {', '.join(missing)}",
                 details={
                     "workspace": str(workspace_dir),
                     "missing": missing,
@@ -708,7 +708,7 @@ class ClaudeBuilderRunner:
         )
         if not has_compile_command:
             raise ClaudeBuilderRunnerExecutionError(
-                "Claude builder build log contains no replayable compiler commands",
+                "Agent builder build log contains no replayable compiler commands",
                 details={
                     "workspace": str(workspace_dir),
                     "buildLog": str(build_log_path),
@@ -730,7 +730,7 @@ class ClaudeBuilderRunner:
         ]
         if malformed_compile_commands:
             raise ClaudeBuilderRunnerExecutionError(
-                "Claude builder build log contains interleaved compiler commands",
+                "Agent builder build log contains interleaved compiler commands",
                 details={
                     "workspace": str(workspace_dir),
                     "buildLog": str(build_log_path),
@@ -1504,13 +1504,13 @@ class ClaudeBuilderRunner:
             f.write(config_content)
 
         if progress_callback:
-            progress_callback(job_identifier, "compile", "Starting Claude builder compilation")
+            progress_callback(job_identifier, "compile", "Starting Agent builder compilation")
 
         builder_logs = self._run_claude_builder_container(workspace_dir, job_identifier, progress_callback)
         logger.debug("[*] Claude builder emitted %d log lines", len(builder_logs))
         self._validate_builder_outputs(workspace_dir)
         if progress_callback:
-            progress_callback(job_identifier, "compile", "Claude builder output validated")
+            progress_callback(job_identifier, "compile", "Agent builder output validated")
 
         logger.debug("[*] Workspace contents after builder:")
         for root, dirs, files in os.walk(workspace_dir):

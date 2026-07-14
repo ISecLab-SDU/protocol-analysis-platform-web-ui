@@ -62,10 +62,14 @@ function getAllLogText() {
 }
 
 function formatLogLineForCopy(line: StageLiveLogLine) {
-  const metaSegments = [line.time || '--:--:--', line.phase]
+  const metaSegments = [line.time || '--:--:--', displayText(line.phase)]
     .filter(Boolean)
     .map((segment) => `[${segment}]`);
-  return `${metaSegments.join(' ')} ${line.text}`.trim();
+  return `${metaSegments.join(' ')} ${displayText(line.text)}`.trim();
+}
+
+function displayText(value: string) {
+  return value.replaceAll(/claude/gi, 'Agent');
 }
 
 function isClaudeLine(line: StageLiveLogLine) {
@@ -141,8 +145,8 @@ function claudeLabel(line: StageLiveLogLine) {
   if (kind === 'command') return '执行命令';
   if (kind === 'inspect') return '查看文件';
   if (kind === 'write') return '修改文件';
-  if (kind === 'message') return 'Claude 回复';
-  if (kind === 'thinking') return 'Claude 思考';
+  if (kind === 'message') return 'Agent 回复';
+  if (kind === 'thinking') return 'Agent 思考';
   if (kind === 'observation') return '工具结果';
   if (kind === 'result')
     return line.metadata?.status === 'failed' ? '运行失败' : '运行完成';
@@ -152,10 +156,14 @@ function claudeLabel(line: StageLiveLogLine) {
 
 function claudePrimaryText(line: StageLiveLogLine) {
   if (isThinkingLine(line)) {
-    return extractReprStringField(line.text, 'thinking') || line.text;
+    return displayText(
+      extractReprStringField(line.text, 'thinking') || line.text,
+    );
   }
   if (isToolResultError(line)) {
-    return extractReprStringField(line.text, 'content') || line.text;
+    return displayText(
+      extractReprStringField(line.text, 'content') || line.text,
+    );
   }
   const input = line.metadata?.tool_input;
   if (line.metadata?.tool === 'Bash' && typeof input?.command === 'string') {
@@ -163,7 +171,7 @@ function claudePrimaryText(line: StageLiveLogLine) {
   }
   if (typeof input?.file_path === 'string') return input.file_path;
   if (typeof input?.path === 'string') return input.path;
-  return line.text.replace(/^[a-z]+:\s*/i, '');
+  return displayText(line.text.replace(/^[a-z]+:\s*/i, ''));
 }
 
 function extractReprStringField(text: string, field: string) {
@@ -196,7 +204,7 @@ function extractReprStringField(text: string, field: string) {
 
 function claudeDescription(line: StageLiveLogLine) {
   const description = line.metadata?.tool_input?.description;
-  return typeof description === 'string' ? description : '';
+  return typeof description === 'string' ? displayText(description) : '';
 }
 
 function resultMetrics(line: StageLiveLogLine) {
@@ -208,7 +216,7 @@ function resultMetrics(line: StageLiveLogLine) {
     | undefined;
   const model = metadata.model ?? modelUsageEntries[0]?.[0];
   const metrics: Array<{ label: string; value: string }> = [];
-  if (model) metrics.push({ label: '模型', value: model });
+  if (model) metrics.push({ label: '模型', value: displayText(model) });
   if (typeof metadata.duration_ms === 'number') {
     metrics.push({
       label: '耗时',
@@ -260,9 +268,9 @@ function formatCount(value: number) {
     <div class="log-progress">
       <div class="log-progress-title">
         <span>当前阶段</span>
-        <strong>{{ progress.label }}</strong>
+        <strong>{{ displayText(progress.label) }}</strong>
       </div>
-      <p>{{ progress.description }}</p>
+      <p>{{ displayText(progress.description) }}</p>
     </div>
 
     <div ref="logBodyRef" class="live-log">
@@ -284,7 +292,9 @@ function formatCount(value: number) {
           <div class="claude-event">
             <div class="claude-event-head">
               <strong>{{ claudeLabel(line) }}</strong>
-              <span class="log-chip log-chip--phase">{{ line.phase }}</span>
+              <span class="log-chip log-chip--phase">{{
+                displayText(line.phase)
+              }}</span>
               <span v-if="line.metadata?.tool" class="claude-tool">{{
                 line.metadata.tool
               }}</span>
@@ -314,15 +324,17 @@ function formatCount(value: number) {
                 </div>
               </div>
               <p v-if="line.metadata?.result" class="claude-result-text">
-                {{ line.metadata.result }}
+                {{ displayText(line.metadata.result) }}
               </p>
             </template>
           </div>
         </template>
         <template v-else>
           <span class="log-time">{{ line.time || '--:--:--' }}</span>
-          <span class="log-chip log-chip--phase">{{ line.phase }}</span>
-          <span class="log-text">{{ line.text }}</span>
+          <span class="log-chip log-chip--phase">{{
+            displayText(line.phase)
+          }}</span>
+          <span class="log-text">{{ displayText(line.text) }}</span>
         </template>
       </div>
       <div v-if="visibleLines.length === 0" class="log-empty">

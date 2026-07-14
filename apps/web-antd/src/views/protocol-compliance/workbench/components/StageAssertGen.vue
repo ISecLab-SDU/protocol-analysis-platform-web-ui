@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import type { ProtocolAssertGenerationResult } from '#/api/protocol-compliance';
+import type {
+  ProtocolAssertGenerationProgressEvent,
+  ProtocolAssertGenerationResult,
+} from '#/api/protocol-compliance';
 
 import { computed } from 'vue';
 
@@ -10,8 +13,9 @@ import { Card, Empty, Tag } from 'ant-design-vue';
 import StageLiveLogPanel from './StageLiveLogPanel.vue';
 
 interface Props {
-  logText: string;
   diffContent: string;
+  events?: ProtocolAssertGenerationProgressEvent[];
+  logText: string;
   result: null | ProtocolAssertGenerationResult;
   running: boolean;
 }
@@ -19,6 +23,7 @@ interface Props {
 interface AssertLogLine {
   id: string;
   kind: 'code' | 'diff' | 'normal' | 'success' | 'summary' | 'task';
+  metadata?: ProtocolAssertGenerationProgressEvent['metadata'];
   phase: string;
   stage: string;
   text: string;
@@ -47,6 +52,13 @@ const stageStateText = computed(() => {
 });
 
 const rawLogLines = computed(() => {
+  if (props.events && props.events.length > 0) {
+    return stripInlineDiffPayload(
+      props.events
+        .map((event, index) => parseProgressEvent(event, index))
+        .filter((line) => !isWaitingLogLine(line)),
+    );
+  }
   const lines = props.logText
     .split(/\r?\n/)
     .map((line) => line.trimEnd())
@@ -56,6 +68,22 @@ const rawLogLines = computed(() => {
 
   return stripInlineDiffPayload(lines);
 });
+
+function parseProgressEvent(
+  event: ProtocolAssertGenerationProgressEvent,
+  index: number,
+): AssertLogLine {
+  const text = event.message || '';
+  return {
+    id: `${event.timestamp}-${index}`,
+    kind: classifyLogLine(text),
+    metadata: event.metadata,
+    phase: '',
+    stage: event.stage || '',
+    text,
+    time: event.timestamp ? new Date(event.timestamp).toLocaleTimeString() : '',
+  };
+}
 
 const logLines = computed<AssertLogLine[]>(() => {
   let currentStepIndex = -1;
@@ -108,7 +136,11 @@ const assertProgress = computed(() => {
 
 const hasContent = computed(() => {
   return Boolean(
-    props.logText || props.diffContent || props.running || props.result,
+    props.events?.length ||
+      props.logText ||
+      props.diffContent ||
+      props.running ||
+      props.result,
   );
 });
 
@@ -215,7 +247,7 @@ const assertProgressSteps: AssertProgressStep[] = [
         )),
   },
   {
-    description: '准备插桩容器和 Claude 运行配置，加载上一阶段生成的断言任务。',
+    description: '准备插桩容器和 Agent 运行配置，加载上一阶段生成的断言任务。',
     key: 'instrumentation-start',
     label: '插桩环境准备',
     match: (line) =>
@@ -237,17 +269,18 @@ const assertProgressSteps: AssertProgressStep[] = [
   },
   {
     description:
-      '逐个读取任务 prompt，调用 Claude CLI 将断言辅助函数和 assert 插入源码。',
+      '逐个读取任务 prompt，调用 Agent 将断言辅助函数和 assert 插入源码。',
     key: 'claude-instrumentation',
     label: 'LLM 断言插桩',
     match: (line) =>
-      line.stage === 'instrumentation-log' &&
-      (hasLogText(line, 'Task 1/') ||
-        hasLogText(line, 'Reading prompt from') ||
-        hasLogText(line, 'Executing Claude CLI') ||
-        hasLogText(line, 'All three changes are in place') ||
-        hasLogText(line, '#include <assert.h>') ||
-        hasLogText(line, 'assert_related_rule')),
+      line.stage.startsWith('claude-') ||
+      (line.stage === 'instrumentation-log' &&
+        (hasLogText(line, 'Task 1/') ||
+          hasLogText(line, 'Reading prompt from') ||
+          hasLogText(line, 'Executing Claude CLI') ||
+          hasLogText(line, 'All three changes are in place') ||
+          hasLogText(line, '#include <assert.h>') ||
+          hasLogText(line, 'assert_related_rule'))),
   },
   {
     description: '捕获插桩后的代码状态，生成变更提交和 instrumentation.diff。',

@@ -29,7 +29,7 @@ const rules = ref<RuleOption[]>([]);
 const selectedRowKeys = ref<string[]>([]);
 const pagination = reactive({
   current: 1,
-  pageSize: 10,
+  pageSize: 100,
   pageSizeOptions: ['10', '20', '50', '100'],
   showSizeChanger: true,
 });

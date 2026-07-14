@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import difflib
+import inspect
 import logging
 import re
 import threading
@@ -21,6 +22,7 @@ from pathlib import Path
 from typing import Any, BinaryIO, Callable, Dict, List, Optional, Tuple, cast
 
 from .assertion_history_repository import ASSERTION_HISTORY_REPOSITORY
+from .claude_agent_events import decode_progress_event
 from .docker_runner import (
     ProtocolGuardDockerError,
     ProtocolGuardDockerRunner,
@@ -51,6 +53,7 @@ class AssertGenerationProgressEvent:
     timestamp: str
     stage: str
     message: str
+    metadata: Optional[Dict[str, object]] = None
 
 
 @dataclass
@@ -128,12 +131,18 @@ class AssertGenerationProgressRegistry:
             self._append_event(state, stage, message)
             self._job_logger(job_id).info(message, stage=stage, status="running")
 
-    def append_event(self, job_id: str, stage: str, message: str) -> None:
+    def append_event(
+        self,
+        job_id: str,
+        stage: str,
+        message: str,
+        metadata: Optional[Dict[str, object]] = None,
+    ) -> None:
         with self._lock:
             state = self._states.get(job_id)
             if not state:
                 return
-            self._append_event(state, stage, message)
+            self._append_event(state, stage, message, metadata=metadata)
             job_logger = self._job_logger(job_id)
             if _is_debug_progress_stage(stage):
                 job_logger.debug(message, stage=stage, status=state.status)
@@ -204,7 +213,12 @@ class AssertGenerationProgressRegistry:
             "createdAt": state_copy.created_at,
             "updatedAt": state_copy.updated_at,
             "events": [
-                {"timestamp": event.timestamp, "stage": event.stage, "message": event.message}
+                {
+                    "timestamp": event.timestamp,
+                    "stage": event.stage,
+                    "message": event.message,
+                    **({"metadata": event.metadata} if event.metadata else {}),
+                }
                 for event in state_copy.events
             ],
             "result": state_copy.result,
@@ -212,12 +226,17 @@ class AssertGenerationProgressRegistry:
             "details": state_copy.details,
         }
 
-    def make_callback(self, job_id: str) -> Callable[[str, str, str], None]:
-        def callback(_job_id: str, stage: str, message: str) -> None:
+    def make_callback(self, job_id: str) -> Callable[..., None]:
+        def callback(
+            _job_id: str,
+            stage: str,
+            message: str,
+            metadata: Optional[Dict[str, object]] = None,
+        ) -> None:
             target_id = job_id or _job_id
             safe_stage = stage or "progress"
             safe_message = message or ""
-            self.append_event(target_id, safe_stage, safe_message)
+            self.append_event(target_id, safe_stage, safe_message, metadata=metadata)
 
         return callback
 
@@ -226,13 +245,20 @@ class AssertGenerationProgressRegistry:
         state: AssertGenerationProgressState,
         stage: str,
         message: str,
+        *,
+        metadata: Optional[Dict[str, object]] = None,
     ) -> None:
         timestamp = _now_iso()
         state.stage = stage or state.stage
         state.message = message or state.message
         state.updated_at = timestamp
         state.events.append(
-            AssertGenerationProgressEvent(timestamp=timestamp, stage=stage or state.stage, message=message)
+            AssertGenerationProgressEvent(
+                timestamp=timestamp,
+                stage=stage or state.stage,
+                message=message,
+                metadata=metadata,
+            )
         )
 
 
@@ -457,9 +483,11 @@ def run_assert_generation(
                 instr_artifacts = instr_details.get("artifacts")
                 base_artifacts = base_result.get("artifacts")
                 if isinstance(instr_artifacts, dict) and isinstance(base_artifacts, dict):
-                    instrumented_zip = instr_artifacts.get("instrumentedCodeZipPath")
+                    instr_artifact_data = cast(Dict[str, object], instr_artifacts)
+                    base_artifact_data = cast(Dict[str, object], base_artifacts)
+                    instrumented_zip = instr_artifact_data.get("instrumentedCodeZipPath")
                     if isinstance(instrumented_zip, str) and instrumented_zip:
-                        base_artifacts["instrumentedCodeZipPath"] = instrumented_zip
+                        base_artifact_data["instrumentedCodeZipPath"] = instrumented_zip
             _record_assertion_history_entry(
                 job_id=job_identifier,
                 code_filename=code_file_name,
@@ -516,6 +544,32 @@ def _skipped_instrumentation_details(reason: str) -> Dict[str, object]:
     }
 
 
+def _decode_instrumentation_progress_line(line: str) -> Dict[str, object]:
+    event = decode_progress_event(line, "instrumentation-log")
+    if event is not None:
+        return event
+    display = line if len(line) <= 2000 else f"{line[:2000]}..."
+    return {"stage": "instrumentation-log", "message": display}
+
+
+def _emit_progress_callback(
+    progress_callback: Callable[..., None],
+    job_id: str,
+    stage: str,
+    message: str,
+    metadata: Optional[Dict[str, object]],
+) -> None:
+    if metadata:
+        try:
+            inspect.signature(progress_callback).bind(job_id, stage, message, metadata)
+        except (TypeError, ValueError):
+            pass
+        else:
+            progress_callback(job_id, stage, message, metadata)
+            return
+    progress_callback(job_id, stage, message)
+
+
 def _run_instrumentation_container(
     *,
     image: str,
@@ -524,7 +578,7 @@ def _run_instrumentation_container(
     output: Path,
     extra_args: Optional[List[str]] = None,
     job_id: Optional[str] = None,
-    progress_callback: Optional[Callable[[str, str, str], None]] = None,
+    progress_callback: Optional[Callable[..., None]] = None,
 ) -> Dict[str, object]:
     """Run the ProtocolGuard instrumentation container and collect results.
 
@@ -578,12 +632,22 @@ def _run_instrumentation_container(
     command.extend(args)
     diff_host_path = _resolve_diff_output_path(diff_output_arg)
 
-    def _emit(stage: str, message: str) -> None:
+    def _emit(
+        stage: str,
+        message: str,
+        metadata: Optional[Dict[str, object]] = None,
+    ) -> None:
         log_method = LOGGER.debug if _is_debug_progress_stage(stage) else LOGGER.info
         log_method("[job %s][%s] %s", job_id or "-", stage, message)
         if progress_callback:
             try:
-                progress_callback(job_id or "", stage, message)
+                _emit_progress_callback(
+                    progress_callback,
+                    job_id or "",
+                    stage,
+                    message,
+                    metadata,
+                )
             except Exception:  # pragma: no cover - defensive
                 LOGGER.debug("Progress callback failed during instrumentation for job %s", job_id, exc_info=True)
 
@@ -617,8 +681,12 @@ def _run_instrumentation_container(
             line = chunk.decode("utf-8", errors="replace").rstrip()
             logs.append(line)
             if line:
-                display = line if len(line) <= 2000 else f"{line[:2000]}..."
-                _emit("instrumentation-log", display)
+                event = _decode_instrumentation_progress_line(line)
+                _emit(
+                    str(event["stage"]),
+                    str(event["message"]),
+                    cast(Optional[Dict[str, object]], event.get("metadata")),
+                )
 
         result = container.wait()
         status = int(result.get("StatusCode", 1))
@@ -662,8 +730,12 @@ def _run_instrumentation_container(
             line = line.rstrip()
             logs.append(line)
             if line:
-                display = line if len(line) <= 2000 else f"{line[:2000]}..."
-                _emit("instrumentation-log", display)
+                event = _decode_instrumentation_progress_line(line)
+                _emit(
+                    str(event["stage"]),
+                    str(event["message"]),
+                    cast(Optional[Dict[str, object]], event.get("metadata")),
+                )
         status = process.wait()
         if status != 0:
             excerpt = "\n".join(logs[-40:]) if logs else None
