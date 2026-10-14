@@ -63,9 +63,11 @@ def resolve_assertion_runtime(settings: object = None) -> dict[str, str]:
                 env[name] = value.strip()
     if agent == "pi":
         env["PG_PI_API"] = api
-        env.setdefault("PG_PI_MODEL", os.environ.get("PG_LLM_MODEL_V3", ""))
+        if not env.get("PG_PI_MODEL"):
+            env["PG_PI_MODEL"] = os.environ.get("PG_LLM_MODEL_V3", "")
         for suffix in ("BASE_URL", "API_KEY"):
-            env.setdefault(f"PG_PI_{suffix}", env.get(f"{prefix}_{suffix}", ""))
+            if not env.get(f"PG_PI_{suffix}"):
+                env[f"PG_PI_{suffix}"] = env.get(f"{prefix}_{suffix}", "")
     if agent == "claude" and env.get("ANTHROPIC_API_KEY"):
         env["ANTHROPIC_AUTH_TOKEN"] = env["ANTHROPIC_API_KEY"]
     url = env.get(mapping["baseUrl"], "")

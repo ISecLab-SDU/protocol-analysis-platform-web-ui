@@ -44,6 +44,17 @@ def test_runtime_is_request_local_and_uses_provider_defaults(provider):
     assert anthropic["PG_PI_API_KEY"] == "claude-key"
 
 
+def test_blank_pi_server_settings_use_normal_provider_defaults(provider, monkeypatch):
+    monkeypatch.setenv("PG_PI_API_KEY", "")
+    monkeypatch.setenv("PG_PI_BASE_URL", "")
+    monkeypatch.setenv("PG_PI_MODEL", "")
+    monkeypatch.setenv("PG_LLM_MODEL_V3", "server-model")
+    env = resolve_assertion_runtime({"agent": "pi"})
+    assert env["PG_PI_API_KEY"] == "server-key"
+    assert env["PG_PI_BASE_URL"] == "http://cache.test/v1"
+    assert env["PG_PI_MODEL"] == "server-model"
+
+
 @pytest.mark.parametrize(
     "settings",
     [
