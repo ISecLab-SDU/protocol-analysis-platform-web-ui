@@ -1,26 +1,52 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { loadScript } from '../resources';
 
-const testJsPath =
-  'https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js';
+const testJsPath = '/assets/test-script.js';
+const errorJsPath = '/assets/error-script.js';
+const appendedScripts: HTMLScriptElement[] = [];
+const nativeQuerySelector = document.querySelector.bind(document);
 
 describe('loadScript', () => {
   beforeEach(() => {
     // 每个测试前清空 head，保证环境干净
     document.head.innerHTML = '';
+    appendedScripts.length = 0;
+    vi.spyOn(document, 'querySelector').mockImplementation((selectors) => {
+      const src = /^script\[src="(.*)"\]$/.exec(selectors)?.[1];
+      if (src) {
+        return (
+          appendedScripts.find(
+            (script) => script.getAttribute('src') === src,
+          ) ?? null
+        );
+      }
+      return nativeQuerySelector(selectors);
+    });
+    vi.spyOn(document.head, 'append').mockImplementation((...nodes) => {
+      for (const node of nodes) {
+        if (node instanceof HTMLScriptElement) {
+          appendedScripts.push(node);
+        }
+      }
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('should resolve when the script loads successfully', async () => {
     const promise = loadScript(testJsPath);
 
-    // 此时脚本元素已被创建并插入
+    // 脚本元素已被创建，并传给 head.append
     const script = document.querySelector(
       `script[src="${testJsPath}"]`,
     ) as HTMLScriptElement;
     expect(script).toBeTruthy();
+    expect(script.type).toBe('');
 
-    // 模拟加载成功
+    // 触发一次 load，确认 helper 能完成对应 promise
     script.dispatchEvent(new Event('load'));
 
     // 等待 promise resolve
@@ -28,34 +54,38 @@ describe('loadScript', () => {
   });
 
   it('should not insert duplicate script and resolve immediately if already loaded', async () => {
-    // 先手动插入一个相同 src 的 script
-    const existing = document.createElement('script');
-    existing.src = 'bar.js';
-    document.head.append(existing);
+    // 先通过 helper 加载脚本并完成 load 事件
+    const initialLoad = loadScript(testJsPath);
+    const existing = document.querySelector(
+      `script[src="${testJsPath}"]`,
+    ) as HTMLScriptElement;
+    expect(existing).toBeTruthy();
+    existing.dispatchEvent(new Event('load'));
+    await expect(initialLoad).resolves.toBeUndefined();
 
-    // 再次调用
-    const promise = loadScript('bar.js');
+    // 再次调用应复用已加载的 script
+    const promise = loadScript(testJsPath);
 
-    // 立即 resolve
     await expect(promise).resolves.toBeUndefined();
 
-    // head 中只保留一个
-    const scripts = document.head.querySelectorAll('script[src="bar.js"]');
-    expect(scripts).toHaveLength(1);
+    // 只向 head.append 传入一次 script
+    expect(appendedScripts).toHaveLength(1);
   });
 
   it('should reject when the script fails to load', async () => {
-    const promise = loadScript('error.js');
+    const promise = loadScript(errorJsPath);
 
     const script = document.querySelector(
-      'script[src="error.js"]',
+      `script[src="${errorJsPath}"]`,
     ) as HTMLScriptElement;
     expect(script).toBeTruthy();
 
     // 模拟加载失败
     script.dispatchEvent(new Event('error'));
 
-    await expect(promise).rejects.toThrow('Failed to load script: error.js');
+    await expect(promise).rejects.toThrow(
+      `Failed to load script: ${errorJsPath}`,
+    );
   });
 
   it('should handle multiple concurrent calls and only insert one script tag', async () => {
@@ -67,16 +97,13 @@ describe('loadScript', () => {
     ) as HTMLScriptElement;
     expect(script).toBeTruthy();
 
-    // 触发一次 load，两个 promise 都应该 resolve
+    // 一次 load 事件应同时完成两个并发调用
     script.dispatchEvent(new Event('load'));
 
     await expect(p1).resolves.toBeUndefined();
     await expect(p2).resolves.toBeUndefined();
 
-    // 只插入一次
-    const scripts = document.head.querySelectorAll(
-      `script[src="${testJsPath}"]`,
-    );
-    expect(scripts).toHaveLength(1);
+    // 只向 head.append 传入一次 script
+    expect(appendedScripts).toHaveLength(1);
   });
 });
