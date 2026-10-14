@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import type { ProjectConfig } from './types';
-
 import type {
   ProtocolDatabaseOverviewStats,
   ProtocolDatabaseOverviewSummary,
@@ -15,7 +13,6 @@ import {
   onMounted,
   reactive,
   ref,
-  watch,
 } from 'vue';
 
 import { Page } from '@vben/common-ui';
@@ -29,91 +26,28 @@ import {
   fetchProtocolViolationHistory,
 } from '#/api/protocol-compliance';
 
-import StageAssertGen from './components/StageAssertGen.vue';
-import StageCodeLocate from './components/StageCodeLocate.vue';
-import StageFuzz from './components/StageFuzz.vue';
-import StageResultVerification from './components/StageResultVerification.vue';
-import StageRuleConfirm from './components/StageRuleConfirm.vue';
 import StageRuleExtract from './components/StageRuleExtract.vue';
-import StageSetup from './components/StageSetup.vue';
-import { STAGE_LIST } from './types';
-import { useWorkbench } from './useWorkbench';
-import { formatDuration, formatTime } from './utils';
+import AssertGenerationModule from './modules/AssertGenerationModule.vue';
+import CodeLocateModule from './modules/CodeLocateModule.vue';
+import FuzzModule from './modules/FuzzModule.vue';
+import { useAnalysisModules } from './useAnalysisModules';
+import { formatTime } from './utils';
 
 const {
-  stage,
-  activeStageView,
-  stageStatus,
-  stageMessage,
-  elapsedSeconds,
-  startedAt,
-  isStopping,
-  isTransitioning,
-  isAwaitingAssertConfirmation,
-  errorMessage,
-  projectConfig,
-  selectedRule,
-  staticLogHtml,
-  staticLogText,
-  staticProgressEvents,
-  staticResult,
-  codeLocateEvidence,
-  assertJob,
-  assertLogText,
-  assertDiffContent,
-  assertResult,
-  fuzzLogs,
-  fuzzJob,
-  aflNetPocPath,
-  fuzzStats,
-  fuzzSpeedSeries,
-  commitSetup,
-  confirmAssertGeneration,
-  backToSetup,
-  selectStageView,
-  startPipeline,
-  stopPipeline,
-  resetWorkbench,
-  canViewStage,
-} = useWorkbench();
+  assertGeneration,
+  codeLocate,
+  codeLocateInputs,
+  isFuzzRunning,
+  resetCodeLocateOutput,
+} = useAnalysisModules();
 
 const isRunning = computed(() => {
   return (
-    stageStatus.code_locate === 'running' ||
-    stageStatus.assert_gen === 'running' ||
-    stageStatus.fuzz === 'running' ||
-    isTransitioning.value ||
-    isAwaitingAssertConfirmation.value
+    codeLocate.status === 'running' ||
+    assertGeneration.status === 'running' ||
+    isFuzzRunning.value
   );
 });
-
-const elapsedDisplay = computed(() => formatDuration(elapsedSeconds.value));
-
-function handleProjectConfigUpdate(value: ProjectConfig) {
-  Object.assign(projectConfig, value);
-}
-
-const currentRuleText = computed(() => {
-  return (
-    selectedRule.value?.rule ||
-    selectedRule.value?.description ||
-    '请选择规则后启动自动化分析流程'
-  );
-});
-
-const currentRuleId = computed(() => {
-  const optionId = (selectedRule.value as null | { id?: string })?.id;
-  const matched = currentRuleText.value.match(/\[(MQTT-[^\]]+)\]/i)?.[1];
-  return matched || optionId || '未选择';
-});
-
-const startedAtDisplay = computed(() => {
-  return startedAt.value ? formatTime(startedAt.value.toISOString()) : '-';
-});
-
-const sourceArchiveName = computed(
-  () => projectConfig.archive?.name || '未上传',
-);
 
 const sideNavItems = [
   { icon: 'mdi:view-dashboard-outline', key: 'overview', label: '概览' },
@@ -123,14 +57,22 @@ const sideNavItems = [
 
 const workbenchSubNavItems = [
   { icon: 'mdi:file-document-edit-outline', key: 'extract', label: '规则提取' },
-  { icon: 'mdi:playlist-check', key: 'workbench', label: '分析流程' },
+  {
+    icon: 'mdi:code-braces-box',
+    key: 'code_locate',
+    label: '代码定位与一致性分析',
+  },
+  { icon: 'mdi:code-json', key: 'assert_gen', label: '断言生成' },
+  { icon: 'mdi:radar', key: 'fuzz', label: '模糊测试' },
 ] as const;
 
 type SideNavKey =
   | (typeof sideNavItems)[number]['key']
   | (typeof workbenchSubNavItems)[number]['key'];
 
-const activeSideNav = ref<SideNavKey>('overview');
+type ActiveSideNavKey = Exclude<SideNavKey, 'workbench'>;
+
+const activeSideNav = ref<ActiveSideNavKey>('overview');
 const VISIBLE_HISTORY_LIMIT = 5;
 const violationHistory = ref<ProtocolViolationHistoryEntry[]>([]);
 const violationHistoryError = ref('');
@@ -142,9 +84,6 @@ const violationHistoryQueuedRefreshOverview = ref(false);
 const violationHistoryWarnings = ref<string[]>([]);
 const selectedViolationHistoryId = ref('');
 const deletingViolationHistoryId = ref('');
-const bannerProgress = ref(0);
-let bannerProgressStageKey = '';
-let bannerProgressTimer: null | ReturnType<typeof setTimeout> = null;
 const historyFilters = reactive<{
   implementation: string;
   protocol: string;
@@ -158,8 +97,12 @@ const historyFilters = reactive<{
 });
 
 const activeSideNavLabel = computed(() => {
-  if (activeSideNav.value === 'extract') return '工作台 / 规则提取';
-  if (activeSideNav.value === 'workbench') return '工作台 / 分析流程';
+  if (isWorkbenchSectionActive.value) {
+    const module = workbenchSubNavItems.find(
+      (item) => item.key === activeSideNav.value,
+    );
+    return `工作台 / ${module?.label || '代码定位与一致性分析'}`;
+  }
   return (
     sideNavItems.find((item) => item.key === activeSideNav.value)?.label ||
     '概览'
@@ -167,7 +110,13 @@ const activeSideNavLabel = computed(() => {
 });
 
 const isWorkbenchSectionActive = computed(() =>
-  ['extract', 'workbench'].includes(activeSideNav.value),
+  ['assert_gen', 'code_locate', 'extract', 'fuzz'].includes(
+    activeSideNav.value,
+  ),
+);
+
+const isAnalysisModuleActive = computed(() =>
+  ['assert_gen', 'code_locate', 'fuzz'].includes(activeSideNav.value),
 );
 
 const violationHistoryRefreshing = computed(
@@ -175,35 +124,6 @@ const violationHistoryRefreshing = computed(
     violationHistoryLoading.value &&
     (violationHistoryLoaded.value || violationHistory.value.length > 0),
 );
-
-const shouldShowBannerProgress = computed(() => {
-  if (activeSideNav.value !== 'workbench') return false;
-  if (activeStageView.value === 'done' || stageStatus.done === 'done')
-    return false;
-  return (
-    isRunning.value ||
-    stageStatus.code_locate === 'done' ||
-    stageStatus.assert_gen === 'done' ||
-    stageStatus.fuzz === 'done' ||
-    stageStatus.fuzz === 'running'
-  );
-});
-
-const bannerProgressText = computed(
-  () => `${Math.round(bannerProgress.value)}%`,
-);
-
-const activeWorkbenchStageStatus = computed(() => {
-  return stageStatus[activeStageView.value];
-});
-
-const shouldCompleteBannerProgress = computed(() => {
-  return (
-    activeSideNav.value === 'workbench' &&
-    activeStageView.value !== 'done' &&
-    activeWorkbenchStageStatus.value === 'done'
-  );
-});
 
 const visibleViolationHistory = computed(() =>
   violationHistory.value.slice(0, VISIBLE_HISTORY_LIMIT),
@@ -274,11 +194,11 @@ const overviewMetrics = computed(() => [
   },
 ]);
 
-const heroPipelineSteps = [
+const heroWorkbenchModules = [
   { icon: 'mdi:filter-variant', label: '规则提取' },
-  { icon: 'mdi:share-variant-outline', label: '静态分析' },
-  { icon: 'mdi:code-json', label: '断言插桩' },
-  { icon: 'mdi:check-circle-outline', label: '动态验证' },
+  { icon: 'mdi:code-braces-box', label: '代码定位与一致性分析' },
+  { icon: 'mdi:code-json', label: '断言生成' },
+  { icon: 'mdi:radar', label: '模糊测试' },
 ] as const;
 
 const workflowSteps = [
@@ -288,19 +208,19 @@ const workflowSteps = [
     label: '规则筛选与抽取',
   },
   {
-    description: '基于规则与代码理解，定位潜在不合规路径。',
-    icon: 'mdi:share-variant-outline',
-    label: 'LLM 引导静态分析',
+    description: '选定源码包和一条规则，独立运行代码定位与一致性分析。',
+    icon: 'mdi:code-braces-box',
+    label: '代码定位与一致性分析',
   },
   {
-    description: '生成断言并精确定位到相关代码片段。',
+    description: '选定源码包与代码定位数据库，独立生成断言及插桩产物。',
     icon: 'mdi:code-json',
-    label: '生成断言与代码片段定位',
+    label: '断言生成',
   },
   {
-    description: '插桩验证并收集证据，确认违规并生成报告。',
-    icon: 'mdi:shield-check-outline',
-    label: '动态验证与结果确认',
+    description: '选择断言生成任务，独立生成 Fuzz 配置并运行 AFLNet。',
+    icon: 'mdi:radar',
+    label: '模糊测试',
   },
 ] as const;
 
@@ -381,93 +301,6 @@ function formatNumber(value: number) {
 function barWidth(value: number, total: number) {
   if (!total || value <= 0) return '0%';
   return `${Math.max(4, Math.round((value / total) * 100))}%`;
-}
-
-function clearBannerProgressTimer() {
-  if (!bannerProgressTimer) return;
-  clearTimeout(bannerProgressTimer);
-  bannerProgressTimer = null;
-}
-
-function getBannerProgressDelay(current: number, isAssertStage: boolean) {
-  if (isAssertStage) {
-    if (current < 70) return 1900 + Math.random() * 1200;
-    if (current < 90) return 3000 + Math.random() * 1800;
-    return 3400 + Math.random() * 2000;
-  }
-
-  if (current < 70) return 950 + Math.random() * 650;
-  if (current < 90) return 1600 + Math.random() * 900;
-  return 1400 + Math.random() * 1300;
-}
-
-function getBannerProgressIncrement(value: number, isAssertStage: boolean) {
-  if (isAssertStage) {
-    if (value < 70) return 0.7 + Math.random() * 1.2;
-    if (value < 90) return 0.22 + Math.random() * 0.55;
-    return 0.1 + Math.random() * 0.25;
-  }
-
-  if (value < 70) return 2 + Math.random() * 2.8;
-  if (value < 90) return 0.7 + Math.random() * 1.2;
-  return 0.3 + Math.random() * 0.9;
-}
-
-function scheduleBannerProgressTick() {
-  clearBannerProgressTimer();
-  if (
-    !shouldShowBannerProgress.value ||
-    shouldCompleteBannerProgress.value ||
-    stageStatus.done === 'done'
-  )
-    return;
-
-  const current = bannerProgress.value;
-  const isAssertStage = activeStageView.value === 'assert_gen';
-  const delay = getBannerProgressDelay(current, isAssertStage);
-
-  bannerProgressTimer = setTimeout(() => {
-    if (
-      !shouldShowBannerProgress.value ||
-      shouldCompleteBannerProgress.value ||
-      stageStatus.done === 'done'
-    )
-      return;
-
-    const value = bannerProgress.value;
-    const isCurrentAssertStage = activeStageView.value === 'assert_gen';
-    const increment = getBannerProgressIncrement(value, isCurrentAssertStage);
-    const cap = value < 90 ? 90 : 98;
-    bannerProgress.value = Math.min(cap, value + increment);
-    scheduleBannerProgressTick();
-  }, delay);
-}
-
-function syncBannerProgress() {
-  if (!shouldShowBannerProgress.value) {
-    clearBannerProgressTimer();
-    bannerProgress.value = 0;
-    bannerProgressStageKey = '';
-    return;
-  }
-
-  const nextStageKey = `${activeSideNav.value}:${activeStageView.value}`;
-  if (bannerProgressStageKey !== nextStageKey) {
-    clearBannerProgressTimer();
-    bannerProgress.value = 0;
-    bannerProgressStageKey = nextStageKey;
-  }
-
-  if (shouldCompleteBannerProgress.value || stageStatus.done === 'done') {
-    clearBannerProgressTimer();
-    bannerProgress.value = 100;
-    return;
-  }
-
-  if (bannerProgress.value <= 0 || bannerProgress.value >= 100) {
-    bannerProgress.value = Math.max(8, Math.min(bannerProgress.value, 88));
-  }
-  scheduleBannerProgressTick();
 }
 
 function protocolAccent(name: string) {
@@ -559,31 +392,26 @@ function openViolationHistory() {
 }
 
 function handleSideNavClick(key: SideNavKey) {
-  activeSideNav.value = key;
+  activeSideNav.value = key === 'workbench' ? 'code_locate' : key;
   if (key === 'logs') void refreshViolationHistoryOnEnter();
 }
 
 function handleRuleExtractGoWorkbench() {
-  activeSideNav.value = 'workbench';
-  if (!isRunning.value) {
-    stage.value = 'setup';
-    activeStageView.value = 'setup';
-  }
+  activeSideNav.value = 'code_locate';
 }
 
 function handleApplyExtractedRules(file: File) {
   if (isRunning.value) {
-    message.warning('请先停止当前分析流程');
+    message.warning('请先等待当前模块任务完成');
     return;
   }
 
-  resetWorkbench();
-  projectConfig.rules = file;
-  activeSideNav.value = 'workbench';
-  stage.value = 'setup';
-  activeStageView.value = 'setup';
-  stageMessage.value = '规则 JSON 已填入项目设置，请补充所需文件后进入规则确认';
-  message.success(`已填入协议规则 JSON：${file.name}`);
+  resetCodeLocateOutput();
+  codeLocateInputs.rulesFile = file;
+  activeSideNav.value = 'code_locate';
+  message.success(
+    `已填入协议规则 JSON：${file.name}，可在代码定位模块确认规则`,
+  );
 }
 
 function refreshViolationHistoryOnEnter() {
@@ -753,22 +581,6 @@ function handleViolationHistoryUpdated() {
   void loadViolationHistory(true, true, true);
 }
 
-watch(
-  () => [
-    activeSideNav.value,
-    activeStageView.value,
-    isRunning.value,
-    isTransitioning.value,
-    stageStatus.code_locate,
-    stageStatus.assert_gen,
-    stageStatus.fuzz,
-    stageStatus.done,
-    stageMessage.value,
-  ],
-  syncBannerProgress,
-  { immediate: true },
-);
-
 onMounted(() => {
   window.addEventListener(
     'protocol-violation-history-updated',
@@ -779,34 +591,11 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
-  clearBannerProgressTimer();
   window.removeEventListener(
     'protocol-violation-history-updated',
     handleViolationHistoryUpdated,
   );
 });
-
-function stageStateLabel(key: (typeof STAGE_LIST)[number]['key']) {
-  const status = stageStatus[key];
-  if (status === 'done') return '已完成';
-  if (status === 'running') return '进行中';
-  if (status === 'skipped') return '已跳过';
-  if (status === 'error') return '异常';
-  return stage.value === key ? '当前' : '等待中';
-}
-
-function handleStageSelect(key: (typeof STAGE_LIST)[number]['key']) {
-  selectStageView(key);
-}
-
-function switchRule() {
-  if (isRunning.value) return;
-  resetWorkbench();
-  stageStatus.setup = 'done';
-  stage.value = 'rule_confirm';
-  activeStageView.value = 'rule_confirm';
-  stageMessage.value = '请选择一条规则后启动自动化分析流程';
-}
 </script>
 
 <template>
@@ -823,31 +612,6 @@ function switchRule() {
           <div class="brand-name">协议实现合规性分析平台</div>
           <div class="topbar-divider"></div>
           <div class="topbar-section">{{ activeSideNavLabel }}</div>
-        </div>
-
-        <div v-if="activeSideNav === 'workbench'" class="topbar-actions">
-          <div
-            class="runtime-status"
-            :class="{ 'runtime-status--idle': !isRunning }"
-          >
-            <span class="status-dot"></span>
-            <span>{{ isRunning ? '运行中' : '空闲' }}</span>
-          </div>
-          <div class="runtime-clock">{{ elapsedDisplay }}</div>
-          <Button
-            v-if="isRunning"
-            danger
-            :loading="isStopping"
-            @click="stopPipeline"
-          >
-            <template #icon><IconifyIcon icon="mdi:stop" /></template>
-            停止
-          </Button>
-          <Button v-else @click="resetWorkbench">
-            <template #icon><IconifyIcon icon="mdi:refresh" /></template>
-            重置
-          </Button>
-          <div class="avatar">PG</div>
         </div>
       </header>
 
@@ -895,20 +659,6 @@ function switchRule() {
               </div>
             </nav>
           </div>
-
-          <section v-if="activeSideNav === 'workbench'" class="current-task">
-            <div class="current-task-title">当前任务</div>
-            <dl>
-              <div>
-                <dt>源码包:</dt>
-                <dd>{{ sourceArchiveName }}</dd>
-              </div>
-              <div>
-                <dt>开始时间:</dt>
-                <dd>{{ startedAtDisplay }}</dd>
-              </div>
-            </dl>
-          </section>
         </aside>
 
         <main class="guard-main">
@@ -917,23 +667,18 @@ function switchRule() {
               <div class="overview-hero-copy">
                 <h1>LLM 驱动的协议实现合规与安全分析平台</h1>
                 <p>
-                  结合协议规则提取、LLM 引导静态分析、断言插桩和动态验证，
-                  自动化发现协议实现中的不合规漏洞并完成可验证确认。
+                  提供规则提取、代码定位与一致性分析、断言生成和模糊测试模块，
+                  可分别准备输入并查看各自的分析产物。
                 </p>
 
                 <div class="overview-hero-flow">
                   <div
-                    v-for="(item, index) in heroPipelineSteps"
+                    v-for="item in heroWorkbenchModules"
                     :key="item.label"
                     class="hero-flow-step"
                   >
                     <IconifyIcon :icon="item.icon" />
                     <span>{{ item.label }}</span>
-                    <IconifyIcon
-                      v-if="index < heroPipelineSteps.length - 1"
-                      class="hero-flow-arrow"
-                      icon="mdi:chevron-right"
-                    />
                   </div>
                 </div>
 
@@ -1171,186 +916,18 @@ function switchRule() {
           >
             <StageRuleExtract
               :disabled="isRunning"
-              :rules-file="projectConfig.rules"
+              :rules-file="codeLocateInputs.rulesFile"
               @apply-rules="handleApplyExtractedRules"
               @go-workbench="handleRuleExtractGoWorkbench"
             />
           </section>
 
-          <section v-else-if="activeSideNav === 'workbench'" class="task-shell">
-            <header class="task-header">
-              <div class="task-heading">
-                <div class="task-title-line">
-                  <h1>协议实现分析任务</h1>
-                </div>
-                <div class="task-rule">
-                  <span>规则:</span>
-                  <strong>{{ currentRuleId }}</strong>
-                  <code>{{ currentRuleText }}</code>
-                </div>
-              </div>
-              <div class="task-actions">
-                <Button
-                  :disabled="isRunning || stage === 'setup'"
-                  @click="switchRule"
-                >
-                  切换规则
-                  <template #icon>
-                    <IconifyIcon icon="mdi:chevron-down" />
-                  </template>
-                </Button>
-              </div>
-            </header>
-
-            <section class="pipeline-stepper">
-              <button
-                v-for="(s, idx) in STAGE_LIST"
-                :key="s.key"
-                class="stepper-item"
-                :class="{
-                  'stepper-item--active':
-                    stageStatus[s.key] === 'running' ||
-                    (stage === s.key && stageStatus[s.key] !== 'done'),
-                  'stepper-item--selected': activeStageView === s.key,
-                  'stepper-item--done': stageStatus[s.key] === 'done',
-                  'stepper-item--skipped': stageStatus[s.key] === 'skipped',
-                  'stepper-item--error': stageStatus[s.key] === 'error',
-                }"
-                :disabled="!canViewStage(s.key)"
-                type="button"
-                @click="handleStageSelect(s.key)"
-              >
-                <div class="stepper-circle">
-                  <IconifyIcon
-                    v-if="stageStatus[s.key] === 'done'"
-                    icon="mdi:check"
-                  />
-                  <IconifyIcon
-                    v-else-if="stageStatus[s.key] === 'skipped'"
-                    icon="mdi:debug-step-over"
-                  />
-                  <IconifyIcon
-                    v-else-if="stageStatus[s.key] === 'error'"
-                    icon="mdi:close"
-                  />
-                  <span v-else>{{ s.index }}</span>
-                </div>
-                <div class="stepper-copy">
-                  <div class="stepper-title">{{ s.title }}</div>
-                  <div class="stepper-state">{{ stageStateLabel(s.key) }}</div>
-                </div>
-                <div v-if="idx < STAGE_LIST.length - 1" class="stepper-arrow">
-                  <IconifyIcon icon="mdi:arrow-right" />
-                </div>
-              </button>
-            </section>
-
-            <section
-              v-if="stageMessage"
-              class="workbench-banner"
-              :class="{
-                'workbench-banner--progress': shouldShowBannerProgress,
-              }"
-              :style="{
-                '--banner-progress': `${bannerProgress}%`,
-              }"
-            >
-              <span
-                v-if="shouldShowBannerProgress"
-                class="workbench-banner-fill"
-                aria-hidden="true"
-              ></span>
-              <IconifyIcon
-                class="workbench-banner-icon"
-                icon="mdi:information-outline"
-              />
-              <span class="workbench-banner-text">{{ stageMessage }}</span>
-              <span
-                v-if="shouldShowBannerProgress"
-                class="workbench-banner-percent"
-              >
-                {{ bannerProgressText }}
-              </span>
-              <Button
-                v-if="isAwaitingAssertConfirmation"
-                class="confirm-assert-button"
-                size="small"
-                type="primary"
-                :disabled="!staticResult"
-                @click="confirmAssertGeneration"
-              >
-                进入断言生成
-                <template #icon>
-                  <IconifyIcon icon="mdi:arrow-right" />
-                </template>
-              </Button>
-            </section>
-
-            <section v-if="errorMessage" class="workbench-error">
-              <IconifyIcon icon="mdi:alert-circle" />
-              <span>{{ errorMessage }}</span>
-            </section>
-
-            <section class="workbench-content">
-              <StageSetup
-                v-if="activeStageView === 'setup'"
-                :config="projectConfig"
-                :disabled="isRunning"
-                @update:config="handleProjectConfigUpdate"
-                @commit="commitSetup"
-              />
-
-              <StageRuleConfirm
-                v-else-if="activeStageView === 'rule_confirm'"
-                :rules-file="projectConfig.rules"
-                :disabled="isRunning"
-                @start="startPipeline"
-                @back="backToSetup"
-              />
-
-              <StageCodeLocate
-                v-else-if="activeStageView === 'code_locate'"
-                :evidence="codeLocateEvidence"
-                :log-html="staticLogHtml"
-                :log-text="staticLogText"
-                :events="staticProgressEvents"
-                :result="staticResult"
-                :rule="selectedRule"
-                :running="stageStatus.code_locate === 'running'"
-              />
-
-              <StageAssertGen
-                v-else-if="activeStageView === 'assert_gen'"
-                :events="assertJob?.events"
-                :log-text="assertLogText"
-                :diff-content="assertDiffContent"
-                :result="assertResult"
-                :running="stageStatus.assert_gen === 'running'"
-              />
-
-              <StageFuzz
-                v-else-if="activeStageView === 'fuzz'"
-                :elapsed="elapsedDisplay"
-                :logs="fuzzLogs"
-                :job="fuzzJob"
-                :rule="selectedRule"
-                :stats="fuzzStats"
-                :speed-series="fuzzSpeedSeries"
-                :running="stageStatus.fuzz === 'running'"
-              />
-
-              <StageResultVerification
-                v-else-if="activeStageView === 'done'"
-                :assert-diff-content="assertDiffContent"
-                :assert-result="assertResult"
-                :evidence="codeLocateEvidence"
-                :logs="fuzzLogs"
-                :poc-path="aflNetPocPath"
-                :rule="selectedRule"
-                :static-result="staticResult"
-                :stats="fuzzStats"
-              />
-            </section>
+          <section v-else-if="isAnalysisModuleActive" class="task-shell">
+            <CodeLocateModule v-if="activeSideNav === 'code_locate'" />
+            <AssertGenerationModule
+              v-else-if="activeSideNav === 'assert_gen'"
+            />
+            <FuzzModule v-else-if="activeSideNav === 'fuzz'" />
           </section>
 
           <section v-else-if="activeSideNav === 'logs'" class="logs-shell">

@@ -66,6 +66,7 @@ describe('stageCodeLocate log parsing', () => {
     });
 
     const secondLine = wrapper.findAll('.log-line')[1];
+    if (!secondLine) throw new Error('Expected the second log line to render');
 
     expect(secondLine.findAll('.log-chip')).toHaveLength(1);
     expect(secondLine.find('.log-text').text()).toBe(

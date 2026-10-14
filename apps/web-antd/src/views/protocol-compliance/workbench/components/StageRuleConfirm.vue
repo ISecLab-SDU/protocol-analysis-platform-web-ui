@@ -14,6 +14,9 @@ import { normalizeList } from '../utils';
 interface Props {
   rulesFile?: File | null;
   disabled?: boolean;
+  showBack?: boolean;
+  startLabel?: string;
+  title?: string;
 }
 
 interface Emits {
@@ -21,7 +24,12 @@ interface Emits {
   (e: 'back'): void;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  rulesFile: null,
+  showBack: true,
+  startLabel: '确认并启动自动化分析流程',
+  title: '规则确认',
+});
 const emit = defineEmits<Emits>();
 
 const loading = ref(false);
@@ -153,9 +161,9 @@ watch(() => props.rulesFile, loadRules, { immediate: true });
 </script>
 
 <template>
-  <Card class="stage-card" title="规则确认">
+  <Card class="stage-card" :title="title">
     <template #extra>
-      <Button size="small" @click="emit('back')">
+      <Button v-if="showBack" size="small" @click="emit('back')">
         <template #icon><IconifyIcon icon="mdi:arrow-left" /></template>
         返回设置
       </Button>
@@ -212,7 +220,7 @@ watch(() => props.rulesFile, loadRules, { immediate: true });
         @click="onStart"
       >
         <template #icon><IconifyIcon icon="mdi:play" /></template>
-        确认并启动自动化分析流程
+        {{ startLabel }}
       </Button>
     </div>
   </Card>
