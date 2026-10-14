@@ -140,3 +140,40 @@ index 1111111..2222222 100755
     assert "assert_instrumentation_events.jsonl" not in filtered
     assert "project/sol/src/server.c" in filtered
     assert filtered.startswith("diff --git a/project/sol/src/server.c b/project/sol/src/server.c")
+
+
+def test_pi_instrumentation_environment(monkeypatch):
+    from protocol_compliance.assertion import (
+        _assert_required_instrumentation_env,
+        _ensure_env_passthrough_for_instrumentation,
+    )
+    monkeypatch.setenv('PG_ASSERT_AGENT', 'pi')
+    monkeypatch.setenv('PG_PI_MODEL', 'test-model')
+    monkeypatch.setenv('PG_PI_API_KEY', 'test-key')
+    monkeypatch.setenv('PG_PI_BASE_URL', 'http://cache.test/v1')
+    monkeypatch.setenv('PG_PI_API', 'openai-completions')
+    _assert_required_instrumentation_env()
+    _ensure_env_passthrough_for_instrumentation()
+    keys = os.environ['PG_ENV_VARS'].split(',')
+    assert all(key in keys for key in ('PG_ASSERT_AGENT', 'PG_PI_MODEL', 'PG_PI_BASE_URL', 'PG_PI_API_KEY'))
+    settings = ProtocolGuardDockerSettings.from_env()
+    runner = object.__new__(assertion_module.ProtocolGuardDockerRunner)
+    runner._settings = settings
+    container_env = runner._build_environment()
+    assert container_env['PG_ASSERT_AGENT'] == 'pi'
+    assert container_env['PG_PI_MODEL'] == 'test-model'
+    assert container_env['PG_PI_API_KEY'] == 'test-key'
+
+
+@pytest.mark.parametrize('api,prefix', [('anthropic-messages', 'ANTHROPIC'), ('openai-responses', 'OPENAI')])
+def test_pi_environment_uses_selected_api(monkeypatch, api, prefix):
+    monkeypatch.setenv('PG_ASSERT_AGENT', 'pi')
+    monkeypatch.setenv('PG_PI_MODEL', 'test')
+    monkeypatch.setenv('PG_PI_API', api)
+    for key in ('PG_PI_API_KEY', 'PG_PI_BASE_URL', 'OPENAI_API_KEY', 'OPENAI_BASE_URL', 'ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL'):
+        monkeypatch.delenv(key, raising=False)
+    with pytest.raises(assertion_module.AssertGenerationNotReadyError):
+        assertion_module._assert_required_instrumentation_env()
+    monkeypatch.setenv(prefix + '_API_KEY', 'test-key')
+    monkeypatch.setenv(prefix + '_BASE_URL', 'http://cache.test')
+    assertion_module._assert_required_instrumentation_env()

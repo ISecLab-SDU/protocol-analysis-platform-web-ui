@@ -65,6 +65,15 @@ const codeLocate = reactive({
 });
 
 const assertInputs = reactive({
+  agent: 'claude' as 'claude' | 'pi',
+  api: 'openai-completions' as
+    | 'anthropic-messages'
+    | 'openai-completions'
+    | 'openai-responses',
+  apiKey: '',
+  baseUrl: '',
+  model: '',
+
   codeArchive: null as File | null,
   databaseFile: null as File | null,
   databasePath: '',
@@ -665,7 +674,18 @@ async function runAssertGeneration() {
       codeArchive: File;
       database?: File;
       databasePath?: string;
+      runtime: import('#/api/protocol-compliance').AssertionRuntimeSettings;
     } = {
+      runtime: {
+        agent: assertInputs.agent,
+        api:
+          assertInputs.agent === 'claude'
+            ? 'anthropic-messages'
+            : assertInputs.api,
+        model: assertInputs.model.trim(),
+        baseUrl: assertInputs.baseUrl.trim(),
+        apiKey: assertInputs.apiKey.trim(),
+      },
       codeArchive: archive,
     };
     if (databasePath) payload.databasePath = databasePath;

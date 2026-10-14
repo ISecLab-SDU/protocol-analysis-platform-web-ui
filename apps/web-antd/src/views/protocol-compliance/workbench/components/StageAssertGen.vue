@@ -270,10 +270,10 @@ const assertProgressSteps: AssertProgressStep[] = [
   {
     description:
       '逐个读取任务 prompt，调用 Agent 将断言辅助函数和 assert 插入源码。',
-    key: 'claude-instrumentation',
+    key: 'agent-instrumentation',
     label: 'LLM 断言插桩',
     match: (line) =>
-      line.stage.startsWith('claude-') ||
+      Boolean(line.metadata?.activity) ||
       (line.stage === 'instrumentation-log' &&
         (hasLogText(line, 'Task 1/') ||
           hasLogText(line, 'Reading prompt from') ||

@@ -16,6 +16,8 @@ from typing import Any, Callable, Dict, Optional, cast
 
 from flask import make_response, request
 
+from pg_agent_progress.legacy import decode_progress_event
+
 from utils.responses import error_response, success_response
 
 from .assertion import get_assert_generation_job, get_assert_generation_result
@@ -444,6 +446,11 @@ def _pipe_process_stream(stream: Any, log_file: Path, stream_name: str) -> None:
     for raw_line in stream:
         line = raw_line.rstrip("\n")
         if line:
+            event = decode_progress_event(line, "fuzz-config-build")
+            if event is not None:
+                if event.get("metadata", {}).get("quiet"):
+                    continue
+                line = f"({event['stage']}) {event['message']}"
             _append_log(log_file, f"[container:{stream_name}] {line}")
 
 

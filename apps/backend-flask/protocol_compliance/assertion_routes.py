@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, cast
@@ -20,6 +21,8 @@ from .assertion import (
     submit_assert_generation_job,
     submit_diff_parsing_job,
 )
+
+from .assertion_runtime import resolve_assertion_runtime
 
 LOGGER = logging.getLogger(__name__)
 
@@ -83,6 +86,11 @@ def create_assertion_handlers(
             return make_response(error_response("上传的文件内容为空，请重新上传"), 400)
 
         notes = request.form.get("notes")
+        try:
+            runtime_env = resolve_assertion_runtime(json.loads(request.form.get("runtime", "{}")))
+        except (ValueError, TypeError):
+            return make_response(error_response("Invalid assertion runtime configuration; check runtime, provider, model, endpoint and credentials"), 400)
+
 
         LOGGER.info(
             "Assertion generation job requested",
@@ -98,6 +106,7 @@ def create_assertion_handlers(
             code_payload=(code_name, code_data),
             database_payload=(database_name, database_data),
             notes=notes,
+            runtime_env=runtime_env,
         )
         return make_response(success_response(snapshot), 202)
 
@@ -143,11 +152,14 @@ def create_assertion_handlers(
                 409,
             )
 
-        zip_path = get_assert_generation_zip_path(job_id)
+        artifact = request.args.get("artifact", "tasks")
+        if artifact not in {"tasks", "instrumented-code"}:
+            return make_response(error_response("Unknown assertion artifact"), 400)
+        zip_path = get_assert_generation_zip_path(job_id, artifact)
         if not zip_path:
             return make_response(error_response("未找到断言生成结果压缩包"), 404)
 
-        download_name = f"assertion-generation-{job_id}.zip"
+        download_name = f"assertion-generation-{job_id}-{artifact}.zip"
         return send_file(
             zip_path,
             mimetype="application/zip",

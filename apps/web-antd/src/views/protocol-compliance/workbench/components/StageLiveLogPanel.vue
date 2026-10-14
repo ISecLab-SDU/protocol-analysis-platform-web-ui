@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { ProtocolAgentProgressMetadata } from '#/api/protocol-compliance';
+
 import { computed, nextTick, ref, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
@@ -8,7 +10,7 @@ import { Tag } from 'ant-design-vue';
 interface StageLiveLogLine {
   id: string;
   kind?: string;
-  metadata?: Record<string, any>;
+  metadata?: ProtocolAgentProgressMetadata;
   phase: string;
   stage?: string;
   text: string;
@@ -36,10 +38,7 @@ const props = withDefaults(defineProps<Props>(), {
 const logBodyRef = ref<HTMLElement | null>(null);
 
 const visibleLines = computed(() =>
-  props.lines.filter(
-    (line) =>
-      !isAssistantTurnNoise(line) && !isSuccessfulToolResultUserMessage(line),
-  ),
+  props.lines.filter((line) => !line.metadata?.quiet),
 );
 
 defineExpose({
@@ -72,61 +71,28 @@ function displayText(value: string) {
   return value.replaceAll(/claude/gi, 'Agent');
 }
 
-function isClaudeLine(line: StageLiveLogLine) {
-  return line.stage?.startsWith('claude-');
+function isAgentLine(line: StageLiveLogLine) {
+  return Boolean(line.metadata?.activity);
 }
 
-function isAssistantTurnNoise(line: StageLiveLogLine) {
-  return (
-    line.stage === 'claude-status' &&
-    line.metadata?.sdk_message_type === 'AssistantMessage'
-  );
-}
-
-function isSuccessfulToolResultUserMessage(line: StageLiveLogLine) {
-  if (!isToolResultUserMessage(line)) return false;
-  return !isToolResultError(line);
-}
-
-function isToolResultUserMessage(line: StageLiveLogLine) {
-  return (
-    line.metadata?.sdk_message_type === 'UserMessage' ||
-    line.text.trimStart().startsWith('UserMessage(content=[ToolResultBlock(')
-  );
-}
-
-function isToolResultError(line: StageLiveLogLine) {
-  return (
-    line.metadata?.is_error === true ||
-    line.text.includes('is_error=True') ||
-    line.text.includes("tool_use_result='Error:")
-  );
-}
-
-function isThinkingLine(line: StageLiveLogLine) {
-  return (
-    line.stage === 'claude-thinking' ||
-    line.metadata?.sdk_message_type === 'ThinkingBlock' ||
-    line.text.trimStart().startsWith('ThinkingBlock(thinking=')
-  );
-}
-
-function claudeLineKind(line: StageLiveLogLine) {
-  if (line.metadata?.is_error || line.metadata?.status === 'failed') {
+function agentLineKind(line: StageLiveLogLine) {
+  if (line.metadata?.is_error || line.metadata?.status === 'failed')
     return 'error';
-  }
-  if (isToolResultError(line)) return 'error';
-  if (isThinkingLine(line)) return 'thinking';
-  if (line.metadata?.sdk_message_type === 'ResultMessage') return 'result';
-  if (line.stage === 'claude-command') return 'command';
-  if (line.stage === 'claude-inspect') return 'inspect';
-  if (line.stage === 'claude-write') return 'write';
-  if (line.stage === 'claude-message') return 'message';
-  if (line.stage === 'claude-observation') return 'observation';
+  const activity = line.metadata?.activity;
+  if (activity === 'tool_result') return 'observation';
+  if (
+    activity === 'command' ||
+    activity === 'inspect' ||
+    activity === 'write' ||
+    activity === 'message' ||
+    activity === 'thinking' ||
+    activity === 'result'
+  )
+    return activity;
   return 'status';
 }
 
-function claudeIcon(line: StageLiveLogLine) {
+function agentIcon(line: StageLiveLogLine) {
   return {
     command: 'mdi:console-line',
     error: 'mdi:alert-circle-outline',
@@ -137,11 +103,11 @@ function claudeIcon(line: StageLiveLogLine) {
     status: 'mdi:creation-outline',
     thinking: 'mdi:head-cog-outline',
     write: 'mdi:file-edit-outline',
-  }[claudeLineKind(line)];
+  }[agentLineKind(line)];
 }
 
-function claudeLabel(line: StageLiveLogLine) {
-  const kind = claudeLineKind(line);
+function agentLabel(line: StageLiveLogLine) {
+  const kind = agentLineKind(line);
   if (kind === 'command') return '执行命令';
   if (kind === 'inspect') return '查看文件';
   if (kind === 'write') return '修改文件';
@@ -154,67 +120,23 @@ function claudeLabel(line: StageLiveLogLine) {
   return 'Agent 状态';
 }
 
-function claudePrimaryText(line: StageLiveLogLine) {
-  if (isThinkingLine(line)) {
-    return displayText(
-      extractReprStringField(line.text, 'thinking') || line.text,
-    );
-  }
-  if (isToolResultError(line)) {
-    return displayText(
-      extractReprStringField(line.text, 'content') || line.text,
-    );
-  }
-  const input = line.metadata?.tool_input;
-  if (line.metadata?.tool === 'Bash' && typeof input?.command === 'string') {
-    return input.command;
-  }
-  if (typeof input?.file_path === 'string') return input.file_path;
-  if (typeof input?.path === 'string') return input.path;
+function agentPrimaryText(line: StageLiveLogLine) {
+  if (line.metadata?.primary) return line.metadata.primary;
+  if (
+    line.metadata?.activity === 'thinking' ||
+    line.metadata?.activity === 'tool_result'
+  )
+    return displayText(line.text);
   return displayText(line.text.replace(/^[a-z]+:\s*/i, ''));
 }
 
-function extractReprStringField(text: string, field: string) {
-  const marker = `${field}=`;
-  const markerIndex = text.lastIndexOf(marker);
-  if (markerIndex === -1) return '';
-  const start = markerIndex + marker.length;
-  const quote = text[start];
-  if (quote !== "'" && quote !== '"') return '';
-
-  let value = '';
-  for (let index = start + 1; index < text.length; index += 1) {
-    const character = text[index];
-    if (character === quote) return value;
-    if (character !== '\\') {
-      value += character;
-      continue;
-    }
-    const escaped = text[index + 1];
-    if (escaped === undefined) break;
-    value += { n: '\n', r: '\r', t: '\t' }[escaped] ?? escaped;
-    index += 1;
-  }
-  const truncatedValue = value.trimEnd();
-  if (!truncatedValue) return '';
-  return truncatedValue.endsWith('...')
-    ? truncatedValue
-    : `${truncatedValue}...`;
-}
-
-function claudeDescription(line: StageLiveLogLine) {
-  const description = line.metadata?.tool_input?.description;
-  return typeof description === 'string' ? displayText(description) : '';
+function agentDescription(line: StageLiveLogLine) {
+  return displayText(line.metadata?.description || '');
 }
 
 function resultMetrics(line: StageLiveLogLine) {
   const metadata = line.metadata ?? {};
-  const usage = metadata.usage ?? {};
-  const modelUsageEntries = Object.entries(metadata.model_usage ?? {});
-  const modelUsage = modelUsageEntries[0]?.[1] as
-    | Record<string, number>
-    | undefined;
-  const model = metadata.model ?? modelUsageEntries[0]?.[0];
+  const model = metadata.model;
   const metrics: Array<{ label: string; value: string }> = [];
   if (model) metrics.push({ label: '模型', value: displayText(model) });
   if (typeof metadata.duration_ms === 'number') {
@@ -223,19 +145,19 @@ function resultMetrics(line: StageLiveLogLine) {
       value: formatDuration(metadata.duration_ms),
     });
   }
-  if (typeof modelUsage?.costUSD === 'number') {
-    metrics.push({ label: '费用', value: `$${modelUsage.costUSD.toFixed(4)}` });
+  if (typeof metadata.cost_usd === 'number') {
+    metrics.push({ label: '费用', value: `$${metadata.cost_usd.toFixed(4)}` });
   }
-  if (typeof usage.input_tokens === 'number') {
-    metrics.push({ label: '输入', value: formatCount(usage.input_tokens) });
+  if (typeof metadata.input_tokens === 'number') {
+    metrics.push({ label: '输入', value: formatCount(metadata.input_tokens) });
   }
-  if (typeof usage.output_tokens === 'number') {
-    metrics.push({ label: '输出', value: formatCount(usage.output_tokens) });
+  if (typeof metadata.output_tokens === 'number') {
+    metrics.push({ label: '输出', value: formatCount(metadata.output_tokens) });
   }
-  if (typeof usage.cache_read_input_tokens === 'number') {
+  if (typeof metadata.cache_read_tokens === 'number') {
     metrics.push({
       label: '缓存命中',
-      value: formatCount(usage.cache_read_input_tokens),
+      value: formatCount(metadata.cache_read_tokens),
     });
   }
   return metrics;
@@ -280,50 +202,48 @@ function formatCount(value: number) {
         class="log-line"
         :class="[
           line.kind ? `log-line--${line.kind}` : undefined,
-          isClaudeLine(line)
-            ? `claude-line claude-line--${claudeLineKind(line)}`
+          isAgentLine(line)
+            ? `agent-line agent-line--${agentLineKind(line)}`
             : undefined,
         ]"
       >
-        <template v-if="isClaudeLine(line)">
-          <div class="claude-rail" aria-hidden="true">
-            <IconifyIcon :icon="claudeIcon(line)" />
+        <template v-if="isAgentLine(line)">
+          <div class="agent-rail" aria-hidden="true">
+            <IconifyIcon :icon="agentIcon(line)" />
           </div>
-          <div class="claude-event">
-            <div class="claude-event-head">
-              <strong>{{ claudeLabel(line) }}</strong>
+          <div class="agent-event">
+            <div class="agent-event-head">
+              <strong>{{ agentLabel(line) }}</strong>
               <span class="log-chip log-chip--phase">{{
                 displayText(line.phase)
               }}</span>
-              <span v-if="line.metadata?.tool" class="claude-tool">{{
+              <span v-if="line.metadata?.tool" class="agent-tool">{{
                 line.metadata.tool
               }}</span>
               <time>{{ line.time || '--:--:--' }}</time>
             </div>
             <p
-              v-if="claudeLineKind(line) !== 'result'"
-              class="claude-primary"
+              v-if="agentLineKind(line) !== 'result'"
+              class="agent-primary"
               :class="{
-                'claude-primary--code': [
-                  'command',
-                  'inspect',
-                  'write',
-                ].includes(claudeLineKind(line)),
+                'agent-primary--code': ['command', 'inspect', 'write'].includes(
+                  agentLineKind(line),
+                ),
               }"
             >
-              {{ claudePrimaryText(line) }}
+              {{ agentPrimaryText(line) }}
             </p>
-            <p v-if="claudeDescription(line)" class="claude-description">
-              {{ claudeDescription(line) }}
+            <p v-if="agentDescription(line)" class="agent-description">
+              {{ agentDescription(line) }}
             </p>
-            <template v-if="claudeLineKind(line) === 'result'">
-              <div class="claude-metrics">
+            <template v-if="agentLineKind(line) === 'result'">
+              <div class="agent-metrics">
                 <div v-for="metric in resultMetrics(line)" :key="metric.label">
                   <span>{{ metric.label }}</span>
                   <strong>{{ metric.value }}</strong>
                 </div>
               </div>
-              <p v-if="line.metadata?.result" class="claude-result-text">
+              <p v-if="line.metadata?.result" class="agent-result-text">
                 {{ displayText(line.metadata.result) }}
               </p>
             </template>
@@ -444,7 +364,7 @@ function formatCount(value: number) {
   overflow-wrap: anywhere;
 }
 
-.claude-line {
+.agent-line {
   display: grid;
   grid-template-columns: 30px minmax(0, 1fr);
   gap: 10px;
@@ -456,11 +376,11 @@ function formatCount(value: number) {
   border-bottom: 1px solid #e8edf3;
 }
 
-.claude-line:last-child {
+.agent-line:last-child {
   border-bottom: 0;
 }
 
-.claude-rail {
+.agent-rail {
   display: grid;
   width: 28px;
   height: 28px;
@@ -471,33 +391,33 @@ function formatCount(value: number) {
   border-radius: 6px;
 }
 
-.claude-line--command .claude-rail {
+.agent-line--command .agent-rail {
   color: #166534;
   background: #eaf7ef;
 }
 
-.claude-line--inspect .claude-rail,
-.claude-line--write .claude-rail {
+.agent-line--inspect .agent-rail,
+.agent-line--write .agent-rail {
   color: #6d4c12;
   background: #fff6da;
 }
 
-.claude-line--message .claude-rail,
-.claude-line--result .claude-rail {
+.agent-line--message .agent-rail,
+.agent-line--result .agent-rail {
   color: #6941a5;
   background: #f3edfb;
 }
 
-.claude-line--thinking {
+.agent-line--thinking {
   background: #fffef9;
 }
 
-.claude-line--thinking .claude-rail {
+.agent-line--thinking .agent-rail {
   color: #7a5d0b;
   background: #fff4c2;
 }
 
-.claude-line--thinking .claude-primary {
+.agent-line--thinking .agent-primary {
   padding: 7px 9px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 13px;
@@ -508,16 +428,16 @@ function formatCount(value: number) {
   border-radius: 0 4px 4px 0;
 }
 
-.claude-line--error .claude-rail {
+.agent-line--error .agent-rail {
   color: #b42318;
   background: #ffebe9;
 }
 
-.claude-event {
+.agent-event {
   min-width: 0;
 }
 
-.claude-event-head {
+.agent-event-head {
   display: flex;
   flex-wrap: wrap;
   gap: 6px 8px;
@@ -525,19 +445,19 @@ function formatCount(value: number) {
   min-height: 28px;
 }
 
-.claude-event-head strong {
+.agent-event-head strong {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 14px;
   color: #172033;
 }
 
-.claude-event-head time {
+.agent-event-head time {
   margin-left: auto;
   font-size: 12px;
   color: #778399;
 }
 
-.claude-tool {
+.agent-tool {
   padding: 0 6px;
   font-size: 12px;
   line-height: 20px;
@@ -546,19 +466,19 @@ function formatCount(value: number) {
   border-radius: 4px;
 }
 
-.claude-primary,
-.claude-description,
-.claude-result-text {
+.agent-primary,
+.agent-description,
+.agent-result-text {
   margin: 3px 0 0;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 
-.claude-primary {
+.agent-primary {
   color: #344054;
 }
 
-.claude-primary--code {
+.agent-primary--code {
   padding: 7px 9px;
   font-size: 13px;
   line-height: 1.5;
@@ -568,13 +488,13 @@ function formatCount(value: number) {
   border-radius: 0 4px 4px 0;
 }
 
-.claude-description {
+.agent-description {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 13px;
   color: #667085;
 }
 
-.claude-metrics {
+.agent-metrics {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
   gap: 1px;
@@ -585,7 +505,7 @@ function formatCount(value: number) {
   border-radius: 6px;
 }
 
-.claude-metrics > div {
+.agent-metrics > div {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -594,20 +514,20 @@ function formatCount(value: number) {
   background: #f8fafc;
 }
 
-.claude-metrics span {
+.agent-metrics span {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 11px;
   color: #667085;
 }
 
-.claude-metrics strong {
+.agent-metrics strong {
   overflow: hidden;
   font-size: 13px;
   color: #27364a;
   text-overflow: ellipsis;
 }
 
-.claude-result-text {
+.agent-result-text {
   max-height: 160px;
   padding-right: 6px;
   margin-top: 9px;

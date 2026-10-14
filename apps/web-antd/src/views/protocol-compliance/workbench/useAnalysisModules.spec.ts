@@ -79,6 +79,11 @@ beforeEach(() => {
     status: 'idle',
   });
   Object.assign(modules.assertInputs, {
+    agent: 'claude',
+    api: 'openai-completions',
+    apiKey: '',
+    baseUrl: '',
+    model: '',
     codeArchive: null,
     databaseFile: null,
     databasePath: '',
@@ -287,6 +292,13 @@ describe('independent protocol analysis modules', () => {
     await modules.runAssertGeneration();
 
     expect(api.runProtocolAssertGeneration).toHaveBeenCalledWith({
+      runtime: {
+        agent: 'claude',
+        api: 'anthropic-messages',
+        apiKey: '',
+        baseUrl: '',
+        model: '',
+      },
       codeArchive: archive,
       databasePath: '/analysis/violations.db',
     });
@@ -312,6 +324,34 @@ describe('independent protocol analysis modules', () => {
     };
     expect(assertionOutput?.codeLocateResult).toEqual(staticResult);
     expect(assertionOutput?.rule).toEqual(rule);
+  });
+
+  it('submits Pi provider settings and displays job failures', async () => {
+    Object.assign(modules.assertInputs, {
+      agent: 'pi',
+      api: 'openai-completions',
+      model: 'deepseek-flash',
+      baseUrl: 'http://cache.test/v1',
+      apiKey: 'test-key',
+      codeArchive: new File(['source'], 'source.zip'),
+      databaseFile: new File(['db'], 'input.db'),
+    });
+    api.runProtocolAssertGeneration.mockResolvedValue({
+      events: [],
+      jobId: 'pi-failure',
+      status: 'failed',
+      error: 'Provider unavailable',
+    });
+    await modules.runAssertGeneration();
+    expect(api.runProtocolAssertGeneration.mock.calls[0]?.[0].runtime).toEqual({
+      agent: 'pi',
+      api: 'openai-completions',
+      model: 'deepseek-flash',
+      baseUrl: 'http://cache.test/v1',
+      apiKey: 'test-key',
+    });
+    expect(modules.assertGeneration.status).toBe('error');
+    expect(modules.assertGeneration.error).toBe('Provider unavailable');
   });
 
   it('reuses the selected code-location output with its matching source archive', async () => {
@@ -355,6 +395,13 @@ describe('independent protocol analysis modules', () => {
     await modules.runAssertGeneration();
 
     expect(api.runProtocolAssertGeneration).toHaveBeenCalledWith({
+      runtime: {
+        agent: 'claude',
+        api: 'anthropic-messages',
+        apiKey: '',
+        baseUrl: '',
+        model: '',
+      },
       codeArchive: archive,
       databasePath,
     });

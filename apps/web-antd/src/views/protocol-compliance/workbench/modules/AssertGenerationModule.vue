@@ -1,9 +1,19 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
-import { Button, Card, Input, Tag, Upload } from 'ant-design-vue';
+import {
+  Button,
+  Card,
+  Input,
+  message,
+  Select,
+  Tag,
+  Upload,
+} from 'ant-design-vue';
+
+import { downloadProtocolAssertionArtifact } from '#/api/protocol-compliance';
 
 import StageAssertGen from '../components/StageAssertGen.vue';
 import { useAnalysisModules } from '../useAnalysisModules';
@@ -16,6 +26,26 @@ const {
   stopAssertGeneration,
   useLatestCodeLocateOutput,
 } = useAnalysisModules();
+
+const downloading = ref(false);
+async function downloadArtifact(artifact: 'instrumented-code' | 'tasks') {
+  const jobId = assertGeneration.result?.jobId;
+  if (!jobId) return;
+  downloading.value = true;
+  try {
+    const blob = await downloadProtocolAssertionArtifact(jobId, artifact);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `assertion-${jobId}-${artifact}.zip`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch {
+    message.error('产物下载失败，请重试');
+  } finally {
+    downloading.value = false;
+  }
+}
 
 const archiveFileList = computed(() =>
   assertInputs.codeArchive
@@ -169,6 +199,62 @@ function selectLatestDatabase() {
       </div>
     </Card>
 
+    <Card class="module-card" title="断言插桩运行时">
+      <div class="module-input-grid">
+        <div class="module-input-field">
+          <div class="module-input-label">Agent</div>
+          <Select
+            v-model:value="assertInputs.agent"
+            :disabled="assertGeneration.status === 'running'"
+            :options="[
+              { label: 'Claude（默认）', value: 'claude' },
+              { label: 'Pi', value: 'pi' },
+            ]"
+          />
+        </div>
+        <div v-if="assertInputs.agent === 'pi'" class="module-input-field">
+          <div class="module-input-label">提供商 API</div>
+          <Select
+            v-model:value="assertInputs.api"
+            :disabled="assertGeneration.status === 'running'"
+            :options="[
+              { label: 'OpenAI Chat Completions', value: 'openai-completions' },
+              { label: 'OpenAI Responses', value: 'openai-responses' },
+              { label: 'Anthropic Messages', value: 'anthropic-messages' },
+            ]"
+          />
+        </div>
+        <div class="module-input-field">
+          <div class="module-input-label">模型</div>
+          <Input
+            v-model:value="assertInputs.model"
+            :disabled="assertGeneration.status === 'running'"
+            placeholder="留空使用服务端模型"
+          />
+        </div>
+        <div class="module-input-field">
+          <div class="module-input-label">API 端点</div>
+          <Input
+            v-model:value="assertInputs.baseUrl"
+            :disabled="assertGeneration.status === 'running'"
+            placeholder="留空使用服务端端点；支持 LLM 缓存地址"
+          />
+        </div>
+        <div class="module-input-field">
+          <div class="module-input-label">API Key</div>
+          <Input.Password
+            v-model:value="assertInputs.apiKey"
+            :disabled="assertGeneration.status === 'running'"
+            placeholder="留空使用服务端凭据"
+            autocomplete="off"
+          />
+        </div>
+      </div>
+      <small class="module-help"
+        >设置仅用于本次断言插桩任务。Claude 使用 Anthropic Messages API。</small
+      >
+    </Card>
+
     <div v-if="assertGeneration.error" class="module-error" role="alert">
       <IconifyIcon icon="mdi:alert-circle-outline" />
       <span>{{ assertGeneration.error }}</span>
@@ -184,6 +270,20 @@ function selectLatestDatabase() {
       >
         <template #icon><IconifyIcon icon="mdi:play" /></template>
         开始断言生成
+      </Button>
+      <Button
+        v-if="assertGeneration.result?.artifacts?.zipPath"
+        :loading="downloading"
+        @click="downloadArtifact('tasks')"
+      >
+        下载断言任务
+      </Button>
+      <Button
+        v-if="assertGeneration.result?.artifacts?.instrumentedCodeZipPath"
+        :loading="downloading"
+        @click="downloadArtifact('instrumented-code')"
+      >
+        下载插桩源码
       </Button>
       <span v-if="assertGeneration.result" class="output-reference">
         输出任务 ID：{{ assertGeneration.result.jobId }}

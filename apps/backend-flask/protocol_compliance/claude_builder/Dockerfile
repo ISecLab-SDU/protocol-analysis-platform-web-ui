@@ -5,7 +5,7 @@ ARG GLLVM_REPO=https://github.com/SRI-CSL/gllvm.git
 ARG GLLVM_REF=master
 ARG CLAUDE_CODE_VERSION=2.1.207
 
-COPY --chmod=0755 apt-fast-downloader /usr/local/bin/apt-fast-downloader
+COPY --chmod=0755 protocol_compliance/claude_builder/apt-fast-downloader /usr/local/bin/apt-fast-downloader
 
 # Keep package indexes and downloaded archives outside image layers so interrupted
 # builds and Dockerfile changes can reuse them. The proxy build args supported by
@@ -145,7 +145,8 @@ RUN ln -sf /usr/bin/clang-14 /usr/local/bin/clang \
     && ln -sf /usr/bin/clang-cpp-14 /usr/local/bin/clang-cpp \
     && mkdir -p /workspace /out /usr/local/lib/protocolguard-builder
 
-COPY pg-claude-builder pg_claude_builder_sdk.py claude_agent_events.py /usr/local/bin/
+COPY protocol_compliance/claude_builder/pg-claude-builder protocol_compliance/claude_builder/pg_claude_builder_sdk.py /usr/local/bin/
+COPY pg_agent_progress/ /usr/local/bin/pg_agent_progress/
 RUN chmod +x /usr/local/bin/pg-claude-builder /usr/local/bin/pg_claude_builder_sdk.py
 
 WORKDIR /workspace

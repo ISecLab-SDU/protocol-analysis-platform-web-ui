@@ -136,7 +136,7 @@ def test_claude_builder_runner_classifies_claude_builder_log_markers() -> None:
     )
     assert (
         ClaudeBuilderRunner._claude_builder_progress_stage(
-            "[pg-builder][config.toml] protocol_name = \"MQTT\"",
+            '[pg-builder][config.toml] protocol_name = "MQTT"',
             "builder-log",
         )
         == "claude-config"
@@ -179,7 +179,9 @@ def test_validate_builder_outputs_requires_replayable_compile_commands(
         executor._validate_builder_outputs(workspace_dir)
 
 
-def test_validate_builder_outputs_accepts_plain_compile_commands(tmp_path: Path) -> None:
+def test_validate_builder_outputs_accepts_plain_compile_commands(
+    tmp_path: Path,
+) -> None:
     workspace_dir = tmp_path / "workspace"
     inputs_dir = workspace_dir / "inputs"
     inputs_dir.mkdir(parents=True)
@@ -273,11 +275,15 @@ def test_claude_builder_runner_streams_analysis_container_logs(
         def wait(self, timeout: int | None = None) -> int:
             return self.returncode
 
-    monkeypatch.setattr(compiler_module.subprocess, "Popen", lambda *args, **kwargs: FakeProcess())
+    monkeypatch.setattr(
+        compiler_module.subprocess, "Popen", lambda *args, **kwargs: FakeProcess()
+    )
     monkeypatch.setattr(
         compiler_module.subprocess,
         "run",
-        lambda *args, **kwargs: type("Result", (), {"returncode": 0, "stdout": "", "stderr": ""})(),
+        lambda *args, **kwargs: type(
+            "Result", (), {"returncode": 0, "stdout": "", "stderr": ""}
+        )(),
     )
     events: list[tuple[str, str, str]] = []
 
@@ -291,7 +297,10 @@ def test_claude_builder_runner_streams_analysis_container_logs(
 
     output_log = tmp_path / "outputs" / "job-analysis-stream" / "analysis.log"
     assert output_log.exists()
-    assert "[LLM Query] Succeeded in 31 ms. Model: deepseek-v3." in output_log.read_text(encoding="utf-8")
+    assert (
+        "[LLM Query] Succeeded in 31 ms. Model: deepseek-v3."
+        in output_log.read_text(encoding="utf-8")
+    )
     assert "[LLM Query] Succeeded in 31 ms. Model: deepseek-v3." in caplog.text
     assert (
         "job-analysis-stream",
@@ -343,11 +352,15 @@ def test_claude_builder_runner_raises_when_analysis_container_fails(
         def wait(self, timeout: int | None = None) -> int:
             return self.returncode
 
-    monkeypatch.setattr(compiler_module.subprocess, "Popen", lambda *args, **kwargs: FakeProcess())
+    monkeypatch.setattr(
+        compiler_module.subprocess, "Popen", lambda *args, **kwargs: FakeProcess()
+    )
     monkeypatch.setattr(
         compiler_module.subprocess,
         "run",
-        lambda *args, **kwargs: type("Result", (), {"returncode": 0, "stdout": "", "stderr": ""})(),
+        lambda *args, **kwargs: type(
+            "Result", (), {"returncode": 0, "stdout": "", "stderr": ""}
+        )(),
     )
     events: list[tuple[str, str, str]] = []
 
@@ -362,7 +375,11 @@ def test_claude_builder_runner_raises_when_analysis_container_fails(
     assert "exited with status 1" in str(exc_info.value)
     assert exc_info.value.logs == ["Packet-related call graph is empty"]
     assert exc_info.value.details["logExcerpt"] == "Packet-related call graph is empty"
-    assert ("job-analysis-failure", "error", "Analysis failed with exit code 1") in events
+    assert (
+        "job-analysis-failure",
+        "error",
+        "Analysis failed with exit code 1",
+    ) in events
 
 
 def test_claude_builder_runner_extracts_claude_sdk_progress_json() -> None:
@@ -373,7 +390,7 @@ def test_claude_builder_runner_extracts_claude_sdk_progress_json() -> None:
     )
 
     assert ClaudeBuilderRunner._extract_progress_line(line, "builder-log") == (
-        "claude-command",
+        "builder",
         "Bash: cmake -S . -B build",
     )
 
@@ -388,12 +405,15 @@ def test_claude_builder_runner_preserves_critical_error_priority() -> None:
     assert event["critical"] is True
     assert not ClaudeBuilderRunner._is_droppable_progress_event(event)
 
-def test_claude_builder_runner_falls_back_for_invalid_claude_sdk_progress_json() -> None:
+
+def test_claude_builder_runner_falls_back_for_invalid_claude_sdk_progress_json() -> (
+    None
+):
     line = "PG_PROGRESS_JSON {not-json"
 
     stage, message = ClaudeBuilderRunner._extract_progress_line(line, "builder-log")
 
-    assert stage == "claude-status"
+    assert stage == "builder-log"
     assert message == line
 
 
@@ -418,7 +438,7 @@ def test_run_logged_command_emits_claude_sdk_progress_json(
         (
             "print("
             "'PG_PROGRESS_JSON "
-            "{\"stage\":\"claude-write\",\"message\":\"Write: /workspace/program.bc\"}'"
+            '{"stage":"claude-write","message":"Write: /workspace/program.bc"}\''
             ")"
         ),
     ]
@@ -427,7 +447,9 @@ def test_run_logged_command_emits_claude_sdk_progress_json(
         command,
         cwd=tmp_path,
         log_path=tmp_path / "command.log",
-        progress_callback=lambda job_id, stage, message: events.append((job_id, stage, message)),
+        progress_callback=lambda job_id, stage, message: events.append(
+            (job_id, stage, message)
+        ),
         job_identifier="job-sdk",
         stage="builder-log",
         timeout=10,
@@ -436,7 +458,7 @@ def test_run_logged_command_emits_claude_sdk_progress_json(
     assert logs == [
         'PG_PROGRESS_JSON {"stage":"claude-write","message":"Write: /workspace/program.bc"}'
     ]
-    assert events == [("job-sdk", "claude-write", "Write: /workspace/program.bc")]
+    assert events == [("job-sdk", "builder", "Write: /workspace/program.bc")]
 
 
 def test_run_logged_command_batches_debug_progress_for_registry_callback(
@@ -508,12 +530,12 @@ def test_run_logged_command_preserves_claude_sdk_metadata_for_compatible_callbac
         (
             "print("
             "'PG_PROGRESS_JSON "
-            "{\"source\":\"claude-agent-sdk\","
-            "\"stage\":\"claude-command\","
-            "\"message\":\"Bash: make\","
-            "\"sdk_message_type\":\"ToolUseBlock\","
-            "\"tool\":\"Bash\","
-            "\"tool_input\":{\"command\":\"make\",\"content\":\"private source\"}}'"
+            '{"source":"claude-agent-sdk",'
+            '"stage":"claude-command",'
+            '"message":"Bash: make",'
+            '"sdk_message_type":"ToolUseBlock",'
+            '"tool":"Bash",'
+            '"tool_input":{"command":"make","content":"private source"}}\''
             ")"
         ),
     ]
@@ -533,13 +555,9 @@ def test_run_logged_command_preserves_claude_sdk_metadata_for_compatible_callbac
     assert events == [
         (
             "job-sdk-metadata",
-            "claude-command",
+            "builder",
             "Bash: make",
-            {
-                "sdk_message_type": "ToolUseBlock",
-                "tool": "Bash",
-                "tool_input": {"command": "make"},
-            },
+            {"activity": "command", "tool": "Bash", "primary": "make"},
         )
     ]
 
@@ -605,7 +623,9 @@ def test_claude_sdk_identifies_hidden_thinking_token_system_events() -> None:
             "estimated_tokens_delta": 2,
         },
     )
-    visible = types.SimpleNamespace(subtype="hook_pre_tool", data={"subtype": "hook_pre_tool"})
+    visible = types.SimpleNamespace(
+        subtype="hook_pre_tool", data={"subtype": "hook_pre_tool"}
+    )
 
     assert _is_hidden_system_message(hidden_by_subtype)
     assert _is_hidden_system_message(hidden_by_data)
@@ -627,21 +647,21 @@ def test_claude_agent_event_conversion_is_reusable_without_builder_runner() -> N
 
     assert events == [
         {
-            "type": "sdk-message",
-            "stage": "claude-status",
+            "type": "progress",
+            "stage": "agent",
             "message": "Assistant turn received from claude-test",
-            "sdk_message_type": "AssistantMessage",
-            "session_id": "session-1",
-            "model": "claude-test",
+            "metadata": {"activity": "status", "model": "claude-test", "quiet": True},
         },
         {
             "type": "progress",
-            "stage": "claude-command",
+            "stage": "agent",
             "message": "Bash: cmake -S . -B build",
-            "sdk_message_type": "ToolUseBlock",
-            "tool": "Bash",
-            "tool_use_id": "tool-1",
-            "tool_input": {"command": "cmake -S . -B build"},
+            "metadata": {
+                "activity": "command",
+                "tool": "Bash",
+                "tool_id": "tool-1",
+                "primary": "cmake -S . -B build",
+            },
         },
     ]
 
@@ -665,9 +685,7 @@ def test_claude_agent_edit_progress_omits_source_payload() -> None:
     events = progress_events_from_message(message)
 
     assert events[0]["message"] == "Edit: /workspace/project/Makefile"
-    assert events[0]["tool_input"] == {
-        "file_path": "/workspace/project/Makefile"
-    }
+    assert events[0]["metadata"]["primary"] == "/workspace/project/Makefile"
     assert "old_string" not in str(events)
     assert "new_string" not in str(events)
 
@@ -712,12 +730,14 @@ def test_claude_agent_user_message_exposes_tool_result_without_raw_payload() -> 
     assert progress_events_from_message(message) == [
         {
             "type": "progress",
-            "stage": "claude-observation",
+            "stage": "agent",
             "message": "Exit code 127\nunzip: command not found",
-            "sdk_message_type": "ToolResultBlock",
-            "tool_use_id": "tool-1",
-            "is_error": True,
-        }
+            "metadata": {
+                "activity": "tool_result",
+                "tool_id": "tool-1",
+                "is_error": True,
+            },
+        },
     ]
 
 
@@ -734,8 +754,50 @@ def test_claude_agent_thinking_block_omits_signature_from_progress() -> None:
     assert progress_events_from_message(message) == [
         {
             "type": "progress",
-            "stage": "claude-thinking",
+            "stage": "agent",
             "message": "Inspect the project before choosing a build command.",
-            "sdk_message_type": "ThinkingBlock",
-        }
+            "metadata": {"activity": "thinking"},
+        },
     ]
+
+
+def test_builder_archives_the_same_normalized_progress_it_transports(
+    monkeypatch, tmp_path: Path
+) -> None:
+    import json
+    from protocol_compliance.claude_builder import pg_claude_builder_sdk as runner
+
+    events_path = tmp_path / "claude_builder_events.jsonl"
+    monkeypatch.setattr(runner, "EVENTS_PATH", events_path)
+    sent = []
+    monkeypatch.setattr(
+        runner,
+        "_write_progress_line",
+        lambda line, *, critical: sent.append((json.loads(line), critical)) or True,
+    )
+    block = type(
+        "ToolUseBlock",
+        (),
+        {"name": "Bash", "input": {"command": "make"}, "id": "call-1"},
+    )()
+    message = type(
+        "AssistantMessage",
+        (),
+        {"session_id": None, "model": "test", "content": [block]},
+    )()
+    assert runner._handle_message(message) is None
+    assert runner._emit_progress_event(
+        {"type": "error", "stage": "claude-status", "message": "stream failed"}
+    )
+    archived = [json.loads(line) for line in events_path.read_text().splitlines()]
+    assert "raw" in archived[0]
+    assert archived[1:] == [payload for payload, _critical in sent]
+    assert sent[0][0]["metadata"] == {
+        "activity": "command",
+        "tool": "Bash",
+        "tool_id": "call-1",
+        "primary": "make",
+    }
+    assert sent[0][0]["stage"] == "builder"
+    assert sent[0][1] is False
+    assert sent[1][1] is True

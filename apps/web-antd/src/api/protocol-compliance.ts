@@ -110,43 +110,37 @@ type ProtocolStaticAnalysisJobStatus =
 export interface ProtocolStaticAnalysisProgressEvent {
   id?: number;
   message: string;
-  metadata?: ProtocolClaudeProgressMetadata;
+  metadata?: ProtocolAgentProgressMetadata;
   stage: string;
   timestamp: string;
 }
 
-interface ProtocolClaudeProgressMetadata {
-  duration_api_ms?: number;
+export interface ProtocolAgentProgressMetadata {
+  activity?:
+    | 'command'
+    | 'inspect'
+    | 'message'
+    | 'plan'
+    | 'result'
+    | 'status'
+    | 'thinking'
+    | 'tool'
+    | 'tool_result'
+    | 'write';
+  cache_read_tokens?: number;
+  cost_usd?: number;
+  description?: string;
   duration_ms?: number;
-  errors?: null | string[];
+  input_tokens?: number;
   is_error?: boolean;
   model?: string;
-  model_usage?: Record<string, ProtocolClaudeModelUsage>;
+  output_tokens?: number;
+  primary?: string;
+  quiet?: boolean;
   result?: string;
-  sdk_message_type?: string;
-  session_id?: string;
   status?: 'completed' | 'failed' | string;
   tool?: string;
-  tool_input?: Record<string, unknown>;
-  tool_use_id?: string;
-  usage?: ProtocolClaudeTokenUsage;
-}
-
-interface ProtocolClaudeModelUsage {
-  cacheCreationInputTokens?: number;
-  cacheReadInputTokens?: number;
-  contextWindow?: number;
-  costUSD?: number;
-  inputTokens?: number;
-  maxOutputTokens?: number;
-  outputTokens?: number;
-}
-
-interface ProtocolClaudeTokenUsage {
-  cache_creation_input_tokens?: number;
-  cache_read_input_tokens?: number;
-  input_tokens?: number;
-  output_tokens?: number;
+  tool_id?: string;
 }
 
 export interface ProtocolStaticAnalysisJob {
@@ -450,7 +444,7 @@ type ProtocolAssertGenerationJobStatus =
 
 export interface ProtocolAssertGenerationProgressEvent {
   message: string;
-  metadata?: ProtocolClaudeProgressMetadata;
+  metadata?: ProtocolAgentProgressMetadata;
   stage: string;
   timestamp: string;
 }
@@ -530,7 +524,20 @@ export interface ProtocolAssertGenerationJob {
   updatedAt: string;
 }
 
+export interface AssertionRuntimeSettings {
+  agent: 'claude' | 'pi';
+  api?: 'anthropic-messages' | 'openai-completions' | 'openai-responses';
+  apiKey?: string;
+  baseUrl?: string;
+  model?: string;
+  contextWindow?: number;
+  maxTokens?: number;
+  maxTurns?: number;
+  timeoutSeconds?: number;
+}
+
 export interface RunProtocolAssertGenerationPayload {
+  runtime?: AssertionRuntimeSettings;
   codeArchive: File;
   database?: File;
   databasePath?: string;
@@ -540,9 +547,10 @@ export interface RunProtocolAssertGenerationPayload {
 export function runProtocolAssertGeneration(
   payload: RunProtocolAssertGenerationPayload,
 ) {
-  const { codeArchive, database, databasePath, notes } = payload;
+  const { codeArchive, database, databasePath, notes, runtime } = payload;
   const formData = new FormData();
   formData.append('codeArchive', codeArchive);
+  if (runtime) formData.append('runtime', JSON.stringify(runtime));
   if (databasePath?.trim()) {
     formData.append('databasePath', databasePath.trim());
   } else if (database) {
@@ -561,6 +569,22 @@ export function runProtocolAssertGeneration(
       },
     },
   );
+}
+
+export async function downloadProtocolAssertionArtifact(
+  jobId: string,
+  artifact: 'instrumented-code' | 'tasks',
+) {
+  const token = useAccessStore().accessToken;
+  const response = (await baseRequestClient.request(
+    `/protocol-compliance/assertion-generation/${encodeURIComponent(jobId)}/download?artifact=${artifact}`,
+    {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      method: 'GET',
+      responseType: 'blob',
+    },
+  )) as { data: Blob };
+  return response.data;
 }
 
 export function fetchProtocolAssertGenerationProgress(jobId: string) {

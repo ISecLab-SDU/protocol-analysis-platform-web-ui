@@ -395,7 +395,8 @@ def test_fuzz_config_job_streams_agent_logs_and_artifacts(
         "transport": "tcp",
     }
     assert payload["job"]["protocol"] == "FTP"
-    assert "PG_PROGRESS_JSON" in payload["content"]
+    assert "PG_PROGRESS_JSON" not in payload["content"]
+    assert "(fuzz-config-build) Bash: make" in payload["content"]
     assert "Bash: make" in payload["content"]
     assert commands
     command = commands[0]

@@ -21,8 +21,11 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any, BinaryIO, Callable, Dict, List, Optional, Tuple, cast
 
+from pg_agent_progress.events import is_agent_event
+from pg_agent_progress.legacy import decode_progress_event, normalize_event
+
+from .assertion_runtime import resolve_assertion_runtime, runtime_summary
 from .assertion_history_repository import ASSERTION_HISTORY_REPOSITORY
-from .claude_agent_events import decode_progress_event
 from .docker_runner import (
     ProtocolGuardDockerError,
     ProtocolGuardDockerRunner,
@@ -144,7 +147,7 @@ class AssertGenerationProgressRegistry:
                 return
             self._append_event(state, stage, message, metadata=metadata)
             job_logger = self._job_logger(job_id)
-            if _is_debug_progress_stage(stage):
+            if is_agent_event(metadata) or _is_debug_progress_stage(stage):
                 job_logger.debug(message, stage=stage, status=state.status)
             else:
                 job_logger.info(message, stage=stage, status=state.status)
@@ -213,12 +216,15 @@ class AssertGenerationProgressRegistry:
             "createdAt": state_copy.created_at,
             "updatedAt": state_copy.updated_at,
             "events": [
-                {
-                    "timestamp": event.timestamp,
-                    "stage": event.stage,
-                    "message": event.message,
-                    **({"metadata": event.metadata} if event.metadata else {}),
-                }
+                normalize_event(
+                    {
+                        "timestamp": event.timestamp,
+                        "stage": event.stage,
+                        "message": event.message,
+                        **({"metadata": event.metadata} if event.metadata else {}),
+                    },
+                    "instrumentation",
+                )
                 for event in state_copy.events
             ],
             "result": state_copy.result,
@@ -249,8 +255,9 @@ class AssertGenerationProgressRegistry:
         metadata: Optional[Dict[str, object]] = None,
     ) -> None:
         timestamp = _now_iso()
-        state.stage = stage or state.stage
-        state.message = message or state.message
+        if not is_agent_event(metadata) and not _is_debug_progress_stage(stage):
+            state.stage = stage or state.stage
+            state.message = message or state.message
         state.updated_at = timestamp
         state.events.append(
             AssertGenerationProgressEvent(
@@ -270,6 +277,10 @@ PROGRESS_REGISTRY = AssertGenerationProgressRegistry()
 # ----------------------------------------------------------------------------
 
 REQUIRED_INSTRUMENTATION_ENVS = ("ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "OPENAI_API_KEY", "OPENAI_BASE_URL")
+PI_INSTRUMENTATION_ENVS = (
+    "PG_ASSERT_AGENT", "PG_PI_API", "PG_PI_MODEL", "PG_PI_BASE_URL", "PG_PI_API_KEY",
+    "PG_PI_CONTEXT_WINDOW", "PG_PI_MAX_TOKENS", "PG_PI_MAX_TURNS", "PG_PI_TIMEOUT_SECONDS",
+)
 INSTRUMENTATION_DIFF_FILENAME = "instrumentation.diff"
 INSTRUMENTED_CODE_ZIP_FILENAME = "instrumented_code.zip"
 INSTRUMENTATION_DIFF_MAX_PREVIEW_BYTES = 512 * 1024  # 512 KiB safety cap
@@ -359,7 +370,7 @@ def _ensure_env_passthrough_for_instrumentation() -> None:
     existing = os.environ.get("PG_ENV_VARS", "")
     parts = [p.strip() for p in existing.split(",") if p.strip()]
     changed = False
-    for key in REQUIRED_INSTRUMENTATION_ENVS:
+    for key in (*REQUIRED_INSTRUMENTATION_ENVS, *PI_INSTRUMENTATION_ENVS):
         if key not in parts:
             parts.append(key)
             changed = True
@@ -367,14 +378,29 @@ def _ensure_env_passthrough_for_instrumentation() -> None:
         os.environ["PG_ENV_VARS"] = ",".join(parts)
 
 
-def _assert_required_instrumentation_env() -> None:
+def _assert_required_instrumentation_env(runtime_env: Optional[Dict[str, str]] = None) -> None:
     """Validate LLM provider envs exist; raise if missing.
 
     This check protects the instrumentation step. We do not eagerly exit the
     whole service on import; instead, fail fast when instrumentation runs.
     """
-    has_openai = os.environ.get("OPENAI_API_KEY") and os.environ.get("OPENAI_BASE_URL")
-    has_anthropic = os.environ.get("ANTHROPIC_API_KEY") and os.environ.get("ANTHROPIC_BASE_URL")
+    env = os.environ if runtime_env is None else runtime_env
+    agent = env.get("PG_ASSERT_AGENT", "claude")
+    if agent == "pi":
+        api = env.get("PG_PI_API", "openai-completions")
+        if api not in {"openai-completions", "openai-responses", "anthropic-messages"}:
+            raise AssertGenerationNotReadyError("Unsupported PG_PI_API")
+        prefix = "ANTHROPIC" if api == "anthropic-messages" else "OPENAI"
+        key = env.get("PG_PI_API_KEY") or env.get(f"{prefix}_API_KEY")
+        url = env.get("PG_PI_BASE_URL") or env.get(f"{prefix}_BASE_URL")
+        if not key or not url or not env.get("PG_PI_MODEL"):
+            raise AssertGenerationNotReadyError("Pi instrumentation requires PG_PI_MODEL and provider key/base URL")
+        return
+    if agent != "claude":
+        raise AssertGenerationNotReadyError("Unsupported PG_ASSERT_AGENT")
+
+    has_openai = env.get("OPENAI_API_KEY") and env.get("OPENAI_BASE_URL")
+    has_anthropic = env.get("ANTHROPIC_API_KEY") and env.get("ANTHROPIC_BASE_URL")
 
     if not has_openai and not has_anthropic:
         raise AssertGenerationNotReadyError(
@@ -402,6 +428,7 @@ def run_assert_generation(
     notes: Optional[str],
     job_id: Optional[str],
     progress_callback: Optional[ProgressCallback] = None,
+    runtime_env: Optional[Dict[str, str]] = None,
 ) -> AssertGenerationResult:
     """Run assertion generation and instrumentation on the provided code.
 
@@ -449,7 +476,7 @@ def run_assert_generation(
         try:
             if progress_callback:
                 progress_callback(job_identifier, "instrumentation", "Preparing instrumentation environment")
-            _assert_required_instrumentation_env()
+            _assert_required_instrumentation_env(runtime_env)
 
             # Resolve workspace and output mounts from assertion result
             artifacts = base_result.get("artifacts") if isinstance(base_result, dict) else None
@@ -468,6 +495,7 @@ def run_assert_generation(
                 progress_callback(job_identifier, "instrumentation", "Launching instrumentation container")
 
             instr_details = _run_instrumentation_container(
+                runtime_env=runtime_env,
                 image=_docker_settings().analysis_image,
                 network=_docker_settings().network,
                 workspace=workspace_dir,
@@ -572,6 +600,7 @@ def _emit_progress_callback(
 
 def _run_instrumentation_container(
     *,
+    runtime_env: Optional[Dict[str, str]] = None,
     image: str,
     network: Optional[str],
     workspace: Path,
@@ -637,7 +666,11 @@ def _run_instrumentation_container(
         message: str,
         metadata: Optional[Dict[str, object]] = None,
     ) -> None:
-        log_method = LOGGER.debug if _is_debug_progress_stage(stage) else LOGGER.info
+        log_method = (
+            LOGGER.debug
+            if is_agent_event(metadata) or _is_debug_progress_stage(stage)
+            else LOGGER.info
+        )
         log_method("[job %s][%s] %s", job_id or "-", stage, message)
         if progress_callback:
             try:
@@ -653,6 +686,9 @@ def _run_instrumentation_container(
 
     # Build environment forwarded to the container
     env = {name: os.environ.get(name, "") for name in REQUIRED_INSTRUMENTATION_ENVS}
+    env.update({name: os.environ[name] for name in (*PI_INSTRUMENTATION_ENVS, "PG_CLAUDE_MODEL", "ANTHROPIC_MODEL") if name in os.environ})
+    if runtime_env is not None:
+        env = dict(runtime_env)
     env.update(_container_host_identity_env())
 
     # Prefer Docker SDK; fall back to CLI if unavailable
@@ -722,7 +758,7 @@ def _run_instrumentation_container(
         cli_cmd.append(image)
         cli_cmd.extend(command)
 
-        _emit("instrumentation", f"Running via docker CLI: {' '.join(cli_cmd)}")
+        _emit("instrumentation", f"Running instrumentation via docker CLI (image={image})")
         process = subprocess.Popen(cli_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         logs = []  # type: ignore[redeclared]
         assert process.stdout is not None
@@ -744,6 +780,8 @@ def _run_instrumentation_container(
                 logs=logs,
                 details={"logExcerpt": excerpt, "image": image, "status": status},
             )
+    except AssertGenerationExecutionError:
+        raise
     except Exception as exc:
         # Normalize docker-related errors
         raise AssertGenerationError(f"Failed to run instrumentation container: {exc}") from exc
@@ -827,11 +865,15 @@ def submit_assert_generation_job(
     code_payload: Tuple[str, bytes],
     database_payload: Tuple[str, bytes],
     notes: Optional[str],
+    runtime_env: Optional[Dict[str, str]] = None,
 ) -> Dict[str, object]:
     """Launch assertion generation asynchronously and return initial snapshot."""
 
+    runtime_env = dict(runtime_env) if runtime_env is not None else resolve_assertion_runtime()
+    summary = runtime_summary(runtime_env)
     state = PROGRESS_REGISTRY.create_job()
     job_id = state.job_id
+    PROGRESS_REGISTRY.append_event(job_id, "init", f"Assertion runtime: {summary['agent']}; model: {summary['model'] or 'default'}")
 
     def _run_job() -> None:
         PROGRESS_REGISTRY.mark_running(job_id, "init", "Preparing assertion generation inputs")
@@ -843,6 +885,7 @@ def submit_assert_generation_job(
             database_name, database_bytes = database_payload
 
             result = run_assert_generation(
+                runtime_env=runtime_env,
                 code_stream=BytesIO(code_bytes),
                 code_file_name=code_name,
                 database_stream=BytesIO(database_bytes),
@@ -851,6 +894,7 @@ def submit_assert_generation_job(
                 job_id=job_id,
                 progress_callback=progress_callback,
             )
+            result["runtime"] = summary
             PROGRESS_REGISTRY.complete(job_id, result)
         except AssertGenerationExecutionError as exc:
             details = exc.details.copy()
@@ -909,7 +953,7 @@ def get_assert_generation_result(job_id: str) -> Optional[Dict[str, object]]:
     return None
 
 
-def get_assert_generation_zip_path(job_id: str) -> Optional[Path]:
+def get_assert_generation_zip_path(job_id: str, artifact: str = "tasks") -> Optional[Path]:
     snapshot = PROGRESS_REGISTRY.snapshot(job_id)
     if not snapshot:
         return None
@@ -921,7 +965,7 @@ def get_assert_generation_zip_path(job_id: str) -> Optional[Path]:
     if not isinstance(artifacts, dict):
         return None
     artifact_data = cast(Dict[str, object], artifacts)
-    raw_zip = artifact_data.get("zipPath")
+    raw_zip = artifact_data.get("instrumentedCodeZipPath" if artifact == "instrumented-code" else "zipPath")
     if not isinstance(raw_zip, str) or not raw_zip:
         return None
     zip_path = Path(raw_zip)

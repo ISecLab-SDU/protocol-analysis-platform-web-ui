@@ -54,176 +54,141 @@ describe('stageLiveLogPanel', () => {
     expect(source).toMatch(/\.log-chip\s*\{[^}]*vertical-align:\s*middle;/);
   });
 
-  it('renders agent tool activity and result telemetry as a structured timeline', () => {
+  it('renders normalized tool activity and result telemetry', () => {
     const wrapper = mount(StageLiveLogPanel, {
       props: {
         lines: [
           {
-            id: 'turn-noise',
-            metadata: { sdk_message_type: 'AssistantMessage' },
-            phase: 'Claude 构建',
-            stage: 'claude-status',
-            text: 'Assistant turn received from claude-test',
+            id: 'turn',
+            metadata: { activity: 'status', quiet: true },
+            phase: 'Agent 构建',
+            stage: 'builder',
+            text: 'Assistant turn received',
           },
           {
             id: 'command',
             metadata: {
-              sdk_message_type: 'ToolUseBlock',
-              tool: 'Bash',
-              tool_input: {
-                command: 'cmake -S . -B build',
-                description: '配置构建目录',
-              },
+              activity: 'command',
+              tool: 'shell',
+              primary: 'cmake -S . -B build',
+              description: '配置构建目录',
             },
-            phase: 'Claude 构建',
-            stage: 'claude-command',
-            text: 'Bash: cmake -S . -B build',
-            time: '13:53:04',
+            phase: 'Agent 构建',
+            stage: 'builder',
+            text: 'shell: cmake -S . -B build',
           },
           {
             id: 'result',
             metadata: {
+              activity: 'result',
               duration_ms: 112_197,
-              model_usage: {
-                'claude-opus-4-8[1m]': { costUSD: 0.694_785 },
-              },
+              cost_usd: 0.694_785,
+              model: 'test-model',
               result: '构建完成，所有必需产物均已生成。',
-              sdk_message_type: 'ResultMessage',
               status: 'completed',
-              usage: {
-                cache_read_input_tokens: 752_000,
-                input_tokens: 32_957,
-                output_tokens: 6160,
-              },
+              input_tokens: 32_957,
+              output_tokens: 6160,
+              cache_read_tokens: 752_000,
             },
-            phase: 'Claude 构建',
-            stage: 'claude-status',
-            text: 'Claude builder completed',
-            time: '13:54:56',
+            phase: 'Agent 构建',
+            stage: 'builder',
+            text: 'Agent builder completed',
           },
         ],
-        progress: {
-          description: 'Claude 正在配置并构建项目。',
-          label: 'Claude 构建',
-        },
+        progress: { description: 'Agent 正在构建项目。', label: 'Agent 构建' },
         running: false,
       },
     });
-
-    expect(wrapper.findAll('.claude-line')).toHaveLength(2);
+    expect(wrapper.findAll('.agent-line')).toHaveLength(2);
     expect(wrapper.text()).not.toContain('Assistant turn received');
-    expect(wrapper.get('.claude-line--command').text()).toContain(
+    expect(wrapper.get('.agent-line--command').text()).toContain(
       'cmake -S . -B build',
     );
-    expect(wrapper.get('.claude-line--result').text()).toContain('$0.6948');
-    expect(wrapper.get('.claude-line--result').text()).toContain('1 分 52 秒');
-    expect(wrapper.get('.claude-line--result').text()).toContain(
-      '构建完成，所有必需产物均已生成。',
+    expect(wrapper.get('.agent-line--command').text()).toContain(
+      '配置构建目录',
     );
-    expect(wrapper.text()).toContain('Agent 构建');
-    expect(wrapper.text()).not.toContain('Claude');
+    const result = wrapper.get('.agent-line--result').text();
+    expect(result).toContain('$0.6948');
+    expect(result).toContain('1 分 52 秒');
+    expect(result).toContain('构建完成，所有必需产物均已生成。');
+    expect(result).toContain('test-model');
+    expect(result).toContain('3.3万');
   });
 
-  it('hides successful legacy UserMessage tool results and styles thinking blocks', () => {
+  it('renders normalized thinking and tool results without SDK parsing', () => {
     const wrapper = mount(StageLiveLogPanel, {
       props: {
         lines: [
           {
-            id: 'tool-result',
-            phase: 'Claude 构建',
-            stage: 'claude-message',
-            text: "UserMessage(content=[ToolResultBlock(tool_use_id='call-1', content='build ok', is_error=False)])",
+            id: 'quiet',
+            metadata: { activity: 'tool_result', quiet: true },
+            phase: 'Agent 构建',
+            stage: 'builder',
+            text: 'build ok',
           },
           {
             id: 'thinking',
-            metadata: { sdk_message_type: 'ThinkingBlock' },
-            phase: 'Claude 构建',
-            stage: 'claude-message',
-            text: String.raw`ThinkingBlock(thinking='Inspect the Makefile.\nThen build with gclang.', signature='private-signature')`,
+            metadata: { activity: 'thinking' },
+            phase: 'Agent 构建',
+            stage: 'builder',
+            text: 'Inspect the Makefile.\nThen build.',
+          },
+          {
+            id: 'failure',
+            metadata: { activity: 'tool_result', is_error: true },
+            phase: 'Agent 构建',
+            stage: 'builder',
+            text: 'Exit code 127\nunzip: command not found',
+          },
+          {
+            id: 'success',
+            metadata: { activity: 'tool_result', is_error: false },
+            phase: 'Agent 构建',
+            stage: 'builder',
+            text: 'compile succeeded',
           },
         ],
-        progress: {
-          description: 'Claude 正在配置并构建项目。',
-          label: 'Claude 构建',
-        },
+        progress: { description: '正在构建项目。', label: 'Agent 构建' },
         running: true,
       },
     });
-
-    expect(wrapper.findAll('.claude-line')).toHaveLength(1);
-    expect(wrapper.text()).not.toContain('UserMessage');
-    expect(wrapper.get('.claude-line--thinking').text()).toContain(
-      'Inspect the Makefile.\nThen build with gclang.',
+    expect(wrapper.findAll('.agent-line')).toHaveLength(3);
+    expect(wrapper.get('.agent-line--thinking').text()).toContain(
+      'Inspect the Makefile.',
     );
-    expect(wrapper.get('.claude-line--thinking').text()).not.toContain(
-      'private-signature',
+    expect(wrapper.get('.agent-line--error').text()).toContain(
+      'unzip: command not found',
     );
-    expect(wrapper.get('.claude-line--thinking').text()).toContain(
-      'Agent 思考',
+    expect(wrapper.get('.agent-line--observation').text()).toContain(
+      'compile succeeded',
     );
   });
 
-  it('keeps failed legacy UserMessage tool results visible', () => {
+  it('uses activity rather than workflow stage or provider tool name', () => {
     const wrapper = mount(StageLiveLogPanel, {
       props: {
         lines: [
           {
-            id: 'failed-tool-result',
-            phase: 'Claude 构建',
-            stage: 'claude-message',
-            text: String.raw`UserMessage(content=[ToolResultBlock(tool_use_id='call-1', content='Exit code 127\nunzip: command not found', is_error=True)])`,
+            id: 'edit',
+            metadata: {
+              activity: 'write',
+              tool: 'replace',
+              primary: '/workspace/main.c',
+            },
+            phase: '插桩',
+            stage: 'instrumentation',
+            text: 'replace: main.c',
           },
         ],
-        progress: {
-          description: 'Claude 正在配置并构建项目。',
-          label: 'Claude 构建',
-        },
+        progress: { description: '插桩', label: '插桩' },
         running: true,
       },
     });
-
-    expect(wrapper.get('.claude-line--error').text()).toContain(
-      'Exit code 127\nunzip: command not found',
+    expect(wrapper.get('.agent-line--write').text()).toContain(
+      '/workspace/main.c',
     );
-    expect(wrapper.text()).not.toContain('UserMessage');
-  });
-
-  it('keeps the parsed portion of a truncated ThinkingBlock repr', () => {
-    const wrapper = mount(StageLiveLogPanel, {
-      props: {
-        lines: [
-          {
-            id: 'truncated-thinking',
-            metadata: { sdk_message_type: 'ThinkingBlock' },
-            phase: 'Claude 构建',
-            stage: 'claude-message',
-            text: String.raw`ThinkingBlock(thinking='The clean output looks correct.\nNow inspect the Makefile sh`,
-          },
-          {
-            id: 'truncated-escape',
-            metadata: { sdk_message_type: 'ThinkingBlock' },
-            phase: 'Claude 构建',
-            stage: 'claude-message',
-            text: "ThinkingBlock(thinking='Check the next command\\",
-          },
-        ],
-        progress: {
-          description: 'Claude 正在配置并构建项目。',
-          label: 'Claude 构建',
-        },
-        running: true,
-      },
-    });
-
-    const thoughts = wrapper.findAll('.claude-line--thinking');
-    const [firstThought, secondThought] = thoughts;
-    expect(firstThought).toBeDefined();
-    expect(secondThought).toBeDefined();
-    expect(firstThought?.text()).toContain(
-      'The clean output looks correct.\nNow inspect the Makefile sh...',
-    );
-    expect(firstThought?.text()).not.toContain('ThinkingBlock(');
-    expect(secondThought?.text()).toContain('Check the next command...');
-    expect(secondThought?.text()).not.toContain('ThinkingBlock(');
+    expect(wrapper.get('.agent-line--write').text()).toContain('replace');
+    const exposed = wrapper.vm as unknown as { getAllLogText: () => string };
+    expect(exposed.getAllLogText()).toContain('replace: main.c');
   });
 });

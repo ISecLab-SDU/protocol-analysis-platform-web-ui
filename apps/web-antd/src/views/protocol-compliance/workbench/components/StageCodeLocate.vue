@@ -206,9 +206,9 @@ const locateProgressSteps: LocateProgressStep[] = [
   },
   {
     description: '由 Agent 配置项目、执行构建并抽取 LLVM bitcode。',
-    key: 'claude-builder',
+    key: 'agent-builder',
     label: 'Agent 构建',
-    match: (line) => isClaudeBuilderLogLine(line),
+    match: (line) => isAgentBuilderLogLine(line),
   },
   {
     description: '检查 program.bc、build_log.txt 等静态分析必需产物。',
@@ -437,9 +437,9 @@ function hasLogText(line: LogLine, text: string) {
   return line.text.includes(text);
 }
 
-function isClaudeBuilderLogLine(line: LogLine) {
+function isAgentBuilderLogLine(line: LogLine) {
   return (
-    line.stage.startsWith('claude-') ||
+    Boolean(line.metadata?.activity) ||
     line.stage === 'builder-log' ||
     (line.stage === 'builder' &&
       (hasLogText(line, 'Starting Agent builder image') ||

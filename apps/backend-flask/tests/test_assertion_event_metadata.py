@@ -37,13 +37,9 @@ def test_assertion_event_metadata_round_trips_through_snapshot() -> None:
     last_event = events[-1]
     assert last_event == {
         "timestamp": last_event["timestamp"],
-        "stage": "claude-command",
+        "stage": "instrumentation",
         "message": "Bash: make",
-        "metadata": {
-            "sdk_message_type": "ToolUseBlock",
-            "tool": "Bash",
-            "tool_input": {"command": "make"},
-        },
+        "metadata": {"activity": "command", "tool": "Bash", "primary": "make"},
     }
 
 
@@ -55,13 +51,13 @@ def test_instrumentation_progress_line_decodes_claude_sdk_event() -> None:
     )
 
     assert event == {
-        "stage": "claude-write",
+        "stage": "instrumentation",
         "message": "Edit: /workspace/main.c",
         "critical": False,
         "metadata": {
-            "sdk_message_type": "ToolUseBlock",
+            "activity": "write",
             "tool": "Edit",
-            "tool_input": {"file_path": "/workspace/main.c"},
+            "primary": "/workspace/main.c",
         },
     }
 
@@ -81,3 +77,20 @@ def test_metadata_emission_keeps_three_argument_callback_compatible() -> None:
     )
 
     assert received == [("job-1", "claude-command", "Bash: make")]
+
+
+def test_agent_result_does_not_complete_assertion_workflow() -> None:
+    registry = AssertGenerationProgressRegistry()
+    state = registry.create_job()
+    registry.mark_running(state.job_id, "instrumentation", "Instrumenting tasks")
+    registry.make_callback(state.job_id)(
+        state.job_id,
+        "instrumentation",
+        "Agent completed",
+        {"activity": "result", "status": "completed"},
+    )
+    snapshot = registry.snapshot(state.job_id)
+    assert snapshot["stage"] == "instrumentation"
+    assert snapshot["message"] == "Instrumenting tasks"
+    assert snapshot["status"] == "running"
+    assert snapshot["events"][-1]["metadata"]["activity"] == "result"

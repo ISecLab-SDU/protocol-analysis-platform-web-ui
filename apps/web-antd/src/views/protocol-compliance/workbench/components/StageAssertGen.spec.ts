@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import StageAssertGen from './StageAssertGen.vue';
 
 describe('stageAssertGen structured logs', () => {
-  it('renders Claude Agent SDK events with the shared timeline component', () => {
+  it('renders normalized agent events with the shared timeline component', () => {
     const wrapper = mount(StageAssertGen, {
       global: {
         stubs: {
@@ -34,14 +34,12 @@ describe('stageAssertGen structured logs', () => {
           {
             message: 'Bash: make instrumented',
             metadata: {
-              sdk_message_type: 'ToolUseBlock',
+              activity: 'command',
               tool: 'Bash',
-              tool_input: {
-                command: 'make instrumented',
-                description: '构建插桩后的目标程序',
-              },
+              primary: 'make instrumented',
+              description: '构建插桩后的目标程序',
             },
-            stage: 'claude-command',
+            stage: 'instrumentation',
             timestamp: '2026-07-14T05:00:02Z',
           },
         ],
@@ -51,10 +49,10 @@ describe('stageAssertGen structured logs', () => {
       },
     });
 
-    const claudeLine = wrapper.get('.claude-line--command');
-    expect(claudeLine.text()).toContain('LLM 断言插桩');
-    expect(claudeLine.text()).toContain('make instrumented');
-    expect(claudeLine.text()).toContain('构建插桩后的目标程序');
+    const agentLine = wrapper.get('.agent-line--command');
+    expect(agentLine.text()).toContain('LLM 断言插桩');
+    expect(agentLine.text()).toContain('make instrumented');
+    expect(agentLine.text()).toContain('构建插桩后的目标程序');
     expect(wrapper.text()).not.toContain('PG_PROGRESS_JSON');
   });
 });

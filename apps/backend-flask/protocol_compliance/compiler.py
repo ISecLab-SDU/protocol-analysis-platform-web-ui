@@ -15,7 +15,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, BinaryIO, Callable, Dict, List, Optional, Sequence, Tuple, TypeGuard
 
-from protocol_compliance.claude_agent_events import decode_progress_event, decode_progress_line
+from pg_agent_progress.events import is_agent_event
+from pg_agent_progress.legacy import decode_progress_event, decode_progress_line
+
 from protocol_compliance.job_logging import JobStageLogger
 
 logger = logging.getLogger(__name__)
@@ -475,8 +477,9 @@ class ClaudeBuilderRunner:
 
     @classmethod
     def _is_droppable_progress_event(cls, event: dict[str, object]) -> bool:
-        return not bool(event.get("critical")) and cls._is_debug_progress_stage(
-            str(event["stage"])
+        return not bool(event.get("critical")) and (
+            is_agent_event(event.get("metadata"))
+            or cls._is_debug_progress_stage(str(event["stage"]))
         )
 
     @staticmethod

@@ -111,3 +111,65 @@ def test_debug_event_does_not_rewrite_analysis_job_state(tmp_path: Path) -> None
     events = registry._repository.fetch_events(job_id=state.job_id)
     assert persisted["stage"] == "compile"
     assert events[-1]["stage"] == "claude-command"
+
+
+def test_agent_activity_preserves_live_and_persisted_workflow_state(
+    tmp_path: Path,
+) -> None:
+    registry = AnalysisProgressRegistry()
+    registry._repository = AnalysisStateRepository(tmp_path / "state.sqlite3")
+    state = registry.create_job()
+    registry.mark_running(state.job_id, "compile", "Starting compilation")
+    registry.append_event(
+        state.job_id,
+        "builder",
+        "Agent completed",
+        metadata={"activity": "result", "status": "completed"},
+    )
+    snapshot = registry.snapshot(state.job_id)
+    assert snapshot["stage"] == "compile"
+    assert snapshot["status"] == "running"
+    assert snapshot["events"][-1]["metadata"]["activity"] == "result"
+    assert registry._repository.fetch_jobs()[0]["stage"] == "compile"
+
+
+def test_legacy_analysis_events_are_normalized_on_api_read(tmp_path: Path) -> None:
+    registry = AnalysisProgressRegistry()
+    registry._repository = AnalysisStateRepository(tmp_path / "state.sqlite3")
+    state = registry.create_job()
+    registry._repository.add_event(
+        job_id=state.job_id,
+        timestamp="now",
+        stage="claude-command",
+        message="Bash: make",
+        metadata={"tool": "Bash", "tool_input": {"command": "make"}},
+    )
+    event = registry.snapshot(state.job_id)["events"][-1]
+    assert event["id"]
+    assert event["stage"] == "builder"
+    assert event["metadata"] == {
+        "activity": "command",
+        "tool": "Bash",
+        "primary": "make",
+    }
+
+
+def test_legacy_read_does_not_rewrite_archive_storage(tmp_path: Path) -> None:
+    registry = AnalysisProgressRegistry()
+    registry._repository = AnalysisStateRepository(tmp_path / "state.sqlite3")
+    state = registry.create_job()
+    registry._repository.add_event(
+        job_id=state.job_id,
+        timestamp="now",
+        stage="claude-thinking",
+        message="Inspect target",
+        metadata={"sdk_message_type": "ThinkingBlock"},
+    )
+    assert (
+        registry.snapshot(state.job_id)["events"][-1]["metadata"]["activity"]
+        == "thinking"
+    )
+    assert (
+        registry._repository.fetch_events(job_id=state.job_id)[-1]["stage"]
+        == "claude-thinking"
+    )

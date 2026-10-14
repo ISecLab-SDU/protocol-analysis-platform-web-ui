@@ -12,6 +12,9 @@ from functools import lru_cache
 from io import BytesIO
 from typing import BinaryIO, Callable, Dict, List, Literal, Optional, cast
 
+from pg_agent_progress.events import is_agent_event
+from pg_agent_progress.legacy import normalize_event
+
 from .compiler import (
     ClaudeBuilderRunner,
     ClaudeBuilderRunnerError,
@@ -122,7 +125,7 @@ class AnalysisProgressRegistry:
                 return
             self._append_event(state, stage, message, metadata=metadata)
             job_logger = self._job_logger(job_id)
-            if _is_debug_progress_stage(stage):
+            if is_agent_event(metadata) or _is_debug_progress_stage(stage):
                 job_logger.debug(message, stage=stage, status=state.status)
             else:
                 job_logger.info(message, stage=stage, status=state.status)
@@ -250,13 +253,16 @@ class AnalysisProgressRegistry:
             from_event_id=from_event_id,
         )
         events_list = [
-            {
-                "id": event["id"],
-                "timestamp": event["timestamp"],
-                "stage": event["stage"],
-                "message": event["message"],
-                **({"metadata": event["metadata"]} if event.get("metadata") else {}),
-            }
+            normalize_event(
+                {
+                    "id": event["id"],
+                    "timestamp": event["timestamp"],
+                    "stage": event["stage"],
+                    "message": event["message"],
+                    **({"metadata": event["metadata"]} if event.get("metadata") else {}),
+                },
+                "builder",
+            )
             for event in db_events
         ]
 
@@ -283,8 +289,9 @@ class AnalysisProgressRegistry:
         persist: bool = True,
     ) -> str:
         timestamp = _now_iso()
-        state.stage = stage
-        state.message = message
+        if not is_agent_event(metadata) and not _is_debug_progress_stage(stage):
+            state.stage = stage
+            state.message = message
         state.updated_at = timestamp
         state.events.append(
             AnalysisProgressEvent(
@@ -296,7 +303,7 @@ class AnalysisProgressRegistry:
         )
         if len(state.events) > MAX_IN_MEMORY_EVENTS:
             del state.events[:-MAX_IN_MEMORY_EVENTS]
-        if persist and not _is_debug_progress_stage(stage):
+        if persist and not is_agent_event(metadata) and not _is_debug_progress_stage(stage):
             self._repository.record_progress(
                 job_id=state.job_id,
                 status=state.status,

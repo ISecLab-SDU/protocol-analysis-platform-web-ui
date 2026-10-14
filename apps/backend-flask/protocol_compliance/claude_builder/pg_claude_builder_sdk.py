@@ -18,28 +18,20 @@ from claude_agent_sdk import (
     query,
 )
 
-try:
-    from protocol_compliance.claude_agent_events import (
-        PROGRESS_PREFIX,
-        encode_progress_event,
-        is_hidden_system_message as _is_hidden_system_message,
-        json_default as _json_default,
-        message_to_dict as _message_to_dict,
-        progress_events_from_message,
-        result_code_from_message,
-        truncate as _truncate,
-    )
-except ModuleNotFoundError:  # pragma: no cover - container-local script path
-    from claude_agent_events import (
-        PROGRESS_PREFIX,
-        encode_progress_event,
-        is_hidden_system_message as _is_hidden_system_message,
-        json_default as _json_default,
-        message_to_dict as _message_to_dict,
-        progress_events_from_message,
-        result_code_from_message,
-        truncate as _truncate,
-    )
+from pg_agent_progress.events import (
+    PROGRESS_PREFIX,
+    encode_progress_event,
+    is_critical_event,
+    json_default as _json_default,
+    truncate as _truncate,
+)
+from pg_agent_progress.claude import (
+    is_hidden_system_message as _is_hidden_system_message,
+    message_to_dict as _message_to_dict,
+    progress_events_from_message,
+    result_code_from_message,
+)
+from pg_agent_progress.legacy import normalize_event
 
 WORKSPACE = Path(os.environ.get("PG_CLAUDE_WORKSPACE", "/workspace"))
 PROMPT_PATH = WORKSPACE / "claude_builder_prompt.md"
@@ -86,12 +78,13 @@ def _write_progress_line(line: str, *, critical: bool) -> bool:
 
 
 def _emit_progress_event(event: dict[str, Any]) -> bool:
+    event = normalize_event(event, "builder")
     line = encode_progress_event(event, ts_ms=_now_ms())
     _append_audit_line(line)
-    critical = event.get("type") == "error" or event.get("stage") in {
-        "claude-result",
-        "claude-status",
-    }
+    critical = (
+        is_critical_event(event)
+        or event.get("metadata", {}).get("activity") == "status"
+    )
     return _write_progress_line(line, critical=critical)
 
 
@@ -117,7 +110,9 @@ def _handle_message(message: Any) -> int | None:
     _append_audit_line(
         json.dumps({"raw": raw}, ensure_ascii=False, default=_json_default)
     )
-    for event in progress_events_from_message(message, result_label="Agent builder"):
+    for event in progress_events_from_message(
+        message, stage="builder", result_label="Agent builder"
+    ):
         _emit_progress_event(event)
     return result_code_from_message(message)
 
