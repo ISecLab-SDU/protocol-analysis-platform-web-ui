@@ -12,7 +12,7 @@ export interface UploadFileResponse {
   uploadTime: string;
 }
 
-export interface IRDataItem {
+interface IRDataItem {
   desc: string;
   direction?: string;
   expr?: string;
@@ -32,7 +32,7 @@ export interface ProtocolIRItem {
   sender?: string;
 }
 
-export interface PropertyResult {
+interface PropertyResult {
   property: string;
   query: string;
   result: boolean;
@@ -63,7 +63,7 @@ export interface HistoryRecord {
   verificationResults: null | VerificationResults;
 }
 
-export interface ApiResponse<T = any> {
+interface ApiResponse<T = any> {
   code?: number;
   data?: T;
   error?: string;
@@ -73,7 +73,7 @@ export interface ApiResponse<T = any> {
 
 // ==================== 工具函数 ====================
 
-export function transformIRDataForSequence(
+function transformIRDataForSequence(
   irData: IRDataItem[] | null,
 ): ProtocolIRItem[] {
   if (!irData || !Array.isArray(irData)) return [];
@@ -245,35 +245,4 @@ export async function fetchFormalGptProtocolDetail(protocolId: string) {
     console.error('❌ fetchFormalGptProtocolDetail 错误:', error);
     throw error;
   }
-}
-
-/**
- * 执行协议安全验证
- */
-export async function runProtocolVerification(
-  protocolId: string,
-  selectedProperties: string[],
-): Promise<VerificationResults> {
-  const response = await fetch(`${BASE_PATH}/verify`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      protocolId,
-      selectedProperties,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
-  }
-
-  const result: ApiResponse<VerificationResults> = await response.json();
-
-  if (result.code === 0 && result.data) {
-    return result.data;
-  }
-
-  throw new Error(result.error || '验证失败');
 }

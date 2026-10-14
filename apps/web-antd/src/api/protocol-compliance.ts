@@ -2,52 +2,12 @@ import { useAccessStore } from '@vben/stores';
 
 import { baseRequestClient, requestClient } from './request';
 
-export type ProtocolComplianceTaskStatus =
-  | 'completed'
-  | 'failed'
-  | 'processing'
-  | 'queued';
-
-export interface ProtocolComplianceTask {
-  completedAt?: string;
-  description?: string;
-  documentName: string;
-  documentSize?: number;
-  id: string;
-  name: string;
-  progress?: number;
-  resultDownloadUrl: null | string;
-  status: ProtocolComplianceTaskStatus;
-  submittedAt: string;
-  updatedAt: string;
-}
-
-export interface FetchProtocolComplianceTasksParams {
-  page?: number;
-  pageSize?: number;
-  status?: ProtocolComplianceTaskStatus | ProtocolComplianceTaskStatus[];
-}
-
-export interface FetchProtocolComplianceTasksResponse {
-  items: ProtocolComplianceTask[];
-  page: number;
-  pageSize: number;
-  total: number;
-}
-
-export interface CreateProtocolComplianceTaskPayload {
-  description?: string;
-  document: File;
-  name: string;
-  tags?: string[];
-}
-
-export type ProtocolStaticAnalysisComplianceStatus =
+type ProtocolStaticAnalysisComplianceStatus =
   | 'compliant'
   | 'needs_review'
   | 'non_compliant';
 
-export interface ProtocolStaticAnalysisVerdict {
+interface ProtocolStaticAnalysisVerdict {
   category: string;
   compliance: ProtocolStaticAnalysisComplianceStatus;
   confidence: 'high' | 'low' | 'medium';
@@ -66,7 +26,7 @@ export interface ProtocolStaticAnalysisVerdict {
   };
 }
 
-export interface ProtocolStaticAnalysisSummary {
+interface ProtocolStaticAnalysisSummary {
   compliantCount: number;
   needsReviewCount: number;
   nonCompliantCount: number;
@@ -74,7 +34,7 @@ export interface ProtocolStaticAnalysisSummary {
   overallStatus: ProtocolStaticAnalysisComplianceStatus;
 }
 
-export interface ProtocolStaticAnalysisModelMetadata {
+interface ProtocolStaticAnalysisModelMetadata {
   generatedAt: string;
   modelVersion: string;
   protocol: string;
@@ -82,13 +42,13 @@ export interface ProtocolStaticAnalysisModelMetadata {
   ruleSet: string;
 }
 
-export interface ProtocolStaticAnalysisModelResponse {
+interface ProtocolStaticAnalysisModelResponse {
   metadata: ProtocolStaticAnalysisModelMetadata;
   summary: ProtocolStaticAnalysisSummary;
   verdicts: ProtocolStaticAnalysisVerdict[];
 }
 
-export interface ProtocolStaticAnalysisCheck {
+interface ProtocolStaticAnalysisCheck {
   allNoViolation: boolean;
   hasViolation: boolean;
   invalidCount: number;
@@ -141,7 +101,7 @@ export interface RunProtocolStaticAnalysisPayload {
   rules: File;
 }
 
-export type ProtocolStaticAnalysisJobStatus =
+type ProtocolStaticAnalysisJobStatus =
   | 'completed'
   | 'failed'
   | 'queued'
@@ -155,7 +115,7 @@ export interface ProtocolStaticAnalysisProgressEvent {
   timestamp: string;
 }
 
-export interface ProtocolClaudeProgressMetadata {
+interface ProtocolClaudeProgressMetadata {
   duration_api_ms?: number;
   duration_ms?: number;
   errors?: null | string[];
@@ -172,7 +132,7 @@ export interface ProtocolClaudeProgressMetadata {
   usage?: ProtocolClaudeTokenUsage;
 }
 
-export interface ProtocolClaudeModelUsage {
+interface ProtocolClaudeModelUsage {
   cacheCreationInputTokens?: number;
   cacheReadInputTokens?: number;
   contextWindow?: number;
@@ -182,7 +142,7 @@ export interface ProtocolClaudeModelUsage {
   outputTokens?: number;
 }
 
-export interface ProtocolClaudeTokenUsage {
+interface ProtocolClaudeTokenUsage {
   cache_creation_input_tokens?: number;
   cache_read_input_tokens?: number;
   input_tokens?: number;
@@ -200,46 +160,6 @@ export interface ProtocolStaticAnalysisJob {
   stage: string;
   status: ProtocolStaticAnalysisJobStatus;
   updatedAt: string;
-}
-
-export interface ProtocolStaticAnalysisHistoryEntry {
-  analysisId?: null | string;
-  completedAt?: null | string;
-  configPath?: null | string;
-  codeFileName?: null | string;
-  createdAt: string;
-  databasePath?: null | string;
-  details?: null | Record<string, unknown>;
-  durationMs?: null | number;
-  error?: null | string;
-  jobId: string;
-  logsPath?: null | string;
-  message: string;
-  model?: null | string;
-  modelVersion?: null | string;
-  overallStatus?: null | ProtocolStaticAnalysisComplianceStatus;
-  outputPath?: null | string;
-  protocolName?: null | string;
-  protocolVersion?: null | string;
-  ruleSet?: null | string;
-  rulesFileName?: null | string;
-  stage: string;
-  status: ProtocolStaticAnalysisJobStatus;
-  submittedAt?: null | string;
-  summary?: null | ProtocolStaticAnalysisSummary;
-  updatedAt: string;
-  workspacePath?: null | string;
-  workspaceSnapshots?: null | { path?: string; stage?: string }[];
-}
-
-export interface FetchProtocolStaticAnalysisHistoryParams {
-  limit?: number;
-}
-
-export interface FetchProtocolStaticAnalysisHistoryResponse {
-  count: number;
-  items: ProtocolStaticAnalysisHistoryEntry[];
-  limit: number;
 }
 
 export type ProtocolStaticAnalysisRuleResultStatus =
@@ -278,7 +198,7 @@ export interface FetchProtocolStaticAnalysisDatabaseInsightsPayload {
   workspacePath?: string;
 }
 
-export type ProtocolViolationHistorySourceType = 'builtin' | 'job';
+type ProtocolViolationHistorySourceType = 'builtin' | 'job';
 
 export interface ProtocolViolationHistoryEntry {
   callGraph?: null | string;
@@ -335,28 +255,6 @@ export interface DeleteProtocolViolationHistoryPayload {
   workspacePath?: null | string;
 }
 
-export interface UpsertProtocolViolationHistoryPayload {
-  callGraph?: string;
-  codeSnippet?: string;
-  databasePath?: string;
-  jobId?: string;
-  reason: string;
-  result: 'violation_found';
-  ruleDesc: string;
-  violations?: ProtocolStaticAnalysisRuleViolationDetail[];
-  workspacePath?: string;
-}
-
-export interface UpsertProtocolViolationHistoryResponse {
-  databasePath: string;
-  id: string;
-  result: ProtocolStaticAnalysisRuleResultStatus;
-  resultLabel: string;
-  ruleDesc: string;
-  updated: boolean;
-  warnings?: string[];
-}
-
 export interface ProtocolDatabaseOverviewSummary {
   analysisRecords: number;
   codeSnippets: number;
@@ -369,7 +267,7 @@ export interface ProtocolDatabaseOverviewSummary {
   violationRules: number;
 }
 
-export interface ProtocolDatabaseOverviewProtocolStats {
+interface ProtocolDatabaseOverviewProtocolStats {
   analysisRecords: number;
   codeSnippets: number;
   implementations: number;
@@ -381,7 +279,7 @@ export interface ProtocolDatabaseOverviewProtocolStats {
   violationRules: number;
 }
 
-export interface ProtocolDatabaseOverviewImplementationStats
+interface ProtocolDatabaseOverviewImplementationStats
   extends Omit<
     ProtocolDatabaseOverviewProtocolStats,
     'implementations' | 'name'
@@ -391,7 +289,7 @@ export interface ProtocolDatabaseOverviewImplementationStats
   protocol: string;
 }
 
-export interface ProtocolDatabaseOverviewFinding {
+interface ProtocolDatabaseOverviewFinding {
   implementation: string;
   protocol: string;
   reason?: null | string;
@@ -407,56 +305,6 @@ export interface ProtocolDatabaseOverviewStats {
   tableTotals: Record<string, number>;
   topFindings: ProtocolDatabaseOverviewFinding[];
   warnings?: string[];
-}
-
-const BASE_PATH = '/protocol-compliance/tasks';
-
-export function fetchProtocolComplianceTasks(
-  params?: FetchProtocolComplianceTasksParams,
-) {
-  return requestClient.get<FetchProtocolComplianceTasksResponse>(BASE_PATH, {
-    params,
-  });
-}
-
-export function createProtocolComplianceTask(
-  payload: CreateProtocolComplianceTaskPayload,
-) {
-  const { description, document, name, tags } = payload;
-  const formData = new FormData();
-  formData.append('file', document);
-  formData.append('name', name);
-  if (description) {
-    formData.append('description', description);
-  }
-  if (tags?.length) {
-    formData.append('tags', JSON.stringify(tags));
-  }
-
-  return requestClient.post<ProtocolComplianceTask>(BASE_PATH, formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
-}
-
-export async function downloadProtocolComplianceTaskResult(taskId: string) {
-  const accessStore = useAccessStore();
-  const token = accessStore.accessToken;
-  const headers: Record<string, string> = {};
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-
-  const response = (await baseRequestClient.request(
-    `${BASE_PATH}/${taskId}/result`,
-    {
-      headers,
-      method: 'GET',
-      responseType: 'blob',
-    },
-  )) as { data: Blob };
-  return response.data;
 }
 
 export function runProtocolStaticAnalysis(
@@ -523,39 +371,10 @@ export function fetchProtocolStaticAnalysisResult(jobId: string) {
   );
 }
 
-export async function downloadStaticAnalysisDatabase(jobId: string) {
-  const accessStore = useAccessStore();
-  const token = accessStore.accessToken;
-  const headers: Record<string, string> = {};
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-
-  const response = (await baseRequestClient.request(
-    `/protocol-compliance/static-analysis/${jobId}/artifact/database`,
-    {
-      headers,
-      method: 'GET',
-      responseType: 'blob',
-    },
-  )) as { data: Blob };
-
-  return response.data;
-}
-
 export interface DownloadAflNetPocParams {
   crashLogPath?: string;
   implementation?: string;
   protocol?: string;
-}
-
-export type SnapshotAflNetPocParams = DownloadAflNetPocParams;
-
-export interface SnapshotAflNetPocResponse {
-  artifactId: string;
-  createdAt: string;
-  downloadUrl: string;
-  fileSize: number;
 }
 
 export async function downloadAflNetPoc(params: DownloadAflNetPocParams) {
@@ -583,42 +402,6 @@ export async function downloadAflNetPoc(params: DownloadAflNetPocParams) {
   )) as { data: Blob };
 
   return response.data;
-}
-
-export function snapshotAflNetPoc(params: SnapshotAflNetPocParams) {
-  return requestClient.post<SnapshotAflNetPocResponse>(
-    '/protocol-compliance/fuzzing/aflnet-result/snapshot',
-    params,
-  );
-}
-
-export async function downloadAflNetPocArtifact(artifactId: string) {
-  const accessStore = useAccessStore();
-  const token = accessStore.accessToken;
-  const headers: Record<string, string> = {};
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-
-  const response = (await baseRequestClient.request(
-    `/protocol-compliance/fuzzing/aflnet-result/artifacts/${artifactId}/download`,
-    {
-      headers,
-      method: 'GET',
-      responseType: 'blob',
-    },
-  )) as { data: Blob };
-
-  return response.data;
-}
-
-export function fetchProtocolStaticAnalysisHistory(
-  params?: FetchProtocolStaticAnalysisHistoryParams,
-) {
-  return requestClient.get<FetchProtocolStaticAnalysisHistoryResponse>(
-    '/protocol-compliance/static-analysis/history',
-    { params },
-  );
 }
 
 export function fetchProtocolStaticAnalysisDatabaseInsights(
@@ -649,15 +432,6 @@ export function deleteProtocolViolationHistory(
   );
 }
 
-export function upsertProtocolViolationHistory(
-  payload: UpsertProtocolViolationHistoryPayload,
-) {
-  return requestClient.post<UpsertProtocolViolationHistoryResponse>(
-    '/protocol-compliance/static-analysis/violation-history',
-    payload,
-  );
-}
-
 export function fetchProtocolDatabaseOverview(
   params?: FetchProtocolViolationHistoryParams,
 ) {
@@ -667,14 +441,8 @@ export function fetchProtocolDatabaseOverview(
   );
 }
 
-export function deleteProtocolStaticAnalysisJob(jobId: string) {
-  return requestClient.delete<{ deleted: boolean; jobId: string }>(
-    `/protocol-compliance/static-analysis/history/${jobId}`,
-  );
-}
-
 // Assertion Generation Types and APIs
-export type ProtocolAssertGenerationJobStatus =
+type ProtocolAssertGenerationJobStatus =
   | 'completed'
   | 'failed'
   | 'queued'
@@ -687,14 +455,14 @@ export interface ProtocolAssertGenerationProgressEvent {
   timestamp: string;
 }
 
-export interface ProtocolAssertGenerationInputInfo {
+interface ProtocolAssertGenerationInputInfo {
   codeFileName?: string;
   databaseFileName?: string;
   databasePath?: null | string;
   notes?: null | string;
 }
 
-export interface ProtocolAssertGenerationArtifactInfo {
+interface ProtocolAssertGenerationArtifactInfo {
   database?: string;
   instrumentedCodeZipPath?: string;
   logs?: string;
@@ -704,14 +472,14 @@ export interface ProtocolAssertGenerationArtifactInfo {
   zipPath?: string;
 }
 
-export interface ProtocolAssertGenerationDockerInfo {
+interface ProtocolAssertGenerationDockerInfo {
   command?: string[];
   durationMs?: number;
   image?: string;
   logs?: string[];
 }
 
-export interface ProtocolInstrumentationDiffOutput {
+interface ProtocolInstrumentationDiffOutput {
   available: boolean;
   content?: null | string;
   path?: null | string;
@@ -719,20 +487,20 @@ export interface ProtocolInstrumentationDiffOutput {
   truncated?: boolean;
 }
 
-export interface ProtocolInstrumentationArtifacts {
+interface ProtocolInstrumentationArtifacts {
   diffFiles?: string[];
   diffOutput?: ProtocolInstrumentationDiffOutput;
   instrumentedCodePath?: null | string;
   instrumentedCodeZipPath?: null | string;
 }
 
-export interface ProtocolInstrumentationDockerInfo {
+interface ProtocolInstrumentationDockerInfo {
   command?: string[];
   durationMs?: number;
   image?: string;
 }
 
-export interface ProtocolInstrumentationResult {
+interface ProtocolInstrumentationResult {
   artifacts?: ProtocolInstrumentationArtifacts;
   completedAt?: string;
   docker?: ProtocolInstrumentationDockerInfo;
@@ -816,160 +584,8 @@ export function fetchProtocolInstrumentationDiff(jobId: string) {
   );
 }
 
-export async function downloadProtocolAssertGenerationResult(jobId: string) {
-  const accessStore = useAccessStore();
-  const token = accessStore.accessToken;
-  const headers: Record<string, string> = {};
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-
-  const response = (await baseRequestClient.request(
-    `/protocol-compliance/assertion-generation/${jobId}/download`,
-    {
-      headers,
-      method: 'GET',
-      responseType: 'blob',
-    },
-  )) as { data: Blob };
-
-  return response.data;
-}
-
-// Assertion history ------------------------------------------------------
-
-export interface ProtocolAssertionHistoryEntry {
-  jobId: string;
-  codeFilename?: null | string;
-  databaseFilename?: null | string;
-  diffPath?: null | string;
-  diffFilename?: null | string;
-  createdAt: string;
-  updatedAt: string;
-  source?: null | string;
-}
-
-export interface ProtocolAssertionHistoryResponse {
-  items: ProtocolAssertionHistoryEntry[];
-  limit: number;
-  count: number;
-}
-
-export function fetchProtocolAssertionHistory(limit = 20) {
-  return requestClient.get<ProtocolAssertionHistoryResponse>(
-    '/protocol-compliance/assertions/history',
-    {
-      params: { limit },
-    },
-  );
-}
-
-export async function downloadProtocolAssertionDiff(jobId: string) {
-  const accessStore = useAccessStore();
-  const token = accessStore.accessToken;
-  const headers: Record<string, string> = {};
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-
-  const response = (await baseRequestClient.request(
-    `/protocol-compliance/assertions/history/${jobId}/diff`,
-    {
-      headers,
-      method: 'GET',
-      responseType: 'blob',
-    },
-  )) as { data: Blob };
-
-  return response.data;
-}
-
-// Diff Parsing Types and APIs
-export type ProtocolDiffParsingJobStatus =
-  | 'completed'
-  | 'failed'
-  | 'queued'
-  | 'running';
-
-export interface DiffHunk {
-  newLines: number;
-  newStart: number;
-  oldLines: number;
-  oldStart: number;
-  lines: Array<{
-    content: string;
-    type: 'add' | 'delete' | 'normal';
-  }>;
-}
-
-export interface DiffFile {
-  additions: number;
-  deletions: number;
-  from: string;
-  hunks: DiffHunk[];
-  to: string;
-}
-
-export interface ProtocolDiffParsingResult {
-  diffContent: string;
-  files: DiffFile[];
-  generatedAt: string;
-  jobId: string;
-  summary: {
-    deletions: number;
-    filesChanged: number;
-    insertions: number;
-  };
-}
-
-export interface ProtocolDiffParsingProgressEvent {
-  message: string;
-  percentage: number;
-  stage: string;
-  timestamp: string;
-}
-
-export interface ProtocolDiffParsingJob {
-  createdAt: string;
-  error?: null | string;
-  events: ProtocolDiffParsingProgressEvent[];
-  jobId: string;
-  message: string;
-  parentJobId: string;
-  percentage: number;
-  result?: null | ProtocolDiffParsingResult;
-  stage: string;
-  status: ProtocolDiffParsingJobStatus;
-  updatedAt: string;
-}
-
-export function startProtocolDiffParsing(assertGenerationJobId: string) {
-  return requestClient.post<ProtocolDiffParsingJob>(
-    `/protocol-compliance/assertion-generation/${assertGenerationJobId}/diff-parsing`,
-    {},
-  );
-}
-
-export function fetchProtocolDiffParsingProgress(
-  assertGenerationJobId: string,
-  diffParsingJobId: string,
-) {
-  return requestClient.get<ProtocolDiffParsingJob>(
-    `/protocol-compliance/assertion-generation/${assertGenerationJobId}/diff-parsing/${diffParsingJobId}/progress`,
-  );
-}
-
-export function fetchProtocolDiffParsingResult(
-  assertGenerationJobId: string,
-  diffParsingJobId: string,
-) {
-  return requestClient.get<ProtocolDiffParsingResult>(
-    `/protocol-compliance/assertion-generation/${assertGenerationJobId}/diff-parsing/${diffParsingJobId}/result`,
-  );
-}
-
 // Artifact-backed Fuzz Jobs -----------------------------------------------
-export type ProtocolFuzzingJobStatus =
+type ProtocolFuzzingJobStatus =
   | 'completed'
   | 'failed'
   | 'queued'
@@ -1029,7 +645,7 @@ export interface ProtocolFuzzingJob {
   updatedAt: string;
 }
 
-export type ProtocolFuzzConfigJobStatus =
+type ProtocolFuzzConfigJobStatus =
   | 'completed'
   | 'failed'
   | 'queued'
@@ -1110,12 +726,6 @@ export function startProtocolFuzzConfigJob(
   );
 }
 
-export function fetchProtocolFuzzConfigJob(jobId: string) {
-  return requestClient.get<ProtocolFuzzConfigJob>(
-    `/protocol-compliance/fuzzing/config-jobs/${jobId}`,
-  );
-}
-
 export function fetchProtocolFuzzConfigLogs(
   jobId: string,
   fromPosition: number,
@@ -1156,12 +766,6 @@ export function startProtocolFuzzingDebugJob(
   return requestClient.post<ProtocolFuzzingJob>(
     '/protocol-compliance/fuzzing/dev/jobs',
     payload,
-  );
-}
-
-export function fetchProtocolFuzzingJob(jobId: string) {
-  return requestClient.get<ProtocolFuzzingJob>(
-    `/protocol-compliance/fuzzing/jobs/${jobId}`,
   );
 }
 

@@ -1,6 +1,6 @@
 import type { ProtocolExtractRuleItem } from '#/api/protocol-compliance';
 
-export interface LegacyProtocolRule {
+interface LegacyProtocolRule {
   req_fields: string[];
   req_type: string;
   res_fields: string[];
@@ -10,7 +10,7 @@ export interface LegacyProtocolRule {
 
 export type LegacyProtocolRulesPayload = Record<string, LegacyProtocolRule[]>;
 
-export function normalizeRuleValues(value: unknown): string[] {
+function normalizeRuleValues(value: unknown): string[] {
   const values = Array.isArray(value) ? value : [value];
   return [
     ...new Set(

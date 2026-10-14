@@ -295,13 +295,6 @@ export function ansiToHtml(raw: string): string {
   return result;
 }
 
-export function formatBytes(size?: null | number): string {
-  if (size === null || size === undefined || !Number.isFinite(size)) return '-';
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-  return `${(size / 1024 / 1024).toFixed(2)} MB`;
-}
-
 export function formatTime(value: null | string | undefined): string {
   if (!value) return '-';
   const parsed = new Date(value);
