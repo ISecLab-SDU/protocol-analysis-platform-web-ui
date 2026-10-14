@@ -1,16 +1,6 @@
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-
-RULE_PROCESS_ROOT = (
-    Path(__file__).resolve().parents[1] / "protocol_extract" / "ruleProcess"
-)
-if str(RULE_PROCESS_ROOT) not in sys.path:
-    sys.path.insert(0, str(RULE_PROCESS_ROOT))
-
-from output_format import build_legacy_rules_payload  # noqa: E402
+from protocol_extract.ruleProcess.output_format import build_legacy_rules_payload
 
 
 def test_build_legacy_rules_payload_groups_rules_and_keeps_scalar_types() -> None:

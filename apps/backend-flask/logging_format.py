@@ -7,6 +7,7 @@ import os
 import re
 import sys
 from collections.abc import Mapping
+from typing import Any, Literal
 
 _CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
 _RESET = "\x1b[0m"
@@ -35,12 +36,16 @@ class ColorizedContextFormatter(ContextFormatter):
 
     def __init__(
         self,
-        *args: object,
+        fmt: str | None = None,
+        datefmt: str | None = None,
+        style: Literal["%", "{", "$"] = "%",
+        validate: bool = True,
+        *,
+        defaults: Mapping[str, Any] | None = None,
         level_width: int = 8,
         use_color: bool | None = None,
-        **kwargs: object,
     ) -> None:
-        super().__init__(*args, **kwargs)
+        super().__init__(fmt, datefmt, style, validate, defaults=defaults)
         self._level_width = level_width
         self._use_color = use_color
 

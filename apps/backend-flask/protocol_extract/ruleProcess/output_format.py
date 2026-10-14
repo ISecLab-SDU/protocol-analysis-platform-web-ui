@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Any
+from typing import Any, TypeGuard
+
+
+def _is_string_key_dict(value: object) -> TypeGuard[dict[str, object]]:
+    return isinstance(value, dict) and all(isinstance(key, str) for key in value)
 
 
 def _normalize_strings(value: object) -> list[str]:
@@ -29,7 +33,7 @@ def build_legacy_rules_payload(
     grouped: dict[str, list[dict[str, Any]]] = {}
 
     for result in results:
-        if not isinstance(result, dict):
+        if not _is_string_key_dict(result):
             continue
 
         rule = str(result.get("rule") or "").strip()

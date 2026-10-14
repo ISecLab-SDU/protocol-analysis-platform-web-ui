@@ -89,7 +89,7 @@ def test_heading_selection_rejects_non_string_items() -> None:
 def test_third_rule_accepts_an_empty_stage_two_workbook(tmp_path: Path) -> None:
     excel_path = tmp_path / "filtered_sentences.xlsx"
     processed_path = tmp_path / "processed_results.json"
-    pd.DataFrame(columns=["Heading", "Sentence", "Is_Matched"]).to_excel(
+    pd.DataFrame(columns=pd.Index(["Heading", "Sentence", "Is_Matched"])).to_excel(
         excel_path,
         index=False,
         engine="openpyxl",

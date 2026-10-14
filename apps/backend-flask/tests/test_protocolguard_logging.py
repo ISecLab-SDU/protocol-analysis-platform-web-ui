@@ -294,8 +294,9 @@ def test_assertion_claude_output_progress_logs_at_debug(
 
     snapshot = registry.snapshot(state.job_id)
     assert snapshot is not None
-    assert snapshot["events"][-1]["stage"] == "instrumentation-log"
-    assert snapshot["events"][-1]["message"] == "Executing Claude CLI"
+    events = cast(list[dict[str, Any]], snapshot["events"])
+    assert events[-1]["stage"] == "instrumentation-log"
+    assert events[-1]["message"] == "Executing Claude CLI"
     assert caplog.records[-1].levelno == logging.DEBUG
 
 

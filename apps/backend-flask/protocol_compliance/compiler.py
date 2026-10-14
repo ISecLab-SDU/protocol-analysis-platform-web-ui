@@ -13,13 +13,17 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, BinaryIO, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Any, BinaryIO, Callable, Dict, List, Optional, Sequence, Tuple, TypeGuard
 
 from protocol_compliance.claude_agent_events import decode_progress_event, decode_progress_line
 from protocol_compliance.job_logging import JobStageLogger
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
+
+def _is_progress_event(value: object) -> TypeGuard[dict[str, object]]:
+    return isinstance(value, dict) and all(isinstance(key, str) for key in value)
 
 
 class ClaudeBuilderRunnerError(Exception):
@@ -311,7 +315,7 @@ class ClaudeBuilderRunner:
         *,
         cwd: Path,
         log_path: Path,
-        progress_callback: Optional[Callable[[str, str, str], None]],
+        progress_callback: Optional[Callable[..., None]],
         job_identifier: str,
         stage: str,
         stage_selector: Optional[Callable[[str, str], str]] = None,
@@ -352,7 +356,7 @@ class ClaudeBuilderRunner:
                     progress_events = [
                         queued_item
                         for queued_item in batch
-                        if isinstance(queued_item, dict)
+                        if _is_progress_event(queued_item)
                     ]
                     for progress_event in progress_events:
                         logger.debug(
