@@ -129,3 +129,39 @@ def test_rejects_invalid_native_mode(api, portable_analysis_uploads):
     )
     assert response.status_code == 400
     assert not list(impact.ROOT.glob("*/job.json"))
+
+
+def test_completed_worker_recovers_after_backend_reload(
+    api, portable_analysis_uploads, monkeypatch
+):
+    response = submit(api, portable_analysis_uploads)
+    job = response.json["data"]
+    path = impact.job_path(job["jobId"])
+    impact.save_job(path, status="running")
+    result = {
+        "analysisId": job["analysisId"],
+        "results": [{"assessment": {"outcome": "SUPPORTED"}}],
+    }
+    (path / "artifacts/result.json").write_text(json.dumps(result))
+    monkeypatch.setattr(impact, "container_completion", lambda *_: 0)
+    monkeypatch.setattr(impact.subprocess, "run", lambda *args, **kwargs: None)
+    retrieved = api.get(
+        f"/impact-analysis/{job['jobId']}/result", headers={"Authorization": "test"}
+    )
+    assert retrieved.status_code == 200
+    assert retrieved.json["data"] == result
+    assert impact.read_job(job["jobId"])["exitCode"] == 0
+
+
+def test_transient_docker_observation_does_not_fail_running_job(
+    api, portable_analysis_uploads, monkeypatch
+):
+    response = submit(api, portable_analysis_uploads)
+    job = response.json["data"]
+    impact.save_job(impact.job_path(job["jobId"]), status="running")
+
+    def unavailable(*_):
+        raise OSError("temporary Docker transport error")
+
+    monkeypatch.setattr(impact, "container_completion", unavailable)
+    assert impact.read_job(job["jobId"])["status"] == "running"

@@ -35,7 +35,112 @@ def job_path(job_id):
 
 
 def read_job(job_id):
-    return json.loads((job_path(job_id) / "job.json").read_text())
+    path = job_path(job_id)
+    job = json.loads((path / "job.json").read_text())
+    if job["status"] not in {"queued", "running"}:
+        return job
+    process = PROCESSES.get(job_id)
+    if process is not None and process.poll() is None:
+        return job
+    age = (
+        datetime.now(timezone.utc) - datetime.fromisoformat(job["createdAt"])
+    ).total_seconds()
+    if job["status"] == "queued" and age < 30:
+        return job
+    try:
+        state = container_completion(job_id, job["createdAt"])
+    except (OSError, ValueError, subprocess.SubprocessError):
+        # A transient Docker observation failure is not a terminal job failure.
+        return job
+    if state is None:
+        return job
+    if state == 0:
+        try:
+            result = json.loads((path / "artifacts/result.json").read_text())
+            if (
+                result.get("analysisId") != job["analysisId"]
+                or len(result.get("results", [])) != job["findingCount"]
+            ):
+                raise ValueError("Worker result does not match submitted analysis")
+        except (OSError, ValueError) as exc:
+            return save_job(
+                path, status="failed", stage="failed", message=str(exc), exitCode=state
+            )
+        recovered = save_job(
+            path,
+            status="completed",
+            stage="completed",
+            message="Impact analysis completed",
+            exitCode=0,
+        )
+    else:
+        recovered = save_job(
+            path,
+            status="failed",
+            stage="failed",
+            message=f"Phase 1 worker exited without successful completion (status {state})",
+            exitCode=state,
+        )
+    remove_completed_container(job_id)
+    return recovered
+
+
+def remove_completed_container(job_id):
+    try:
+        subprocess.run(
+            ["docker", "rm", "pg-impact-" + job_id],
+            capture_output=True,
+            check=False,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        pass  # Persisted completion remains authoritative if cleanup is delayed.
+
+
+def container_completion(job_id, created_at):
+    """Read authoritative Docker exit evidence, including pre-migration jobs."""
+    name = "pg-impact-" + job_id
+    inspected = subprocess.run(
+        ["docker", "inspect", "--format", "{{json .State}}", name],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=10,
+    )
+    if inspected.returncode == 0:
+        state = json.loads(inspected.stdout)
+        if state.get("Status") in {"exited", "dead"}:
+            return int(state["ExitCode"])
+        return None
+    if "No such" not in inspected.stderr:
+        return None
+    # Earlier worker versions used --rm. Docker retains their die events,
+    # allowing existing completed work to be recovered without re-executing it.
+    events = subprocess.run(
+        [
+            "docker",
+            "events",
+            "--since",
+            created_at,
+            "--until",
+            datetime.now(timezone.utc).isoformat(),
+            "--filter",
+            "container=" + name,
+            "--filter",
+            "event=die",
+            "--format",
+            "{{json .}}",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=10,
+    )
+    for line in reversed(events.stdout.splitlines()):
+        attributes = json.loads(line).get("Actor", {}).get("Attributes", {})
+        if attributes.get("name") == name and "exitCode" in attributes:
+            return int(attributes["exitCode"])
+    return -1
 
 
 def save_job(path, **fields):
@@ -83,7 +188,6 @@ def run_job(path, source, env):
     command = [
         "docker",
         "run",
-        "--rm",
         "--init",
         "--name",
         "pg-impact-" + job_id,
@@ -153,6 +257,7 @@ def run_job(path, source, env):
     finally:
         with LOCK:
             PROCESSES.pop(job_id, None)
+        remove_completed_container(job_id)
 
 
 def register_impact_routes(bp, authenticate):
@@ -235,7 +340,7 @@ def register_impact_routes(bp, authenticate):
         entries = []
         for path in ROOT.glob("*/job.json"):
             try:
-                entries.append(json.loads(path.read_text()))
+                entries.append(read_job(path.parent.name))
             except (OSError, ValueError):
                 continue
         return success_response(

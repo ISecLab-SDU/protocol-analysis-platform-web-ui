@@ -36,3 +36,10 @@ Jobs are persisted outside the application checkout at
 `~/.local/share/protocolguard/impact-analysis` (override with
 `PROTOXPLOIT_STATE_DIR`). This keeps uploaded Python source from triggering the
 Flask development server's source reloader.
+
+Running jobs survive a backend reload. Container exit status is retained until
+recorded, and progress/result/history reads reconcile completed workers against
+Docker's exit state and the validated result manifest. Pre-migration workers
+that used automatic container removal can be recovered from Docker's retained
+`die` event. A transient Docker observation error never completes or fails a
+job. If no worker or exit evidence remains, the job fails explicitly.
