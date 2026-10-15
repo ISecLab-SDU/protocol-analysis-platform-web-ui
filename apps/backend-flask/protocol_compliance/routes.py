@@ -778,3 +778,8 @@ _static_analysis_insight_handlers = create_static_analysis_insight_handlers(
 @bp.route("/static-analysis/database-insights", methods=["POST"])
 def static_analysis_database_insights():
     return _static_analysis_insight_handlers["static_analysis_database_insights"]()
+
+# Phase 1 impact jobs use the same authentication boundary as other workflows.
+from .impact_analysis import register_impact_routes
+
+register_impact_routes(bp, lambda: _ensure_authenticated())

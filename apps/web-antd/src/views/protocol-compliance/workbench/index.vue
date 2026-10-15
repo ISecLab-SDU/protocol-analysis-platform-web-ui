@@ -30,6 +30,7 @@ import StageRuleExtract from './components/StageRuleExtract.vue';
 import AssertGenerationModule from './modules/AssertGenerationModule.vue';
 import CodeLocateModule from './modules/CodeLocateModule.vue';
 import FuzzModule from './modules/FuzzModule.vue';
+import ImpactAnalysisModule from './modules/ImpactAnalysisModule.vue';
 import { useAnalysisModules } from './useAnalysisModules';
 import { formatTime } from './utils';
 
@@ -64,6 +65,7 @@ const workbenchSubNavItems = [
   },
   { icon: 'mdi:code-json', key: 'assert_gen', label: '断言生成' },
   { icon: 'mdi:radar', key: 'fuzz', label: '模糊测试' },
+  { icon: 'mdi:shield-search', key: 'impact', label: 'Impact Analysis' },
 ] as const;
 
 type SideNavKey =
@@ -110,13 +112,13 @@ const activeSideNavLabel = computed(() => {
 });
 
 const isWorkbenchSectionActive = computed(() =>
-  ['assert_gen', 'code_locate', 'extract', 'fuzz'].includes(
+  ['assert_gen', 'code_locate', 'extract', 'fuzz', 'impact'].includes(
     activeSideNav.value,
   ),
 );
 
 const isAnalysisModuleActive = computed(() =>
-  ['assert_gen', 'code_locate', 'fuzz'].includes(activeSideNav.value),
+  ['assert_gen', 'code_locate', 'fuzz', 'impact'].includes(activeSideNav.value),
 );
 
 const violationHistoryRefreshing = computed(
@@ -199,6 +201,7 @@ const heroWorkbenchModules = [
   { icon: 'mdi:code-braces-box', label: '代码定位与一致性分析' },
   { icon: 'mdi:code-json', label: '断言生成' },
   { icon: 'mdi:radar', label: '模糊测试' },
+  { icon: 'mdi:shield-search', label: 'Impact Analysis' },
 ] as const;
 
 const workflowSteps = [
@@ -221,6 +224,11 @@ const workflowSteps = [
     description: '选择断言生成任务，独立生成 Fuzz 配置并运行 AFLNet。',
     icon: 'mdi:radar',
     label: '模糊测试',
+  },
+  {
+    description: '结合违规结果与源码，构建证据并评估安全影响。',
+    icon: 'mdi:shield-search',
+    label: 'Impact Analysis',
   },
 ] as const;
 
@@ -928,6 +936,7 @@ onBeforeUnmount(() => {
               v-else-if="activeSideNav === 'assert_gen'"
             />
             <FuzzModule v-else-if="activeSideNav === 'fuzz'" />
+            <ImpactAnalysisModule v-else-if="activeSideNav === 'impact'" />
           </section>
 
           <section v-else-if="activeSideNav === 'logs'" class="logs-shell">
@@ -1579,7 +1588,7 @@ onBeforeUnmount(() => {
 
 .overview-hero-flow {
   display: inline-grid;
-  grid-template-columns: repeat(4, max-content);
+  grid-template-columns: repeat(5, max-content);
   column-gap: 20px;
   width: fit-content;
   max-width: 100%;
@@ -2160,7 +2169,7 @@ onBeforeUnmount(() => {
 .workflow-list {
   display: grid;
   flex: 1;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 28px;
 }
 

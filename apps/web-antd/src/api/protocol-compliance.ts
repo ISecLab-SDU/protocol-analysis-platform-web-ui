@@ -951,3 +951,68 @@ export async function runProtocolExtract(payload: RunProtocolExtractPayload) {
     ruleCount: rules.length || 0,
   };
 }
+
+export interface ImpactJob {
+  jobId: string;
+  status: 'completed' | 'failed' | 'queued' | 'running';
+  stage: string;
+  message: string;
+  analysisId: string;
+  findingCount: number;
+  createdAt: string;
+  logs?: string;
+  nextOffset?: number;
+}
+export interface ImpactResult {
+  analysisId: string;
+  workflow: string;
+  results: Array<{
+    assessment: {
+      impact_reasoning: string;
+      oracle_hints: unknown[];
+      outcome: string;
+      validation_hypothesis: unknown;
+    };
+    resultId: string;
+  }>;
+}
+export function startImpactAnalysis(code: File, analysis: File) {
+  const form = new FormData();
+  form.append('code', code);
+  form.append('analysis', analysis);
+  return requestClient.post<ImpactJob>(
+    '/protocol-compliance/impact-analysis',
+    form,
+    {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120_000,
+    },
+  );
+}
+export function fetchImpactProgress(jobId: string, offset = 0) {
+  return requestClient.get<ImpactJob>(
+    `/protocol-compliance/impact-analysis/${encodeURIComponent(jobId)}/progress?offset=${offset}`,
+  );
+}
+export function fetchImpactResult(jobId: string) {
+  return requestClient.get<ImpactResult>(
+    `/protocol-compliance/impact-analysis/${encodeURIComponent(jobId)}/result`,
+  );
+}
+export function fetchImpactHistory() {
+  return requestClient.get<ImpactJob[]>(
+    '/protocol-compliance/impact-analysis/history',
+  );
+}
+export async function downloadImpactArtifacts(jobId: string) {
+  const token = useAccessStore().accessToken;
+  const response = (await baseRequestClient.request(
+    `/protocol-compliance/impact-analysis/${encodeURIComponent(jobId)}/download`,
+    {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      method: 'GET',
+      responseType: 'blob',
+    },
+  )) as { data: Blob };
+  return response.data;
+}
