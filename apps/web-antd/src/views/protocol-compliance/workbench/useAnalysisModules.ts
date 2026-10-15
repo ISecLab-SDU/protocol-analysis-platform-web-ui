@@ -89,6 +89,7 @@ const assertInputs = reactive({
 });
 
 const assertGeneration = reactive({
+  started: false,
   diffContent: '',
   error: '',
   job: null as null | ProtocolAssertGenerationJob,
@@ -655,6 +656,7 @@ async function runAssertGeneration() {
   const analysisFile = assertInputs.analysisDocument;
   assertionRunId += 1;
   const runId = assertionRunId;
+  assertGeneration.started = true;
   assertGeneration.status = 'running';
   assertGeneration.error = '';
   assertGeneration.job = null;
@@ -758,6 +760,20 @@ async function runAssertGeneration() {
     assertGeneration.status = 'error';
     assertGeneration.error = getErrorMessage(error, '断言生成启动失败');
   }
+}
+
+function resetAssertGenerationOutput() {
+  if (assertGeneration.status === 'running') return;
+  assertionRunId += 1;
+  Object.assign(assertGeneration, {
+    diffContent: '',
+    error: '',
+    job: null,
+    logText: '',
+    result: null,
+    started: false,
+    status: 'idle',
+  });
 }
 
 function stopAssertGeneration() {
@@ -1370,6 +1386,7 @@ export function useAnalysisModules() {
     runCodeLocate,
     runFuzzing,
     resetCodeLocateOutput,
+    resetAssertGenerationOutput,
     assertionOutputContexts,
     codeLocateInputs,
     loadAssertionOutputContext,

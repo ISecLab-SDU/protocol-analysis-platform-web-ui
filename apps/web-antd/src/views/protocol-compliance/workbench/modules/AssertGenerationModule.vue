@@ -5,15 +5,8 @@ import { computed, ref, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
-import {
-  Button,
-  Card,
-  Input,
-  message,
-  Select,
-  Tag,
-  Upload,
-} from 'ant-design-vue';
+import { useElementBounding, useWindowSize } from '@vueuse/core';
+import { Button, Card, message, Tag, Upload } from 'ant-design-vue';
 
 import { downloadProtocolAssertionArtifact } from '#/api/protocol-compliance';
 
@@ -28,10 +21,20 @@ const {
   assertGeneration,
   assertInputs,
   codeLocate,
+  resetAssertGenerationOutput,
   runAssertGeneration,
   stopAssertGeneration,
   useLatestCodeLocateOutput,
 } = useAnalysisModules();
+
+const moduleRef = ref<HTMLElement | null>(null);
+const { height: viewportHeight } = useWindowSize();
+const { top: moduleTop } = useElementBounding(moduleRef, {
+  windowScroll: false,
+});
+const workspaceHeight = computed(
+  () => `${Math.max(480, viewportHeight.value - moduleTop.value - 28)}px`,
+);
 
 const downloading = ref(false);
 async function downloadArtifact(artifact: 'instrumented-code' | 'tasks') {
@@ -137,13 +140,29 @@ async function selectLatestDatabase() {
 </script>
 
 <template>
-  <div class="analysis-module">
+  <div
+    ref="moduleRef"
+    class="analysis-module"
+    :class="{ 'analysis-module--focused': assertGeneration.started }"
+    :style="{ '--module-workspace-height': workspaceHeight }"
+  >
     <header class="module-heading">
       <div>
         <h1>断言生成</h1>
-        <p>使用匹配的源码包和分析 JSON，单独生成断言与插桩产物。</p>
+        <p v-if="!assertGeneration.started">
+          使用匹配的源码包和分析 JSON，单独生成断言与插桩产物。
+        </p>
       </div>
       <div class="module-heading-actions">
+        <Button
+          v-if="
+            assertGeneration.started && assertGeneration.status !== 'running'
+          "
+          size="small"
+          @click="resetAssertGenerationOutput"
+        >
+          返回输入
+        </Button>
         <Button
           v-if="assertGeneration.status === 'running'"
           danger
@@ -173,7 +192,7 @@ async function selectLatestDatabase() {
       </div>
     </header>
 
-    <Card class="module-card" title="输入">
+    <Card v-if="!assertGeneration.started" class="module-card" title="输入">
       <div class="module-input-grid">
         <div class="module-input-field">
           <div class="module-input-label">源码压缩包 *</div>
@@ -247,68 +266,17 @@ async function selectLatestDatabase() {
       </div>
     </Card>
 
-    <Card class="module-card" title="断言插桩运行时">
-      <div class="module-input-grid">
-        <div class="module-input-field">
-          <div class="module-input-label">Agent</div>
-          <Select
-            v-model:value="assertInputs.agent"
-            :disabled="assertGeneration.status === 'running'"
-            :options="[{ label: 'Pi', value: 'pi' }]"
-          />
-        </div>
-        <div class="module-input-field">
-          <div class="module-input-label">提供商 API</div>
-          <Select
-            v-model:value="assertInputs.api"
-            :disabled="assertGeneration.status === 'running'"
-            :options="[
-              { label: '使用服务端配置', value: '' },
-              { label: 'OpenAI Chat Completions', value: 'openai-completions' },
-              { label: 'OpenAI Responses', value: 'openai-responses' },
-              { label: 'Anthropic Messages', value: 'anthropic-messages' },
-            ]"
-          />
-        </div>
-        <div class="module-input-field">
-          <div class="module-input-label">模型</div>
-          <Input
-            v-model:value="assertInputs.model"
-            :disabled="assertGeneration.status === 'running'"
-            placeholder="留空使用服务端模型"
-          />
-        </div>
-        <div class="module-input-field">
-          <div class="module-input-label">API 端点</div>
-          <Input
-            v-model:value="assertInputs.baseUrl"
-            :disabled="assertGeneration.status === 'running'"
-            placeholder="留空使用服务端端点；支持 LLM 缓存地址"
-          />
-        </div>
-        <div class="module-input-field">
-          <div class="module-input-label">API Key</div>
-          <Input.Password
-            v-model:value="assertInputs.apiKey"
-            :disabled="assertGeneration.status === 'running'"
-            placeholder="留空使用服务端凭据"
-            autocomplete="off"
-          />
-        </div>
-      </div>
-      <small class="module-help"
-        >设置仅用于本次断言插桩任务。Claude 模型可通过 Pi 的 Anthropic Messages
-        API 使用。</small
-      >
-    </Card>
-
     <div v-if="assertGeneration.error" class="module-error" role="alert">
       <IconifyIcon icon="mdi:alert-circle-outline" />
       <span>{{ assertGeneration.error }}</span>
     </div>
 
-    <div class="module-actions">
+    <div
+      v-if="!assertGeneration.started || assertGeneration.result"
+      class="module-actions"
+    >
       <Button
+        v-if="!assertGeneration.started"
         type="primary"
         size="large"
         :loading="assertGeneration.status === 'running'"
@@ -343,6 +311,9 @@ async function selectLatestDatabase() {
     </div>
 
     <StageAssertGen
+      v-if="assertGeneration.started"
+      class="module-assert-stage"
+      focused
       :events="assertGeneration.job?.events"
       :log-text="assertGeneration.logText"
       :diff-content="assertGeneration.diffContent"
@@ -357,6 +328,28 @@ async function selectLatestDatabase() {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.analysis-module--focused {
+  min-height: var(--module-workspace-height);
+}
+
+.module-heading,
+.module-card,
+.module-error,
+.module-actions {
+  flex-shrink: 0;
+}
+
+.module-assert-stage {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (min-width: 961px) {
+  .analysis-module--focused {
+    height: var(--module-workspace-height);
+  }
 }
 
 .module-heading {

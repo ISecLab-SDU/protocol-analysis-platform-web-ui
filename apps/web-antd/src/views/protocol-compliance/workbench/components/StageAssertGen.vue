@@ -15,6 +15,7 @@ import StageLiveLogPanel from './StageLiveLogPanel.vue';
 interface Props {
   diffContent: string;
   events?: ProtocolAssertGenerationProgressEvent[];
+  focused?: boolean;
   logText: string;
   result: null | ProtocolAssertGenerationResult;
   running: boolean;
@@ -466,7 +467,11 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
 </script>
 
 <template>
-  <Card class="stage-card assert-stage" :bordered="false">
+  <Card
+    class="stage-card assert-stage"
+    :class="{ 'assert-stage--focused': focused }"
+    :bordered="false"
+  >
     <template #title>
       <div class="stage-title">
         <IconifyIcon icon="mdi:shield-plus-outline" />
@@ -684,6 +689,44 @@ function classifyDiffLine(text: string): RenderedDiffLine['type'] {
   margin: 0;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
+}
+
+@media (min-width: 961px) {
+  .assert-stage--focused {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .assert-stage--focused :deep(.ant-card-head) {
+    flex-shrink: 0;
+  }
+
+  .assert-stage--focused :deep(.ant-card-body),
+  .assert-stage--focused .assert-container {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .assert-stage--focused .assert-observe-grid {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .assert-stage--focused .assert-diff,
+  .assert-stage--focused :deep(.stage-live-log-panel) {
+    min-height: 0;
+  }
+
+  .assert-stage--focused .diff-wrapper,
+  .assert-stage--focused .diff-empty,
+  .assert-stage--focused :deep(.live-log) {
+    flex: 1;
+    min-height: 0;
+    height: auto;
+  }
 }
 
 @media (max-width: 960px) {
