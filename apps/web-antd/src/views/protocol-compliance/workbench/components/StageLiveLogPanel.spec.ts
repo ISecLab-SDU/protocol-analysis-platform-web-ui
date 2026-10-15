@@ -20,6 +20,62 @@ describe('stageLiveLogPanel', () => {
     ...overrides,
   });
 
+  it.each([
+    'rule_config.json',
+    'config.toml',
+    'prompt-preview',
+    'workspace',
+    'new-category',
+  ])('groups consecutive %s output and preserves indentation', (category) => {
+    const contents = ['{', '  "items": [', '    "value"', '  ]', '}'];
+    const wrapper = mount(StageLiveLogPanel, {
+      props: {
+        lines: contents.map((text, index) =>
+          archiveLine(String(index), {
+            text: `[pg-builder][${category}] ${text}`,
+          }),
+        ),
+        progress: { label: 'Agent 构建', description: '正在构建' },
+        running: true,
+      },
+    });
+    expect(wrapper.findAll('.log-line')).toHaveLength(1);
+    expect(wrapper.get('summary').text()).toContain(`${category} · 5 条记录`);
+    const rows = wrapper.findAll('.output-lines > div');
+    for (const [index, content] of contents.entries()) {
+      expect(rows[index]?.element.textContent).toContain(content);
+      expect(rows[index]?.text()).not.toContain('[pg-builder]');
+    }
+  });
+
+  it('separates categories, lifecycle timestamps and repeated previews', () => {
+    const categories = [
+      'rule_config.json',
+      'rule_config.json',
+      'config.toml',
+      'rule_config.json',
+      '2026-10-15T03:00:00Z',
+      'rule_config.json',
+    ];
+    const wrapper = mount(StageLiveLogPanel, {
+      props: {
+        lines: categories.map((category, index) =>
+          archiveLine(String(index), {
+            text: `[pg-builder][${category}] output ${index}`,
+          }),
+        ),
+        progress: { label: 'Agent 构建', description: '正在构建' },
+        running: true,
+      },
+    });
+    expect(wrapper.findAll('.log-line')).toHaveLength(5);
+    expect(wrapper.findAll('details')).toHaveLength(4);
+    expect(wrapper.get('summary').text()).toContain('2 条记录');
+    expect(wrapper.get('.agent-primary').text()).toContain(
+      '2026-10-15T03:00:00Z',
+    );
+  });
+
   it('collapses archive listings and preserves expansion and raw copy during streaming', async () => {
     const first = archiveLine('first');
     const second = archiveLine('second');
@@ -41,7 +97,7 @@ describe('stageLiveLogPanel', () => {
     expect(details.open).toBe(true);
     expect(wrapper.get('summary').text()).toContain('3 条记录');
     expect(wrapper.get('summary').text()).toContain('10:40:15');
-    expect(wrapper.findAll('.archive-files > div')).toHaveLength(3);
+    expect(wrapper.findAll('.output-lines > div')).toHaveLength(3);
     const exposed = wrapper.vm as unknown as { getAllLogText: () => string };
     expect(exposed.getAllLogText().split('\n')).toHaveLength(3);
     for (const line of [first, second, third]) {
@@ -73,9 +129,9 @@ describe('stageLiveLogPanel', () => {
         running: false,
       },
     });
-    expect(wrapper.findAll('.log-line')).toHaveLength(10);
+    expect(wrapper.findAll('.log-line')).toHaveLength(9);
     expect(wrapper.findAll('details')).toHaveLength(5);
-    expect(wrapper.findAll('summary')[0]?.text()).toContain('2 条记录');
+    expect(wrapper.findAll('summary')[0]?.text()).toContain('3 条记录');
     expect(wrapper.get('.agent-line--error').text()).toContain('src/error.c');
     expect(wrapper.get('.agent-line--command').text()).toContain(
       'src/command.c',
@@ -83,7 +139,7 @@ describe('stageLiveLogPanel', () => {
     expect(wrapper.findAll('.log-line')[0]?.text()).toContain('Extracting zip');
   });
 
-  it('does not merge across hidden events or swallow multiline output', () => {
+  it('does not merge across hidden events and preserves multiline output', () => {
     const wrapper = mount(StageLiveLogPanel, {
       props: {
         lines: [
@@ -101,8 +157,11 @@ describe('stageLiveLogPanel', () => {
       },
     });
     expect(wrapper.findAll('details')).toHaveLength(2);
-    expect(wrapper.findAll('.log-line')).toHaveLength(3);
-    expect(wrapper.get('.agent-primary').text()).toContain('warning: failed');
+    expect(wrapper.findAll('.log-line')).toHaveLength(2);
+    expect(wrapper.get('.output-lines').text()).toContain('src/first.c');
+    expect(wrapper.findAll('.output-lines')[1]?.text()).toContain(
+      'warning: failed',
+    );
     const exposed = wrapper.vm as unknown as { getAllLogText: () => string };
     expect(exposed.getAllLogText()).toContain('src/hidden.c');
   });

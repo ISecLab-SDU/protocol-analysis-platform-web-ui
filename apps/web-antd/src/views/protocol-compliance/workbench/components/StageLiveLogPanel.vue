@@ -23,7 +23,8 @@ interface StageLiveLogProgress {
 }
 
 interface DisplayLogLine extends StageLiveLogLine {
-  archiveLines?: StageLiveLogLine[];
+  groupCategory?: string;
+  groupLines?: StageLiveLogLine[];
 }
 
 interface Props {
@@ -47,32 +48,50 @@ const visibleLines = computed(() =>
 
 const displayLines = computed(() => {
   const entries: DisplayLogLine[] = [];
-  let archiveGroup: DisplayLogLine | undefined;
+  let outputGroup: DisplayLogLine | undefined;
   for (const line of props.lines) {
-    const isArchiveFile =
-      !line.metadata?.quiet &&
-      !line.metadata?.is_error &&
-      !line.metadata?.status &&
-      (!line.metadata?.activity || line.metadata.activity === 'status') &&
-      (!line.kind || ['info', 'normal'].includes(line.kind)) &&
-      /^\[pg-builder\]\[archive\] extracted [^\r\n]+$/.test(line.text);
-    if (isArchiveFile) {
+    const category = outputCategory(line);
+    if (category) {
       if (
-        archiveGroup?.stage === line.stage &&
-        archiveGroup?.phase === line.phase
+        outputGroup?.groupCategory === category &&
+        outputGroup.stage === line.stage &&
+        outputGroup?.phase === line.phase
       ) {
-        archiveGroup.archiveLines?.push(line);
+        outputGroup.groupLines?.push(line);
       } else {
-        archiveGroup = { ...line, archiveLines: [line] };
-        entries.push(archiveGroup);
+        outputGroup = { ...line, groupCategory: category, groupLines: [line] };
+        entries.push(outputGroup);
       }
     } else {
-      archiveGroup = undefined;
+      outputGroup = undefined;
       if (!line.metadata?.quiet) entries.push(line);
     }
   }
   return entries;
 });
+
+// Builder file previews, inventories and other tagged output share the same
+// envelope. Group by its category, never by timestamp or arbitrary text similarity.
+function outputCategory(line: StageLiveLogLine) {
+  if (
+    line.metadata?.quiet ||
+    line.metadata?.is_error ||
+    line.metadata?.status ||
+    (line.metadata?.activity && line.metadata.activity !== 'status') ||
+    (line.kind && !['info', 'normal'].includes(line.kind))
+  )
+    return undefined;
+  const category = /^\[pg-builder\]\[([^\]\r\n]+)\](?: |$)/.exec(
+    line.text,
+  )?.[1];
+  // The builder's ordinary lifecycle logger puts an ISO timestamp in this slot.
+  if (!category || /^\d{4}-\d{2}-\d{2}T/.test(category)) return undefined;
+  return category;
+}
+
+function outputText(line: StageLiveLogLine) {
+  return displayText(line.text.replace(/^\[pg-builder\]\[[^\]\r\n]+\] ?/, ''));
+}
 
 defineExpose({
   getAllLogText,
@@ -235,30 +254,35 @@ function formatCount(value: number) {
         class="log-line"
         :class="[
           line.kind ? `log-line--${line.kind}` : undefined,
-          line.archiveLines
-            ? 'archive-line'
+          line.groupLines
+            ? 'output-line'
             : isAgentLine(line)
               ? `agent-line agent-line--${agentLineKind(line)}`
               : undefined,
         ]"
       >
-        <details v-if="line.archiveLines" class="archive-group">
+        <details v-if="line.groupLines" class="output-group">
           <summary>
             <span class="log-chip log-chip--phase">{{
               displayText(line.phase)
             }}</span>
             <strong
-              >源码解压文件清单 · {{ line.archiveLines.length }} 条记录</strong
+              >{{ line.groupCategory }} ·
+              {{ line.groupLines.length }} 条记录</strong
             >
             <time>{{ line.time || '--:--:--' }}</time>
-            <time v-if="line.archiveLines.at(-1)?.time !== line.time"
-              >– {{ line.archiveLines.at(-1)?.time || '--:--:--' }}</time
+            <time v-if="line.groupLines.at(-1)?.time !== line.time"
+              >– {{ line.groupLines.at(-1)?.time || '--:--:--' }}</time
             >
           </summary>
-          <div class="archive-files" tabindex="0" aria-label="源码解压文件清单">
-            <div v-for="entry in line.archiveLines" :key="entry.id">
+          <div
+            class="output-lines"
+            tabindex="0"
+            :aria-label="`${line.groupCategory} 输出`"
+          >
+            <div v-for="entry in line.groupLines" :key="entry.id">
               <time>{{ entry.time || '--:--:--' }}</time>
-              {{ displayText(entry.text) }}
+              {{ outputText(entry) }}
             </div>
           </div>
         </details>
@@ -431,32 +455,33 @@ function formatCount(value: number) {
   border-bottom: 1px solid #e8edf3;
 }
 
-.archive-line {
+.output-line {
   display: block;
   min-height: 30px;
   padding: 6px 14px;
 }
 
-.archive-group summary {
+.output-group summary {
   cursor: pointer;
 }
 
-.archive-group summary strong {
+.output-group summary strong {
   margin: 0 8px;
   font-size: 14px;
 }
 
-.archive-group time {
+.output-group time {
   font-size: 12px;
   color: #778399;
 }
 
-.archive-files {
+.output-lines {
   max-height: 240px;
   padding: 8px;
   margin-top: 6px;
   overflow: auto;
   font-size: 13px;
+  white-space: pre-wrap;
   background: #f5f7fa;
   border-radius: 4px;
 }
