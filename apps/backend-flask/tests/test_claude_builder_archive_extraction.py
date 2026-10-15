@@ -69,3 +69,9 @@ def test_claude_builder_rejects_unsafe_zip_members(tmp_path: Path) -> None:
     assert result.returncode != 0
     assert "unsafe zip member path" in result.stderr
     assert not (tmp_path / "escape.txt").exists()
+
+
+def test_builder_main_writes_prompt_before_starting_pi(tmp_path):
+    result = subprocess.run(["bash", "-c", 'source "$1"; WORKSPACE_DIR="$2"; log() { :; }; run_pi() { test -s "$WORKSPACE_DIR/claude_builder_prompt.md"; }; fallback_validation() { :; }; main', "bash", str(BUILDER_SCRIPT), str(tmp_path)], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert "Work autonomously" in (tmp_path / "claude_builder_prompt.md").read_text()

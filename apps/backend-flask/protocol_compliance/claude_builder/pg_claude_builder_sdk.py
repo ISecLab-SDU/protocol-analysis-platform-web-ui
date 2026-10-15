@@ -85,8 +85,7 @@ def main() -> int:
             {
                 "type": "error",
                 "stage": "claude-status",
-                "message": redact(str(exc)),
-                "traceback": redact(traceback.format_exc()),
+                "message": redact(traceback.format_exc()),
             }
         )
         return 1

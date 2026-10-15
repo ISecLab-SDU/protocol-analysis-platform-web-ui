@@ -78,13 +78,13 @@ Recommended procedure:
 
 Do not fabricate placeholder bitcode. If a required artefact cannot be produced, leave the full attempted command output in `/workspace/build_log.txt` and exit non-zero.
 EOF
-  log "Claude builder prompt written to $WORKSPACE_DIR/claude_builder_prompt.md"
-  log "Claude builder prompt sha256: $(sha256sum "$WORKSPACE_DIR/claude_builder_prompt.md" | awk '{print $1}')"
+  log "Pi builder prompt written to $WORKSPACE_DIR/claude_builder_prompt.md"
+  log "Pi builder prompt sha256: $(sha256sum "$WORKSPACE_DIR/claude_builder_prompt.md" | awk '{print $1}')"
   log_file_preview "$WORKSPACE_DIR/claude_builder_prompt.md" "prompt-preview" 80
 }
 
 log_workspace_inputs() {
-  log_section "workspace inputs before Claude Code"
+  log_section "workspace inputs before Pi"
   log "Working directory: $(pwd)"
   log "Mounted workspace inventory"
   find "$WORKSPACE_DIR" -maxdepth 3 -mindepth 1 -printf '[pg-builder][workspace] %y %p\n' | sort
@@ -194,7 +194,7 @@ else:
 PY
 }
 
-run_claude() {
+run_pi() {
   log_workspace_inputs
   extract_source_archives
   log "Checking Pi runtime"
@@ -207,7 +207,7 @@ run_claude() {
     2>&1 | tee "$WORKSPACE_DIR/claude_builder.log"
   local claude_status="${PIPESTATUS[0]}"
   set -e
-  log "Claude builder agent exited with status ${claude_status}"
+  log "Pi builder agent exited with status ${claude_status}"
   if [[ -f "$WORKSPACE_DIR/claude_builder_events.jsonl" ]]; then
     log "Pi audit stream persisted at $WORKSPACE_DIR/claude_builder_events.jsonl ($(wc -l < "$WORKSPACE_DIR/claude_builder_events.jsonl") events, $(wc -c < "$WORKSPACE_DIR/claude_builder_events.jsonl") bytes)"
   else
@@ -217,7 +217,7 @@ run_claude() {
 }
 
 fallback_validation() {
-  log_section "post-Claude artifact validation"
+  log_section "post-Pi artifact validation"
   mkdir -p "$WORKSPACE_DIR/inputs"
   if [[ -f "$WORKSPACE_DIR/rule_config.json" ]]; then
     cp "$WORKSPACE_DIR/rule_config.json" "$WORKSPACE_DIR/inputs/rules.json"
@@ -252,10 +252,11 @@ fallback_validation() {
 }
 
 main() {
-  log "ProtocolGuard Claude builder started"
-  run_claude
+  log "ProtocolGuard Pi builder started"
+  write_prompt
+  run_pi
   fallback_validation
-  log "ProtocolGuard Claude builder completed"
+  log "ProtocolGuard Pi builder completed"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

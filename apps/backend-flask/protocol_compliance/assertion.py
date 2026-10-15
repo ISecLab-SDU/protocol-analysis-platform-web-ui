@@ -384,29 +384,16 @@ def _assert_required_instrumentation_env(runtime_env: Optional[Dict[str, str]] =
     This check protects the instrumentation step. We do not eagerly exit the
     whole service on import; instead, fail fast when instrumentation runs.
     """
-    env = os.environ if runtime_env is None else runtime_env
-    agent = env.get("PG_ASSERT_AGENT", "claude")
-    if agent == "pi":
-        api = env.get("PG_PI_API", "openai-completions")
-        if api not in {"openai-completions", "openai-responses", "anthropic-messages"}:
-            raise AssertGenerationNotReadyError("Unsupported PG_PI_API")
-        prefix = "ANTHROPIC" if api == "anthropic-messages" else "OPENAI"
-        key = env.get("PG_PI_API_KEY") or env.get(f"{prefix}_API_KEY")
-        url = env.get("PG_PI_BASE_URL") or env.get(f"{prefix}_BASE_URL")
-        if not key or not url or not env.get("PG_PI_MODEL"):
-            raise AssertGenerationNotReadyError("Pi instrumentation requires PG_PI_MODEL and provider key/base URL")
-        return
-    if agent != "claude":
-        raise AssertGenerationNotReadyError("Unsupported PG_ASSERT_AGENT")
-
-    has_openai = env.get("OPENAI_API_KEY") and env.get("OPENAI_BASE_URL")
-    has_anthropic = env.get("ANTHROPIC_API_KEY") and env.get("ANTHROPIC_BASE_URL")
-
-    if not has_openai and not has_anthropic:
-        raise AssertGenerationNotReadyError(
-            "Missing required environment variables for instrumentation. "
-            "Please set either OPENAI_API_KEY + OPENAI_BASE_URL or ANTHROPIC_API_KEY + ANTHROPIC_BASE_URL."
-        )
+    try:
+        env = resolve_assertion_runtime() if runtime_env is None else runtime_env
+    except ValueError as exc:
+        raise AssertGenerationNotReadyError(str(exc)) from exc
+    if env.get("PG_ASSERT_AGENT", "pi") != "pi":
+        raise AssertGenerationNotReadyError("Pi is the only agent runtime; use anthropic-messages for Claude models")
+    if env.get("PG_PI_API", "openai-completions") not in {"openai-completions", "openai-responses", "anthropic-messages"}:
+        raise AssertGenerationNotReadyError("Unsupported PG_PI_API")
+    if not all(env.get(key) for key in ("PG_PI_MODEL", "PG_PI_API_KEY", "PG_PI_BASE_URL")):
+        raise AssertGenerationNotReadyError("Pi instrumentation requires PG_PI_MODEL and provider key/base URL")
 
 
 def _container_host_identity_env() -> Dict[str, str]:
@@ -685,10 +672,7 @@ def _run_instrumentation_container(
                 LOGGER.debug("Progress callback failed during instrumentation for job %s", job_id, exc_info=True)
 
     # Build environment forwarded to the container
-    env = {name: os.environ.get(name, "") for name in REQUIRED_INSTRUMENTATION_ENVS}
-    env.update({name: os.environ[name] for name in (*PI_INSTRUMENTATION_ENVS, "PG_CLAUDE_MODEL", "ANTHROPIC_MODEL") if name in os.environ})
-    if runtime_env is not None:
-        env = dict(runtime_env)
+    env = dict(runtime_env) if runtime_env is not None else resolve_assertion_runtime()
     env.update(_container_host_identity_env())
 
     # Prefer Docker SDK; fall back to CLI if unavailable
