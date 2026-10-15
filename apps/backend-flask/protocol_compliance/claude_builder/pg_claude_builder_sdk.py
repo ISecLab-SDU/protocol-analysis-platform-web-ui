@@ -73,7 +73,7 @@ def _emit_progress_event(event: dict[str, Any]) -> bool:
 
 def _run() -> int:
     # Preserve the former builder budget; other workflows have larger defaults.
-    os.environ.setdefault("PG_PI_MAX_TURNS", os.environ.get("PG_CLAUDE_MAX_TURNS", "40"))
+    os.environ.setdefault("PG_PI_MAX_TURNS", "40")
     return run_pi_task(cwd=str(WORKSPACE), prompt=PROMPT_PATH.read_text(encoding="utf-8"),
         workflow="builder", emit=_emit_progress_event,
         audit_path=EVENTS_PATH.with_suffix(".raw.jsonl"))

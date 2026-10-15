@@ -16,7 +16,8 @@ from protocol_compliance.assertion_runtime import resolve_assertion_runtime  # n
 
 
 @pytest.fixture
-def provider(monkeypatch):
+def provider(monkeypatch, provider_config_file):
+    provider_config_file({"model": "server-model", "base_url": "http://cache.test/v1"})
     for name in list(assertion.os.environ):
         if (
             name.startswith(("PG_PI_", "ANTHROPIC_", "OPENAI_"))
@@ -32,23 +33,23 @@ def provider(monkeypatch):
 def test_runtime_is_request_local_and_uses_provider_defaults(provider):
     before = dict(assertion.os.environ)
     pi = resolve_assertion_runtime({"agent": "pi", "model": "test-model"})
-    claude = resolve_assertion_runtime({"agent": "pi", "api": "anthropic-messages", "model": "claude-test"})
+    claude = resolve_assertion_runtime({"agent": "pi", "api": "anthropic-messages", "model": "claude-test", "baseUrl": "http://anthropic.test"})
     assert pi["PG_PI_API_KEY"] == "server-key"
     assert pi["PG_PI_BASE_URL"] == "http://cache.test/v1"
     assert claude["PG_ASSERT_AGENT"] == "pi"
     assert claude["PG_PI_MODEL"] == "claude-test"
     assert dict(assertion.os.environ) == before
     anthropic = resolve_assertion_runtime(
-        {"agent": "pi", "api": "anthropic-messages", "model": "claude-test"}
+        {"agent": "pi", "api": "anthropic-messages", "model": "claude-test", "baseUrl": "http://anthropic.test"}
     )
     assert anthropic["PG_PI_API_KEY"] == "claude-key"
 
 
-def test_blank_pi_server_settings_use_normal_provider_defaults(provider, monkeypatch):
+def test_legacy_pi_settings_do_not_override_config(provider, monkeypatch):
     monkeypatch.setenv("PG_PI_API_KEY", "")
-    monkeypatch.setenv("PG_PI_BASE_URL", "")
-    monkeypatch.setenv("PG_PI_MODEL", "")
-    monkeypatch.setenv("PG_LLM_MODEL_V3", "server-model")
+    monkeypatch.setenv("PG_PI_BASE_URL", "http://obsolete.test")
+    monkeypatch.setenv("PG_PI_MODEL", "deepseek-v3")
+    monkeypatch.setenv("PG_LLM_MODEL_V3", "deepseek-v3")
     env = resolve_assertion_runtime({"agent": "pi"})
     assert env["PG_PI_API_KEY"] == "server-key"
     assert env["PG_PI_BASE_URL"] == "http://cache.test/v1"
@@ -61,8 +62,10 @@ def test_blank_pi_server_settings_use_normal_provider_defaults(provider, monkeyp
         [],
         {"agent": "bad"},
         {"agent": "claude", "model": "claude-model"},
-        {"agent": "pi"},
+        {"api": "anthropic-messages", "model": "claude-test"},
         {"api": "bad"},
+        {"api": False},
+        {"api": []},
         {"baseUrl": "file:///tmp/x"},
         {"baseUrl": "https://key@host"},
         {"maxTurns": -1},

@@ -66,7 +66,8 @@ const codeLocate = reactive({
 
 const assertInputs = reactive({
   agent: 'pi' as const,
-  api: 'openai-completions' as
+  api: '' as
+    | ''
     | 'anthropic-messages'
     | 'openai-completions'
     | 'openai-responses',
@@ -678,7 +679,7 @@ async function runAssertGeneration() {
     } = {
       runtime: {
         agent: assertInputs.agent,
-        api: assertInputs.api,
+        ...(assertInputs.api ? { api: assertInputs.api } : {}),
         model: assertInputs.model.trim(),
         baseUrl: assertInputs.baseUrl.trim(),
         apiKey: assertInputs.apiKey.trim(),

@@ -54,7 +54,9 @@ from protocol_compliance.claude_builder.pg_claude_builder_sdk import (  # noqa: 
 def test_claude_builder_runner_settings_enable_from_anthropic_env(
     monkeypatch: Any,
     tmp_path: Path,
+    provider_config_file,
 ) -> None:
+    provider_config_file({"api": "anthropic-messages", "model": "claude-test", "base_url": "https://example.invalid"})
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-anthropic-key")
     monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://example.invalid")
@@ -67,8 +69,8 @@ def test_claude_builder_runner_settings_enable_from_anthropic_env(
     assert settings.api_key == "test-anthropic-key"
     assert settings.base_url == "https://example.invalid"
     assert settings.builder_image == "protocolguard-claude-builder:test"
-    assert "ANTHROPIC_API_KEY" in settings.env_passthrough
-    assert "ANTHROPIC_BASE_URL" in settings.env_passthrough
+    assert settings.runtime_env["PG_PI_API"] == "anthropic-messages"
+    assert settings.runtime_env["PG_PI_MODEL"] == "claude-test"
 
 
 def test_claude_builder_runner_forwards_anthropic_env_without_openai_fallback(
@@ -753,18 +755,19 @@ def test_builder_archives_the_same_normalized_progress_it_transports(monkeypatch
 
 
 @pytest.mark.parametrize("model_env", ["ANTHROPIC_MODEL", "PG_CLAUDE_MODEL", "PG_AGENT_MODEL", "PG_LLM_MODEL_V3"])
-def test_pi_builder_preserves_configured_model_alias(monkeypatch, model_env):
+def test_pi_builder_uses_config_instead_of_legacy_model_alias(monkeypatch, model_env, provider_config_file):
+    provider_config_file({"api": "anthropic-messages", "model": "configured-model"})
     for name in ("PG_PI_MODEL", "PG_AGENT_MODEL", "PG_CLAUDE_MODEL", "ANTHROPIC_MODEL", "PG_LLM_MODEL_V3", "OPENAI_BASE_URL"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "claude-key")
     monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://anthropic.example")
     monkeypatch.setenv(model_env, "claude-configured")
     settings = ClaudeBuilderRunnerSettings.from_env()
-    assert settings.model == "claude-configured"
-    assert "PG_PI_MODEL=claude-configured" in ClaudeBuilderRunner(settings)._docker_env_args()
+    assert settings.model == "configured-model"
+    assert "PG_PI_MODEL=configured-model" in ClaudeBuilderRunner(settings)._docker_env_args()
 
 
-@pytest.mark.parametrize("env,expected", [({}, "40"), ({"PG_CLAUDE_MAX_TURNS": "7"}, "7"), ({"PG_PI_MAX_TURNS": "9", "PG_CLAUDE_MAX_TURNS": "7"}, "9")])
+@pytest.mark.parametrize("env,expected", [({}, "40"), ({"PG_CLAUDE_MAX_TURNS": "7"}, "40"), ({"PG_PI_MAX_TURNS": "9", "PG_CLAUDE_MAX_TURNS": "7"}, "9")])
 def test_pi_builder_preserves_original_turn_budget(monkeypatch, tmp_path, env, expected):
     from protocol_compliance.claude_builder import pg_claude_builder_sdk as runner
     prompt = tmp_path / "prompt.md"

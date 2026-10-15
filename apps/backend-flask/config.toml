@@ -8,3 +8,24 @@ model1 = "deepseek-chat"
 model2 = "deepseek-reasoner"
 max_workers = 12
 temperature = 0.1
+
+# Shared defaults for the builder, assertion instrumentation and fuzz agents.
+# UI runtime fields override these per job. Keep credentials in the environment.
+[protocolguard.provider]
+api = "openai-completions"
+base_url = "https://api.deepseek.com/v1"
+model = "deepseek-flash"
+context_window = 128000
+max_tokens = 8192
+timeout_seconds = 1800
+# max_turns = 40  # Omit to use workflow budgets: builder 40, assertion/fuzz 8000.
+
+# Native static analysis uses OpenAI Chat Completions independently of agents.
+[protocolguard.analysis]
+base_url = "https://api.deepseek.com/v1"
+model = "deepseek-flash"
+reasoning_model = "deepseek-flash"
+query_repeat = 1
+max_attempts = 10
+violation_repeat = 3
+max_threads = 32

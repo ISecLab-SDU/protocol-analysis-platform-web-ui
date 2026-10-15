@@ -55,3 +55,11 @@ Poll the returned `jobId` through `/api/protocol-compliance/fuzzing/jobs/<jobId>
 - `rules` — 协议规则提取结果（JSON），容器内映射到 `/workspace/inputs/rules.json`。
 - `config` — ProtocolGuard 主容器的配置（TOML），系统会重写关键路径后挂载到 `/config/config.toml`。
 - `notes`（可选）— 前端描述性备注，直接存入分析记录。
+
+Provider, model and runtime defaults are configured in `[protocolguard.provider]`
+in this directory's `config.toml`; native analysis defaults are in
+`[protocolguard.analysis]`. Set `PG_CONFIG_FILE` to use a separate deployment
+config file. Keep API keys in `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` /
+`ANTHROPIC_AUTH_TOKEN`, or `PG_PI_API_KEY`. Assertion UI settings override the
+provider defaults per job. See [Pi configuration and migration](../../docs/pi-platform-integration.md)
+for the retired environment aliases and their replacements.

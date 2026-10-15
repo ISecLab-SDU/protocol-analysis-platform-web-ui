@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
+from protocol_compliance.provider_config import analysis_llm_config
+
 __all__ = [
     "ArtifactLayout",
     "DEFAULT_CONFIG_PACKET_TYPES",
@@ -227,6 +229,8 @@ class ProtocolGuardDockerSettings:
     llm_query_max_attempts: int
     llm_violation_repeat_times: int
     debug_code_slice_mode: int
+    llm_api_platform: str = "https://api.deepseek.com/v1/chat/completions"
+    llm_max_threads: int = 32
 
     @classmethod
     def from_env(cls) -> "ProtocolGuardDockerSettings":
@@ -273,11 +277,12 @@ class ProtocolGuardDockerSettings:
         default_protocol_name = os.environ.get("PG_PROTOCOL_NAME", "MQTT")
         default_protocol_version = os.environ.get("PG_PROTOCOL_VERSION", "5")
 
-        llm_model_r1 = os.environ.get("PG_LLM_MODEL_R1", "deepseek-ai/DeepSeek-R1-0528")
-        llm_model_v3 = os.environ.get("PG_LLM_MODEL_V3", "deepseek-ai/DeepSeek-V3-0324")
-        llm_query_repeat = _env_int("PG_LLM_QUERY_REPEAT", 1) or 1
-        llm_query_max_attempts = _env_int("PG_LLM_QUERY_MAX_ATTEMPTS", 10) or 10
-        llm_violation_repeat_times = _env_int("PG_LLM_VIOLATION_REPEAT", 3) or 3
+        llm = analysis_llm_config()
+        llm_model_r1 = llm["llm_model_deepseek_r1"]
+        llm_model_v3 = llm["llm_model_deepseek_v3"]
+        llm_query_repeat = llm["llm_query_repeat_times"]
+        llm_query_max_attempts = llm["llm_query_max_attempts"]
+        llm_violation_repeat_times = llm["llm_violation_repeat_times"]
         debug_code_slice_mode = _env_int("PG_DEBUG_CODE_SLICE_MODE", 0) or 0
 
         return cls(
@@ -304,6 +309,8 @@ class ProtocolGuardDockerSettings:
             project_name=project_name,
             default_protocol_name=default_protocol_name,
             default_protocol_version=default_protocol_version,
+            llm_api_platform=llm["llm_api_platform"],
+            llm_max_threads=llm["llm_multithread"],
             llm_model_r1=llm_model_r1,
             llm_model_v3=llm_model_v3,
             llm_query_repeat=llm_query_repeat,

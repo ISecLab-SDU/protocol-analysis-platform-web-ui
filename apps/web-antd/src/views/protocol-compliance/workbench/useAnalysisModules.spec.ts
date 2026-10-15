@@ -80,7 +80,7 @@ beforeEach(() => {
   });
   Object.assign(modules.assertInputs, {
     agent: 'pi',
-    api: 'openai-completions',
+    api: '',
     apiKey: '',
     baseUrl: '',
     model: '',
@@ -294,7 +294,6 @@ describe('independent protocol analysis modules', () => {
     expect(api.runProtocolAssertGeneration).toHaveBeenCalledWith({
       runtime: {
         agent: 'pi',
-        api: 'openai-completions',
         apiKey: '',
         baseUrl: '',
         model: '',
@@ -397,7 +396,6 @@ describe('independent protocol analysis modules', () => {
     expect(api.runProtocolAssertGeneration).toHaveBeenCalledWith({
       runtime: {
         agent: 'pi',
-        api: 'openai-completions',
         apiKey: '',
         baseUrl: '',
         model: '',

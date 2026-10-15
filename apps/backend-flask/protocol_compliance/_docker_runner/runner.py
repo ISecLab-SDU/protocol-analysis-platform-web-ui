@@ -1104,13 +1104,13 @@ class ProtocolGuardDockerRunner:
                 "path": str(database_path.resolve()),
             },
             "llm": {
-                "llm_api_platform": os.environ.get("PG_LLM_API_BASE", "https://example.com/v1/chat/completions"),
+                "llm_api_platform": self._settings.llm_api_platform,
                 "llm_model_deepseek_v3": self._settings.llm_model_v3,
                 "llm_model_deepseek_r1": self._settings.llm_model_r1,
                 "llm_query_repeat_times": self._settings.llm_query_repeat,
                 "llm_query_max_attempts": self._settings.llm_query_max_attempts,
                 "llm_violation_repeat_times": self._settings.llm_violation_repeat_times,
-                "llm_multithread": _env_int("PG_LLM_MAX_THREADS", 32) or 32,
+                "llm_multithread": self._settings.llm_max_threads,
             },
             "project": {
                 "project_path": str(workspace.resolve()),

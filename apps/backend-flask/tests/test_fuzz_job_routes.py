@@ -292,6 +292,7 @@ def test_start_fuzz_job_requires_completed_fuzz_config(monkeypatch, tmp_path: Pa
 def test_fuzz_config_job_streams_agent_logs_and_artifacts(
     monkeypatch,
     tmp_path: Path,
+    provider_config_file,
 ) -> None:
     app = Flask(__name__)
     app.register_blueprint(routes.bp)
@@ -301,6 +302,7 @@ def test_fuzz_config_job_streams_agent_logs_and_artifacts(
 
     runtime_root = tmp_path / "protocolguard"
     monkeypatch.setenv("PG_RUNTIME_ROOT", str(runtime_root))
+    provider_config_file({"api": "anthropic-messages", "model": "claude-test", "base_url": "http://127.0.0.1:4000"})
     monkeypatch.setenv("ANTHROPIC_API_KEY", "secret-fuzz-config-key")
     monkeypatch.setenv("ANTHROPIC_BASE_URL", "http://127.0.0.1:4000")
     fuzz_config_routes.FUZZ_CONFIG_JOBS._jobs.clear()
@@ -329,6 +331,7 @@ def test_fuzz_config_job_streams_agent_logs_and_artifacts(
 
     class FakeProcess:
         def __init__(self, command, **_kwargs):
+            assert _kwargs["env"]["PG_PI_API_KEY"] == "secret-fuzz-config-key"
             self.command = command
             commands.append(command)
             self.pid = 1234
@@ -402,14 +405,13 @@ def test_fuzz_config_job_streams_agent_logs_and_artifacts(
     command = commands[0]
     launched = " ".join(command)
     assert "--network=host" in command
-    assert ["-e", "ANTHROPIC_API_KEY"] == command[
-        command.index("ANTHROPIC_API_KEY") - 1 : command.index("ANTHROPIC_API_KEY") + 1
+    assert ["-e", "PG_PI_API_KEY"] == command[
+        command.index("PG_PI_API_KEY") - 1 : command.index("PG_PI_API_KEY") + 1
     ]
-    assert ["-e", "ANTHROPIC_BASE_URL"] == command[
-        command.index("ANTHROPIC_BASE_URL") - 1 : command.index("ANTHROPIC_BASE_URL") + 1
-    ]
+    assert "PG_PI_BASE_URL=http://127.0.0.1:4000" in command
+    assert "secret-fuzz-config-key" not in json.dumps(payload)
     assert "secret-fuzz-config-key" not in launched
-    assert "http://127.0.0.1:4000" not in launched
+    assert "secret-fuzz-config-key" not in launched
     assert "PG_FUZZ_TARGET_ARGS=--port 2883" in launched
     assert "PG_FUZZ_TRANSPORT=tcp" in launched
     assert "PG_FUZZ_HOST=127.0.0.1" in launched

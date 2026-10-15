@@ -166,7 +166,8 @@ def test_pi_instrumentation_environment(monkeypatch):
 
 
 @pytest.mark.parametrize('api,prefix', [('anthropic-messages', 'ANTHROPIC'), ('openai-responses', 'OPENAI')])
-def test_pi_environment_uses_selected_api(monkeypatch, api, prefix):
+def test_pi_environment_uses_selected_api(monkeypatch, api, prefix, provider_config_file):
+    provider_config_file({"api": api, "model": "test", "base_url": "http://cache.test"})
     monkeypatch.setenv('PG_ASSERT_AGENT', 'pi')
     monkeypatch.setenv('PG_PI_MODEL', 'test')
     monkeypatch.setenv('PG_PI_API', api)

@@ -18,6 +18,7 @@ from typing import Any, BinaryIO, Callable, Dict, List, Optional, Sequence, Tupl
 from pg_agent_progress.events import is_agent_event
 from pg_agent_progress.legacy import decode_progress_event, decode_progress_line
 
+from protocol_compliance.provider_config import agent_environment, analysis_llm_config
 from protocol_compliance.job_logging import JobStageLogger
 
 logger = logging.getLogger(__name__)
@@ -53,16 +54,15 @@ class ClaudeBuilderRunnerSettings:
     max_runtime: int
     env_passthrough: tuple
     builder_image: str
+    runtime_env: Optional[Dict[str, str]] = None
 
     @classmethod
     def from_env(cls) -> "ClaudeBuilderRunnerSettings":
-        prefix = "ANTHROPIC" if os.environ.get("PG_PI_API", "openai-completions" if os.environ.get("OPENAI_BASE_URL") else "anthropic-messages" if os.environ.get("ANTHROPIC_BASE_URL") else "openai-completions") == "anthropic-messages" else "OPENAI"
-        api_key = os.environ.get("PG_PI_API_KEY") or os.environ.get(f"{prefix}_API_KEY") or (os.environ.get("ANTHROPIC_AUTH_TOKEN", "") if prefix == "ANTHROPIC" else "")
+        runtime_env = agent_environment()
+        api_key = runtime_env["PG_PI_API_KEY"]
         enabled = bool(api_key) or bool(os.environ.get("PG_CLAUDE_BUILDER_IMAGE"))
-        base_url = os.environ.get("PG_PI_BASE_URL") or os.environ.get(f"{prefix}_BASE_URL") or ""
-        model = (os.environ.get("PG_PI_MODEL") or os.environ.get("PG_AGENT_MODEL")
-                 or os.environ.get("PG_CLAUDE_MODEL") or os.environ.get("ANTHROPIC_MODEL")
-                 or os.environ.get("PG_LLM_MODEL_V3") or "deepseek-v3")
+        base_url = runtime_env["PG_PI_BASE_URL"]
+        model = runtime_env["PG_PI_MODEL"]
 
         runtime_root = Path(os.environ.get("PG_RUNTIME_ROOT", tempfile.gettempdir() + "/protocolguard"))
         workspace_root = Path(os.environ.get("PG_WORKSPACE_ROOT", runtime_root / "workspaces"))
@@ -71,7 +71,7 @@ class ClaudeBuilderRunnerSettings:
 
         env_passthrough_str = os.environ.get(
             "PG_ENV_VARS",
-            "OPENAI_API_KEY,OPENAI_BASE_URL,ANTHROPIC_API_KEY,ANTHROPIC_AUTH_TOKEN,ANTHROPIC_BASE_URL",
+            "OPENAI_API_KEY",
         )
         env_passthrough = tuple(item.strip() for item in env_passthrough_str.split(",") if item.strip())
         builder_image = os.environ.get("PG_CLAUDE_BUILDER_IMAGE") or os.environ.get(
@@ -88,6 +88,7 @@ class ClaudeBuilderRunnerSettings:
             max_runtime=max_runtime,
             env_passthrough=env_passthrough,
             builder_image=builder_image,
+            runtime_env=runtime_env,
         )
 
 
@@ -281,16 +282,24 @@ class ClaudeBuilderRunner:
         env["PG_HOST_GID"] = str(os.getgid())
         return env
 
+    def _runtime_environment(self) -> Dict[str, str]:
+        if self.settings.runtime_env is not None:
+            return self.settings.runtime_env
+        return {
+            **agent_environment(),
+            "PG_PI_MODEL": self.settings.model,
+            "PG_PI_API_KEY": self.settings.api_key,
+            "PG_PI_BASE_URL": self.settings.base_url,
+        }
+
     def _docker_env_args(self) -> List[str]:
         args: List[str] = []
         for name in self.settings.env_passthrough:
             if os.environ.get(name) is not None:
                 args.extend(["-e", name])
-        for name in sorted(os.environ):
-            if name.startswith("PG_PI_") and name not in self.settings.env_passthrough:
-                args.extend(["-e", name])
-        if not os.environ.get("PG_PI_MODEL"):
-            args.extend(["-e", f"PG_PI_MODEL={self.settings.model}"])
+        for name, value in self._runtime_environment().items():
+            if value:
+                args.extend(["-e", name if name == "PG_PI_API_KEY" else f"{name}={value}"])
         args.extend(["-e", f"PG_HOST_UID={os.getuid()}"])
         args.extend(["-e", f"PG_HOST_GID={os.getgid()}"])
         args.extend(["-e", "IS_SANDBOX=1"])
@@ -340,6 +349,7 @@ class ClaudeBuilderRunner:
                 stderr=subprocess.STDOUT,
                 text=True,
                 cwd=str(cwd),
+                env={**os.environ, **self._runtime_environment()},
             )
         except OSError as exc:
             raise ClaudeBuilderRunnerExecutionError(f"Failed to start command: {exc}") from exc
@@ -779,18 +789,7 @@ class ClaudeBuilderRunner:
         config = {
             "wpa": {"path": "/workspace/ffp.txt"},
             "database": {"path": "/workspace/database"},
-            "llm": {
-                "llm_api_platform": os.environ.get(
-                    "PG_LLM_API_BASE",
-                    "http://10.102.32.6:47860/v1/chat/completions",
-                ),
-                "llm_model_deepseek_v3": os.environ.get("PG_LLM_MODEL_V3", "deepseek-v3"),
-                "llm_model_deepseek_r1": os.environ.get("PG_LLM_MODEL_R1", "deepseek-r1"),
-                "llm_query_repeat_times": 1,
-                "llm_query_max_attempts": 10,
-                "llm_violation_repeat_times": 3,
-                "llm_multithread": 32,
-            },
+            "llm": analysis_llm_config(),
             "project": {
                 "project_path": "/workspace/project",
                 "packet_related_callgraph_path": "/workspace/callgraph_report.txt",
@@ -954,15 +953,7 @@ class ClaudeBuilderRunner:
             "database": {
                 "path": "/workspace/database",
             },
-            "llm": {
-                "llm_api_platform": os.environ.get("PG_LLM_API_BASE", "http://10.102.32.6:47860/v1/chat/completions"),
-                "llm_model_deepseek_v3": os.environ.get("PG_LLM_MODEL_V3", "deepseek-v3"),
-                "llm_model_deepseek_r1": os.environ.get("PG_LLM_MODEL_R1", "deepseek-r1"),
-                "llm_query_repeat_times": 1,
-                "llm_query_max_attempts": 10,
-                "llm_violation_repeat_times": 3,
-                "llm_multithread": 32,
-            },
+            "llm": analysis_llm_config(),
             "project": {
                 "project_path": self._container_path(workspace_dir, project_root),
                 "packet_related_callgraph_path": "/workspace/callgraph_report.txt",
@@ -1159,7 +1150,8 @@ class ClaudeBuilderRunner:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
-                cwd=str(workspace_dir)
+                cwd=str(workspace_dir),
+                env={**os.environ, **self._runtime_environment()},
             )
             if process.stdout is None:
                 raise ClaudeBuilderRunnerExecutionError("Analysis container did not expose stdout")

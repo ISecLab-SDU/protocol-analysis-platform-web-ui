@@ -15,7 +15,23 @@ The multipart `POST /api/protocol-compliance/assertion-generation` accepts an op
 }
 ```
 
-An API key may be supplied in `apiKey`; otherwise existing server credentials are used. Optional positive integers are `contextWindow`, `maxTokens`, `maxTurns`, and `timeoutSeconds`. For Pi, existing `PG_PI_*` defaults take precedence over the normal selected provider's `OPENAI_*` / `ANTHROPIC_*` defaults. `PG_LLM_MODEL_V3` is the model fallback when `PG_PI_MODEL` is empty. The endpoint must be HTTP(S) without embedded credentials, query, or fragment. Unknown/invalid settings and missing Pi configuration return HTTP 400 before creating a job.
+Provider/model defaults and limits come from `[protocolguard.provider]` in `apps/backend-flask/config.toml` (or the file selected by the deployment path `PG_CONFIG_FILE`). UI fields override that configuration for one job; selecting "使用服务端配置" inherits the configured API. Model IDs are free-form and are sent unchanged to the provider. There is no DeepSeek model allowlist.
+
+An API key may be supplied in `apiKey`; otherwise the configured provider uses `PG_PI_API_KEY`, then `OPENAI_API_KEY` for OpenAI-compatible APIs, or `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` for Anthropic. Switching API requires an explicit endpoint and model and uses the selected provider's credentials. Optional positive integers are `contextWindow`, `maxTokens`, `maxTurns`, and `timeoutSeconds`. The endpoint must be HTTP(S) without embedded credentials, query, or fragment. Unknown/invalid settings and missing credentials return HTTP 400 before creating an assertion job.
+
+The builder and fuzz configuration agent use the same provider section. Native static analysis uses `[protocolguard.analysis]`, because it always calls Chat Completions; uploaded analysis TOML remains authoritative. Generated TOML retains the historical `llm_model_deepseek_v3` and `llm_model_deepseek_r1` keys for compatibility, with configurable values.
+
+To migrate an installation, move the old base URL (including an existing cache URL), model and limits into those sections, retain the credential exports, and remove the legacy settings below. The shipped example uses `https://api.deepseek.com/v1` and `deepseek-flash`; it does not silently rewrite an explicitly supplied model ID.
+
+| Removed server environment setting | Configuration replacement |
+| --- | --- |
+| `PG_PI_API`, `PG_PI_BASE_URL`, `OPENAI_BASE_URL`, `ANTHROPIC_BASE_URL` | `protocolguard.provider.api`, `base_url` |
+| `PG_PI_MODEL`, `PG_AGENT_MODEL`, `PG_CLAUDE_MODEL`, `ANTHROPIC_MODEL` | `protocolguard.provider.model` |
+| `PG_PI_CONTEXT_WINDOW`, `PG_PI_MAX_TOKENS`, `PG_PI_MAX_TURNS`, `PG_CLAUDE_MAX_TURNS`, `PG_PI_TIMEOUT_SECONDS` | `context_window`, `max_tokens`, `max_turns`, `timeout_seconds` in the provider section |
+| `PG_LLM_API_BASE`, `PG_LLM_MODEL_V3`, `PG_LLM_MODEL_R1` | `protocolguard.analysis.base_url`, `model`, `reasoning_model` |
+| `PG_LLM_QUERY_REPEAT`, `PG_LLM_QUERY_MAX_ATTEMPTS`, `PG_LLM_VIOLATION_REPEAT`, `PG_LLM_MAX_THREADS` | `query_repeat`, `max_attempts`, `violation_repeat`, `max_threads` in the analysis section |
+
+The backend serializes resolved settings into `PG_PI_*` for its internal container handoff. Direct container/worker invocations must supply `PG_PI_MODEL`, `PG_PI_BASE_URL`, and `PG_PI_API_KEY` explicitly. Container entrypoints preserve workflow budgets of 40 turns for builder jobs and 8000 for assertion/fuzz jobs unless configuration overrides them. Deployment paths, image selection and unrelated pipeline controls keep their existing interface.
 
 The Flask adapter translates these settings to core environment variables once per job. It does not mutate the service environment. Assertion-task generation is unchanged; only the following instrumentation container receives the selected runtime. The result includes a credential-free `runtime` summary. The existing provider-independent progress contract, workflow stages, polling, failure state, and diff preview remain in use. Nonzero instrumentation exits retain their exit status and diagnostic details. The Docker CLI fallback does not publish credential-bearing command arguments in progress logs.
 

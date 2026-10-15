@@ -21,6 +21,7 @@ from pg_agent_progress.legacy import decode_progress_event
 from utils.responses import error_response, success_response
 
 from .assertion import get_assert_generation_job, get_assert_generation_result
+from .provider_config import agent_environment
 from .fuzz_job_routes import (
     _allowed_instrumented_zip_roots,
     _append_log,
@@ -321,6 +322,7 @@ def _prepare_fuzz_config_job(job_id: str, instrumented_zip: Path) -> None:
             stderr=subprocess.PIPE,
             text=True,
             bufsize=1,
+            env={**os.environ, **agent_environment()},
         )
         current_process = dict(cast(Dict[str, Any], FUZZ_CONFIG_JOBS.snapshot(job_id) or {}).get("process") or {})
         current_process["pid"] = process.pid
@@ -415,11 +417,9 @@ def _fuzz_config_docker_command(
 
 def _docker_env_flags(snapshot: Dict[str, Any]) -> list[str]:
     flags: list[str] = []
-    for key in sorted(os.environ):
-        if not (key.startswith("PG_PI_") or key in {"OPENAI_API_KEY", "OPENAI_BASE_URL", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "PG_AGENT_MODEL", "PG_CLAUDE_MODEL", "ANTHROPIC_MODEL", "PG_LLM_MODEL_V3"}):
-            continue
-        if os.environ.get(key):
-            flags.extend(["-e", key])
+    for key, value in agent_environment().items():
+        if value:
+            flags.extend(["-e", key if key == "PG_PI_API_KEY" else f"{key}={value}"])
     implementations = snapshot.get("protocolImplementations") or []
     if isinstance(implementations, list) and implementations:
         flags.extend(["-e", "PG_FUZZ_IMPLEMENTATIONS=" + ",".join(str(item) for item in implementations)])

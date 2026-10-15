@@ -215,6 +215,7 @@ function selectLatestDatabase() {
             v-model:value="assertInputs.api"
             :disabled="assertGeneration.status === 'running'"
             :options="[
+              { label: '使用服务端配置', value: '' },
               { label: 'OpenAI Chat Completions', value: 'openai-completions' },
               { label: 'OpenAI Responses', value: 'openai-responses' },
               { label: 'Anthropic Messages', value: 'anthropic-messages' },
