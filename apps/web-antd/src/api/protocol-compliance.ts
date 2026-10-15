@@ -970,9 +970,22 @@ export interface ImpactResult {
   results: Array<{
     assessment: {
       impact_reasoning: string;
-      oracle_hints: unknown[];
+      oracle_hints: Array<{
+        code_location: string;
+        target_variable: string;
+        trigger_condition: string;
+      }>;
       outcome: string;
-      validation_hypothesis: unknown;
+      validation_hypothesis: null | {
+        consequence_argument: string;
+        mechanism_tags: string[];
+        primary_branch: string;
+        primary_oracle_family: string;
+        required_protocol_state_setup: string;
+        subtype: string;
+        target_observation: string;
+        violated_predicate: string;
+      };
     };
     resultId: string;
   }>;

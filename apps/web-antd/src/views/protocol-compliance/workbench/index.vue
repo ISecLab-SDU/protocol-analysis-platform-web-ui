@@ -65,7 +65,7 @@ const workbenchSubNavItems = [
   },
   { icon: 'mdi:code-json', key: 'assert_gen', label: '断言生成' },
   { icon: 'mdi:radar', key: 'fuzz', label: '模糊测试' },
-  { icon: 'mdi:shield-search', key: 'impact', label: 'Impact Analysis' },
+  { icon: 'mdi:shield-search', key: 'impact', label: '影响分析' },
 ] as const;
 
 type SideNavKey =
@@ -201,7 +201,7 @@ const heroWorkbenchModules = [
   { icon: 'mdi:code-braces-box', label: '代码定位与一致性分析' },
   { icon: 'mdi:code-json', label: '断言生成' },
   { icon: 'mdi:radar', label: '模糊测试' },
-  { icon: 'mdi:shield-search', label: 'Impact Analysis' },
+  { icon: 'mdi:shield-search', label: '影响分析' },
 ] as const;
 
 const workflowSteps = [
@@ -228,7 +228,7 @@ const workflowSteps = [
   {
     description: '结合违规结果与源码，构建证据并评估安全影响。',
     icon: 'mdi:shield-search',
-    label: 'Impact Analysis',
+    label: '影响分析',
   },
 ] as const;
 
