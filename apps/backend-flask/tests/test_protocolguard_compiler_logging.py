@@ -750,3 +750,15 @@ def test_builder_archives_the_same_normalized_progress_it_transports(monkeypatch
     monkeypatch.setattr(runner, "_write_progress_line", lambda line, *, critical: sent.append(json.loads(line)) or True)
     runner._emit_progress_event({"type": "error", "stage": "builder", "message": "stream failed", "metadata": {"activity": "status", "is_error": True}})
     assert [json.loads(line) for line in events_path.read_text().splitlines()] == sent
+
+
+@pytest.mark.parametrize("model_env", ["ANTHROPIC_MODEL", "PG_CLAUDE_MODEL", "PG_AGENT_MODEL", "PG_LLM_MODEL_V3"])
+def test_pi_builder_preserves_configured_model_alias(monkeypatch, model_env):
+    for name in ("PG_PI_MODEL", "PG_AGENT_MODEL", "PG_CLAUDE_MODEL", "ANTHROPIC_MODEL", "PG_LLM_MODEL_V3", "OPENAI_BASE_URL"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "claude-key")
+    monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://anthropic.example")
+    monkeypatch.setenv(model_env, "claude-configured")
+    settings = ClaudeBuilderRunnerSettings.from_env()
+    assert settings.model == "claude-configured"
+    assert "PG_PI_MODEL=claude-configured" in ClaudeBuilderRunner(settings)._docker_env_args()

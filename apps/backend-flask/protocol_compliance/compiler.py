@@ -60,7 +60,9 @@ class ClaudeBuilderRunnerSettings:
         api_key = os.environ.get("PG_PI_API_KEY") or os.environ.get(f"{prefix}_API_KEY") or (os.environ.get("ANTHROPIC_AUTH_TOKEN", "") if prefix == "ANTHROPIC" else "")
         enabled = bool(api_key) or bool(os.environ.get("PG_CLAUDE_BUILDER_IMAGE"))
         base_url = os.environ.get("PG_PI_BASE_URL") or os.environ.get(f"{prefix}_BASE_URL") or ""
-        model = os.environ.get("PG_PI_MODEL") or os.environ.get("PG_AGENT_MODEL", "deepseek-v3")
+        model = (os.environ.get("PG_PI_MODEL") or os.environ.get("PG_AGENT_MODEL")
+                 or os.environ.get("PG_CLAUDE_MODEL") or os.environ.get("ANTHROPIC_MODEL")
+                 or os.environ.get("PG_LLM_MODEL_V3") or "deepseek-v3")
 
         runtime_root = Path(os.environ.get("PG_RUNTIME_ROOT", tempfile.gettempdir() + "/protocolguard"))
         workspace_root = Path(os.environ.get("PG_WORKSPACE_ROOT", runtime_root / "workspaces"))

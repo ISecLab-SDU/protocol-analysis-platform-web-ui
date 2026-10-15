@@ -80,7 +80,7 @@ def _run() -> int:
 def main() -> int:
     try:
         return _run()
-    except Exception as exc:
+    except Exception:
         _emit_progress_event(
             {
                 "type": "error",

@@ -1,4 +1,3 @@
-from pathlib import Path
 import json
 
 from pg_agent_progress.pi import run_pi_task
@@ -26,3 +25,31 @@ console.log(JSON.stringify({type:'error',stage,message:'x'.repeat(12000)+' origi
     assert any(len(event['message']) > 12000 for event in events)
     for line in text.splitlines():
         json.loads(line)
+
+
+def test_timeout_covers_blocked_stdin_and_kills_tool_children(tmp_path, monkeypatch):
+    import os
+    import time
+    from pathlib import Path
+    worker = tmp_path/'worker.mjs'
+    worker.write_text('''import {spawn} from 'node:child_process'; import {writeFileSync} from 'node:fs';
+const child = spawn('sh', ['-c', 'trap "" TERM; sleep 60'], {stdio:'ignore'});
+writeFileSync('child.pid', String(child.pid));
+setInterval(() => {}, 1000);
+''')
+    monkeypatch.setenv('PG_PI_RUNNER', str(worker))
+    monkeypatch.setenv('PG_PI_TIMEOUT_SECONDS', '1')
+    events=[]
+    started=time.monotonic()
+    assert run_pi_task(cwd=str(tmp_path), prompt='x'*1000000, workflow='builder', emit=events.append, audit_path=tmp_path/'audit.jsonl') == 1
+    assert time.monotonic()-started < 15
+    assert 'exceeded 1s timeout' in events[-1]['message']
+    pid=int((tmp_path/'child.pid').read_text())
+    for _ in range(100):
+        stat=Path(f'/proc/{pid}/stat')
+        if not stat.exists() or stat.read_text().split()[2] == 'Z':
+            break
+        time.sleep(.01)
+    else:
+        os.kill(pid, 9)
+        raise AssertionError('Tool child survived Pi task cleanup')
