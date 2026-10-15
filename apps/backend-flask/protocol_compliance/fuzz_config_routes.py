@@ -415,7 +415,9 @@ def _fuzz_config_docker_command(
 
 def _docker_env_flags(snapshot: Dict[str, Any]) -> list[str]:
     flags: list[str] = []
-    for key in ("ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "PG_CLAUDE_MODEL", "ANTHROPIC_MODEL"):
+    for key in sorted(os.environ):
+        if not (key.startswith("PG_PI_") or key in {"OPENAI_API_KEY", "OPENAI_BASE_URL", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "PG_AGENT_MODEL", "PG_CLAUDE_MODEL", "ANTHROPIC_MODEL", "PG_LLM_MODEL_V3"}):
+            continue
         if os.environ.get(key):
             flags.extend(["-e", key])
     implementations = snapshot.get("protocolImplementations") or []

@@ -40,42 +40,13 @@ cleanup_ownership() {
 }
 trap cleanup_ownership EXIT
 
-configure_claude() {
-  local token="${ANTHROPIC_API_KEY:-${ANTHROPIC_AUTH_TOKEN:-}}"
-  local api_key="${ANTHROPIC_API_KEY:-$token}"
-  local auth_token="${ANTHROPIC_AUTH_TOKEN:-$token}"
-  local base_url="${ANTHROPIC_BASE_URL:-}"
-
-  [[ -n "$token" ]] || fail "ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN is required"
-  [[ -n "$base_url" ]] || fail "ANTHROPIC_BASE_URL is required"
-
-  mkdir -p /root/.claude
-  cat > /root/.claude/settings.json <<EOF
-{
-  "env": {
-    "ANTHROPIC_API_KEY": "${api_key}",
-    "ANTHROPIC_AUTH_TOKEN": "${auth_token}",
-    "ANTHROPIC_BASE_URL": "${base_url}",
-    "IS_SANDBOX": "1",
-    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
-  },
-  "permissions": {
-    "allow": [],
-    "deny": []
-  }
-}
-EOF
-  log "Claude Code settings written; credentials are not printed"
-  log "Claude Code base URL is configured; credential values are redacted"
-}
-
 write_prompt() {
   cat > "$WORKSPACE_DIR/claude_builder_prompt.md" <<'EOF'
 You are running inside a disposable Docker container for ProtocolGuard static analysis.
 
 Your job is to compile the uploaded C/C++ protocol implementation and place LLVM build artefacts where the Flask backend expects them. Work autonomously by inspecting files, trying builds, reading errors, and fixing the build commands until the required artefacts exist. Do not ask the user questions.
 
-The host backend reads your real Agent SDK typed stream, including tool-use
+The host backend reads your real Pi tool event stream, including tool-use
 events, so you do not need to write progress files or print machine-readable
 markers. Keep any explanatory text concise and focused on decisions and results.
 
@@ -226,15 +197,11 @@ PY
 run_claude() {
   log_workspace_inputs
   extract_source_archives
-  log "Checking Claude Code CLI and Agent SDK"
-  claude --version
-  python3 - <<'PY'
-import claude_agent_sdk
-print(f"claude-agent-sdk {claude_agent_sdk.__version__}")
-PY
+  log "Checking Pi runtime"
+  node --version
+  test -f /opt/protocolguard/pi-agent/runner.mjs || fail "Pi worker is missing"
 
-  write_prompt
-  log "Starting Claude builder agent through Agent SDK typed stream"
+  log "Starting Pi builder agent"
   set +e
   IS_SANDBOX=1 PG_CLAUDE_WORKSPACE="$WORKSPACE_DIR" python3 /usr/local/bin/pg_claude_builder_sdk.py \
     2>&1 | tee "$WORKSPACE_DIR/claude_builder.log"
@@ -242,9 +209,9 @@ PY
   set -e
   log "Claude builder agent exited with status ${claude_status}"
   if [[ -f "$WORKSPACE_DIR/claude_builder_events.jsonl" ]]; then
-    log "Claude SDK audit stream persisted at $WORKSPACE_DIR/claude_builder_events.jsonl ($(wc -l < "$WORKSPACE_DIR/claude_builder_events.jsonl") events, $(wc -c < "$WORKSPACE_DIR/claude_builder_events.jsonl") bytes)"
+    log "Pi audit stream persisted at $WORKSPACE_DIR/claude_builder_events.jsonl ($(wc -l < "$WORKSPACE_DIR/claude_builder_events.jsonl") events, $(wc -c < "$WORKSPACE_DIR/claude_builder_events.jsonl") bytes)"
   else
-    log "Claude SDK event stream was not persisted"
+    log "Pi event stream was not persisted"
   fi
   return "$claude_status"
 }
@@ -286,7 +253,6 @@ fallback_validation() {
 
 main() {
   log "ProtocolGuard Claude builder started"
-  configure_claude
   run_claude
   fallback_validation
   log "ProtocolGuard Claude builder completed"

@@ -79,7 +79,7 @@ beforeEach(() => {
     status: 'idle',
   });
   Object.assign(modules.assertInputs, {
-    agent: 'claude',
+    agent: 'pi',
     api: 'openai-completions',
     apiKey: '',
     baseUrl: '',
@@ -293,8 +293,8 @@ describe('independent protocol analysis modules', () => {
 
     expect(api.runProtocolAssertGeneration).toHaveBeenCalledWith({
       runtime: {
-        agent: 'claude',
-        api: 'anthropic-messages',
+        agent: 'pi',
+        api: 'openai-completions',
         apiKey: '',
         baseUrl: '',
         model: '',
@@ -396,8 +396,8 @@ describe('independent protocol analysis modules', () => {
 
     expect(api.runProtocolAssertGeneration).toHaveBeenCalledWith({
       runtime: {
-        agent: 'claude',
-        api: 'anthropic-messages',
+        agent: 'pi',
+        api: 'openai-completions',
         apiKey: '',
         baseUrl: '',
         model: '',

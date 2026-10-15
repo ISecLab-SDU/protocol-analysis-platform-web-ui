@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import logging
 import sys
 import types
@@ -45,8 +47,6 @@ from protocol_compliance.claude_agent_events import (  # noqa: E402
     sanitize_event_value as _sanitize_event_value,
 )
 from protocol_compliance.claude_builder.pg_claude_builder_sdk import (  # noqa: E402
-    CLAUDE_CLI_PATH,
-    _build_claude_environment,
     _write_progress_line,
 )
 
@@ -562,25 +562,6 @@ def test_run_logged_command_preserves_claude_sdk_metadata_for_compatible_callbac
     ]
 
 
-def test_claude_sdk_environment_passes_all_anthropic_credentials(
-    monkeypatch: Any,
-) -> None:
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "api-key")
-    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "auth-token")
-    monkeypatch.setenv("ANTHROPIC_BASE_URL", "http://gateway.example")
-
-    env = _build_claude_environment()
-
-    assert env["ANTHROPIC_API_KEY"] == "api-key"
-    assert env["ANTHROPIC_AUTH_TOKEN"] == "auth-token"
-    assert env["ANTHROPIC_BASE_URL"] == "http://gateway.example"
-
-
-def test_claude_sdk_uses_system_cli_instead_of_bundled_cli() -> None:
-    assert CLAUDE_CLI_PATH
-    assert "_bundled" not in CLAUDE_CLI_PATH
-
-
 def test_claude_sdk_sanitizes_hidden_thinking_tokens() -> None:
     payload = {
         "usage": {
@@ -761,43 +742,11 @@ def test_claude_agent_thinking_block_omits_signature_from_progress() -> None:
     ]
 
 
-def test_builder_archives_the_same_normalized_progress_it_transports(
-    monkeypatch, tmp_path: Path
-) -> None:
-    import json
+def test_builder_archives_the_same_normalized_progress_it_transports(monkeypatch, tmp_path):
     from protocol_compliance.claude_builder import pg_claude_builder_sdk as runner
-
-    events_path = tmp_path / "claude_builder_events.jsonl"
+    events_path = tmp_path / "events.jsonl"
     monkeypatch.setattr(runner, "EVENTS_PATH", events_path)
     sent = []
-    monkeypatch.setattr(
-        runner,
-        "_write_progress_line",
-        lambda line, *, critical: sent.append((json.loads(line), critical)) or True,
-    )
-    block = type(
-        "ToolUseBlock",
-        (),
-        {"name": "Bash", "input": {"command": "make"}, "id": "call-1"},
-    )()
-    message = type(
-        "AssistantMessage",
-        (),
-        {"session_id": None, "model": "test", "content": [block]},
-    )()
-    assert runner._handle_message(message) is None
-    assert runner._emit_progress_event(
-        {"type": "error", "stage": "claude-status", "message": "stream failed"}
-    )
-    archived = [json.loads(line) for line in events_path.read_text().splitlines()]
-    assert "raw" in archived[0]
-    assert archived[1:] == [payload for payload, _critical in sent]
-    assert sent[0][0]["metadata"] == {
-        "activity": "command",
-        "tool": "Bash",
-        "tool_id": "call-1",
-        "primary": "make",
-    }
-    assert sent[0][0]["stage"] == "builder"
-    assert sent[0][1] is False
-    assert sent[1][1] is True
+    monkeypatch.setattr(runner, "_write_progress_line", lambda line, *, critical: sent.append(json.loads(line)) or True)
+    runner._emit_progress_event({"type": "error", "stage": "builder", "message": "stream failed", "metadata": {"activity": "status", "is_error": True}})
+    assert [json.loads(line) for line in events_path.read_text().splitlines()] == sent

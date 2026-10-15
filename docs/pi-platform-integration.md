@@ -1,3 +1,5 @@
+> Superseded runtime selection: Pi is now the sole Docker agent runtime. Claude models use Pi with `anthropic-messages`. See the core ProtocolGuard `docs/pi-runtime-migration.md`.
+
 # Pi assertion instrumentation in the platform
 
 The assertion workbench exposes **Claude** (default) and **Pi**, plus model, provider API, base URL, and an optional API key. Empty model/endpoint/key fields use server defaults. Pi supports OpenAI Chat Completions, OpenAI Responses, and Anthropic Messages. Claude retains its Anthropic Messages SDK path.

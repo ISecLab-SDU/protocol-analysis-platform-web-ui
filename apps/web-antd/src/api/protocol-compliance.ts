@@ -525,7 +525,7 @@ export interface ProtocolAssertGenerationJob {
 }
 
 export interface AssertionRuntimeSettings {
-  agent: 'claude' | 'pi';
+  agent: 'pi';
   api?: 'anthropic-messages' | 'openai-completions' | 'openai-responses';
   apiKey?: string;
   baseUrl?: string;

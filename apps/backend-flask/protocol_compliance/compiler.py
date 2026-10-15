@@ -56,10 +56,11 @@ class ClaudeBuilderRunnerSettings:
 
     @classmethod
     def from_env(cls) -> "ClaudeBuilderRunnerSettings":
-        api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN") or ""
+        prefix = "ANTHROPIC" if os.environ.get("PG_PI_API", "openai-completions" if os.environ.get("OPENAI_BASE_URL") else "anthropic-messages" if os.environ.get("ANTHROPIC_BASE_URL") else "openai-completions") == "anthropic-messages" else "OPENAI"
+        api_key = os.environ.get("PG_PI_API_KEY") or os.environ.get(f"{prefix}_API_KEY") or (os.environ.get("ANTHROPIC_AUTH_TOKEN", "") if prefix == "ANTHROPIC" else "")
         enabled = bool(api_key) or bool(os.environ.get("PG_CLAUDE_BUILDER_IMAGE"))
-        base_url = os.environ.get("ANTHROPIC_BASE_URL") or ""
-        model = os.environ.get("PG_AGENT_MODEL", "deepseek-v3")
+        base_url = os.environ.get("PG_PI_BASE_URL") or os.environ.get(f"{prefix}_BASE_URL") or ""
+        model = os.environ.get("PG_PI_MODEL") or os.environ.get("PG_AGENT_MODEL", "deepseek-v3")
 
         runtime_root = Path(os.environ.get("PG_RUNTIME_ROOT", tempfile.gettempdir() + "/protocolguard"))
         workspace_root = Path(os.environ.get("PG_WORKSPACE_ROOT", runtime_root / "workspaces"))
@@ -283,6 +284,11 @@ class ClaudeBuilderRunner:
         for name in self.settings.env_passthrough:
             if os.environ.get(name) is not None:
                 args.extend(["-e", name])
+        for name in sorted(os.environ):
+            if name.startswith("PG_PI_") and name not in self.settings.env_passthrough:
+                args.extend(["-e", name])
+        if not os.environ.get("PG_PI_MODEL"):
+            args.extend(["-e", f"PG_PI_MODEL={self.settings.model}"])
         args.extend(["-e", f"PG_HOST_UID={os.getuid()}"])
         args.extend(["-e", f"PG_HOST_GID={os.getgid()}"])
         args.extend(["-e", "IS_SANDBOX=1"])
@@ -296,6 +302,7 @@ class ClaudeBuilderRunner:
             if previous_was_env_flag:
                 name = item.split("=", 1)[0]
                 if name in {
+                    "PG_PI_API_KEY",
                     "ANTHROPIC_API_KEY",
                     "ANTHROPIC_AUTH_TOKEN",
                     "ANTHROPIC_BASE_URL",

@@ -1,9 +1,10 @@
+FROM protocolguard:main AS pi-runtime
+
 FROM ubuntu:22.04
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG GLLVM_REPO=https://github.com/SRI-CSL/gllvm.git
 ARG GLLVM_REF=master
-ARG CLAUDE_CODE_VERSION=2.1.207
 
 COPY --chmod=0755 protocol_compliance/claude_builder/apt-fast-downloader /usr/local/bin/apt-fast-downloader
 
@@ -115,7 +116,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         --retry 20 --retry-all-errors --retry-delay 2 --connect-timeout 30 \
         https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
         | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
-    && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" \
+    && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main" \
         > /etc/apt/sources.list.d/nodesource.list \
     && for attempt in $(seq 1 20); do \
         apt-fast update && break; \
@@ -124,21 +125,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         mkdir -p /var/lib/apt/lists/partial; \
         sleep "$((attempt * 2))"; \
     done \
-    && apt-fast install -y --no-install-recommends nodejs=20.*
+    && apt-fast install -y --no-install-recommends nodejs=22.*
 
-RUN --mount=type=cache,target=/root/.npm,sharing=locked \
-    npm config set fetch-retries 20 \
-    && npm config set fetch-retry-mintimeout 2000 \
-    && npm config set fetch-retry-maxtimeout 120000 \
-    && npm config set maxsockets 32 \
-    && npm install -g --include=optional --ignore-scripts=false \
-        "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
-    && node "$(npm root -g)/@anthropic-ai/claude-code/install.cjs" \
-    && claude --version
-
-RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
-    PIP_DEFAULT_TIMEOUT=120 PIP_RETRIES=20 \
-        python3 -m pip install claude-agent-sdk==0.2.116
+# Reuse the exact pinned worker and dependency tree from the core image.
+COPY --from=pi-runtime /opt/protocolguard/pi-agent/ /opt/protocolguard/pi-agent/
+RUN node --input-type=module -e "import('/opt/protocolguard/pi-agent/runner.mjs')"
 
 RUN ln -sf /usr/bin/clang-14 /usr/local/bin/clang \
     && ln -sf /usr/bin/clang++-14 /usr/local/bin/clang++ \

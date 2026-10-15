@@ -30,28 +30,24 @@ def resolve_assertion_runtime(settings: object = None) -> dict[str, str]:
         if name.startswith(("PG_PI_", "ANTHROPIC_", "OPENAI_"))
         or name == "PG_CLAUDE_MODEL"
     }
-    agent = settings.get("agent", os.environ.get("PG_ASSERT_AGENT", "claude"))
-    if agent not in {"claude", "pi"}:
-        raise ValueError("agent must be claude or pi")
+    agent = settings.get("agent", os.environ.get("PG_ASSERT_AGENT", "pi"))
+    if agent != "pi":
+        raise ValueError("agent must be pi; Claude models use anthropic-messages through Pi")
     env["PG_ASSERT_AGENT"] = agent
     api = settings.get(
         "api",
-        env.get("PG_PI_API", "openai-completions")
-        if agent == "pi"
-        else "anthropic-messages",
+        env.get("PG_PI_API") or ("openai-completions" if env.get("OPENAI_BASE_URL") else "anthropic-messages" if env.get("ANTHROPIC_BASE_URL") else "openai-completions"),
     )
     if api not in {"openai-completions", "openai-responses", "anthropic-messages"}:
         raise ValueError("Unsupported provider API")
-    if agent == "claude" and api != "anthropic-messages":
-        raise ValueError("Claude requires the Anthropic Messages API")
     prefix = "ANTHROPIC" if api == "anthropic-messages" else "OPENAI"
     mapping = {
-        "model": "PG_PI_MODEL" if agent == "pi" else "PG_CLAUDE_MODEL",
-        "baseUrl": "PG_PI_BASE_URL" if agent == "pi" else "ANTHROPIC_BASE_URL",
-        "apiKey": "PG_PI_API_KEY" if agent == "pi" else "ANTHROPIC_API_KEY",
+        "model": "PG_PI_MODEL",
+        "baseUrl": "PG_PI_BASE_URL",
+        "apiKey": "PG_PI_API_KEY",
     }
     # Changing protocol must not pick credentials from a different Pi provider.
-    if agent == "pi" and api != env.get("PG_PI_API", "openai-completions"):
+    if agent == "pi" and api != (env.get("PG_PI_API") or ("openai-completions" if env.get("OPENAI_BASE_URL") else "anthropic-messages" if env.get("ANTHROPIC_BASE_URL") else "openai-completions")):
         env.pop("PG_PI_BASE_URL", None)
         env.pop("PG_PI_API_KEY", None)
     for field, name in mapping.items():
@@ -64,12 +60,10 @@ def resolve_assertion_runtime(settings: object = None) -> dict[str, str]:
     if agent == "pi":
         env["PG_PI_API"] = api
         if not env.get("PG_PI_MODEL"):
-            env["PG_PI_MODEL"] = os.environ.get("PG_LLM_MODEL_V3", "")
+            env["PG_PI_MODEL"] = os.environ.get("PG_AGENT_MODEL") or env.get("PG_CLAUDE_MODEL") or env.get("ANTHROPIC_MODEL") or os.environ.get("PG_LLM_MODEL_V3", "")
         for suffix in ("BASE_URL", "API_KEY"):
             if not env.get(f"PG_PI_{suffix}"):
-                env[f"PG_PI_{suffix}"] = env.get(f"{prefix}_{suffix}", "")
-    if agent == "claude" and env.get("ANTHROPIC_API_KEY"):
-        env["ANTHROPIC_AUTH_TOKEN"] = env["ANTHROPIC_API_KEY"]
+                env[f"PG_PI_{suffix}"] = env.get(f"{prefix}_{suffix}", "") or (env.get("ANTHROPIC_AUTH_TOKEN", "") if prefix == "ANTHROPIC" and suffix == "API_KEY" else "")
     url = env.get(mapping["baseUrl"], "")
     if url:
         parsed = urlsplit(url)
@@ -110,8 +104,6 @@ def runtime_summary(env: dict[str, str]) -> dict[str, str]:
     agent = env["PG_ASSERT_AGENT"]
     return {
         "agent": agent,
-        "api": env.get("PG_PI_API", "openai-completions")
-        if agent == "pi"
-        else "anthropic-messages",
-        "model": env.get("PG_PI_MODEL" if agent == "pi" else "PG_CLAUDE_MODEL", ""),
+        "api": env.get("PG_PI_API") or ("openai-completions" if env.get("OPENAI_BASE_URL") else "anthropic-messages" if env.get("ANTHROPIC_BASE_URL") else "openai-completions"),
+        "model": env.get("PG_PI_MODEL", ""),
     }

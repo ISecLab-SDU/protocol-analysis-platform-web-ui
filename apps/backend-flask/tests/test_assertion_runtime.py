@@ -32,11 +32,11 @@ def provider(monkeypatch):
 def test_runtime_is_request_local_and_uses_provider_defaults(provider):
     before = dict(assertion.os.environ)
     pi = resolve_assertion_runtime({"agent": "pi", "model": "test-model"})
-    claude = resolve_assertion_runtime({"agent": "claude", "model": "claude-test"})
+    claude = resolve_assertion_runtime({"agent": "pi", "api": "anthropic-messages", "model": "claude-test"})
     assert pi["PG_PI_API_KEY"] == "server-key"
     assert pi["PG_PI_BASE_URL"] == "http://cache.test/v1"
-    assert claude["PG_ASSERT_AGENT"] == "claude"
-    assert claude["PG_CLAUDE_MODEL"] == "claude-test"
+    assert claude["PG_ASSERT_AGENT"] == "pi"
+    assert claude["PG_PI_MODEL"] == "claude-test"
     assert dict(assertion.os.environ) == before
     anthropic = resolve_assertion_runtime(
         {"agent": "pi", "api": "anthropic-messages", "model": "claude-test"}
@@ -60,6 +60,7 @@ def test_blank_pi_server_settings_use_normal_provider_defaults(provider, monkeyp
     [
         [],
         {"agent": "bad"},
+        {"agent": "claude", "model": "claude-model"},
         {"agent": "pi"},
         {"api": "bad"},
         {"baseUrl": "file:///tmp/x"},
@@ -118,7 +119,7 @@ def test_container_receives_pi_and_preserves_failure_details(
 
 
 @pytest.mark.parametrize(
-    "agent,failed", [("pi", False), ("claude", False), ("pi", True)]
+    "agent,failed", [("pi", False), ("pi", True)]
 )
 def test_http_job_lifecycle_and_artifact_download(
     provider, monkeypatch, tmp_path, agent, failed

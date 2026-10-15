@@ -206,13 +206,10 @@ function selectLatestDatabase() {
           <Select
             v-model:value="assertInputs.agent"
             :disabled="assertGeneration.status === 'running'"
-            :options="[
-              { label: 'Claude（默认）', value: 'claude' },
-              { label: 'Pi', value: 'pi' },
-            ]"
+            :options="[{ label: 'Pi', value: 'pi' }]"
           />
         </div>
-        <div v-if="assertInputs.agent === 'pi'" class="module-input-field">
+        <div class="module-input-field">
           <div class="module-input-label">提供商 API</div>
           <Select
             v-model:value="assertInputs.api"
@@ -251,7 +248,8 @@ function selectLatestDatabase() {
         </div>
       </div>
       <small class="module-help"
-        >设置仅用于本次断言插桩任务。Claude 使用 Anthropic Messages API。</small
+        >设置仅用于本次断言插桩任务。Claude 模型可通过 Pi 的 Anthropic Messages
+        API 使用。</small
       >
     </Card>
 
