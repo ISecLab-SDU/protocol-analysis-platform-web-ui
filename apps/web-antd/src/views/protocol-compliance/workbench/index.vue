@@ -1188,7 +1188,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .guard-shell {
-  min-height: calc(100vh - 92px);
+  min-height: 100dvh;
   overflow: hidden;
   font-size: 17px;
   color: #111827;
@@ -1291,7 +1291,7 @@ onBeforeUnmount(() => {
 .guard-layout {
   display: grid;
   grid-template-columns: 246px minmax(0, 1fr);
-  min-height: calc(100vh - 156px);
+  min-height: calc(100dvh - 64px);
 }
 
 .guard-sidebar {
