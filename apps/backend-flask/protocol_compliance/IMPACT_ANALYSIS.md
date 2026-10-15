@@ -28,3 +28,8 @@ be built on MyServer-Local, transferred directly, and loaded on Presentation.
 Source and input mounts are read-only; artifacts are writable by the service
 UID. Provider credentials travel only in the container environment, with names
 rather than secret values in Docker's command arguments.
+
+Jobs are persisted outside the application checkout at
+`~/.local/share/protocolguard/impact-analysis` (override with
+`PROTOXPLOIT_STATE_DIR`). This keeps uploaded Python source from triggering the
+Flask development server's source reloader.

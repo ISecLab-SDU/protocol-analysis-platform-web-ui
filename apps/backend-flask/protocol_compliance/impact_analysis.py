@@ -17,7 +17,12 @@ from utils.responses import error_response, success_response
 
 from .assertion_runtime import resolve_assertion_runtime, runtime_summary
 
-ROOT = Path(__file__).resolve().parents[1] / "outputs" / "impact-analysis"
+ROOT = Path(
+    os.environ.get(
+        "PROTOXPLOIT_STATE_DIR",
+        Path.home() / ".local/share/protocolguard/impact-analysis",
+    )
+)
 LOCK = threading.RLock()
 PROCESSES: dict[str, subprocess.Popen] = {}
 
