@@ -9,6 +9,104 @@ import { describe, expect, it } from 'vitest';
 import StageLiveLogPanel from './StageLiveLogPanel.vue';
 
 describe('stageLiveLogPanel', () => {
+  const archiveLine = (id: string, overrides = {}) => ({
+    id,
+    kind: 'normal',
+    metadata: { activity: 'status' as const },
+    phase: 'Agent 构建',
+    stage: 'builder',
+    text: `[pg-builder][archive] extracted src/${id}.c`,
+    time: '10:40:14',
+    ...overrides,
+  });
+
+  it('collapses archive listings and preserves expansion and raw copy during streaming', async () => {
+    const first = archiveLine('first');
+    const second = archiveLine('second');
+    const wrapper = mount(StageLiveLogPanel, {
+      props: {
+        lines: [first, second],
+        progress: { label: 'Agent 构建', description: '正在构建' },
+        running: true,
+      },
+    });
+    expect(wrapper.findAll('.log-line')).toHaveLength(1);
+    const details = wrapper.get('details').element as HTMLDetailsElement;
+    expect(details.open).toBe(false);
+    expect(wrapper.get('summary').text()).toContain('2 条记录');
+    details.open = true;
+    const third = archiveLine('third', { time: '10:40:15' });
+    await wrapper.setProps({ lines: [first, second, third] });
+    expect(wrapper.get('details').element).toBe(details);
+    expect(details.open).toBe(true);
+    expect(wrapper.get('summary').text()).toContain('3 条记录');
+    expect(wrapper.get('summary').text()).toContain('10:40:15');
+    expect(wrapper.findAll('.archive-files > div')).toHaveLength(3);
+    const exposed = wrapper.vm as unknown as { getAllLogText: () => string };
+    expect(exposed.getAllLogText().split('\n')).toHaveLength(3);
+    for (const line of [first, second, third]) {
+      expect(exposed.getAllLogText()).toContain(line.text);
+    }
+  });
+
+  it('keeps archive operations, errors, activities and phases in chronological order', () => {
+    const wrapper = mount(StageLiveLogPanel, {
+      props: {
+        lines: [
+          archiveLine('start', {
+            text: '[pg-builder][archive] Extracting zip archive source.zip',
+          }),
+          archiveLine('first'),
+          archiveLine('second'),
+          archiveLine('error', {
+            metadata: { activity: 'status', is_error: true },
+          }),
+          archiveLine('third'),
+          archiveLine('command', { metadata: { activity: 'command' } }),
+          archiveLine('fourth'),
+          archiveLine('phase', { phase: '其他阶段' }),
+          archiveLine('stage', { phase: '其他阶段', stage: 'other' }),
+          archiveLine('warning', { kind: 'warning' }),
+          archiveLine('result', { metadata: { activity: 'result' } }),
+        ],
+        progress: { label: 'Agent 构建', description: '正在构建' },
+        running: false,
+      },
+    });
+    expect(wrapper.findAll('.log-line')).toHaveLength(10);
+    expect(wrapper.findAll('details')).toHaveLength(5);
+    expect(wrapper.findAll('summary')[0]?.text()).toContain('2 条记录');
+    expect(wrapper.get('.agent-line--error').text()).toContain('src/error.c');
+    expect(wrapper.get('.agent-line--command').text()).toContain(
+      'src/command.c',
+    );
+    expect(wrapper.findAll('.log-line')[0]?.text()).toContain('Extracting zip');
+  });
+
+  it('does not merge across hidden events or swallow multiline output', () => {
+    const wrapper = mount(StageLiveLogPanel, {
+      props: {
+        lines: [
+          archiveLine('first'),
+          archiveLine('hidden', {
+            metadata: { activity: 'status', quiet: true },
+          }),
+          archiveLine('second'),
+          archiveLine('multiline', {
+            text: '[pg-builder][archive] extracted src/a.c\nwarning: failed',
+          }),
+        ],
+        progress: { label: 'Agent 构建', description: '正在构建' },
+        running: true,
+      },
+    });
+    expect(wrapper.findAll('details')).toHaveLength(2);
+    expect(wrapper.findAll('.log-line')).toHaveLength(3);
+    expect(wrapper.get('.agent-primary').text()).toContain('warning: failed');
+    const exposed = wrapper.vm as unknown as { getAllLogText: () => string };
+    expect(exposed.getAllLogText()).toContain('src/hidden.c');
+  });
+
   it('renders log metadata and body in the same flow line', () => {
     const wrapper = mount(StageLiveLogPanel, {
       props: {

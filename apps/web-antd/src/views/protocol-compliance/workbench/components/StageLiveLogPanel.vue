@@ -22,6 +22,10 @@ interface StageLiveLogProgress {
   label: string;
 }
 
+interface DisplayLogLine extends StageLiveLogLine {
+  archiveLines?: StageLiveLogLine[];
+}
+
 interface Props {
   emptyIdleText?: string;
   emptyRunningText?: string;
@@ -40,6 +44,35 @@ const logBodyRef = ref<HTMLElement | null>(null);
 const visibleLines = computed(() =>
   props.lines.filter((line) => !line.metadata?.quiet),
 );
+
+const displayLines = computed(() => {
+  const entries: DisplayLogLine[] = [];
+  let archiveGroup: DisplayLogLine | undefined;
+  for (const line of props.lines) {
+    const isArchiveFile =
+      !line.metadata?.quiet &&
+      !line.metadata?.is_error &&
+      !line.metadata?.status &&
+      (!line.metadata?.activity || line.metadata.activity === 'status') &&
+      (!line.kind || ['info', 'normal'].includes(line.kind)) &&
+      /^\[pg-builder\]\[archive\] extracted [^\r\n]+$/.test(line.text);
+    if (isArchiveFile) {
+      if (
+        archiveGroup?.stage === line.stage &&
+        archiveGroup?.phase === line.phase
+      ) {
+        archiveGroup.archiveLines?.push(line);
+      } else {
+        archiveGroup = { ...line, archiveLines: [line] };
+        entries.push(archiveGroup);
+      }
+    } else {
+      archiveGroup = undefined;
+      if (!line.metadata?.quiet) entries.push(line);
+    }
+  }
+  return entries;
+});
 
 defineExpose({
   getAllLogText,
@@ -197,17 +230,39 @@ function formatCount(value: number) {
 
     <div ref="logBodyRef" class="live-log">
       <div
-        v-for="line in visibleLines"
+        v-for="line in displayLines"
         :key="line.id"
         class="log-line"
         :class="[
           line.kind ? `log-line--${line.kind}` : undefined,
-          isAgentLine(line)
-            ? `agent-line agent-line--${agentLineKind(line)}`
-            : undefined,
+          line.archiveLines
+            ? 'archive-line'
+            : isAgentLine(line)
+              ? `agent-line agent-line--${agentLineKind(line)}`
+              : undefined,
         ]"
       >
-        <template v-if="isAgentLine(line)">
+        <details v-if="line.archiveLines" class="archive-group">
+          <summary>
+            <span class="log-chip log-chip--phase">{{
+              displayText(line.phase)
+            }}</span>
+            <strong
+              >源码解压文件清单 · {{ line.archiveLines.length }} 条记录</strong
+            >
+            <time>{{ line.time || '--:--:--' }}</time>
+            <time v-if="line.archiveLines.at(-1)?.time !== line.time"
+              >– {{ line.archiveLines.at(-1)?.time || '--:--:--' }}</time
+            >
+          </summary>
+          <div class="archive-files" tabindex="0" aria-label="源码解压文件清单">
+            <div v-for="entry in line.archiveLines" :key="entry.id">
+              <time>{{ entry.time || '--:--:--' }}</time>
+              {{ displayText(entry.text) }}
+            </div>
+          </div>
+        </details>
+        <template v-else-if="isAgentLine(line)">
           <div class="agent-rail" aria-hidden="true">
             <IconifyIcon :icon="agentIcon(line)" />
           </div>
@@ -374,6 +429,36 @@ function formatCount(value: number) {
   font-family: inherit;
   background: #fff;
   border-bottom: 1px solid #e8edf3;
+}
+
+.archive-line {
+  display: block;
+  min-height: 30px;
+  padding: 6px 14px;
+}
+
+.archive-group summary {
+  cursor: pointer;
+}
+
+.archive-group summary strong {
+  margin: 0 8px;
+  font-size: 14px;
+}
+
+.archive-group time {
+  font-size: 12px;
+  color: #778399;
+}
+
+.archive-files {
+  max-height: 240px;
+  padding: 8px;
+  margin-top: 6px;
+  overflow: auto;
+  font-size: 13px;
+  background: #f5f7fa;
+  border-radius: 4px;
 }
 
 .agent-line:last-child {
