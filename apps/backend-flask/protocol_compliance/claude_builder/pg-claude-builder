@@ -73,7 +73,7 @@ Recommended procedure:
 3. Build with verbose command output and write replayable compiler commands to `/workspace/build_log.txt` (`cmake --build ... --verbose`, `ninja -v`, `make V=1`, or the project's equivalent). A real build may run in parallel, but do not use merged parallel stdout/stderr as the only replay log: generate the command list sequentially, for example with `make -n -B -j1`, or use `compile_commands.json`. The log must contain each compiler invocation as an ordinary, unprefixed line, including the compiler, `-c`, source path, debug flags, and output path. Every source file linked into the final bitcode, including an entry-point source compiled during linking, must also have a standalone `-c` command. SDK event JSON, warning output, or compiler commands interleaved with diagnostics are not usable build-log entries.
 4. Run `get-bc` on the produced executable or linked binary. Copy the resulting `.bc` file to `/workspace/program.bc`, and run `llvm-dis-14 /workspace/program.bc -o /workspace/program.ll`.
 5. Copy `rule_config.json` to `/workspace/inputs/rules.json` and `config.toml` to `/workspace/inputs/config.toml`.
-6. Copy useful build outputs, `.db` files, callgraph reports, and function summaries back under `/workspace` without deleting the project directory.
+6. Generate compilation databases and analysis results for this workspace. Never copy historical `compile_commands.json` or ProtocolGuard result databases over current outputs. Copy only useful outputs produced by this build back under `/workspace` without deleting the project directory.
 7. Before exiting, verify the required files with `ls -la` and `file`.
 
 Do not fabricate placeholder bitcode. If a required artefact cannot be produced, leave the full attempted command output in `/workspace/build_log.txt` and exit non-zero.
@@ -93,6 +93,11 @@ log_workspace_inputs() {
 }
 
 extract_source_archives() {
+  if [[ "${PG_BUILDER_SOURCE_PREPARED:-0}" == "1" ]]; then
+    [[ -d "$WORKSPACE_DIR/project" ]] || fail "Prepared source directory is missing"
+    log "Using source prepared by Flask; skipping archive extraction"
+    return
+  fi
   log_section "source archive extraction"
   PG_BUILDER_WORKSPACE="$WORKSPACE_DIR" python3 - <<'PY'
 import os

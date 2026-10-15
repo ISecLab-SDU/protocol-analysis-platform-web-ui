@@ -139,6 +139,7 @@ def test_builder_stdout_never_appends_to_the_replayable_compiler_log(tmp_path, m
     compile_log = workspace / "build_log.txt"
     compile_log.write_text("gclang -c source.c -o source.o\n")
     def fake_logged_command(command, **kwargs):
+        assert "PG_BUILDER_SOURCE_PREPARED=1" in command
         kwargs["log_path"].write_text("PG_PROGRESS_JSON builder event\n")
         return []
     monkeypatch.setattr(executor, "_run_logged_command", fake_logged_command)

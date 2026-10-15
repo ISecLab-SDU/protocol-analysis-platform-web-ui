@@ -9,7 +9,9 @@ import sqlite3
 import subprocess
 import tempfile
 import threading
+import tarfile
 import uuid
+import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -20,6 +22,7 @@ from pg_agent_progress.legacy import decode_progress_event, decode_progress_line
 
 from protocol_compliance.provider_config import agent_environment, analysis_llm_config
 from protocol_compliance.job_logging import JobStageLogger
+from protocol_compliance.upload_preparation import prepare_uploaded_source
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -671,6 +674,8 @@ class ClaudeBuilderRunner:
             f"{output_dir}:/out",
             "--network=host",
             *self._docker_env_args(),
+            "-e",
+            "PG_BUILDER_SOURCE_PREPARED=1",
             self._builder_image,
         ]
 
@@ -1468,6 +1473,16 @@ class ClaudeBuilderRunner:
         archive_path = workspace_dir / code_filename
         with open(archive_path, "wb") as f:
             f.write(code_bytes)
+
+        try:
+            removed = prepare_uploaded_source(archive_path, workspace_dir / "project")
+        except (OSError, ValueError, tarfile.TarError, zipfile.BadZipFile) as exc:
+            raise ClaudeBuilderRunnerExecutionError(
+                f"Uploaded source preparation failed: {exc}",
+                details={"workspace": str(workspace_dir)},
+            ) from exc
+        if progress_callback:
+            progress_callback(job_identifier, "inputs", f"Prepared uploaded source; removed {len(removed)} historical generated databases")
 
         if config_bytes is None:
             config_filename = config_filename or "generated-config.toml"

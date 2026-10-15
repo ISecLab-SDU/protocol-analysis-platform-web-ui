@@ -75,3 +75,19 @@ def test_builder_main_writes_prompt_before_starting_pi(tmp_path):
     result = subprocess.run(["bash", "-c", 'source "$1"; WORKSPACE_DIR="$2"; log() { :; }; run_pi() { test -s "$WORKSPACE_DIR/claude_builder_prompt.md"; }; fallback_validation() { :; }; main', "bash", str(BUILDER_SCRIPT), str(tmp_path)], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
     assert "Work autonomously" in (tmp_path / "claude_builder_prompt.md").read_text()
+
+
+def test_builder_does_not_reextract_prepared_source(tmp_path):
+    import os
+
+    (tmp_path / "project").mkdir()
+    with zipfile.ZipFile(tmp_path / "input.zip", "w") as archive:
+        archive.writestr("compile_commands.json", "stale")
+    result = subprocess.run(
+        ["bash", "-c", 'source "$1"; extract_source_archives', "_", str(BUILDER_SCRIPT)],
+        env={**os.environ, "PG_BUILDER_WORKSPACE": str(tmp_path), "PG_BUILDER_SOURCE_PREPARED": "1"},
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert not (tmp_path / "project/compile_commands.json").exists()
+    assert "skipping archive extraction" in result.stdout
