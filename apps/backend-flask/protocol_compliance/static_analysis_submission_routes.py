@@ -18,6 +18,8 @@ from .analysis import (
     try_extract_rules_summary,
 )
 
+from .rules_input import canonical_protocol, validate_rules
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -40,9 +42,7 @@ def create_static_analysis_submission_handlers(
             return error
 
         if not request.files:
-            return make_response(
-                error_response("请上传源码、协议规则和配置文件"), 400
-            )
+            return make_response(error_response("请上传源码、协议规则和配置文件"), 400)
 
         uploads_map = {
             "codeArchive": request.files.get("codeArchive"),
@@ -50,7 +50,8 @@ def create_static_analysis_submission_handlers(
         }
 
         required_missing = [
-            key for key, value in uploads_map.items()
+            key
+            for key, value in uploads_map.items()
             if not isinstance(value, FileStorage)
         ]
         if required_missing:
@@ -59,9 +60,7 @@ def create_static_analysis_submission_handlers(
                 "rules": "协议规则 JSON",
             }
             readable = "、".join(labels.get(item, item) for item in required_missing)
-            return make_response(
-                error_response(f"请上传完整文件：{readable}"), 400
-            )
+            return make_response(error_response(f"请上传完整文件：{readable}"), 400)
 
         code_upload = cast(FileStorage, uploads_map["codeArchive"])
         rules_upload = cast(FileStorage, uploads_map["rules"])
@@ -77,29 +76,56 @@ def create_static_analysis_submission_handlers(
         if code_data is None or rules_data is None:
             return make_response(error_response("上传的文件内容为空，请重新上传"), 400)
         if isinstance(config_upload, FileStorage) and config_data is None:
-            return make_response(error_response("上传的配置文件内容为空，请重新上传"), 400)
+            return make_response(
+                error_response("上传的配置文件内容为空，请重新上传"), 400
+            )
 
-        parsed_rules = None
-        if rules_data:
-            try:
-                parsed_rules = json.loads(rules_data.decode("utf-8"))
-            except (json.JSONDecodeError, UnicodeDecodeError):
-                parsed_rules = None
+        try:
+            parsed_rules = json.loads((rules_data or b"").decode("utf-8"))
+            normalized_rules = validate_rules(parsed_rules)
+            inferred_protocol = normalize_protocol_name(parsed_rules, "")
+            inferred_version = extract_protocol_version(parsed_rules, None)
+        except (ValueError, UnicodeDecodeError) as exc:
+            return make_response(error_response(f"Invalid rules JSON: {exc}"), 400)
 
         if config_data is not None:
-            config_protocol_name, config_protocol_version = extract_protocol_metadata_from_config(
-                config_data,
-                config_name,
+            config_protocol_name, config_protocol_version = (
+                extract_protocol_metadata_from_config(
+                    config_data,
+                    config_name,
+                )
             )
         else:
             config_protocol_name, config_protocol_version = None, None
 
-        rules_protocol_fallback = normalize_protocol_name(
-            parsed_rules,
-            strip_extension(rules_name),
-        )
         form_protocol_name = (request.form.get("protocolName") or "").strip() or None
-        protocol_name = form_protocol_name or config_protocol_name or rules_protocol_fallback
+        try:
+            fallback = inferred_protocol
+            if not fallback:
+                try:
+                    fallback = canonical_protocol(strip_extension(rules_name))
+                except ValueError:
+                    pass
+            candidates = [
+                name
+                for name in (
+                    form_protocol_name,
+                    config_protocol_name,
+                    inferred_protocol,
+                )
+                if name
+            ]
+            names = {canonical_protocol(name) for name in candidates}
+            if len(names) > 1:
+                raise ValueError("Protocol in request/config conflicts with rules JSON")
+            protocol_name = canonical_protocol(
+                form_protocol_name or config_protocol_name or fallback or ""
+            )
+        except ValueError as exc:
+            return make_response(
+                error_response(f"Cannot resolve analysis protocol: {exc}"), 400
+            )
+        rules_protocol_fallback = protocol_name
         if config_protocol_name:
             LOGGER.info(
                 "Static analysis protocol resolved from config %s: %s",
@@ -118,9 +144,13 @@ def create_static_analysis_submission_handlers(
                 config_name,
             )
 
-        rules_version_fallback = extract_protocol_version(parsed_rules, None)
-        form_protocol_version = (request.form.get("protocolVersion") or "").strip() or None
-        protocol_version = form_protocol_version or config_protocol_version or rules_version_fallback
+        rules_version_fallback = inferred_version
+        form_protocol_version = (
+            request.form.get("protocolVersion") or ""
+        ).strip() or None
+        protocol_version = (
+            form_protocol_version or config_protocol_version or rules_version_fallback
+        )
         if config_protocol_version:
             LOGGER.info(
                 "Static analysis protocol version resolved from config %s: %s",
@@ -138,6 +168,10 @@ def create_static_analysis_submission_handlers(
                 rules_version_fallback,
                 config_name,
             )
+        if protocol_name == "DHCP" and protocol_version not in {"4", "6"}:
+            return make_response(
+                error_response("DHCP analysis requires protocolVersion 4 or 6"), 400
+            )
         rules_summary = try_extract_rules_summary(parsed_rules)
         notes = request.form.get("notes")
         project_name = (
@@ -149,7 +183,10 @@ def create_static_analysis_submission_handlers(
         snapshot = submit_static_analysis_job(
             code_payload=(code_name, code_data),
             config_payload=(config_name, config_data),
-            rules_payload=(rules_name, rules_data),
+            rules_payload=(
+                rules_name,
+                json.dumps(normalized_rules, ensure_ascii=False).encode("utf-8"),
+            ),
             notes=notes,
             protocol_name=protocol_name,
             protocol_version=protocol_version,
@@ -166,7 +203,9 @@ def create_static_analysis_submission_handlers(
         limit = to_int(request.args.get("limit"), 50)
         limit = max(1, min(limit, 200))
         history = list_static_analysis_history(limit=limit)
-        payload = success_response({"items": history, "limit": limit, "count": len(history)})
+        payload = success_response(
+            {"items": history, "limit": limit, "count": len(history)}
+        )
         return make_response(payload, 200)
 
     def delete_static_analysis_history(job_id: str):
@@ -182,7 +221,9 @@ def create_static_analysis_submission_handlers(
             deleted = delete_static_analysis_job(job_id)
             if not deleted:
                 return make_response(error_response("任务不存在"), 404)
-            return make_response(success_response({"jobId": job_id, "deleted": True}), 200)
+            return make_response(
+                success_response({"jobId": job_id, "deleted": True}), 200
+            )
         except Exception as exc:
             LOGGER.exception("Failed to delete static analysis job %s", job_id)
             return make_response(error_response(f"删除失败：{str(exc)}"), 500)

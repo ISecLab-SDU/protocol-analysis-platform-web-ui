@@ -9,6 +9,7 @@ import { IconifyIcon } from '@vben/icons';
 
 import { Button, Card, Empty, message, Table, Tag } from 'ant-design-vue';
 
+import { readRuleMetadata, validateAnalysisRule } from '../ruleFormat';
 import { normalizeList } from '../utils';
 
 interface Props {
@@ -33,6 +34,7 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<Emits>();
 
 const loading = ref(false);
+const loadError = ref('');
 const rules = ref<RuleOption[]>([]);
 const selectedRowKeys = ref<string[]>([]);
 const pagination = reactive({
@@ -75,6 +77,11 @@ function normalizeRulesPayload(data: any, sourceLabel: string) {
         msgType: resolveMessageType(rule, sourceLabel),
       })),
     );
+  } else if (data?.rules && typeof data.rules === 'object') {
+    for (const [msgType, ruleList] of Object.entries(data.rules)) {
+      if (Array.isArray(ruleList))
+        entries.push(...ruleList.map((rule) => ({ rule, msgType })));
+    }
   } else if (Array.isArray(data?.data?.rules)) {
     entries.push(
       ...data.data.rules.map((rule: any) => ({
@@ -94,6 +101,7 @@ function normalizeRulesPayload(data: any, sourceLabel: string) {
     .filter(({ rule }) => rule && typeof rule === 'object')
     .map(({ rule, msgType }, index) => ({
       ...rule,
+      ...readRuleMetadata(Array.isArray(data) ? {} : data, msgType),
       group: rule.group || msgType,
       id: `${msgType}-${index}`,
       msgType,
@@ -115,11 +123,16 @@ const selectedRule = computed(() => {
 
 async function loadRules() {
   loading.value = true;
+  loadError.value = '';
+  rules.value = [];
+  selectedRowKeys.value = [];
+  const sourceFile = props.rulesFile;
   try {
     let data: any;
     let sourceLabel = 'UPLOADED';
     if (props.rulesFile) {
       data = JSON.parse(await props.rulesFile.text());
+      if (sourceFile !== props.rulesFile) return;
       sourceLabel = props.rulesFile.name.replace(/\.json$/i, '') || sourceLabel;
     } else return;
 
@@ -131,9 +144,10 @@ async function loadRules() {
       : 1;
     selectedRowKeys.value = lastRule ? [lastRule.id!] : [];
   } catch (error: any) {
-    message.error(`加载规则失败: ${error?.message || error}`);
+    if (sourceFile !== props.rulesFile) return;
+    loadError.value = `加载规则失败: ${error?.message || error}`;
   } finally {
-    loading.value = false;
+    if (sourceFile === props.rulesFile) loading.value = false;
   }
 }
 
@@ -142,7 +156,12 @@ function onStart() {
     message.warning('请先选择一条规则');
     return;
   }
-  emit('start', selectedRule.value);
+  try {
+    validateAnalysisRule(selectedRule.value);
+    emit('start', selectedRule.value);
+  } catch (error) {
+    loadError.value = error instanceof Error ? error.message : String(error);
+  }
 }
 
 function onSelectionChange(keys: Array<number | string>) {
@@ -172,6 +191,14 @@ watch(() => props.rulesFile, loadRules, { immediate: true });
     <div v-if="rules.length > 0" class="rule-info">
       <Tag color="blue">{{ rulesFile?.name }}</Tag>
       <span class="rule-count">共 {{ rules.length }} 条规则</span>
+    </div>
+
+    <p v-if="loadError" role="alert">{{ loadError }}</p>
+    <div v-if="selectedRule?.protocol" class="rule-info">
+      <Tag color="blue">{{ selectedRule.protocol }}</Tag>
+      <Tag v-if="selectedRule.protocolVersion">
+        {{ selectedRule.protocolVersion }}
+      </Tag>
     </div>
 
     <Table

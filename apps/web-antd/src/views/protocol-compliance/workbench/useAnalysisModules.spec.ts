@@ -137,6 +137,8 @@ describe('independent protocol analysis modules', () => {
     });
     const rule = {
       group: 'CONNECT',
+      protocol: 'MQTT',
+      protocolVersion: '3.1.1',
       req_fields: ['clientId'],
       req_type: 'CONNECT',
       res_fields: ['status'],
@@ -163,6 +165,8 @@ describe('independent protocol analysis modules', () => {
 
     expect(api.runProtocolStaticAnalysis).toHaveBeenCalledOnce();
     const payload = api.runProtocolStaticAnalysis.mock.calls[0]?.[0];
+    expect(payload.protocolName).toBe('MQTT');
+    expect(payload.protocolVersion).toBe('3.1.1');
     expect(payload.codeArchive.name).toBe(archive.name);
     expect(await payload.codeArchive.text()).toBe('source');
     expect(JSON.parse(await payload.rules.text())).toEqual({

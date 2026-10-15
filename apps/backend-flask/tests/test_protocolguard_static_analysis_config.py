@@ -23,6 +23,16 @@ from protocol_compliance.analysis import (  # noqa: E402
 )
 
 
+def _rule(request_type="PUBLISH"):
+    return {
+        "rule": "Validate the message.",
+        "req_type": request_type,
+        "req_fields": [],
+        "res_type": "",
+        "res_fields": [],
+    }
+
+
 def _app(monkeypatch) -> Flask:
     monkeypatch.setattr(routes, "_ensure_authenticated", lambda: (None, None))
     app = Flask(__name__)
@@ -30,7 +40,116 @@ def _app(monkeypatch) -> Flask:
     return app
 
 
-def test_protocol_name_is_inferred_from_ftp_rule_type_when_metadata_is_unknown() -> None:
+def test_grouped_rules_preserve_protocol_version_and_strip_metadata(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(
+        routes,
+        "submit_static_analysis_job",
+        lambda **kwargs: captured.update(kwargs) or {"jobId": "test"},
+    )
+    rules = {"MQTT-3.1.1-rules": [_rule()]}
+    response = (
+        _app(monkeypatch)
+        .test_client()
+        .post(
+            "/api/protocol-compliance/static-analysis",
+            data={
+                "codeArchive": (io.BytesIO(b"archive"), "sol.tar"),
+                "rules": (io.BytesIO(json.dumps(rules).encode()), "rules.json"),
+            },
+        )
+    )
+    assert response.status_code == 202
+    assert captured["protocol_name"] == "MQTT"
+    assert captured["protocol_version"] == "3.1.1"
+    assert json.loads(captured["rules_payload"][1]) == rules
+
+
+@pytest.mark.parametrize(
+    "rules,form,fragment",
+    [
+        ({"MQTT-3.1.1-rules": [_rule("")]}, {}, "req_type"),
+        ({"DEFAULT": [_rule("CUSTOM")]}, {}, "protocol"),
+        ({"MQTT-3.1.1-rules": [_rule()]}, {"protocolName": "FTP"}, "conflicts"),
+        ({"PUBLISH": [{**_rule(), "req_fields": None}]}, {}, "req_fields"),
+        ({"PUBLISH": [{**_rule(), "res_fields": ["status"]}]}, {}, "res_type"),
+        ({}, {}, "no analyzable rules"),
+        ([], {}, "root"),
+    ],
+)
+def test_invalid_rules_fail_before_a_job_is_created(monkeypatch, rules, form, fragment):
+    def unexpected(**kwargs):
+        pytest.fail("Invalid input must not create an analysis job")
+
+    monkeypatch.setattr(routes, "submit_static_analysis_job", unexpected)
+    response = (
+        _app(monkeypatch)
+        .test_client()
+        .post(
+            "/api/protocol-compliance/static-analysis",
+            data={
+                "codeArchive": (io.BytesIO(b"archive"), "sol.tar"),
+                "rules": (io.BytesIO(json.dumps(rules).encode()), "rules.json"),
+                **form,
+            },
+        )
+    )
+    assert response.status_code == 400
+    assert fragment.lower() in response.get_data(as_text=True).lower()
+
+
+def test_metadata_envelope_is_converted_to_compiler_rules(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(
+        routes,
+        "submit_static_analysis_job",
+        lambda **kwargs: captured.update(kwargs) or {"jobId": "test"},
+    )
+    response = (
+        _app(monkeypatch)
+        .test_client()
+        .post(
+            "/api/protocol-compliance/static-analysis",
+            data={
+                "codeArchive": (io.BytesIO(b"archive"), "sol.tar"),
+                "rules": (
+                    io.BytesIO(
+                        json.dumps(
+                            {
+                                "protocol": "mqtt",
+                                "protocolVersion": "3.1.1",
+                                "rules": [_rule()],
+                            }
+                        ).encode()
+                    ),
+                    "rules.json",
+                ),
+            },
+        )
+    )
+    assert response.status_code == 202
+    assert captured["protocol_name"] == "MQTT"
+    assert json.loads(captured["rules_payload"][1]) == {"rules": [_rule()]}
+
+
+def test_malformed_json_is_rejected(monkeypatch):
+    response = (
+        _app(monkeypatch)
+        .test_client()
+        .post(
+            "/api/protocol-compliance/static-analysis",
+            data={
+                "codeArchive": (io.BytesIO(b"archive"), "sol.tar"),
+                "rules": (io.BytesIO(b"{broken"), "rules.json"),
+            },
+        )
+    )
+    assert response.status_code == 400
+
+
+def test_protocol_name_is_inferred_from_ftp_rule_type_when_metadata_is_unknown() -> (
+    None
+):
     assert normalize_protocol_name({"protocol": "UNKNOWN", "CCC": []}, "rules") == "FTP"
 
 
@@ -109,23 +228,29 @@ def test_static_analysis_accepts_generated_config_inputs(monkeypatch) -> None:
         captured.update(kwargs)
         return {"jobId": "job-generated-config", "status": "queued"}
 
-    monkeypatch.setattr(routes, "submit_static_analysis_job", fake_submit_static_analysis_job)
+    monkeypatch.setattr(
+        routes, "submit_static_analysis_job", fake_submit_static_analysis_job
+    )
 
     rules = {
-        "protocol": "MQTT-from-rules",
+        "protocol": "MQTT",
         "protocolVersion": "5.0",
-        "rules": [{"requirement": "CONNECT must be validated"}],
+        "rules": [_rule("CONNECT")],
     }
-    response = _app(monkeypatch).test_client().post(
-        "/api/protocol-compliance/static-analysis",
-        data={
-            "codeArchive": (io.BytesIO(b"archive-bytes"), "sol.tar.gz"),
-            "rules": (io.BytesIO(json.dumps(rules).encode("utf-8")), "rules.json"),
-            "protocolName": "MQTT",
-            "protocolVersion": "3.1.1",
-            "projectName": "Sol",
-        },
-        content_type="multipart/form-data",
+    response = (
+        _app(monkeypatch)
+        .test_client()
+        .post(
+            "/api/protocol-compliance/static-analysis",
+            data={
+                "codeArchive": (io.BytesIO(b"archive-bytes"), "sol.tar.gz"),
+                "rules": (io.BytesIO(json.dumps(rules).encode("utf-8")), "rules.json"),
+                "protocolName": "MQTT",
+                "protocolVersion": "3.1.1",
+                "projectName": "Sol",
+            },
+            content_type="multipart/form-data",
+        )
     )
 
     assert response.status_code == 202
@@ -136,27 +261,35 @@ def test_static_analysis_accepts_generated_config_inputs(monkeypatch) -> None:
     assert captured["code_payload"] == ("sol.tar.gz", b"archive-bytes")
 
 
-def test_static_analysis_uses_rules_metadata_when_form_protocol_missing(monkeypatch) -> None:
+def test_static_analysis_uses_rules_metadata_when_form_protocol_missing(
+    monkeypatch,
+) -> None:
     captured: dict[str, object] = {}
 
     def fake_submit_static_analysis_job(**kwargs):
         captured.update(kwargs)
         return {"jobId": "job-rules-metadata", "status": "queued"}
 
-    monkeypatch.setattr(routes, "submit_static_analysis_job", fake_submit_static_analysis_job)
+    monkeypatch.setattr(
+        routes, "submit_static_analysis_job", fake_submit_static_analysis_job
+    )
 
     rules = {
         "protocol": "MQTT",
         "protocolVersion": "3.1.1",
-        "rules": [{"requirement": "PUBLISH QoS must be checked"}],
+        "rules": [_rule("PUBLISH")],
     }
-    response = _app(monkeypatch).test_client().post(
-        "/api/protocol-compliance/static-analysis",
-        data={
-            "codeArchive": (io.BytesIO(b"archive-bytes"), "sol.tar.gz"),
-            "rules": (io.BytesIO(json.dumps(rules).encode("utf-8")), "rules.json"),
-        },
-        content_type="multipart/form-data",
+    response = (
+        _app(monkeypatch)
+        .test_client()
+        .post(
+            "/api/protocol-compliance/static-analysis",
+            data={
+                "codeArchive": (io.BytesIO(b"archive-bytes"), "sol.tar.gz"),
+                "rules": (io.BytesIO(json.dumps(rules).encode("utf-8")), "rules.json"),
+            },
+            content_type="multipart/form-data",
+        )
     )
 
     assert response.status_code == 202

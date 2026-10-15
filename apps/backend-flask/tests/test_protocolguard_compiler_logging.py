@@ -128,6 +128,25 @@ def test_claude_builder_runner_redacts_secret_command_values() -> None:
     ]
 
 
+def test_builder_stdout_never_appends_to_the_replayable_compiler_log(tmp_path, monkeypatch):
+    executor = ClaudeBuilderRunner.__new__(ClaudeBuilderRunner)
+    executor.settings = types.SimpleNamespace(workspace_root=tmp_path / "workspaces", max_runtime=60)
+    executor._docker_available = True
+    executor._builder_image = "builder:test"
+    monkeypatch.setattr(executor, "_docker_env_args", lambda: [])
+    workspace = tmp_path / "workspaces/job"
+    workspace.mkdir(parents=True)
+    compile_log = workspace / "build_log.txt"
+    compile_log.write_text("gclang -c source.c -o source.o\n")
+    def fake_logged_command(command, **kwargs):
+        kwargs["log_path"].write_text("PG_PROGRESS_JSON builder event\n")
+        return []
+    monkeypatch.setattr(executor, "_run_logged_command", fake_logged_command)
+    executor._run_claude_builder_container(workspace, "job", None)
+    assert compile_log.read_text() == "gclang -c source.c -o source.o\n"
+    assert (workspace / "builder_stdout.log").read_text().startswith("PG_PROGRESS_JSON")
+
+
 def test_claude_builder_runner_classifies_claude_builder_log_markers() -> None:
     assert (
         ClaudeBuilderRunner._claude_builder_progress_stage(

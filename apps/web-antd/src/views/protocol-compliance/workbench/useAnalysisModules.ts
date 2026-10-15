@@ -34,7 +34,7 @@ import {
   stopProtocolFuzzingJob,
 } from '#/api/protocol-compliance';
 
-import { buildLegacyRulesPayload } from './ruleFormat';
+import { buildLegacyRulesPayload, validateAnalysisRule } from './ruleFormat';
 import { ansiToHtml, normalizeList } from './utils';
 
 type ModuleStatus = 'done' | 'error' | 'idle' | 'running' | 'stopped';
@@ -178,6 +178,7 @@ function getErrorMessage(error: unknown, fallback: string) {
 }
 
 function buildSelectedRuleFile(rule: ProtocolExtractRuleItem) {
+  validateAnalysisRule(rule);
   const payload = buildLegacyRulesPayload([rule]);
   return new File([JSON.stringify(payload, null, 2)], 'rules.json', {
     type: 'application/json',
@@ -520,6 +521,8 @@ async function runCodeLocate(rule: ProtocolExtractRuleItem) {
     const job = await runProtocolStaticAnalysis({
       codeArchive: codeLocateInputs.codeArchive,
       rules: buildSelectedRuleFile(rule),
+      protocolName: rule.protocol,
+      protocolVersion: rule.protocolVersion,
     });
     if (runId !== codeLocateRunId) return;
     codeLocate.job = job;

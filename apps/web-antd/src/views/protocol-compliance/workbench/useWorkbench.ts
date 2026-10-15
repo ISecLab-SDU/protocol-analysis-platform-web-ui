@@ -40,7 +40,7 @@ import {
   stopProtocolFuzzingJob,
 } from '#/api/protocol-compliance';
 
-import { buildLegacyRulesPayload } from './ruleFormat';
+import { buildLegacyRulesPayload, validateAnalysisRule } from './ruleFormat';
 import { STAGE_LIST } from './types';
 import { ansiToHtml, normalizeList } from './utils';
 
@@ -801,6 +801,7 @@ function buildRulesFile(): File {
   if (!selectedRule.value) {
     throw new Error('未选择规则');
   }
+  validateAnalysisRule(selectedRule.value);
   const grouped = buildLegacyRulesPayload([selectedRule.value]);
   const json = JSON.stringify(grouped, null, 2);
   return new File([json], 'rules.json', { type: 'application/json' });
@@ -1289,6 +1290,8 @@ async function runStaticAnalysisStep(runId: number) {
       codeArchive: projectConfig.archive,
       rules: buildRulesFile(),
       notes: projectConfig.notes,
+      protocolName: selectedRule.value.protocol,
+      protocolVersion: selectedRule.value.protocolVersion,
     });
     if (!isCurrentPipelineRun(runId)) return;
     staticJobId.value = job.jobId;

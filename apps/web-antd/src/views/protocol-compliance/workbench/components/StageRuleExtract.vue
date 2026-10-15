@@ -73,7 +73,11 @@ const resultFileName = computed(() => {
 const resultJsonText = computed(() => {
   if (!extractResult.value) return '';
   return JSON.stringify(
-    buildLegacyRulesPayload(extractResult.value.rules),
+    {
+      protocol: extractResult.value.protocol,
+      protocolVersion: extractResult.value.version,
+      ...buildLegacyRulesPayload(extractResult.value.rules),
+    },
     null,
     2,
   );

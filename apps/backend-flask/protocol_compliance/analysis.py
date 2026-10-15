@@ -22,6 +22,7 @@ from .compiler import (
     ClaudeBuilderRunnerExecutionError,
     ClaudeBuilderRunnerNotAvailableError,
 )
+from .rules_input import rule_metadata
 from .job_logging import JobStageLogger
 from .state_repository import analysis_state_repository
 from .static_analysis_result_checker import check_static_analysis_database
@@ -404,10 +405,9 @@ def build_mock_analysis(
 def normalize_protocol_name(parsed_rules: Optional[dict], fallback: str) -> str:
     if not parsed_rules or not isinstance(parsed_rules, dict):
         return fallback
-    for key in ("protocol", "protocolName", "title", "name"):
-        value = parsed_rules.get(key)
-        if isinstance(value, str) and value.strip().lower() not in {"unknown", "auto"}:
-            return value.strip()
+    protocol, _ = rule_metadata(parsed_rules)
+    if protocol:
+        return protocol
 
     rule_types = {
         str(key).strip().upper()
@@ -472,11 +472,8 @@ def normalize_protocol_name(parsed_rules: Optional[dict], fallback: str) -> str:
 def extract_protocol_version(parsed_rules: Optional[dict], fallback: Optional[str] = None) -> Optional[str]:
     if not parsed_rules or not isinstance(parsed_rules, dict):
         return fallback
-    for key in ("protocolVersion", "version", "protocol_version"):
-        value = parsed_rules.get(key)
-        if isinstance(value, str) and value.strip():
-            return value
-    return fallback
+    _, version = rule_metadata(parsed_rules)
+    return version or fallback
 
 
 def try_extract_rules_summary(parsed_rules: Optional[dict]) -> Optional[str]:

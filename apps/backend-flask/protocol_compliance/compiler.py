@@ -590,7 +590,7 @@ class ClaudeBuilderRunner:
 
         output_dir = self.settings.workspace_root.parent / "outputs" / job_identifier
         output_dir.mkdir(parents=True, exist_ok=True)
-        log_path = workspace_dir / "build_log.txt"
+        log_path = workspace_dir / "builder_stdout.log"
         log_path.parent.mkdir(parents=True, exist_ok=True)
 
         config_path = workspace_dir / "config.toml"

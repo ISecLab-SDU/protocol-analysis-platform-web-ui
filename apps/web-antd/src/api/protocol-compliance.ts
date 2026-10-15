@@ -819,6 +819,8 @@ export interface RunProtocolExtractPayload {
 export interface ProtocolExtractRuleItem {
   description?: string;
   group?: null | string;
+  protocol?: string;
+  protocolVersion?: string;
   req_fields: string[];
   req_type: string | string[];
   res_fields: string[];
