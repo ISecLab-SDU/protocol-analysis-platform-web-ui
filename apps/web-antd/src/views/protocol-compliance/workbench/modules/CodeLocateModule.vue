@@ -17,6 +17,8 @@ const {
   stopCodeLocate,
 } = useAnalysisModules();
 
+const analysisStarted = computed(() => codeLocate.rule !== null);
+
 const archiveFileList = computed(() =>
   codeLocateInputs.codeArchive
     ? [
@@ -67,13 +69,25 @@ function removeRules() {
 </script>
 
 <template>
-  <div class="analysis-module">
+  <div
+    class="analysis-module"
+    :class="{ 'analysis-module--focused': analysisStarted }"
+  >
     <header class="module-heading">
       <div>
         <h1>代码定位与一致性分析</h1>
-        <p>上传源码包和规则文件，选择一条规则后单独运行分析。</p>
+        <p v-if="!analysisStarted">
+          上传源码包和规则文件，选择一条规则后单独运行分析。
+        </p>
       </div>
       <div class="module-heading-actions">
+        <Button
+          v-if="analysisStarted && codeLocate.status !== 'running'"
+          size="small"
+          @click="resetCodeLocateOutput"
+        >
+          返回输入与规则选择
+        </Button>
         <Button
           v-if="codeLocate.status === 'running'"
           danger
@@ -101,7 +115,7 @@ function removeRules() {
       </div>
     </header>
 
-    <Card class="module-card" title="输入">
+    <Card v-if="!analysisStarted" class="module-card" title="输入">
       <div class="module-input-grid">
         <div class="module-input-field">
           <div class="module-input-label">源码压缩包 *</div>
@@ -139,7 +153,7 @@ function removeRules() {
     </Card>
 
     <StageRuleConfirm
-      v-if="codeLocateInputs.rulesFile"
+      v-if="!analysisStarted && codeLocateInputs.rulesFile"
       :disabled="codeLocate.status === 'running'"
       :rules-file="codeLocateInputs.rulesFile"
       :show-back="false"
@@ -154,6 +168,8 @@ function removeRules() {
     </div>
 
     <StageCodeLocate
+      v-if="analysisStarted"
+      class="module-analysis-stage locate-stage--focused"
       :evidence="codeLocate.evidence"
       :events="codeLocate.events"
       :log-html="codeLocate.logHtml"
@@ -170,6 +186,26 @@ function removeRules() {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.analysis-module--focused {
+  min-height: calc(100dvh - 208px);
+}
+
+.module-analysis-stage {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (min-width: 1281px) {
+  .analysis-module--focused {
+    height: max(480px, calc(100dvh - 208px));
+  }
+
+  .module-heading,
+  .module-error {
+    flex-shrink: 0;
+  }
 }
 
 .module-heading {

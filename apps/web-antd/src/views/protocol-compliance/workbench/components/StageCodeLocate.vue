@@ -776,6 +776,59 @@ function formatEvidencePath(fn: CodeLocateFunctionSlice) {
   white-space: pre-wrap;
 }
 
+@media (min-width: 1281px) {
+  .locate-stage--focused {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .locate-stage--focused :deep(.ant-card-head) {
+    flex-shrink: 0;
+  }
+
+  .locate-stage--focused :deep(.ant-card-body) {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .locate-stage--focused .locate-workspace {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .locate-stage--focused .result-hero {
+    flex-shrink: 0;
+    max-height: 35%;
+    overflow: auto;
+  }
+
+  .locate-stage--focused .observe-grid {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .locate-stage--focused .discovery-panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .locate-stage--focused :deep(.stage-live-log-panel) {
+    min-height: 0;
+  }
+
+  .locate-stage--focused .function-source-frame,
+  .locate-stage--focused :deep(.live-log) {
+    flex: 1;
+    min-height: 0;
+    height: auto;
+  }
+}
+
 @media (max-width: 1280px) {
   .finding-grid {
     grid-template-columns: 1fr;
