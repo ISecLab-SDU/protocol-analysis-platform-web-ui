@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
+import { useElementBounding, useWindowSize } from '@vueuse/core';
 import { Button, Card, Tag, Upload } from 'ant-design-vue';
 
 import StageCodeLocate from '../components/StageCodeLocate.vue';
@@ -16,6 +17,15 @@ const {
   runCodeLocate,
   stopCodeLocate,
 } = useAnalysisModules();
+
+const moduleRef = ref<HTMLElement | null>(null);
+const { height: viewportHeight } = useWindowSize();
+const { top: moduleTop } = useElementBounding(moduleRef, {
+  windowScroll: false,
+});
+const workspaceHeight = computed(
+  () => `${Math.max(480, viewportHeight.value - moduleTop.value - 28)}px`,
+);
 
 const analysisStarted = computed(() => codeLocate.rule !== null);
 
@@ -70,7 +80,9 @@ function removeRules() {
 
 <template>
   <div
+    ref="moduleRef"
     class="analysis-module"
+    :style="{ '--module-workspace-height': workspaceHeight }"
     :class="{ 'analysis-module--focused': analysisStarted }"
   >
     <header class="module-heading">
@@ -189,7 +201,7 @@ function removeRules() {
 }
 
 .analysis-module--focused {
-  min-height: calc(100dvh - 208px);
+  min-height: var(--module-workspace-height);
 }
 
 .module-analysis-stage {
@@ -199,7 +211,7 @@ function removeRules() {
 
 @media (min-width: 1281px) {
   .analysis-module--focused {
-    height: max(480px, calc(100dvh - 208px));
+    height: var(--module-workspace-height);
   }
 
   .module-heading,
