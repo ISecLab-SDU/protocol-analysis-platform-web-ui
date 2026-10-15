@@ -90,7 +90,12 @@ def test_container_receives_pi_and_preserves_failure_details(
             ]
 
         def wait(self):
+            assert seen["remove"] is False
+            assert not seen.get("removed")
             return {"StatusCode": 7}
+
+        def remove(self, **kwargs):
+            seen["removed"] = True
 
     def run(**kwargs):
         seen.update(kwargs)
@@ -118,6 +123,7 @@ def test_container_receives_pi_and_preserves_failure_details(
     assert seen["environment"]["PG_PI_MODEL"] == "pi-model"
     assert seen["environment"]["PG_PI_API_KEY"] == "server-key"
     assert exc.value.details["status"] == 7
+    assert seen["removed"] is True
     assert events[-1][-1] == {"activity": "inspect", "primary": "main.c"}
 
 

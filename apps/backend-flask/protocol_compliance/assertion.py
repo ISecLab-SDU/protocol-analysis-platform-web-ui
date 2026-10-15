@@ -675,6 +675,8 @@ def _run_instrumentation_container(
     env = dict(runtime_env) if runtime_env is not None else resolve_assertion_runtime()
     env.update(_container_host_identity_env())
 
+    # Retain the SDK container until logs and its exit status have been read.
+    container = None
     # Prefer Docker SDK; fall back to CLI if unavailable
     try:
         import docker
@@ -690,7 +692,7 @@ def _run_instrumentation_container(
             },
             environment=env,
             detach=True,
-            remove=True,
+            remove=False,
             stdout=True,
             stderr=True,
             network=network,
@@ -769,6 +771,12 @@ def _run_instrumentation_container(
     except Exception as exc:
         # Normalize docker-related errors
         raise AssertGenerationError(f"Failed to run instrumentation container: {exc}") from exc
+    finally:
+        if container is not None:
+            try:
+                container.remove(force=True)
+            except Exception:
+                LOGGER.warning("Could not clean up instrumentation container", exc_info=True)
 
     duration_ms = int((time.time() - start_ts) * 1000)
 
