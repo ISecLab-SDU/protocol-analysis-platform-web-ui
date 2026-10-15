@@ -6,6 +6,10 @@ import { IconifyIcon } from '@vben/icons';
 import { useElementBounding, useWindowSize } from '@vueuse/core';
 import { Button, Card, Tag, Upload } from 'ant-design-vue';
 
+import {
+  analysisDownloads,
+  downloadAnalysisDocument,
+} from '../analysisExchange';
 import StageCodeLocate from '../components/StageCodeLocate.vue';
 import StageRuleConfirm from '../components/StageRuleConfirm.vue';
 import { useAnalysisModules } from '../useAnalysisModules';
@@ -99,6 +103,14 @@ function removeRules() {
       </div>
       <div class="module-heading-actions">
         <Button
+          v-if="codeLocate.result"
+          size="small"
+          :loading="analysisDownloads[codeLocate.result.analysisId]?.pending"
+          @click="downloadAnalysisDocument(codeLocate.result.analysisId)"
+        >
+          下载分析 JSON
+        </Button>
+        <Button
           v-if="analysisStarted && codeLocate.status !== 'running'"
           size="small"
           @click="resetCodeLocateOutput"
@@ -179,6 +191,17 @@ function removeRules() {
       title="确认分析规则"
       @start="runCodeLocate"
     />
+
+    <div
+      v-if="
+        codeLocate.result &&
+        analysisDownloads[codeLocate.result.analysisId]?.error
+      "
+      class="module-error"
+      role="alert"
+    >
+      {{ analysisDownloads[codeLocate.result.analysisId]?.error }}
+    </div>
 
     <div v-if="codeLocate.error" class="module-error" role="alert">
       <IconifyIcon icon="mdi:alert-circle-outline" />

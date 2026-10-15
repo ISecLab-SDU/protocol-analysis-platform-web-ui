@@ -5,6 +5,7 @@ import type {
 } from './types';
 
 import type {
+  ProtocolAnalysisDocument,
   ProtocolAssertGenerationJob,
   ProtocolAssertGenerationResult,
   ProtocolExtractRuleItem,
@@ -34,6 +35,12 @@ import {
   stopProtocolFuzzingJob,
 } from '#/api/protocol-compliance';
 
+import {
+  downloadAnalysisDocument,
+  eligibleAnalysisResults,
+  fetchAnalysisFile,
+  readAnalysisDocument,
+} from './analysisExchange';
 import { buildLegacyRulesPayload, validateAnalysisRule } from './ruleFormat';
 import { ansiToHtml, normalizeList } from './utils';
 
@@ -76,6 +83,7 @@ const assertInputs = reactive({
   model: '',
 
   codeArchive: null as File | null,
+  analysisDocument: null as File | null,
   databaseFile: null as File | null,
   databasePath: '',
 });
@@ -459,14 +467,7 @@ async function completeCodeLocateJob(
   }
   if (runId !== codeLocateRunId) return;
   codeLocate.status = 'done';
-  const databasePath = result.artifacts?.database;
-  if (
-    databasePath &&
-    !assertInputs.databasePath &&
-    !assertInputs.databaseFile
-  ) {
-    assertInputs.databasePath = databasePath;
-  }
+  void downloadAnalysisDocument(jobId, true);
 }
 
 async function pollCodeLocateJob(
@@ -644,26 +645,14 @@ async function runAssertGeneration() {
     assertGeneration.error = '请上传源码压缩包';
     return;
   }
-  if (!databasePath && !databaseFile) {
+  if (!assertInputs.analysisDocument && !databasePath && !databaseFile) {
     assertGeneration.status = 'error';
-    assertGeneration.error =
-      '请选择代码定位结果数据库，或上传之前生成的数据库文件';
+    assertGeneration.error = '请上传分析 JSON 或选择最近分析结果';
     return;
   }
 
-  const codeLocateResult = codeLocate.result;
-  const matchedCodeLocateOutput = Boolean(
-    !databaseFile &&
-      databasePath &&
-      databasePath === codeLocateResult?.artifacts?.database &&
-      archive === codeLocate.inputArchive,
-  );
-  const outputContext = {
-    codeLocateResult: matchedCodeLocateOutput ? codeLocateResult : null,
-    evidence: matchedCodeLocateOutput ? codeLocate.evidence : null,
-    rule: matchedCodeLocateOutput ? codeLocate.rule : null,
-  };
-
+  if (assertGeneration.status === 'running') return;
+  const analysisFile = assertInputs.analysisDocument;
   assertionRunId += 1;
   const runId = assertionRunId;
   assertGeneration.status = 'running';
@@ -673,8 +662,69 @@ async function runAssertGeneration() {
   assertGeneration.diffContent = '';
   assertGeneration.logText = '';
 
+  let document: null | ProtocolAnalysisDocument = null;
+  if (analysisFile) {
+    try {
+      document = await readAnalysisDocument(analysisFile);
+      if (runId !== assertionRunId) return;
+      if (eligibleAnalysisResults(document).length === 0)
+        throw new Error('没有具备有效证据的违规结果，无法生成断言');
+    } catch (error) {
+      if (runId !== assertionRunId) return;
+      assertGeneration.status = 'error';
+      assertGeneration.error = getErrorMessage(error, '分析 JSON 无效');
+      return;
+    }
+  }
+  const finding = document ? eligibleAnalysisResults(document)[0] : null;
+  const importedRule: null | ProtocolExtractRuleItem =
+    finding && document
+      ? {
+          protocol: document.protocol.name,
+          protocolVersion: document.protocol.version || undefined,
+          rule: finding.rule.description,
+          req_type: finding.rule.requestTypes,
+          req_fields: finding.rule.requestFields,
+          res_type: finding.rule.responseTypes,
+          res_fields: finding.rule.responseFields,
+        }
+      : null;
+  const outputContext = {
+    codeLocateResult: null,
+    evidence: finding
+      ? parseCodeLocateEvidence(
+          {
+            ruleDesc: finding.rule.description,
+            reason: finding.reason,
+            result: 'violation_found',
+            resultLabel: '发现违规',
+            callGraph: finding.context.callGraph,
+            codeSnippet: finding.locations
+              .map(
+                (l) =>
+                  `Function: ${l.function || '-'}\nPath: ${l.path}:${l.startLine}\n${l.code
+                    .split('\n')
+                    .map((line, i) => `${l.startLine + i}: ${line}`)
+                    .join('\n')}`,
+              )
+              .join('\n'),
+            violations: finding.locations.map((l) => ({
+              filename: l.path,
+              functionName: l.function,
+              codeLines: l.relevantLines,
+            })),
+          },
+          [],
+          importedRule,
+          '分析 JSON',
+        )
+      : null,
+    rule: importedRule,
+  };
+
   try {
     const payload: {
+      analysisDocument?: File;
       codeArchive: File;
       database?: File;
       databasePath?: string;
@@ -689,7 +739,8 @@ async function runAssertGeneration() {
       },
       codeArchive: archive,
     };
-    if (databasePath) payload.databasePath = databasePath;
+    if (analysisFile) payload.analysisDocument = analysisFile;
+    else if (databasePath) payload.databasePath = databasePath;
     else if (databaseFile) payload.database = databaseFile;
     const job = await runProtocolAssertGeneration(payload);
     if (runId !== assertionRunId) return;
@@ -717,13 +768,24 @@ function stopAssertGeneration() {
     '已停止此模块的进度查询；已提交的服务端任务可能继续运行';
 }
 
-function useLatestCodeLocateOutput() {
-  const databasePath = codeLocate.result?.artifacts?.database;
-  if (!databasePath || !codeLocate.inputArchive) return false;
-  assertInputs.codeArchive = codeLocate.inputArchive;
-  assertInputs.databaseFile = null;
-  assertInputs.databasePath = databasePath;
-  return true;
+async function useLatestCodeLocateOutput() {
+  const jobId = codeLocate.job?.jobId || codeLocate.result?.analysisId;
+  if (!jobId || !codeLocate.inputArchive) return false;
+  try {
+    const file = await fetchAnalysisFile(jobId);
+    await readAnalysisDocument(file);
+    assertInputs.codeArchive = codeLocate.inputArchive;
+    assertInputs.analysisDocument = file;
+    assertInputs.databaseFile = null;
+    assertInputs.databasePath = '';
+    return true;
+  } catch (error) {
+    assertGeneration.error = getErrorMessage(
+      error,
+      '分析 JSON 获取失败，请下载后手动上传',
+    );
+    return false;
+  }
 }
 
 function resetFuzzStats() {

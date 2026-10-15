@@ -175,6 +175,11 @@ def static_analysis_result(job_id: str):
     return _static_analysis_job_handlers["static_analysis_result"](job_id)
 
 
+@bp.route("/static-analysis/<job_id>/exchange", methods=["GET"])
+def download_static_analysis_exchange(job_id: str):
+    return _static_analysis_job_handlers["download_static_analysis_exchange"](job_id)
+
+
 @bp.route("/static-analysis/<job_id>/artifact/database", methods=["GET"])
 def download_static_analysis_database(job_id: str):
     return _static_analysis_job_handlers["download_static_analysis_database"](job_id)

@@ -22,6 +22,8 @@ from .assertion import (
     submit_diff_parsing_job,
 )
 
+from .analysis_exchange import prepare_assertion_document
+
 from .assertion_runtime import resolve_assertion_runtime
 
 LOGGER = logging.getLogger(__name__)
@@ -47,9 +49,19 @@ def create_assertion_handlers(
 
         code_name, code_data = read_upload(code_upload_raw)
 
+        analysis_upload = request.files.get("analysisDocument")
         database_path_requested = request.form.get("databasePath")
+        if analysis_upload is not None and (database_path_requested or "database" in request.files):
+            return make_response(error_response("Supply analysisDocument or legacy database input, not both"), 400)
+        if database_path_requested and "database" in request.files:
+            return make_response(error_response("Supply a database path or upload, not both"), 400)
+        database_path = None
+        document_data = None
         database_source = "upload"
-        if database_path_requested:
+        if isinstance(analysis_upload, FileStorage):
+            _, document_data = read_upload(analysis_upload)
+            database_name, database_data = "analysis.json", document_data
+        elif database_path_requested:
             database_path = expand_path(database_path_requested)
             if database_path is None:
                 return make_response(error_response("分析结果数据路径无效"), 400)
@@ -84,6 +96,14 @@ def create_assertion_handlers(
 
         if not code_data or not database_data:
             return make_response(error_response("上传的文件内容为空，请重新上传"), 400)
+
+        try:
+            document = prepare_assertion_document(code_name, code_data, document_data=document_data,
+                                                  database_data=database_data, database_path=database_path)
+        except (ValueError, OSError) as exc:
+            return make_response(error_response(str(exc)), 400)
+        database_name = "analysis.json"
+        database_data = json.dumps(document, ensure_ascii=False).encode("utf-8")
 
         notes = request.form.get("notes")
         try:

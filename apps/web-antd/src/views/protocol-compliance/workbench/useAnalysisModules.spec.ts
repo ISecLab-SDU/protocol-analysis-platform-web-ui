@@ -2,9 +2,11 @@ import type { ProtocolStaticAnalysisResult } from '#/api/protocol-compliance';
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { makeAnalysisDocument } from './analysisExchange.fixture';
 import { useAnalysisModules } from './useAnalysisModules';
 
 const api = vi.hoisted(() => ({
+  downloadProtocolAnalysisDocument: vi.fn(),
   fetchProtocolAssertGenerationProgress: vi.fn(),
   fetchProtocolAssertGenerationResult: vi.fn(),
   fetchProtocolFuzzConfigLogs: vi.fn(),
@@ -62,6 +64,9 @@ function makeStaticResult(): ProtocolStaticAnalysisResult {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  api.downloadProtocolAnalysisDocument.mockResolvedValue(
+    new Blob([JSON.stringify(makeAnalysisDocument())]),
+  );
   Object.assign(modules.codeLocateInputs, {
     codeArchive: null,
     rulesFile: null,
@@ -85,6 +90,7 @@ beforeEach(() => {
     baseUrl: '',
     model: '',
     codeArchive: null,
+    analysisDocument: null,
     databaseFile: null,
     databasePath: '',
   });
@@ -325,8 +331,8 @@ describe('independent protocol analysis modules', () => {
       res_type: 'CONNACK',
       rule: 'A newer rule.',
     };
-    expect(assertionOutput?.codeLocateResult).toEqual(staticResult);
-    expect(assertionOutput?.rule).toEqual(rule);
+    expect(assertionOutput?.codeLocateResult).toBeNull();
+    expect(assertionOutput?.rule).toBeNull();
   });
 
   it('submits Pi provider settings and displays job failures', async () => {
@@ -359,7 +365,6 @@ describe('independent protocol analysis modules', () => {
 
   it('reuses the selected code-location output with its matching source archive', async () => {
     const archive = new File(['prior source'], 'source.zip');
-    const databasePath = '/workspace/violations.db';
     const rule = {
       req_fields: [],
       req_type: 'CONNECT',
@@ -394,7 +399,7 @@ describe('independent protocol analysis modules', () => {
     });
     api.fetchProtocolInstrumentationDiff.mockResolvedValue({ content: 'diff' });
 
-    expect(modules.useLatestCodeLocateOutput()).toBe(true);
+    expect(await modules.useLatestCodeLocateOutput()).toBe(true);
     await modules.runAssertGeneration();
 
     expect(api.runProtocolAssertGeneration).toHaveBeenCalledWith({
@@ -405,13 +410,40 @@ describe('independent protocol analysis modules', () => {
         model: '',
       },
       codeArchive: archive,
-      databasePath,
+      analysisDocument: expect.objectContaining({
+        name: 'analysis-analysis-1.json',
+      }),
     });
     expect(modules.assertionOutputContexts.get('assert-latest')).toMatchObject({
-      codeLocateResult: staticResult,
-      evidence,
-      rule,
+      codeLocateResult: null,
+      evidence: expect.objectContaining({ targetFile: 'main.c' }),
+      rule: expect.objectContaining({ rule: 'Validate input' }),
     });
+  });
+
+  it('accepts a downloaded JSON document with no code-location UI state', async () => {
+    modules.assertInputs.codeArchive = new File(['source'], 'source.zip');
+    modules.assertInputs.analysisDocument = new File(
+      [JSON.stringify(makeAnalysisDocument())],
+      'downloaded.json',
+    );
+    api.runProtocolAssertGeneration.mockResolvedValue({
+      jobId: 'independent-json',
+      events: [],
+      status: 'completed',
+    });
+    api.fetchProtocolAssertGenerationResult.mockResolvedValue({
+      jobId: 'independent-json',
+      assertionCount: 1,
+    });
+    api.fetchProtocolInstrumentationDiff.mockResolvedValue({ content: 'diff' });
+    await modules.runAssertGeneration();
+    expect(api.runProtocolAssertGeneration.mock.calls[0]?.[0]).toMatchObject({
+      analysisDocument: expect.objectContaining({ name: 'downloaded.json' }),
+    });
+    expect(
+      modules.assertionOutputContexts.get('independent-json')?.rule?.rule,
+    ).toBe('Validate input');
   });
 
   it('restores assertion result and diff context for a prior job ID', async () => {

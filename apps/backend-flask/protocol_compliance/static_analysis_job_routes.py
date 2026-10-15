@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import sqlite3
 from pathlib import Path
 from typing import Any, Callable, Optional
 
@@ -12,6 +13,7 @@ from flask import make_response, request, send_file
 from utils.responses import error_response, success_response
 
 from .analysis import get_static_analysis_job, get_static_analysis_result
+from .analysis_exchange import resolve_exchange_artifact
 
 LOGGER = logging.getLogger(__name__)
 
@@ -57,6 +59,23 @@ def create_static_analysis_job_handlers(
                 409,
             )
         return make_response(success_response(result), 200)
+
+    def download_static_analysis_exchange(job_id: str):
+        _, error = ensure_authenticated()
+        if error:
+            return error
+        snapshot = get_static_analysis_job(job_id)
+        if not snapshot:
+            return make_response(error_response("未找到静态分析任务"), 404)
+        if snapshot.get("status") != "completed":
+            return make_response(error_response("静态分析任务尚未成功完成"), 409)
+        result = get_static_analysis_result(job_id) or {}
+        try:
+            path = resolve_exchange_artifact(result)
+        except (OSError, ValueError, sqlite3.Error) as exc:
+            return make_response(error_response("Analysis JSON unavailable; retry or rerun analysis", {"exportError": str(exc)}), 409)
+        return send_file(path, mimetype="application/json", as_attachment=True,
+                         download_name=f"analysis-{job_id}.json", max_age=0)
 
     def download_static_analysis_database(job_id: str):
         LOGGER.info("[下载数据库] 请求下载任务 %s 的数据库文件", job_id)
@@ -130,5 +149,6 @@ def create_static_analysis_job_handlers(
     return {
         "static_analysis_progress": static_analysis_progress,
         "static_analysis_result": static_analysis_result,
+        "download_static_analysis_exchange": download_static_analysis_exchange,
         "download_static_analysis_database": download_static_analysis_database,
     }

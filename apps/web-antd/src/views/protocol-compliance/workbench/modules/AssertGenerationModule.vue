@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import type { ProtocolAnalysisDocument } from '#/api/protocol-compliance';
+
+import { computed, ref, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
@@ -15,6 +17,10 @@ import {
 
 import { downloadProtocolAssertionArtifact } from '#/api/protocol-compliance';
 
+import {
+  eligibleAnalysisResults,
+  readAnalysisDocument,
+} from '../analysisExchange';
 import StageAssertGen from '../components/StageAssertGen.vue';
 import { useAnalysisModules } from '../useAnalysisModules';
 
@@ -59,21 +65,46 @@ const archiveFileList = computed(() =>
     : [],
 );
 
+const analysisFile = computed(
+  () => assertInputs.analysisDocument || assertInputs.databaseFile,
+);
 const databaseFileList = computed(() =>
-  assertInputs.databaseFile
+  analysisFile.value
     ? [
         {
-          name: assertInputs.databaseFile.name,
+          name: analysisFile.value.name,
           status: 'done' as const,
-          uid: 'analysis-database',
+          uid: 'analysis-document',
         },
       ]
     : [],
 );
-
-const latestDatabasePath = computed(
-  () => codeLocate.result?.artifacts?.database || '',
+const preview = ref<null | ProtocolAnalysisDocument>(null);
+const previewError = ref('');
+const eligible = computed(() =>
+  preview.value ? eligibleAnalysisResults(preview.value) : [],
 );
+const excluded = computed(
+  () => preview.value?.results.filter((r) => !eligible.value.includes(r)) || [],
+);
+watch(
+  () => assertInputs.analysisDocument,
+  async (file) => {
+    preview.value = null;
+    previewError.value = '';
+    if (!file) return;
+    try {
+      const document = await readAnalysisDocument(file);
+      if (assertInputs.analysisDocument === file) preview.value = document;
+    } catch (error) {
+      if (assertInputs.analysisDocument === file)
+        previewError.value =
+          error instanceof Error ? error.message : '分析 JSON 无效';
+    }
+  },
+  { immediate: true },
+);
+const latestAnalysisId = computed(() => codeLocate.result?.analysisId || '');
 
 function beforeUploadArchive(file: File) {
   assertInputs.codeArchive = file;
@@ -81,7 +112,10 @@ function beforeUploadArchive(file: File) {
 }
 
 function beforeUploadDatabase(file: File) {
-  assertInputs.databaseFile = file;
+  assertInputs.analysisDocument = file.name.toLowerCase().endsWith('.json')
+    ? file
+    : null;
+  assertInputs.databaseFile = assertInputs.analysisDocument ? null : file;
   assertInputs.databasePath = '';
   return false;
 }
@@ -92,17 +126,13 @@ function removeArchive() {
 }
 
 function removeDatabase() {
+  assertInputs.analysisDocument = null;
   assertInputs.databaseFile = null;
   return true;
 }
 
-function updateDatabasePath(value: string) {
-  assertInputs.databasePath = value;
-  if (value.trim()) assertInputs.databaseFile = null;
-}
-
-function selectLatestDatabase() {
-  useLatestCodeLocateOutput();
+async function selectLatestDatabase() {
+  await useLatestCodeLocateOutput();
 }
 </script>
 
@@ -111,7 +141,7 @@ function selectLatestDatabase() {
     <header class="module-heading">
       <div>
         <h1>断言生成</h1>
-        <p>使用源码包和已有的代码定位数据库，单独生成断言与插桩产物。</p>
+        <p>使用匹配的源码包和分析 JSON，单独生成断言与插桩产物。</p>
       </div>
       <div class="module-heading-actions">
         <Button
@@ -161,9 +191,9 @@ function selectLatestDatabase() {
         </div>
 
         <div class="module-input-field">
-          <div class="module-input-label">代码定位结果数据库 *</div>
+          <div class="module-input-label">分析结果 JSON *</div>
           <Upload
-            accept=".db,.sqlite,.sqlite3,application/octet-stream"
+            accept=".json,application/json,.db,.sqlite,.sqlite3"
             :before-upload="beforeUploadDatabase"
             :disabled="assertGeneration.status === 'running'"
             :file-list="databaseFileList"
@@ -171,30 +201,48 @@ function selectLatestDatabase() {
           >
             <Button :disabled="assertGeneration.status === 'running'">
               <template #icon><IconifyIcon icon="mdi:upload" /></template>
-              上传数据库文件
+              上传分析 JSON
             </Button>
           </Upload>
-          <div class="database-path-row">
-            <Input
-              :value="assertInputs.databasePath"
-              :disabled="assertGeneration.status === 'running'"
-              placeholder="也可填入代码定位结果中的数据库路径"
-              @update:value="updateDatabasePath"
-            />
-            <Button
-              :disabled="
-                !latestDatabasePath ||
-                !codeLocate.inputArchive ||
-                assertGeneration.status === 'running'
-              "
-              @click="selectLatestDatabase"
-            >
-              使用最近结果（数据库和源码）
-            </Button>
+          <Button
+            :disabled="
+              !latestAnalysisId ||
+              !codeLocate.inputArchive ||
+              assertGeneration.status === 'running'
+            "
+            @click="selectLatestDatabase"
+          >
+            使用最近分析结果及源码
+          </Button>
+          <small class="module-help"
+            >也支持具有可验证来源的旧版数据库；推荐使用分析 JSON。</small
+          >
+          <p v-if="previewError" role="alert">{{ previewError }}</p>
+          <div v-if="preview" class="analysis-preview">
+            <p>
+              {{ preview.protocol.name }} · {{ preview.source.archiveName }}
+            </p>
+            <p>
+              共 {{ preview.results.length }} 条分析结果；可生成断言
+              {{ eligible.length }} 条，排除 {{ excluded.length }} 条。
+            </p>
+            <p v-for="(diagnostic, index) in preview.diagnostics" :key="index">
+              {{ diagnostic.message }}
+            </p>
+            <ul v-if="excluded.length > 0">
+              <li v-for="result in excluded" :key="result.id">
+                {{ result.rule.description }}：{{
+                  result.diagnostics.map((d) => d.message).join('；') ||
+                  (result.verdict === 'compliant'
+                    ? '未发现违规'
+                    : result.verdict === 'needs_review'
+                      ? '需要复核'
+                      : '缺少已验证的代码位置')
+                }}
+              </li>
+            </ul>
+            <small>提交时将校验源码内容及代码证据是否与分析结果匹配。</small>
           </div>
-          <small v-if="latestDatabasePath" class="module-help">
-            最近代码定位输出：{{ latestDatabasePath }}
-          </small>
         </div>
       </div>
     </Card>
@@ -264,7 +312,12 @@ function selectLatestDatabase() {
         type="primary"
         size="large"
         :loading="assertGeneration.status === 'running'"
-        :disabled="assertGeneration.status === 'running'"
+        :disabled="
+          assertGeneration.status === 'running' ||
+          !!previewError ||
+          (!!assertInputs.analysisDocument &&
+            (!preview || eligible.length === 0))
+        "
         @click="runAssertGeneration"
       >
         <template #icon><IconifyIcon icon="mdi:play" /></template>
@@ -353,6 +406,12 @@ function selectLatestDatabase() {
   font-weight: 600;
 }
 
+.analysis-preview {
+  max-height: 240px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+
 .database-path-row {
   display: flex;
   gap: 8px;
@@ -385,6 +444,12 @@ function selectLatestDatabase() {
 @media (max-width: 760px) {
   .module-input-grid {
     grid-template-columns: 1fr;
+  }
+
+  .analysis-preview {
+    max-height: 240px;
+    overflow: auto;
+    overflow-wrap: anywhere;
   }
 
   .database-path-row {

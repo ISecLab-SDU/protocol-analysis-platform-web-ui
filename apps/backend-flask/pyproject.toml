@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "flask>=3.1.2",
+    "jsonschema>=4.17",
     "faker>=33.0.0",
     "docker>=7.0.0",
     "toml>=0.10.2",

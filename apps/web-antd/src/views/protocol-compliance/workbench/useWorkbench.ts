@@ -40,6 +40,10 @@ import {
   stopProtocolFuzzingJob,
 } from '#/api/protocol-compliance';
 
+import {
+  downloadAnalysisDocument,
+  fetchAnalysisFile,
+} from './analysisExchange';
 import { buildLegacyRulesPayload, validateAnalysisRule } from './ruleFormat';
 import { STAGE_LIST } from './types';
 import { ansiToHtml, normalizeList } from './utils';
@@ -1200,6 +1204,7 @@ async function pollStaticAnalysis(jobId: string, runId: number) {
         const result = await fetchProtocolStaticAnalysisResult(jobId);
         if (!isCurrentPipelineRun(runId)) return;
         staticResult.value = result;
+        void downloadAnalysisDocument(jobId, true);
         await refreshCodeLocateEvidenceFromResult(jobId, result);
         if (!isCurrentPipelineRun(runId)) return;
         if (shouldSkipAfterStaticAnalysis(result)) {
@@ -1301,6 +1306,7 @@ async function runStaticAnalysisStep(runId: number) {
       const result = await fetchProtocolStaticAnalysisResult(job.jobId);
       if (!isCurrentPipelineRun(runId)) return;
       staticResult.value = result;
+      void downloadAnalysisDocument(job.jobId, true);
       await refreshCodeLocateEvidenceFromResult(job.jobId, result);
       if (!isCurrentPipelineRun(runId)) return;
       if (shouldSkipAfterStaticAnalysis(result)) {
@@ -1329,21 +1335,18 @@ async function runAssertGenStep(runId: number) {
     markStageError('assert_gen', '缺少源码压缩包');
     return;
   }
-  const analysisDataPath = staticResult.value?.artifacts?.database;
-  if (!analysisDataPath) {
-    markStageError('assert_gen', '缺少代码定位与一致性分析结果数据');
-    return;
-  }
   setStage('assert_gen', 'running', '准备代码定位与一致性分析结果…');
   assertLogText.value = '';
   assertDiffContent.value = '';
   await nextTick();
   if (!isCurrentPipelineRun(runId)) return;
   try {
-    stageMessage.value = `使用分析结果数据: ${analysisDataPath}`;
+    stageMessage.value = '正在加载分析 JSON…';
+    const analysisDocument = await fetchAnalysisFile(staticJobId.value);
+    if (!isCurrentPipelineRun(runId)) return;
     const job = await runProtocolAssertGeneration({
       codeArchive: projectConfig.archive,
-      databasePath: analysisDataPath,
+      analysisDocument,
       notes: projectConfig.notes,
     });
     if (!isCurrentPipelineRun(runId)) return;

@@ -22,6 +22,8 @@ from typing import Any, BinaryIO, Callable, Dict, List, Mapping, Optional, Seque
 
 import toml
 
+from pg_analysis_exchange import extract_archive, source_root, validate_document, eligible_results
+
 from .config import DEFAULT_CONFIG_PACKET_TYPES, ProtocolGuardDockerSettings, _ensure_directory, _env_int
 from .errors import ProtocolGuardDockerError, ProtocolGuardExecutionError, ProtocolGuardNotAvailableError
 from .job import JobPaths
@@ -338,7 +340,7 @@ class ProtocolGuardDockerRunner:
                 with logger.state(project_dir=project_dir):
                     logger.info("Extracting source archive into /workspace/project")
                     self._reset_directory(project_dir)
-                    self._extract_archive(code_path, project_dir)
+                    extract_archive(code_path, project_dir)
                     if not any(project_dir.iterdir()):
                         raise ProtocolGuardDockerError(
                             "Source archive did not contain any files. Please verify the uploaded archive."
@@ -346,14 +348,17 @@ class ProtocolGuardDockerRunner:
                     logger.info("Source archive extracted into project directory")
 
                 database_filename_real = database_filename or "violations.db"
-                database_destination = job_paths.workspace / "violations.db"
+                database_destination = job_paths.workspace / "analysis.json"
                 logger.info(
                     "Staging analysis result data for assertion generation",
                     destination=database_destination,
                 )
                 self._write_stream(database_destination, database_stream)
                 if not database_destination.exists() or database_destination.stat().st_size == 0:
-                    raise ProtocolGuardDockerError("Uploaded database file is empty. Please verify the input.")
+                    raise ProtocolGuardDockerError("Uploaded analysis document is empty")
+                document = validate_document(json.loads(database_destination.read_text(encoding="utf-8")), source_root(project_dir))
+                if not eligible_results(document):
+                    raise ProtocolGuardDockerError("Analysis has no eligible violations")
 
                 notes_text = notes.strip() if notes else ""
                 if notes_text:
@@ -391,8 +396,8 @@ class ProtocolGuardDockerRunner:
                 workspace_snapshots = [dict(snapshot) for snapshot in self._current_workspace_snapshots]
                 duration_ms = int((time.time() - start) * 1000)
                 now_iso = datetime.now(timezone.utc).isoformat()
-                assertion_count = self._count_files(assert_tasks_dir)
-                protocol_name = self._settings.default_protocol_name
+                assertion_count = len(list((assert_tasks_dir / "task").glob("rule*.txt")))
+                protocol_name = document["protocol"]["name"]
 
                 result: Dict[str, object] = {
                     "jobId": job_paths.job_id,
@@ -402,6 +407,8 @@ class ProtocolGuardDockerRunner:
                     "inputs": {
                         "codeFileName": Path(code_filename_real).name,
                         "databaseFileName": Path(database_filename_real).name,
+                        "analysisDocumentFileName": Path(database_filename_real).name,
+                        "analysisId": document["analysisId"],
                         "notes": notes_text or None,
                     },
                     "artifacts": {

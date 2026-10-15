@@ -125,7 +125,7 @@ def test_container_receives_pi_and_preserves_failure_details(
     "agent,failed", [("pi", False), ("pi", True)]
 )
 def test_http_job_lifecycle_and_artifact_download(
-    provider, monkeypatch, tmp_path, agent, failed
+    provider, monkeypatch, tmp_path, agent, failed, portable_analysis_uploads
 ):
     monkeypatch.setenv("PG_RUNTIME_ROOT", str(tmp_path))
     monkeypatch.setattr(
@@ -179,8 +179,8 @@ def test_http_job_lifecycle_and_artifact_download(
     response = client.post(
         "/jobs",
         data={
-            "codeArchive": (BytesIO(b"source"), "source.tar"),
-            "database": (BytesIO(b"db"), "input.db"),
+            "codeArchive": (BytesIO(portable_analysis_uploads[0]), "source.zip"),
+            "analysisDocument": (BytesIO(portable_analysis_uploads[1]), "analysis.json"),
             "runtime": json.dumps({"agent": agent, "model": "test-model"}),
         },
     )

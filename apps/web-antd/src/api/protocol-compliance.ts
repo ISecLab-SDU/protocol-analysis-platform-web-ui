@@ -64,11 +64,60 @@ interface ProtocolStaticAnalysisCheck {
   violationCount: number;
 }
 
+export interface AnalysisDiagnostic {
+  code: string;
+  severity: 'blocking' | 'warning';
+  message: string;
+  resultId?: string;
+}
+
+export interface ProtocolAnalysisDocument {
+  format: 'protocolguard.analysis';
+  schemaVersion: string;
+  analysisId: string;
+  generatedAt: string;
+  producer: { name: string; version: string };
+  protocol: { name: string; version: null | string };
+  source: {
+    archiveName: string;
+    files: Array<{ path: string; sha256: string }>;
+    treeSha256: string;
+  };
+  results: Array<{
+    context: { callGraph: null | string; codeSlice: null | string };
+    diagnostics: AnalysisDiagnostic[];
+    id: string;
+    locations: Array<{
+      code: string;
+      endLine: number;
+      function: null | string;
+      id: string;
+      path: string;
+      relevantLines: number[];
+      startLine: number;
+    }>;
+    reason: string;
+    rule: {
+      description: string;
+      id: string;
+      reference: null | string;
+      requestFields: string[];
+      requestTypes: string[];
+      responseFields: string[];
+      responseTypes: string[];
+    };
+    verdict: 'compliant' | 'needs_review' | 'non_compliant';
+  }>;
+  diagnostics: AnalysisDiagnostic[];
+}
+
 export interface ProtocolStaticAnalysisResult {
   analysisId: string;
   artifacts?: {
     config?: null | string;
     database?: null | string;
+    exchange?: null | string;
+    exchangeError?: null | string;
     logs?: null | string;
     output?: null | string;
     workspace?: null | string;
@@ -365,6 +414,21 @@ export function fetchProtocolStaticAnalysisResult(jobId: string) {
   );
 }
 
+export async function downloadProtocolAnalysisDocument(
+  jobId: string,
+): Promise<Blob> {
+  const token = useAccessStore().accessToken;
+  const response = (await baseRequestClient.request(
+    `/protocol-compliance/static-analysis/${encodeURIComponent(jobId)}/exchange`,
+    {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      method: 'GET',
+      responseType: 'blob',
+    },
+  )) as { data: Blob };
+  return response.data;
+}
+
 export interface DownloadAflNetPocParams {
   crashLogPath?: string;
   implementation?: string;
@@ -537,6 +601,7 @@ export interface AssertionRuntimeSettings {
 }
 
 export interface RunProtocolAssertGenerationPayload {
+  analysisDocument?: File;
   runtime?: AssertionRuntimeSettings;
   codeArchive: File;
   database?: File;
@@ -547,11 +612,20 @@ export interface RunProtocolAssertGenerationPayload {
 export function runProtocolAssertGeneration(
   payload: RunProtocolAssertGenerationPayload,
 ) {
-  const { codeArchive, database, databasePath, notes, runtime } = payload;
+  const {
+    codeArchive,
+    analysisDocument,
+    database,
+    databasePath,
+    notes,
+    runtime,
+  } = payload;
   const formData = new FormData();
   formData.append('codeArchive', codeArchive);
   if (runtime) formData.append('runtime', JSON.stringify(runtime));
-  if (databasePath?.trim()) {
+  if (analysisDocument) {
+    formData.append('analysisDocument', analysisDocument);
+  } else if (databasePath?.trim()) {
     formData.append('databasePath', databasePath.trim());
   } else if (database) {
     formData.append('database', database);

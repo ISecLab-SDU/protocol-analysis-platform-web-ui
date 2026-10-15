@@ -17,6 +17,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, BinaryIO, Callable, Dict, List, Optional, Sequence, Tuple, TypeGuard
 
+from pg_analysis_exchange import extract_archive, export_database, source_root, validate_document
+from protocol_compliance.analysis_exchange import persist_exchange
+
 from pg_agent_progress.events import is_agent_event
 from pg_agent_progress.legacy import decode_progress_event, decode_progress_line
 
@@ -1134,6 +1137,10 @@ class ClaudeBuilderRunner:
             "--network=host",
         ]
 
+        command.extend(["-e", f"PG_ANALYSIS_ID={job_identifier}"])
+        source_info = workspace_dir / "exchange-source-info.json"
+        if source_info.is_file():
+            command.extend(["-e", f"PG_SOURCE_ARCHIVE_NAME={json.loads(source_info.read_text())['archiveName']}"])
         for env_arg in self._docker_env_args():
             command.append(env_arg)
         logger.debug("[*] Passing configured ProtocolGuard environment variables to container")
@@ -1475,6 +1482,8 @@ class ClaudeBuilderRunner:
             f.write(code_bytes)
 
         try:
+            original_root = extract_archive(archive_path, workspace_dir / "exchange-source")
+            (workspace_dir / "exchange-source-info.json").write_text(json.dumps({"archiveName": Path(code_filename).name}), encoding="utf-8")
             removed = prepare_uploaded_source(archive_path, workspace_dir / "project")
         except (OSError, ValueError, tarfile.TarError, zipfile.BadZipFile) as exc:
             raise ClaudeBuilderRunnerExecutionError(
@@ -1671,11 +1680,34 @@ class ClaudeBuilderRunner:
         config_dir = self.settings.workspace_root.parent / "configs" / job_identifier
         log_file = workspace_dir / "build_log.txt"
 
+        exchange_path = output_dir / "analysis-exchange.json"
+        exchange_error = None
+        try:
+            if not db_path_for_findings:
+                raise ValueError("No analysis database available for JSON export")
+            if exchange_path.is_file():
+                document = validate_document(json.loads(exchange_path.read_text(encoding="utf-8")), original_root)
+                document["analysisId"] = job_identifier
+                document["source"]["archiveName"] = Path(code_filename).name
+                document["protocol"] = {"name": protocol_name or "unknown", "version": protocol_version}
+            else:
+                document = export_database(Path(db_path_for_findings), original_root,
+                                           analysis_id=job_identifier, archive_name=code_filename,
+                                           protocol=protocol_name or "unknown", protocol_version=protocol_version,
+                                           rules=json.loads(rules_bytes),
+                                           analyzed_root=source_root(workspace_dir / "project"))
+            persist_exchange(document, output_dir, Path(db_path_for_findings))
+        except (OSError, ValueError, sqlite3.Error) as exc:
+            exchange_error = str(exc)
+            logger.warning("Analysis JSON export unavailable: %s", exc)
+
         artifacts = {
             "workspace": str(workspace_dir),
             "output": str(output_dir) if output_dir.exists() else None,
             "config": str(config_dir / "config.toml") if (config_dir / "config.toml").exists() else None,
             "logs": str(log_file) if log_file.exists() else None,
+            "exchange": str(exchange_path) if exchange_path.is_file() and not exchange_error else None,
+            "exchangeError": exchange_error,
             "database": db_path_for_findings if db_path_for_findings and Path(db_path_for_findings).exists() else None,
             "workspaceSnapshots": [],
         }
