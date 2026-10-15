@@ -24,7 +24,8 @@ const { top: moduleTop } = useElementBounding(moduleRef, {
   windowScroll: false,
 });
 const workspaceHeight = computed(
-  () => `${Math.max(480, viewportHeight.value - moduleTop.value - 28)}px`,
+  () =>
+    `${Math.max(analysisStarted.value ? 480 : 0, viewportHeight.value - moduleTop.value - 28)}px`,
 );
 
 const analysisStarted = computed(() => codeLocate.rule !== null);
@@ -83,7 +84,11 @@ function removeRules() {
     ref="moduleRef"
     class="analysis-module"
     :style="{ '--module-workspace-height': workspaceHeight }"
-    :class="{ 'analysis-module--focused': analysisStarted }"
+    :class="{
+      'analysis-module--focused': analysisStarted,
+      'analysis-module--selecting':
+        !analysisStarted && codeLocateInputs.rulesFile,
+    }"
   >
     <header class="module-heading">
       <div>
@@ -166,6 +171,7 @@ function removeRules() {
 
     <StageRuleConfirm
       v-if="!analysisStarted && codeLocateInputs.rulesFile"
+      class="module-rules-stage"
       :disabled="codeLocate.status === 'running'"
       :rules-file="codeLocateInputs.rulesFile"
       :show-back="false"
@@ -204,6 +210,32 @@ function removeRules() {
   min-height: var(--module-workspace-height);
 }
 
+.analysis-module--selecting {
+  height: var(--module-workspace-height);
+}
+
+.module-heading,
+.module-card,
+.module-error {
+  flex-shrink: 0;
+}
+
+.module-rules-stage {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.module-rules-stage :deep(.ant-card-head) {
+  flex-shrink: 0;
+}
+
+.module-rules-stage :deep(.ant-card-body) {
+  min-height: 0;
+  overflow: auto;
+}
+
 .module-analysis-stage {
   flex: 1;
   min-width: 0;
@@ -212,11 +244,6 @@ function removeRules() {
 @media (min-width: 1281px) {
   .analysis-module--focused {
     height: var(--module-workspace-height);
-  }
-
-  .module-heading,
-  .module-error {
-    flex-shrink: 0;
   }
 }
 
