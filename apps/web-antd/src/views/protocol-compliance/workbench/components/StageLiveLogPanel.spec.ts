@@ -20,6 +20,78 @@ describe('stageLiveLogPanel', () => {
     ...overrides,
   });
 
+  it('merges alternating artifact checks and file output into one shared card', () => {
+    const messages = [
+      '[pg-builder][2026-10-15T02:51:45Z] [claude-artifact] copied config.toml',
+      '[pg-builder][2026-10-15T02:51:45Z] [claude-artifact] validated program.bc',
+      '[pg-builder][artifact-file] program.bc: LLVM bitcode',
+      '[pg-builder][2026-10-15T02:51:45Z] [claude-artifact] validated program.ll',
+      '[pg-builder][artifact-file] program.ll: ASCII text',
+    ];
+    const wrapper = mount(StageLiveLogPanel, {
+      props: {
+        lines: messages.map((text, index) =>
+          archiveLine(String(index), {
+            text,
+            metadata: index % 2 ? undefined : { activity: 'status' },
+            stage: index % 2 ? 'builder-log' : 'builder',
+          }),
+        ),
+        progress: { label: 'Agent 构建', description: '正在构建' },
+        running: true,
+      },
+    });
+    expect(wrapper.findAll('.agent-line')).toHaveLength(1);
+    expect(wrapper.get('.agent-event-head').text()).toContain('产物校验');
+    expect(wrapper.get('summary').text()).toContain('5 条记录');
+    expect(wrapper.findAll('.output-lines > div')).toHaveLength(5);
+  });
+
+  it('merges untagged snapshots across metadata differences and preserves errors and stage boundaries', () => {
+    const lines = [
+      archiveLine('snapshot', {
+        text: '[pg-builder][2026-10-15T02:51:45Z] Final workspace snapshot',
+      }),
+      archiveLine('total', {
+        text: 'total 16444',
+        metadata: undefined,
+        stage: 'builder-log',
+      }),
+      archiveLine('file', {
+        text: '-rw-r--r-- 1 user user 123 config.toml',
+        metadata: undefined,
+        stage: 'builder-log',
+      }),
+      archiveLine('error', {
+        text: 'validation failed',
+        kind: 'error',
+        metadata: undefined,
+      }),
+      archiveLine('after', { text: 'continuing', metadata: undefined }),
+      archiveLine('next', {
+        text: 'next stage',
+        stage: 'analysis',
+        metadata: undefined,
+      }),
+    ];
+    const wrapper = mount(StageLiveLogPanel, {
+      props: {
+        lines,
+        progress: { label: 'Agent 构建', description: '正在构建' },
+        running: true,
+      },
+    });
+    expect(wrapper.findAll('.agent-line')).toHaveLength(4);
+    expect(wrapper.get('summary').text()).toContain('3 条记录');
+    expect(wrapper.get('.agent-line--error').text()).toContain(
+      'validation failed',
+    );
+    expect(wrapper.findAll('.log-line')).toHaveLength(4);
+    const exposed = wrapper.vm as unknown as { getAllLogText: () => string };
+    for (const line of lines)
+      expect(exposed.getAllLogText()).toContain(line.text);
+  });
+
   it.each([
     'rule_config.json',
     'config.toml',
@@ -40,7 +112,8 @@ describe('stageLiveLogPanel', () => {
       },
     });
     expect(wrapper.findAll('.log-line')).toHaveLength(1);
-    expect(wrapper.get('summary').text()).toContain(`${category} · 5 条记录`);
+    expect(wrapper.get('.agent-event-head').text()).toContain(category);
+    expect(wrapper.get('summary').text()).toContain('5 条记录');
     const rows = wrapper.findAll('.output-lines > div');
     for (const [index, content] of contents.entries()) {
       expect(rows[index]?.element.textContent).toContain(content);
@@ -69,11 +142,9 @@ describe('stageLiveLogPanel', () => {
       },
     });
     expect(wrapper.findAll('.log-line')).toHaveLength(5);
-    expect(wrapper.findAll('details')).toHaveLength(4);
+    expect(wrapper.findAll('details')).toHaveLength(1);
     expect(wrapper.get('summary').text()).toContain('2 条记录');
-    expect(wrapper.get('.agent-primary').text()).toContain(
-      '2026-10-15T03:00:00Z',
-    );
+    expect(wrapper.text()).toContain('output 4');
   });
 
   it('collapses archive listings and preserves expansion and raw copy during streaming', async () => {
@@ -96,7 +167,7 @@ describe('stageLiveLogPanel', () => {
     expect(wrapper.get('details').element).toBe(details);
     expect(details.open).toBe(true);
     expect(wrapper.get('summary').text()).toContain('3 条记录');
-    expect(wrapper.get('summary').text()).toContain('10:40:15');
+    expect(wrapper.get('.agent-event-head time').text()).toContain('10:40:15');
     expect(wrapper.findAll('.output-lines > div')).toHaveLength(3);
     const exposed = wrapper.vm as unknown as { getAllLogText: () => string };
     expect(exposed.getAllLogText().split('\n')).toHaveLength(3);
@@ -130,7 +201,7 @@ describe('stageLiveLogPanel', () => {
       },
     });
     expect(wrapper.findAll('.log-line')).toHaveLength(9);
-    expect(wrapper.findAll('details')).toHaveLength(5);
+    expect(wrapper.findAll('details')).toHaveLength(1);
     expect(wrapper.findAll('summary')[0]?.text()).toContain('3 条记录');
     expect(wrapper.get('.agent-line--error').text()).toContain('src/error.c');
     expect(wrapper.get('.agent-line--command').text()).toContain(
@@ -156,17 +227,15 @@ describe('stageLiveLogPanel', () => {
         running: true,
       },
     });
-    expect(wrapper.findAll('details')).toHaveLength(2);
+    expect(wrapper.findAll('details')).toHaveLength(1);
     expect(wrapper.findAll('.log-line')).toHaveLength(2);
-    expect(wrapper.get('.output-lines').text()).toContain('src/first.c');
-    expect(wrapper.findAll('.output-lines')[1]?.text()).toContain(
-      'warning: failed',
-    );
+    expect(wrapper.get('.agent-primary').text()).toContain('src/first.c');
+    expect(wrapper.get('.output-lines').text()).toContain('warning: failed');
     const exposed = wrapper.vm as unknown as { getAllLogText: () => string };
     expect(exposed.getAllLogText()).toContain('src/hidden.c');
   });
 
-  it('renders log metadata and body in the same flow line', () => {
+  it('renders workflow events using the same card layout as Agent events', () => {
     const wrapper = mount(StageLiveLogPanel, {
       props: {
         lines: [
@@ -186,17 +255,14 @@ describe('stageLiveLogPanel', () => {
       },
     });
 
-    const line = wrapper.get('.log-line');
-    const directClasses = [...line.element.children].map((element) => [
-      ...element.classList,
-    ]);
-
-    expect(line.find('.log-meta').exists()).toBe(false);
-    expect(directClasses).toEqual([
-      ['log-time'],
-      ['log-chip', 'log-chip--phase'],
-      ['log-text'],
-    ]);
+    const line = wrapper.get('.agent-line');
+    expect(line.find('.agent-rail').exists()).toBe(true);
+    expect(line.get('.agent-event-head').text()).toContain('输入接收');
+    expect(line.get('.agent-event-head').text()).toContain('13:53:04');
+    expect(line.get('.agent-primary').text()).toContain(
+      'Preparing assertion generation inputs',
+    );
+    expect(line.find('.log-text').exists()).toBe(false);
   });
 
   it('middle-aligns inline log chips with the surrounding text', () => {

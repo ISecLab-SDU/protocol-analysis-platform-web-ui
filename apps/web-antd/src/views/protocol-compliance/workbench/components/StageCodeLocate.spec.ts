@@ -33,8 +33,8 @@ describe('stageCodeLocate log parsing', () => {
 
     const logLines = wrapper.findAll('.log-line');
 
-    expect(logLines[1]?.find('.log-time').text()).toBe('13:53:05');
-    expect(logLines[1]?.find('.log-text').text()).toBe(
+    expect(logLines[1]?.find('.agent-event-head time').text()).toBe('13:53:05');
+    expect(logLines[1]?.find('.agent-primary').text()).toBe(
       '[pg worker] Launching analysis container image',
     );
   });
@@ -65,12 +65,13 @@ describe('stageCodeLocate log parsing', () => {
       },
     });
 
-    const secondLine = wrapper.findAll('.log-line')[1];
-    if (!secondLine) throw new Error('Expected the second log line to render');
+    const mergedLine = wrapper.get('.log-line');
 
-    expect(secondLine.findAll('.log-chip')).toHaveLength(1);
-    expect(secondLine.find('.log-text').text()).toBe(
-      '[pg-builder][2026-07-12T02:19:25Z] Preparing analysis inputs',
+    expect(wrapper.findAll('.log-line')).toHaveLength(1);
+    expect(mergedLine.findAll('.log-chip')).toHaveLength(1);
+    expect(mergedLine.get('summary').text()).toBe('2 条记录');
+    expect(mergedLine.findAll('.output-lines > div')[1]?.text()).toContain(
+      'Preparing analysis inputs',
     );
   });
 

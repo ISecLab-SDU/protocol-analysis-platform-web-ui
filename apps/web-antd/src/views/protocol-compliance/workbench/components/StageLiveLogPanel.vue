@@ -54,7 +54,7 @@ const displayLines = computed(() => {
     if (category) {
       if (
         outputGroup?.groupCategory === category &&
-        outputGroup.stage === line.stage &&
+        outputStage(outputGroup) === outputStage(line) &&
         outputGroup?.phase === line.phase
       ) {
         outputGroup.groupLines?.push(line);
@@ -70,23 +70,36 @@ const displayLines = computed(() => {
   return entries;
 });
 
-// Builder file previews, inventories and other tagged output share the same
-// envelope. Group by its category, never by timestamp or arbitrary text similarity.
+// Transport metadata must not decide layout: ordinary workflow output and
+// Agent status output share groups, while structured Agent actions stay distinct.
+function outputStage(line: StageLiveLogLine) {
+  return (line.stage || '').replace(/-log$/, '');
+}
+
 function outputCategory(line: StageLiveLogLine) {
   if (
     line.metadata?.quiet ||
     line.metadata?.is_error ||
     line.metadata?.status ||
+    line.metadata?.primary ||
+    line.metadata?.description ||
     (line.metadata?.activity && line.metadata.activity !== 'status') ||
     (line.kind && !['info', 'normal'].includes(line.kind))
   )
     return undefined;
-  const category = /^\[pg-builder\]\[([^\]\r\n]+)\](?: |$)/.exec(
-    line.text,
-  )?.[1];
-  // The builder's ordinary lifecycle logger puts an ISO timestamp in this slot.
-  if (!category || /^\d{4}-\d{2}-\d{2}T/.test(category)) return undefined;
-  return category;
+  const tagged = /^\[pg-builder\]\[([^\]\r\n]+)\] ?([\s\S]*)$/.exec(line.text);
+  let category = tagged?.[1];
+  if (category && /^\d{4}-\d{2}-\d{2}T/.test(category)) {
+    category = /^\[([^\]\r\n]+)\]/.exec(tagged?.[2] || '')?.[1];
+  }
+  // The validation logger and `file` command alternate within one operation.
+  if (
+    category === 'artifact-file' ||
+    /^(?:claude|agent)-artifact$/i.test(category || '')
+  ) {
+    return '产物校验';
+  }
+  return category || '运行输出';
 }
 
 function outputText(line: StageLiveLogLine) {
@@ -123,12 +136,12 @@ function displayText(value: string) {
   return value.replaceAll(/claude/gi, 'Agent');
 }
 
-function isAgentLine(line: StageLiveLogLine) {
-  return Boolean(line.metadata?.activity);
-}
-
 function agentLineKind(line: StageLiveLogLine) {
-  if (line.metadata?.is_error || line.metadata?.status === 'failed')
+  if (
+    line.metadata?.is_error ||
+    line.metadata?.status === 'failed' ||
+    line.kind === 'error'
+  )
     return 'error';
   const activity = line.metadata?.activity;
   if (activity === 'tool_result') return 'observation';
@@ -141,6 +154,8 @@ function agentLineKind(line: StageLiveLogLine) {
     activity === 'result'
   )
     return activity;
+  if (line.kind === 'warning') return 'warning';
+  if (line.kind === 'success') return 'success';
   return 'status';
 }
 
@@ -155,10 +170,13 @@ function agentIcon(line: StageLiveLogLine) {
     status: 'mdi:creation-outline',
     thinking: 'mdi:head-cog-outline',
     write: 'mdi:file-edit-outline',
+    warning: 'mdi:alert-outline',
+    success: 'mdi:check-circle-outline',
   }[agentLineKind(line)];
 }
 
-function agentLabel(line: StageLiveLogLine) {
+function agentLabel(line: DisplayLogLine) {
+  if (line.groupLines) return line.groupCategory;
   const kind = agentLineKind(line);
   if (kind === 'command') return '执行命令';
   if (kind === 'inspect') return '查看文件';
@@ -169,11 +187,15 @@ function agentLabel(line: StageLiveLogLine) {
   if (kind === 'result')
     return line.metadata?.status === 'failed' ? '运行失败' : '运行完成';
   if (kind === 'error') return '执行异常';
-  return 'Agent 状态';
+  if (kind === 'warning') return '运行警告';
+  if (kind === 'success') return '运行成功';
+  return line.metadata?.activity ? 'Agent 状态' : '运行进度';
 }
 
 function agentPrimaryText(line: StageLiveLogLine) {
   if (line.metadata?.primary) return line.metadata.primary;
+  if (!line.metadata?.activity || line.metadata.activity === 'status')
+    return displayText(line.text);
   if (
     line.metadata?.activity === 'thinking' ||
     line.metadata?.activity === 'tool_result'
@@ -254,87 +276,75 @@ function formatCount(value: number) {
         class="log-line"
         :class="[
           line.kind ? `log-line--${line.kind}` : undefined,
-          line.groupLines
-            ? 'output-line'
-            : isAgentLine(line)
-              ? `agent-line agent-line--${agentLineKind(line)}`
-              : undefined,
+          `agent-line agent-line--${agentLineKind(line)}`,
         ]"
       >
-        <details v-if="line.groupLines" class="output-group">
-          <summary>
+        <div class="agent-rail" aria-hidden="true">
+          <IconifyIcon :icon="agentIcon(line)" />
+        </div>
+        <div class="agent-event">
+          <div class="agent-event-head">
+            <strong>{{ agentLabel(line) }}</strong>
             <span class="log-chip log-chip--phase">{{
               displayText(line.phase)
             }}</span>
-            <strong
-              >{{ line.groupCategory }} ·
-              {{ line.groupLines.length }} 条记录</strong
+            <span v-if="line.metadata?.tool" class="agent-tool">{{
+              line.metadata.tool
+            }}</span>
+            <time
+              >{{ line.time || '--:--:--'
+              }}<template
+                v-if="
+                  line.groupLines?.at(-1)?.time &&
+                  line.groupLines.at(-1)?.time !== line.time
+                "
+              >
+                – {{ line.groupLines.at(-1)?.time }}</template
+              ></time
             >
-            <time>{{ line.time || '--:--:--' }}</time>
-            <time v-if="line.groupLines.at(-1)?.time !== line.time"
-              >– {{ line.groupLines.at(-1)?.time || '--:--:--' }}</time
-            >
-          </summary>
-          <div
-            class="output-lines"
-            tabindex="0"
-            :aria-label="`${line.groupCategory} 输出`"
+          </div>
+          <details
+            v-if="line.groupLines && line.groupLines.length > 1"
+            class="output-group"
           >
-            <div v-for="entry in line.groupLines" :key="entry.id">
-              <time>{{ entry.time || '--:--:--' }}</time>
-              {{ outputText(entry) }}
-            </div>
-          </div>
-        </details>
-        <template v-else-if="isAgentLine(line)">
-          <div class="agent-rail" aria-hidden="true">
-            <IconifyIcon :icon="agentIcon(line)" />
-          </div>
-          <div class="agent-event">
-            <div class="agent-event-head">
-              <strong>{{ agentLabel(line) }}</strong>
-              <span class="log-chip log-chip--phase">{{
-                displayText(line.phase)
-              }}</span>
-              <span v-if="line.metadata?.tool" class="agent-tool">{{
-                line.metadata.tool
-              }}</span>
-              <time>{{ line.time || '--:--:--' }}</time>
-            </div>
-            <p
-              v-if="agentLineKind(line) !== 'result'"
-              class="agent-primary"
-              :class="{
-                'agent-primary--code': ['command', 'inspect', 'write'].includes(
-                  agentLineKind(line),
-                ),
-              }"
+            <summary>{{ line.groupLines.length }} 条记录</summary>
+            <div
+              class="output-lines"
+              tabindex="0"
+              :aria-label="`${line.groupCategory} 输出`"
             >
-              {{ agentPrimaryText(line) }}
-            </p>
-            <p v-if="agentDescription(line)" class="agent-description">
-              {{ agentDescription(line) }}
-            </p>
-            <template v-if="agentLineKind(line) === 'result'">
-              <div class="agent-metrics">
-                <div v-for="metric in resultMetrics(line)" :key="metric.label">
-                  <span>{{ metric.label }}</span>
-                  <strong>{{ metric.value }}</strong>
-                </div>
+              <div v-for="entry in line.groupLines" :key="entry.id">
+                <time>{{ entry.time || '--:--:--' }}</time>
+                {{ outputText(entry) }}
               </div>
-              <p v-if="line.metadata?.result" class="agent-result-text">
-                {{ displayText(line.metadata.result) }}
-              </p>
-            </template>
-          </div>
-        </template>
-        <template v-else>
-          <span class="log-time">{{ line.time || '--:--:--' }}</span>
-          <span class="log-chip log-chip--phase">{{
-            displayText(line.phase)
-          }}</span>
-          <span class="log-text">{{ displayText(line.text) }}</span>
-        </template>
+            </div>
+          </details>
+          <p
+            v-else-if="agentLineKind(line) !== 'result'"
+            class="agent-primary"
+            :class="{
+              'agent-primary--code': ['command', 'inspect', 'write'].includes(
+                agentLineKind(line),
+              ),
+            }"
+          >
+            {{ line.groupLines ? outputText(line) : agentPrimaryText(line) }}
+          </p>
+          <p v-if="agentDescription(line)" class="agent-description">
+            {{ agentDescription(line) }}
+          </p>
+          <template v-if="agentLineKind(line) === 'result'">
+            <div class="agent-metrics">
+              <div v-for="metric in resultMetrics(line)" :key="metric.label">
+                <span>{{ metric.label }}</span>
+                <strong>{{ metric.value }}</strong>
+              </div>
+            </div>
+            <p v-if="line.metadata?.result" class="agent-result-text">
+              {{ displayText(line.metadata.result) }}
+            </p>
+          </template>
+        </div>
       </div>
       <div v-if="visibleLines.length === 0" class="log-empty">
         {{ running ? emptyRunningText : emptyIdleText }}
@@ -455,19 +465,8 @@ function formatCount(value: number) {
   border-bottom: 1px solid #e8edf3;
 }
 
-.output-line {
-  display: block;
-  min-height: 30px;
-  padding: 6px 14px;
-}
-
 .output-group summary {
   cursor: pointer;
-}
-
-.output-group summary strong {
-  margin: 0 8px;
-  font-size: 14px;
 }
 
 .output-group time {
@@ -536,6 +535,16 @@ function formatCount(value: number) {
   background: #fffaf0;
   border-left: 3px solid #d6b54c;
   border-radius: 0 4px 4px 0;
+}
+
+.agent-line--warning .agent-rail {
+  color: #7a5d0b;
+  background: #fff4c2;
+}
+
+.agent-line--success .agent-rail {
+  color: #166534;
+  background: #eaf7ef;
 }
 
 .agent-line--error .agent-rail {
@@ -674,18 +683,6 @@ function formatCount(value: number) {
   background: #fff7ed;
 }
 
-.log-time {
-  display: inline-block;
-  width: 82px;
-  vertical-align: middle;
-  color: #64748b;
-  user-select: none;
-}
-
-.log-line > * + * {
-  margin-left: 8px;
-}
-
 .log-chip {
   display: inline-block;
   max-width: 180px;
@@ -706,13 +703,6 @@ function formatCount(value: number) {
   font-weight: 700;
   color: #0b5cad;
   background: #e8f2ff;
-}
-
-.log-text {
-  min-width: 0;
-  vertical-align: middle;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
 }
 
 .log-empty {
