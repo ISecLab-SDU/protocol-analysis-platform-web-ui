@@ -762,3 +762,18 @@ def test_pi_builder_preserves_configured_model_alias(monkeypatch, model_env):
     settings = ClaudeBuilderRunnerSettings.from_env()
     assert settings.model == "claude-configured"
     assert "PG_PI_MODEL=claude-configured" in ClaudeBuilderRunner(settings)._docker_env_args()
+
+
+@pytest.mark.parametrize("env,expected", [({}, "40"), ({"PG_CLAUDE_MAX_TURNS": "7"}, "7"), ({"PG_PI_MAX_TURNS": "9", "PG_CLAUDE_MAX_TURNS": "7"}, "9")])
+def test_pi_builder_preserves_original_turn_budget(monkeypatch, tmp_path, env, expected):
+    from protocol_compliance.claude_builder import pg_claude_builder_sdk as runner
+    prompt = tmp_path / "prompt.md"
+    prompt.write_text("Build the source")
+    monkeypatch.setattr(runner, "PROMPT_PATH", prompt)
+    monkeypatch.setattr(runner.os, "environ", dict(env))
+    def run(**kwargs):
+        assert runner.os.environ["PG_PI_MAX_TURNS"] == expected
+        assert kwargs["workflow"] == "builder"
+        return 0
+    monkeypatch.setattr(runner, "run_pi_task", run)
+    assert runner._run() == 0
