@@ -63,9 +63,16 @@ def run_pi_task(*, cwd: str, prompt: str, workflow: str,
             reader = threading.Thread(target=read_stream, args=(stream, channel), daemon=True)
             reader.start()
             readers.append(reader)
-        process.stdin.write(json.dumps({"cwd": cwd, "prompt": prompt, "workflow": workflow, "task_num": task_num}))
-        process.stdin.close()
         deadline = time.monotonic() + timeout + 10
+        def write_input():
+            try:
+                process.stdin.write(json.dumps({"cwd": cwd, "prompt": prompt, "workflow": workflow, "task_num": task_num}))
+                process.stdin.close()
+            except (OSError, ValueError) as exc:
+                messages.put(("stdin_error", str(exc)))
+        writer = threading.Thread(target=write_input, daemon=True)
+        writer.start()
+        readers.append(writer)
         ended = set()
         completed = False
         failure = "No completed Pi result received"
@@ -77,6 +84,8 @@ def run_pi_task(*, cwd: str, prompt: str, workflow: str,
                 channel, line = messages.get(timeout=min(remaining, 1))
             except queue.Empty:
                 continue
+            if channel == "stdin_error":
+                raise RuntimeError(f"Pi input delivery failed: {line}")
             if line is None:
                 ended.add(channel)
                 continue
