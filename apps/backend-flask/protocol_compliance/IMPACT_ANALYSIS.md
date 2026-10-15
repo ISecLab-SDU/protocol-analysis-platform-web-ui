@@ -22,8 +22,11 @@ Only eligible non-compliant findings are assessed. Findings retain their input
 IDs. Non-security, unsupported-security, and uncertain outcomes are valid
 assessments; infrastructure failure is a failed job, never a fabricated result.
 
-The source-only analysis mode is explicit in job/result metadata. The UI exposes
-its limitations. The worker image defaults to `protoxploit-phase1:main` and must
+Select source-only or native LLVM/SVF analysis with multipart
+`heavyStaticAnalysis=false|true` (default false). The selected mode is explicit
+in job/result metadata. Native mode requires paired whole-module `.bc`/`.ll`
+artifacts and retains the mandatory static-analysis tool gate. Source-only
+evidence limitations remain explicit. The worker image defaults to `protoxploit-phase1:main` and must
 be built on MyServer-Local, transferred directly, and loaded on Presentation.
 Source and input mounts are read-only; artifacts are writable by the service
 UID. Provider credentials travel only in the container environment, with names

@@ -953,6 +953,7 @@ export async function runProtocolExtract(payload: RunProtocolExtractPayload) {
 }
 
 export interface ImpactJob {
+  heavyStaticAnalysis: boolean;
   jobId: string;
   status: 'completed' | 'failed' | 'queued' | 'running';
   stage: string;
@@ -976,10 +977,15 @@ export interface ImpactResult {
     resultId: string;
   }>;
 }
-export function startImpactAnalysis(code: File, analysis: File) {
+export function startImpactAnalysis(
+  code: File,
+  analysis: File,
+  heavyStaticAnalysis = false,
+) {
   const form = new FormData();
   form.append('code', code);
   form.append('analysis', analysis);
+  form.append('heavyStaticAnalysis', String(heavyStaticAnalysis));
   return requestClient.post<ImpactJob>(
     '/protocol-compliance/impact-analysis',
     form,

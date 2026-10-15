@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from flask import request, send_file
+
 from pg_analysis_exchange import eligible_results, extract_archive, validate_document
 from utils.responses import error_response, success_response
 
@@ -124,7 +125,7 @@ def run_job(path, source, env):
             with LOCK:
                 PROCESSES[job_id] = process
             code = process.wait(
-                timeout=3
+                timeout=26
                 * int(env.get("PG_PI_TIMEOUT_SECONDS", 2700))
                 * len(json.loads((path / "input.json").read_text())["cases"])
                 + 120
@@ -166,6 +167,10 @@ def register_impact_routes(bp, authenticate):
             return error_response("Upload code and analysis files"), 400
         path = None
         try:
+            mode = request.form.get("heavyStaticAnalysis", "false")
+            if mode not in {"true", "false"}:
+                raise ValueError("heavyStaticAnalysis must be true or false")
+            heavy_static_analysis = mode == "true"
             runtime = json.loads(request.form.get("runtime", "{}"))
             env = resolve_assertion_runtime(runtime)
             document = json.load(analysis.stream)
@@ -182,7 +187,7 @@ def register_impact_routes(bp, authenticate):
                     {
                         "analysisId": document["analysisId"],
                         "cases": cases,
-                        "heavyStaticAnalysis": False,
+                        "heavyStaticAnalysis": heavy_static_analysis,
                         "timeoutSeconds": int(env.get("PG_PI_TIMEOUT_SECONDS", 2700)),
                     }
                 )
@@ -200,7 +205,7 @@ def register_impact_routes(bp, authenticate):
                 analysisId=document["analysisId"],
                 findingCount=len(cases),
                 runtime=runtime_summary(env),
-                heavyStaticAnalysis=False,
+                heavyStaticAnalysis=heavy_static_analysis,
             )
             threading.Thread(
                 target=run_job, args=(path, source, env), daemon=True

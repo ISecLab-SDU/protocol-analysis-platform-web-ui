@@ -14,6 +14,7 @@ import {
 } from '#/api/protocol-compliance';
 
 const code = ref<File>();
+const analysisMode = ref('source');
 const analysis = ref<File>();
 const job = ref<ImpactJob>();
 const result = ref<ImpactResult>();
@@ -65,7 +66,11 @@ async function start() {
   busy.value = true;
   error.value = '';
   try {
-    const created = await startImpactAnalysis(code.value, analysis.value);
+    const created = await startImpactAnalysis(
+      code.value,
+      analysis.value,
+      analysisMode.value === 'native',
+    );
     job.value = created;
     await refreshHistory();
     await selectJob(created.jobId);
@@ -112,8 +117,19 @@ onBeforeUnmount(() => {
     <Alert
       type="info"
       show-icon
-      message="上传 ProtocolGuard 分析 JSON 和匹配的源码包。使用服务器现有 Pi / LLM 配置，通过源码分析评估影响；结果会明确记录缺少 LLVM 全程序分析的证据限制。"
+      message="上传 ProtocolGuard 分析 JSON 和匹配的源码包。使用服务器现有 Pi / LLM 配置评估影响。源码分析会明确记录证据限制；LLVM / SVF 分析需要源码包中有配对的全程序 .bc 和 .ll 文件。"
     />
+    <label
+      >分析模式
+      <Select
+        v-model:value="analysisMode"
+        aria-label="分析模式"
+        :options="[
+          { label: '源码分析', value: 'source' },
+          { label: '源码 + LLVM / SVF 全程序分析', value: 'native' },
+        ]"
+      />
+    </label>
     <div class="impact-inputs">
       <label
         >分析结果 JSON<input
@@ -155,7 +171,9 @@ onBeforeUnmount(() => {
     />
     <Alert v-if="error" type="error" show-icon :message="error" />
     <div v-if="job">
-      <Tag>{{ job.status }}</Tag> {{ job.message }} <code>{{ job.jobId }}</code>
+      <Tag>{{ job.status }}</Tag
+      ><Tag>{{ job.heavyStaticAnalysis ? 'LLVM / SVF' : '源码分析' }}</Tag>
+      {{ job.message }} <code>{{ job.jobId }}</code>
     </div>
     <section
       v-for="item in result?.results"

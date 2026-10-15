@@ -4,6 +4,7 @@ from zipfile import ZipFile
 
 import pytest
 from flask import Blueprint, Flask
+
 from protocol_compliance import impact_analysis as impact
 
 
@@ -113,3 +114,18 @@ def test_rejects_ineligible_findings(api, portable_analysis_uploads):
     doc = json.loads(document)
     doc["results"][0]["verdict"] = "compliant"
     assert submit(api, (code, json.dumps(doc).encode())).status_code == 400
+
+
+def test_rejects_invalid_native_mode(api, portable_analysis_uploads):
+    code, document = portable_analysis_uploads
+    response = api.post(
+        "/impact-analysis",
+        headers={"Authorization": "test"},
+        data={
+            "code": (io.BytesIO(code), "source.zip"),
+            "analysis": (io.BytesIO(document), "analysis.json"),
+            "heavyStaticAnalysis": "maybe",
+        },
+    )
+    assert response.status_code == 400
+    assert not list(impact.ROOT.glob("*/job.json"))
